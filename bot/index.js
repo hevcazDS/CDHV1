@@ -20,6 +20,15 @@ const { validarEnv, validarMensajeWhatsApp } = require('./validators');
 // Por defecto el bot debe correr en modo headless para no abrir Chrome visible.
 // Solo si se fuerza explícitamente WHATSAPP_HEADLESS=false se mostrará la ventana.
 const WHATSAPP_HEADLESS = process.env.WHATSAPP_HEADLESS !== 'false';
+
+// Escapa una ruta para usarla dentro de un patrón -like de PowerShell: además
+// de duplicar comillas simples (delimitador de la cadena), [ ] deben llevar
+// backtick porque -like los interpreta como clase de caracteres — sin esto,
+// una ruta de proyecto con corchetes (ej. "OneDrive [Trabajo]") haría que el
+// filtro nunca matchee nada, regresando en silencio al bug que esto arregla.
+function escaparParaPsLike(ruta) {
+    return ruta.replace(/'/g, "''").replace(/([[\]])/g, '`$1');
+}
 let qrMostrado = false;
 let dashboardAbierto = false;
 let stockWatcherWorker = null;
@@ -44,7 +53,7 @@ let stockWatcherWorker = null;
 function intentarCerrarProcesosBrowser() {
     if (process.platform !== 'win32') return Promise.resolve();
     return new Promise(resolve => {
-        const sessionDir = path.join(__dirname, '..', '.wwebjs_auth').replace(/'/g, "''");
+        const sessionDir = escaparParaPsLike(path.join(__dirname, '..', '.wwebjs_auth'));
         const ps = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${sessionDir}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
         try {
             execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], {
@@ -106,7 +115,7 @@ function abrirDashboard() {
     // esa misma ventana vieja en cada arranque, es lo que se veía como
     // "se abre y cierra una ventana sola cada poco tiempo".
     if (process.platform === 'win32') {
-        const desktopDir = path.join(root, 'desktop').replace(/'/g, "''");
+        const desktopDir = escaparParaPsLike(path.join(root, 'desktop'));
         const ps = `(Get-CimInstance Win32_Process -Filter "Name='electron.exe'" | Where-Object { $_.CommandLine -like '*${desktopDir}*' }).Count`;
         execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true }, (err, stdout) => {
             const yaAbierta = !err && parseInt(String(stdout).trim(), 10) > 0;
