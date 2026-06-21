@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Accordion } from '@mantine/core';
+import { AppShell, Accordion } from '@mantine/core';
 import { useAuth } from '../context/AuthContext';
 import { Emoji } from '../context/EmojiContext';
 import { api } from '../api';
@@ -80,9 +80,23 @@ export default function Layout() {
   const [abierto, setAbierto] = useState(grupoActivo);
   useEffect(() => { setAbierto(grupoActivo); }, [grupoActivo]);
 
+  // AppShell de Mantine (antes: 4 divs a mano con flex/position manual) —
+  // mismas clases de siempre (sidebar/topbar/content) por dentro de cada
+  // slot, así que la apariencia y los temas claro/oscuro (variables CSS de
+  // styles.css) no cambian; lo que gana es el manejo de offsets/scroll de
+  // header+navbar+main resuelto por Mantine en vez de a mano.
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <AppShell header={{ height: 64 }} navbar={{ width: 230, breakpoint: 0 }} padding={0}>
+      <AppShell.Header className="topbar">
+        <div className="topbar-left">Panel de operaciones</div>
+        <div className="topbar-right">
+          <ThemeSwitcher />
+          <BotStatusWidget />
+          <span className="hevcaz-badge-react">Hevcaz Solutions</span>
+        </div>
+      </AppShell.Header>
+
+      <AppShell.Navbar className="sidebar">
         <div className="sidebar-brand">{nombreNegocio}</div>
         <nav className="sidebar-nav">
           <Accordion value={abierto} onChange={setAbierto} chevronSize={14} styles={ACCORDION_STYLES}>
@@ -104,20 +118,11 @@ export default function Layout() {
           {user?.username} · {user?.rol}
           <div><button className="btn" style={{ marginTop: 10, width: '100%' }} onClick={logout}>Cerrar sesión</button></div>
         </div>
-      </aside>
-      <div className="main-col">
-        <header className="topbar">
-          <div className="topbar-left">Panel de operaciones</div>
-          <div className="topbar-right">
-            <ThemeSwitcher />
-            <BotStatusWidget />
-            <span className="hevcaz-badge-react">Hevcaz Solutions</span>
-          </div>
-        </header>
-        <main className="content">
-          <Outlet />
-        </main>
-      </div>
-    </div>
+      </AppShell.Navbar>
+
+      <AppShell.Main className="content">
+        <Outlet />
+      </AppShell.Main>
+    </AppShell>
   );
 }
