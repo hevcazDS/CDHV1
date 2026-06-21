@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { useWhatsAppQR } from './hooks/useWhatsAppQR';
+import WhatsAppQR from './components/WhatsAppQR';
 import Login from './components/Login';
 import Layout from './components/Layout';
 import Inicio from './pages/Inicio';
@@ -25,8 +27,24 @@ import Prime from './pages/Prime';
 
 export default function App() {
   const { user, cargando } = useAuth();
+  // Vincular WhatsApp y loguearse al dashboard son cosas independientes —
+  // antes el QR solo vivía dentro de Inicio, que nunca se monta sin sesión
+  // de dashboard, así que abrir Electron por primera vez (sin login todavía)
+  // no tenía ninguna forma de mostrarlo. Esta compuerta corre ANTES que la
+  // decisión de login, pero SOLO si todavía no hay sesión — si ya hay una
+  // sesión de dashboard abierta y WhatsApp se desvincula después, no se debe
+  // expulsar al operador a una pantalla completa: ese caso ya lo cubre el
+  // aviso dentro de Inicio.jsx, sin sacarlo de donde esté trabajando.
+  const { qr, qrListo } = useWhatsAppQR();
 
-  if (cargando) return null;
+  if (cargando || !qrListo) return null;
+  if (!user && qr) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <WhatsAppQR qr={qr} pantallaCompleta />
+      </div>
+    );
+  }
   if (!user) return <Login />;
 
   return (

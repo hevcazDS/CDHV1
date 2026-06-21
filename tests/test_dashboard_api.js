@@ -90,12 +90,17 @@ async function main() {
     const health = await fetch(BASE + '/health');
     ok(health.status === 200, 'GET /health no requiere sesión');
 
-    // ── 5b. /api/bot/qr — lo publica bot/index.js en `configuracion` ────
-    const qrVacio = await (await fetch(BASE + '/api/bot/qr', { headers: authHeaders })).json();
+    // ── 5b. /api/bot/qr — lo publica bot/index.js en `configuracion`, y es
+    // pública A PROPÓSITO: tiene que verse ANTES de loguearse al dashboard
+    // (App.jsx la usa para decidir si muestra el QR o la pantalla de login),
+    // así que se prueba explícitamente SIN cookie de sesión.
+    const qrSinSesion = await fetch(BASE + '/api/bot/qr');
+    ok(qrSinSesion.status === 200, 'GET /api/bot/qr sin sesión -> 200 (pública a propósito, no 401)');
+    const qrVacio = await qrSinSesion.json();
     ok(qrVacio.qr === null, 'GET /api/bot/qr sin QR pendiente devuelve null');
     db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('whatsapp_qr', 'dato-qr-de-prueba') ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run();
-    const qrConDato = await (await fetch(BASE + '/api/bot/qr', { headers: authHeaders })).json();
-    ok(qrConDato.qr === 'dato-qr-de-prueba', 'GET /api/bot/qr refleja el QR publicado por el bot');
+    const qrConDato = await (await fetch(BASE + '/api/bot/qr')).json();
+    ok(qrConDato.qr === 'dato-qr-de-prueba', 'GET /api/bot/qr refleja el QR publicado por el bot, también sin sesión');
 
     // ── 6. /api/stats agrega correctamente ───────────────────────────────
     const stats = await fetch(BASE + '/api/stats', { headers: authHeaders });

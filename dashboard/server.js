@@ -497,12 +497,19 @@ function handleRequest(req, res) {
     }
 
     const esRutaApi = u.pathname.startsWith('/api/');
-    // Estas tres rutas manejan la ausencia de sesión ellas mismas (login la crea,
+    // Estas rutas manejan la ausencia de sesión ellas mismas (login la crea,
     // /me y /logout responden algo razonable sin una) — el resto de /api/* exige
     // sesión válida aquí, antes de llegar a handleAPI.
     const esRutaPublica = (u.pathname === '/api/login' && req.method === 'POST')
         || (u.pathname === '/api/logout' && req.method === 'POST')
-        || (u.pathname === '/api/me' && req.method === 'GET');
+        || (u.pathname === '/api/me' && req.method === 'GET')
+        // El QR de vinculación de WhatsApp tiene que verse ANTES de loguearse
+        // al dashboard — son dos cosas independientes (vincular el bot vs.
+        // entrar al panel) y exigir sesión aquí dejaba la pantalla de login
+        // como única opción al abrir Electron por primera vez, sin forma de
+        // llegar nunca al QR. Mismo criterio de confianza que /health y los
+        // estáticos: nadie sin acceso a esta máquina puede pegarle.
+        || (u.pathname === '/api/bot/qr' && req.method === 'GET');
 
     if (esRutaApi && !esRutaPublica) {
         if (!requireSession(req, res)) return;
