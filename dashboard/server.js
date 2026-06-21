@@ -17,6 +17,13 @@ const { NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigS
 require('dotenv').config({ quiet: true });
 const log = require('../bot/logger')('dashboard');
 
+// Respaldo de último recurso para código fuera del try/catch de cada request
+// (setInterval de limpieza, callbacks de pm2(), etc). El try/catch alrededor
+// de handleRequest cubre el caso común; esto es para que NUNCA se caiga el
+// proceso entero por una excepción que se nos escapó de cubrir.
+process.on('uncaughtException',  e => log.error('🔴 CRÍTICO (dashboard)', e));
+process.on('unhandledRejection', e => log.error('🔴 PROMESA (dashboard)', e instanceof Error ? e : new Error(String(e))));
+
 // ── Control del bot vía PM2 — mismo mecanismo en Windows y NixOS/Linux,
 // ya es lo que usan start:all/stop en package.json. No se reinventa nada,
 // solo se expone por HTTP para que una ventana (navegador en modo app,
@@ -182,8 +189,15 @@ function crearUsuarioSiNoExiste(username, password, rol, nombreOverride = null) 
 }
 // Semilla única desde las credenciales que ya existían en .env — así no se
 // necesita todavía una pantalla de gestión de usuarios para arrancar.
-crearUsuarioSiNoExiste(DASH_USER, DASH_PASS, 'admin', DASH_NOMBRE);
-if (USER_PRIME && USER_PRIME_PASSWORD) crearUsuarioSiNoExiste(USER_PRIME, USER_PRIME_PASSWORD, 'prime', USER_PRIME_NOMBRE);
+// En try/catch: una fila legada duplicada (mismo username en dos filas, de
+// antes del índice único de _asegurarColumnasUsuarios) haría que el INSERT
+// truene aquí, a nivel de módulo, y tirara el proceso en cada arranque.
+try {
+    crearUsuarioSiNoExiste(DASH_USER, DASH_PASS, 'admin', DASH_NOMBRE);
+    if (USER_PRIME && USER_PRIME_PASSWORD) crearUsuarioSiNoExiste(USER_PRIME, USER_PRIME_PASSWORD, 'prime', USER_PRIME_NOMBRE);
+} catch (e) {
+    log.error('No se pudo crear/verificar el usuario semilla', e);
+}
 
 // ── Historial de estatus del bot — para que el widget del header no solo
 // muestre "inactivo" sin contexto, sino cuándo y por qué cambió.
@@ -2022,6 +2036,24 @@ const DASHBOARD_ORIGIN = `http://localhost:${PORT}`;
 
 // ── Servidor ──────────────────────────────────────────────────────────────
 const server = http.createServer((req, res) => {
+    try {
+        return handleRequest(req, res);
+    } catch (e) {
+        // Cualquier ruta hace db.prepare(...).run()/.get()/.all() de forma
+        // síncrona (better-sqlite3) y sin este try/catch, una sola consulta
+        // mala (columna faltante en una BD vieja, SQLITE_BUSY transitorio,
+        // etc.) tiraba TODO el proceso para todos los usuarios — el mismo
+        // tipo de bug que dejó a `usuarios` en bucle de reinicio (ver
+        // _asegurarColumnasUsuarios más arriba).
+        log.error('🔴 Error no capturado en request', e);
+        try {
+            if (!res.headersSent) json(res, { ok: false, error: 'Error interno del servidor' }, 500);
+            else res.end();
+        } catch (_) {}
+    }
+});
+
+function handleRequest(req, res) {
     const u = new URL(req.url, `http://localhost:${PORT}`);
 
     if (req.method === 'OPTIONS') {
@@ -2062,7 +2094,7 @@ const server = http.createServer((req, res) => {
     // dashboard.html legado mientras se completa la migración. Públicos a
     // propósito — la pantalla de login es parte de este mismo bundle.
     return serveStatic(req, res, u.pathname);
-});
+}
 
 server.listen(PORT, '127.0.0.1', () => {
     log.info(`🧸 Dashboard corriendo en http://localhost:${PORT}`);

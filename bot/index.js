@@ -79,7 +79,11 @@ if (!_envCheck.ok) {
     process.exit(1);
 }
 
-process.on('uncaughtException',  e => log.error('🔴 CRÍTICO', e));
+// Sin esto, Node deja el proceso corriendo en un estado corrupto tras una
+// excepción no capturada (con un listener registrado, Node ya no sale solo) —
+// mejor un reinicio limpio vía pm2 que un bot zombie que parece vivo pero ya
+// no procesa mensajes correctamente. shutdown() está definido más abajo.
+process.on('uncaughtException',  e => { log.error('🔴 CRÍTICO', e); shutdown('uncaughtException'); });
 process.on('unhandledRejection', e => log.error('🔴 PROMESA', e instanceof Error ? e : new Error(String(e))));
 
 // ══════════════════════════════════════════════════════════════════
@@ -104,9 +108,12 @@ setInterval(() => {
     const cutoff = now - 3_600_000;
     // Si el mapa crece demasiado, limpiar los más viejos primero
     if (_rl.size > 500) {
+        // Antes comparaba a[1].msgs, que nunca existe (el objeto solo tiene
+        // .ts/.img) — siempre evaluaba a [0] y el desalojo "más viejo primero"
+        // en realidad borraba entradas casi al azar.
         const sorted = [..._rl.entries()].sort((a,b) => {
-            const lastA = Math.max(...(a[1].msgs||[0]), ...(a[1].img||[0]));
-            const lastB = Math.max(...(b[1].msgs||[0]), ...(b[1].img||[0]));
+            const lastA = Math.max(0, ...a[1].ts, ...a[1].img);
+            const lastB = Math.max(0, ...b[1].ts, ...b[1].img);
             return lastA - lastB;
         });
         sorted.slice(0, 200).forEach(([uid]) => _rl.delete(uid));
