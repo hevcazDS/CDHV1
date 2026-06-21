@@ -491,6 +491,11 @@ function handleAPI(req, res) {
             pagos_pendientes: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='generado'").get()?.c || 0,
             pagos_pagados: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='pagado'").get()?.c || 0,
             cola_atencion: db.prepare("SELECT COUNT(*) c FROM cola_atencion WHERE estatus='en_espera'").get()?.c || 0,
+            // cola_notificaciones (WhatsApp) ya tiene su propia página dedicada
+            // (ColaEnvios.jsx); cola_emails nunca tuvo ninguna — un correo de
+            // confirmación de pedido podía fallar en silencio sin que el
+            // operador tuviera forma de notarlo desde el dashboard.
+            emails_error: db.prepare("SELECT COUNT(*) c FROM cola_emails WHERE estatus='error'").get()?.c || 0,
         };
         return json(res, stats);
     }

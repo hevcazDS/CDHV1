@@ -33,6 +33,7 @@ CREATE TABLE guias_estafeta (id INTEGER PRIMARY KEY AUTOINCREMENT, id_pedido INT
 CREATE TABLE clientes (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, telefono TEXT, email TEXT,
     activo INTEGER DEFAULT 1, creado_en TEXT, ultima_actividad TEXT, codigo_referido TEXT, tags TEXT);
 CREATE TABLE cola_atencion (id INTEGER PRIMARY KEY AUTOINCREMENT, estatus TEXT NOT NULL DEFAULT 'en_espera');
+CREATE TABLE cola_emails (id INTEGER PRIMARY KEY AUTOINCREMENT, estatus TEXT NOT NULL DEFAULT 'pendiente');
 CREATE TABLE promociones (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT, tipo TEXT, valor REAL,
     id_producto INTEGER, fecha_inicio TEXT, fecha_fin TEXT, usos_max INTEGER DEFAULT 0, usos_actual INTEGER DEFAULT 0, activa INTEGER DEFAULT 1);
 CREATE TABLE tickets_venta (id INTEGER PRIMARY KEY AUTOINCREMENT, id_promocion INTEGER);
@@ -93,6 +94,10 @@ async function main() {
     const stats = await fetch(BASE + '/api/stats', { headers: authHeaders });
     const statsBody = await stats.json();
     ok(stats.status === 200 && statsBody.pedidos_total === 1, 'GET /api/stats cuenta el pedido de prueba');
+    ok(statsBody.emails_error === 0, 'GET /api/stats reporta 0 emails con error cuando no hay ninguno');
+    db.prepare("INSERT INTO cola_emails (estatus) VALUES ('error')").run();
+    const statsConError = await (await fetch(BASE + '/api/stats', { headers: authHeaders })).json();
+    ok(statsConError.emails_error === 1, 'GET /api/stats refleja un email con estatus=error (antes invisible en el dashboard)');
 
     // ── 7. Validación Zod nueva (fase 3) en /api/cupon/redimir ──────────
     const cuponMalo = await fetch(BASE + '/api/cupon/redimir', {
