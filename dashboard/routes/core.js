@@ -5,7 +5,7 @@
 // lo que este rango referenciaba como variable de módulo en el archivo
 // original (ver dashboard/server.js para la construcción de ctx).
 module.exports = function coreRoutes(req, res, p, u, ctx, next) {
-    const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
+    const { db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
     // POST /api/login {username, password} — reemplaza el pop-up de Basic Auth
     if (p === '/api/login' && req.method === 'POST') {
         return readBody(req, body => {
@@ -182,12 +182,18 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
         return;
     }
 
-    // POST /api/bot/restart
+    // POST /api/bot/restart — cierra la ventana de Electron existente antes de
+    // pedirle a pm2 que reinicie: bot/index.js ya la reabre sola en su
+    // arranque, así que el operador siempre ve una ventana fresca tras
+    // reiniciar, sin que el dashboard mismo se vea afectado (pm2 solo toca
+    // bot-whatsapp, nunca el proceso 'dashboard').
     if (p === '/api/bot/restart' && req.method === 'POST') {
-        pm2(['restart', 'bot-whatsapp'], (err, stdout, stderr) => {
-            if (err) return json(res, { ok:false, error: stderr || err.message }, 500);
-            registrarCambioEstatusBot('online', 'reiniciado manualmente desde el dashboard');
-            return json(res, { ok:true, estatus:'reiniciado' });
+        cerrarElectronSiAbierto(() => {
+            pm2(['restart', 'bot-whatsapp'], (err, stdout, stderr) => {
+                if (err) return json(res, { ok:false, error: stderr || err.message }, 500);
+                registrarCambioEstatusBot('online', 'reiniciado manualmente desde el dashboard');
+                return json(res, { ok:true, estatus:'reiniciado' });
+            });
         });
         return;
     }

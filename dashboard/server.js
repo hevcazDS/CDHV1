@@ -42,6 +42,25 @@ const ECOSYSTEM_PATH = path.join(__dirname, '..', 'ecosystem.config.js');
 // comillas y se rompe igual. windowsHide:true evita que parpadee una
 // ventana de consola en cada poll de estatus (cada 15s desde el dashboard).
 const PM2_BIN = process.platform === 'win32' ? 'pm2.cmd' : 'pm2';
+
+// Mismo patrón que bot/index.js (escaparParaPsLike + filtro por línea de
+// comando, nunca por nombre de proceso a secas). bot/index.js ya reabre
+// Electron solo en cada arranque del bot (abrirDashboard(), incondicional,
+// no detrás de ningún evento de WhatsApp) — esta función SOLO cierra la
+// ventana vieja antes de pedirle a pm2 que reinicie, para que la que
+// reabra el bot sea una fresca y no quede una mostrando el estado de
+// antes del reinicio. Si esta función también la reabriera, compite con
+// abrirDashboard() y se duplica la ventana (confirmado al probarlo).
+function escaparParaPsLike(ruta) {
+    return ruta.replace(/'/g, "''").replace(/([[\]])/g, '`$1');
+}
+function cerrarElectronSiAbierto(cb) {
+    if (process.platform !== 'win32') return cb();
+    const desktopDir = escaparParaPsLike(path.join(__dirname, '..', 'desktop'));
+    const ps = `Get-CimInstance Win32_Process -Filter "Name='electron.exe'" | Where-Object { $_.CommandLine -like '*${desktopDir}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true }, () => setTimeout(cb, 1500));
+}
+
 function pm2(args, cb) {
     if (process.platform === 'win32') {
         const inner = [PM2_BIN, ...args].map(arg => `"${String(arg).replace(/"/g, '\\"')}"`).join(' ');
@@ -412,7 +431,7 @@ function construirAudienciaMasivo({ soloConPedido, excluirTags, soloTags, sinAct
 // el mismo fallthrough secuencial del  original — ningún módulo sabe si
 // "matcheó" salvo por no llamar a next().
 const ctx = {
-    db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema,
+    db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema,
 };
 
 const ROUTE_MODULES = [
