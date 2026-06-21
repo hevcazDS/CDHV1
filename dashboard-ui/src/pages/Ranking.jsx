@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { useEmojisActivos, useTextoEmoji } from '../context/EmojiContext';
@@ -8,30 +8,28 @@ const MEDALLA = ['🥇', '🥈', '🥉'];
 export default function Ranking() {
   const txt = useTextoEmoji();
   const emojisOn = useEmojisActivos();
-  const [rows, setRows] = useState(null);
-  const [error, setError] = useState('');
 
-  const cargar = () => {
-    api.get('/api/puntos/ranking').then(setRows).catch(e => setError(e.message));
-  };
-  useEffect(cargar, []);
+  const { data: rows, error, refetch } = useQuery({
+    queryKey: ['ranking-puntos'],
+    queryFn: () => api.get('/api/puntos/ranking'),
+  });
 
   return (
     <div>
       <div className="page-title">Ranking</div>
       <div className="page-sub">Top clientes por puntos de lealtad</div>
-      {error && <div className="login-error">No se pudo cargar el ranking: {error}</div>}
+      {error && <div className="login-error">No se pudo cargar el ranking: {error.message}</div>}
 
       <div className="card">
         <div className="card-header">
           <h3>{txt('🏆 Top clientes por puntos')}</h3>
-          <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button></div>
+          <div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button></div>
         </div>
         <div className="table-wrap">
           <table>
             <thead><tr><th>#</th><th>Cliente</th><th>Teléfono</th><th>Puntos ganados</th><th>Disponibles</th><th>Canjeados</th><th>Último mov.</th></tr></thead>
             <tbody>
-              {rows === null && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
+              {rows === undefined && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
               {rows?.length === 0 && <tr><td colSpan={7} className="empty">Sin datos de puntos aún</td></tr>}
               {rows?.map((r, i) => (
                 <tr key={i}>

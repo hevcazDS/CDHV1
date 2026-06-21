@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { useTextoEmoji } from '../context/EmojiContext';
 
@@ -12,6 +13,7 @@ const CATEGORIAS_FILTRO = [
 
 export default function Prime() {
   const txt = useTextoEmoji();
+  const queryClient = useQueryClient();
   const [costoDefault, setCostoDefault] = useState('');
   const [idPedido, setIdPedido] = useState('');
   const [costoPedido, setCostoPedido] = useState('');
@@ -23,14 +25,12 @@ export default function Prime() {
   const [reconexionAuto, setReconexionAuto] = useState(false);
   const [msgReconexion, setMsgReconexion] = useState('');
 
-  const [palabras, setPalabras] = useState([]);
   const [nuevaCategoria, setNuevaCategoria] = useState('bw_word');
   const [nuevaPalabra, setNuevaPalabra] = useState('');
   const [nuevosPuntos, setNuevosPuntos] = useState('1');
   const [msgFiltro, setMsgFiltro] = useState('');
 
   // ── Sucursales ──────────────────────────────────────────────────────────
-  const [sucursales, setSucursales] = useState([]);
   const [nuevaSucursal, setNuevaSucursal] = useState({ nombre: '', codigo: '', direccion: '' });
   const [msgSucursales, setMsgSucursales] = useState('');
 
@@ -44,39 +44,39 @@ export default function Prime() {
   const [msgProducto, setMsgProducto] = useState('');
 
   // ── Usuarios del dashboard ──────────────────────────────────────────────
-  const [usuarios, setUsuarios] = useState([]);
   const [nuevoUsuario, setNuevoUsuario] = useState({ username: '', password: '', rol: 'admin' });
   const [msgUsuarios, setMsgUsuarios] = useState('');
 
   // ── Stock mínimo por producto+sucursal ──────────────────────────────────
-  const [inventarios, setInventarios] = useState([]);
   const [buscarInventario, setBuscarInventario] = useState('');
   const [editandoMinimo, setEditandoMinimo] = useState({});
   const [msgInventario, setMsgInventario] = useState('');
 
-  const cargarPalabras = () => {
-    api.get('/api/prime/palabras-filtro').then(d => setPalabras(d.items || []));
-  };
-  const cargarSucursales = () => {
-    api.get('/api/prime/sucursales').then(setSucursales).catch(e => setMsgSucursales(e.message));
-  };
-  const cargarUsuarios = () => {
-    api.get('/api/prime/usuarios').then(setUsuarios).catch(e => setMsgUsuarios(e.message));
-  };
-  const cargarInventarios = (q) => {
-    const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-    api.get(`/api/prime/inventarios${qs}`).then(setInventarios).catch(e => setMsgInventario(e.message));
-  };
+  const { data: palabras = [] } = useQuery({
+    queryKey: ['prime-palabras-filtro'],
+    queryFn: () => api.get('/api/prime/palabras-filtro').then(d => d.items || []),
+  });
+  const { data: sucursales = [] } = useQuery({
+    queryKey: ['prime-sucursales'],
+    queryFn: () => api.get('/api/prime/sucursales'),
+  });
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ['prime-usuarios'],
+    queryFn: () => api.get('/api/prime/usuarios'),
+  });
+  const { data: inventarios = [] } = useQuery({
+    queryKey: ['prime-inventarios', buscarInventario],
+    queryFn: () => {
+      const qs = buscarInventario ? `?q=${encodeURIComponent(buscarInventario)}` : '';
+      return api.get(`/api/prime/inventarios${qs}`);
+    },
+  });
 
   useEffect(() => {
     api.get('/api/prime/envio-default').then(d => setCostoDefault(String(d.costo_envio_default)));
     api.get('/api/prime/estafeta-dias-entrega').then(d => setDiasEntrega(String(d.dias_entrega)));
     api.get('/api/negocio').then(d => setNombreNegocio(d.nombre_negocio));
     api.get('/api/prime/config').then(d => setReconexionAuto(!!d.reconexion_auto_activo)).catch(() => {});
-    cargarPalabras();
-    cargarSucursales();
-    cargarUsuarios();
-    cargarInventarios();
   }, []);
 
   const toggleReconexionAuto = async () => {
@@ -88,96 +88,115 @@ export default function Prime() {
     } catch (e) { setMsgReconexion(e.message); }
   };
 
-  const crearSucursal = async () => {
-    setMsgSucursales('');
-    try {
-      await api.post('/api/prime/sucursales', {
-        nombre: nuevaSucursal.nombre,
-        codigo: nuevaSucursal.codigo || undefined,
-        direccion: nuevaSucursal.direccion || undefined,
-      });
+  const crearSucursalMutation = useMutation({
+    mutationFn: () => api.post('/api/prime/sucursales', {
+      nombre: nuevaSucursal.nombre,
+      codigo: nuevaSucursal.codigo || undefined,
+      direccion: nuevaSucursal.direccion || undefined,
+    }),
+    onSuccess: () => {
       setNuevaSucursal({ nombre: '', codigo: '', direccion: '' });
-      cargarSucursales();
-    } catch (e) { setMsgSucursales(e.message); }
-  };
+      queryClient.invalidateQueries({ queryKey: ['prime-sucursales'] });
+    },
+    onError: (e) => setMsgSucursales(e.message),
+  });
+  const crearSucursal = () => { setMsgSucursales(''); crearSucursalMutation.mutate(); };
 
-  const toggleSucursal = async (id, activa) => {
-    try { await api.put(`/api/prime/sucursales/${id}`, { activa }); cargarSucursales(); }
-    catch (e) { setMsgSucursales(e.message); }
-  };
+  const toggleSucursalMutation = useMutation({
+    mutationFn: ({ id, activa }) => api.put(`/api/prime/sucursales/${id}`, { activa }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['prime-sucursales'] }),
+    onError: (e) => setMsgSucursales(e.message),
+  });
+  const toggleSucursal = (id, activa) => toggleSucursalMutation.mutate({ id, activa });
 
-  const borrarSucursal = async (id) => {
-    try { await api.del(`/api/prime/sucursales/${id}`); cargarSucursales(); }
-    catch (e) { setMsgSucursales(e.message); }
-  };
+  const borrarSucursalMutation = useMutation({
+    mutationFn: (id) => api.del(`/api/prime/sucursales/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['prime-sucursales'] }),
+    onError: (e) => setMsgSucursales(e.message),
+  });
+  const borrarSucursal = (id) => borrarSucursalMutation.mutate(id);
 
-  const crearProducto = async () => {
+  const crearProductoMutation = useMutation({
+    mutationFn: () => api.post('/api/prime/productos', {
+      ...nuevoProducto,
+      price: Number(nuevoProducto.price),
+      edad_min: nuevoProducto.edad_min ? Number(nuevoProducto.edad_min) : undefined,
+      stock_tienda: Number(nuevoProducto.stock_tienda || 0),
+      stock_cedis: Number(nuevoProducto.stock_cedis || 0),
+      stock_san_luis_potosi: Number(nuevoProducto.stock_san_luis_potosi || 0),
+      cat: nuevoProducto.cat || undefined,
+      url_imagen: nuevoProducto.url_imagen || undefined,
+      tags: nuevoProducto.tags || undefined,
+      seo_description: nuevoProducto.seo_description || undefined,
+      edad_recomendada: nuevoProducto.edad_recomendada || undefined,
+      genero: nuevoProducto.genero || undefined,
+    }),
+    onSuccess: () => {
+      setMsgProducto(`Producto "${nuevoProducto.name}" creado.`);
+      setNuevoProducto(PRODUCTO_VACIO);
+    },
+    onError: (e) => setMsgProducto(e.message),
+  });
+  const crearProducto = () => {
     setMsgProducto('');
     if (!nuevoProducto.name.trim() || !nuevoProducto.price) {
       setMsgProducto('Nombre y precio son obligatorios.');
       return;
     }
-    try {
-      await api.post('/api/prime/productos', {
-        ...nuevoProducto,
-        price: Number(nuevoProducto.price),
-        edad_min: nuevoProducto.edad_min ? Number(nuevoProducto.edad_min) : undefined,
-        stock_tienda: Number(nuevoProducto.stock_tienda || 0),
-        stock_cedis: Number(nuevoProducto.stock_cedis || 0),
-        stock_san_luis_potosi: Number(nuevoProducto.stock_san_luis_potosi || 0),
-        cat: nuevoProducto.cat || undefined,
-        url_imagen: nuevoProducto.url_imagen || undefined,
-        tags: nuevoProducto.tags || undefined,
-        seo_description: nuevoProducto.seo_description || undefined,
-        edad_recomendada: nuevoProducto.edad_recomendada || undefined,
-        genero: nuevoProducto.genero || undefined,
-      });
-      setMsgProducto(`Producto "${nuevoProducto.name}" creado.`);
-      setNuevoProducto(PRODUCTO_VACIO);
-    } catch (e) { setMsgProducto(e.message); }
+    crearProductoMutation.mutate();
   };
 
-  const crearUsuario = async () => {
-    setMsgUsuarios('');
-    try {
-      await api.post('/api/prime/usuarios', nuevoUsuario);
+  const crearUsuarioMutation = useMutation({
+    mutationFn: () => api.post('/api/prime/usuarios', nuevoUsuario),
+    onSuccess: () => {
       setNuevoUsuario({ username: '', password: '', rol: 'admin' });
-      cargarUsuarios();
-    } catch (e) { setMsgUsuarios(e.message); }
-  };
+      queryClient.invalidateQueries({ queryKey: ['prime-usuarios'] });
+    },
+    onError: (e) => setMsgUsuarios(e.message),
+  });
+  const crearUsuario = () => { setMsgUsuarios(''); crearUsuarioMutation.mutate(); };
 
-  const cambiarRolUsuario = async (id, rol) => {
-    try { await api.put(`/api/prime/usuarios/${id}`, { rol }); cargarUsuarios(); }
-    catch (e) { setMsgUsuarios(e.message); }
-  };
+  const cambiarRolUsuarioMutation = useMutation({
+    mutationFn: ({ id, rol }) => api.put(`/api/prime/usuarios/${id}`, { rol }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['prime-usuarios'] }),
+    onError: (e) => setMsgUsuarios(e.message),
+  });
+  const cambiarRolUsuario = (id, rol) => cambiarRolUsuarioMutation.mutate({ id, rol });
 
-  const borrarUsuario = async (id) => {
-    try { await api.del(`/api/prime/usuarios/${id}`); cargarUsuarios(); }
-    catch (e) { setMsgUsuarios(e.message); }
-  };
+  const borrarUsuarioMutation = useMutation({
+    mutationFn: (id) => api.del(`/api/prime/usuarios/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['prime-usuarios'] }),
+    onError: (e) => setMsgUsuarios(e.message),
+  });
+  const borrarUsuario = (id) => borrarUsuarioMutation.mutate(id);
 
-  const agregarPalabra = async () => {
-    setMsgFiltro('');
-    try {
-      await api.post('/api/prime/palabras-filtro', {
-        categoria: nuevaCategoria,
-        palabra: nuevaPalabra,
-        puntos: nuevaCategoria === 'risk' ? Number(nuevosPuntos) : undefined,
-      });
+  const agregarPalabraMutation = useMutation({
+    mutationFn: () => api.post('/api/prime/palabras-filtro', {
+      categoria: nuevaCategoria,
+      palabra: nuevaPalabra,
+      puntos: nuevaCategoria === 'risk' ? Number(nuevosPuntos) : undefined,
+    }),
+    onSuccess: () => {
       setNuevaPalabra('');
-      cargarPalabras();
-    } catch (e) { setMsgFiltro(e.message); }
-  };
+      queryClient.invalidateQueries({ queryKey: ['prime-palabras-filtro'] });
+    },
+    onError: (e) => setMsgFiltro(e.message),
+  });
+  const agregarPalabra = () => { setMsgFiltro(''); agregarPalabraMutation.mutate(); };
 
-  const togglePalabra = async (id, activo) => {
-    try { await api.put(`/api/prime/palabras-filtro/${id}`, { activo }); cargarPalabras(); }
-    catch (e) { setMsgFiltro(e.message); }
-  };
+  const togglePalabraMutation = useMutation({
+    mutationFn: ({ id, activo }) => api.put(`/api/prime/palabras-filtro/${id}`, { activo }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['prime-palabras-filtro'] }),
+    onError: (e) => setMsgFiltro(e.message),
+  });
+  const togglePalabra = (id, activo) => togglePalabraMutation.mutate({ id, activo });
 
-  const eliminarPalabra = async (id) => {
-    try { await api.del(`/api/prime/palabras-filtro/${id}`); cargarPalabras(); }
-    catch (e) { setMsgFiltro(e.message); }
-  };
+  const eliminarPalabraMutation = useMutation({
+    mutationFn: (id) => api.del(`/api/prime/palabras-filtro/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['prime-palabras-filtro'] }),
+    onError: (e) => setMsgFiltro(e.message),
+  });
+  const eliminarPalabra = (id) => eliminarPalabraMutation.mutate(id);
 
   const guardarDefault = async () => {
     setMsg('');
@@ -211,15 +230,19 @@ export default function Prime() {
     } catch (e) { setMsg(e.message); }
   };
 
-  const guardarStockMinimo = async (id) => {
+  const guardarStockMinimoMutation = useMutation({
+    mutationFn: ({ id, valor }) => api.put(`/api/prime/inventarios/${id}`, { stock_minimo: valor }),
+    onSuccess: (_, { id }) => {
+      setEditandoMinimo(prev => { const next = { ...prev }; delete next[id]; return next; });
+      queryClient.invalidateQueries({ queryKey: ['prime-inventarios'] });
+    },
+    onError: (e) => setMsgInventario(e.message),
+  });
+  const guardarStockMinimo = (id) => {
     setMsgInventario('');
     const valor = Number(editandoMinimo[id]);
     if (!Number.isFinite(valor) || valor < 0) { setMsgInventario('stock_minimo inválido'); return; }
-    try {
-      await api.put(`/api/prime/inventarios/${id}`, { stock_minimo: valor });
-      setEditandoMinimo(prev => { const next = { ...prev }; delete next[id]; return next; });
-      cargarInventarios(buscarInventario);
-    } catch (e) { setMsgInventario(e.message); }
+    guardarStockMinimoMutation.mutate({ id, valor });
   };
 
   return (
@@ -414,10 +437,8 @@ export default function Prime() {
             placeholder="Buscar producto..."
             value={buscarInventario}
             onChange={e => setBuscarInventario(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') cargarInventarios(buscarInventario); }}
             style={{ flex: 1, minWidth: 200 }}
           />
-          <button className="btn" onClick={() => cargarInventarios(buscarInventario)}>Buscar</button>
         </div>
         <table className="table">
           <thead><tr><th>Producto</th><th>Sucursal</th><th>Stock</th><th>Stock mínimo</th><th></th></tr></thead>

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import Badge from '../components/Badge';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -7,25 +8,28 @@ const ESTATUS_GUIA = ['generada', 'recolectada', 'en_camino', 'en_ciudad', 'inte
 
 export default function Guias() {
   const txt = useTextoEmoji();
-  const [rows, setRows] = useState(null);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
   const [numero, setNumero] = useState('');
   const [estatus, setEstatus] = useState('generada');
   const [descripcion, setDescripcion] = useState('');
   const [msg, setMsg] = useState(null);
 
-  const cargar = () => {
-    api.get('/api/guias').then(setRows).catch(e => setError(e.message));
-  };
-  useEffect(cargar, []);
+  const { data: rows, error, refetch } = useQuery({
+    queryKey: ['guias'],
+    queryFn: () => api.get('/api/guias'),
+  });
 
-  const actualizar = async () => {
-    if (!numero.trim()) { setMsg({ ok: false, texto: 'Escribe el número de guía' }); return; }
-    try {
-      await api.post('/api/actualizar_guia', { numeroGuia: numero, estatus, descripcion });
+  const actualizarMutation = useMutation({
+    mutationFn: () => api.post('/api/actualizar_guia', { numeroGuia: numero, estatus, descripcion }),
+    onSuccess: () => {
       setMsg({ ok: true, texto: `Guía ${numero} → "${estatus}"` });
-      cargar();
-    } catch (e) { setMsg({ ok: false, texto: e.message }); }
+      queryClient.invalidateQueries({ queryKey: ['guias'] });
+    },
+    onError: (e) => setMsg({ ok: false, texto: e.message }),
+  });
+  const actualizar = () => {
+    if (!numero.trim()) { setMsg({ ok: false, texto: 'Escribe el número de guía' }); return; }
+    actualizarMutation.mutate();
   };
 
   const editarRapido = (numeroGuia) => {
@@ -38,19 +42,19 @@ export default function Guias() {
     <div>
       <div className="page-title">Guías Estafeta</div>
       <div className="page-sub">Rastreo y actualización de guías de envío</div>
-      {error && <div className="login-error">No se pudieron cargar las guías: {error}</div>}
+      {error && <div className="login-error">No se pudieron cargar las guías: {error.message}</div>}
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.6fr 1fr', alignItems: 'start' }}>
         <div className="card">
           <div className="card-header">
             <h3>{txt('🚚 Guías activas')}</h3>
-            <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button></div>
+            <div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button></div>
           </div>
           <div className="table-wrap">
             <table>
               <thead><tr><th>Guía</th><th>Cliente</th><th>Destino</th><th>Estatus</th><th>Entrega est.</th><th></th></tr></thead>
               <tbody>
-                {rows === null && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
+                {rows === undefined && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
                 {rows?.length === 0 && <tr><td colSpan={6} className="empty">Sin guías</td></tr>}
                 {rows?.map(r => (
                   <tr key={r.id}>

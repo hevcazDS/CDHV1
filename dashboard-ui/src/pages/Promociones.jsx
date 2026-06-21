@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -6,9 +7,8 @@ import { useTextoEmoji } from '../context/EmojiContext';
 
 export default function Promociones() {
   const txt = useTextoEmoji();
+  const queryClient = useQueryClient();
   const [filtro, setFiltro] = useState('');
-  const [rows, setRows] = useState(null);
-  const [error, setError] = useState('');
   const [codigo, setCodigo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [tipo, setTipo] = useState('porcentaje');
@@ -20,13 +20,21 @@ export default function Promociones() {
   const [usosMax, setUsosMax] = useState('0');
   const [msg, setMsg] = useState(null);
 
-  const cargar = (f) => {
-    const q = f ?? filtro;
-    api.get('/api/promociones' + (q !== '' ? '?activa=' + q : '')).then(setRows).catch(e => setError(e.message));
-  };
-  useEffect(() => { cargar(''); }, []);
+  const { data: rows, error, refetch } = useQuery({
+    queryKey: ['promociones', filtro],
+    queryFn: () => api.get('/api/promociones' + (filtro !== '' ? '?activa=' + filtro : '')),
+  });
 
-  const crear = async () => {
+  const crearMutation = useMutation({
+    mutationFn: (body) => api.post('/api/promociones', body),
+    onSuccess: () => {
+      setMsg({ ok: true, texto: '✅ Cupón creado' });
+      setCodigo(''); setDescripcion(''); setValor(''); setIdProducto(''); setIdCategoria(''); setFechaInicio(''); setFechaFin('');
+      queryClient.invalidateQueries({ queryKey: ['promociones'] });
+    },
+    onError: (e) => setMsg({ ok: false, texto: '❌ ' + e.message }),
+  });
+  const crear = () => {
     const body = {
       codigo, descripcion: descripcion || null, tipo, valor: parseFloat(valor || 0),
       id_producto: parseInt(idProducto || 0) || null,
@@ -35,40 +43,39 @@ export default function Promociones() {
       usos_max: parseInt(usosMax || 0),
     };
     if (!body.codigo || !body.valor) { setMsg({ ok: false, texto: 'Completa código y valor' }); return; }
-    try {
-      await api.post('/api/promociones', body);
-      setMsg({ ok: true, texto: '✅ Cupón creado' });
-      setCodigo(''); setDescripcion(''); setValor(''); setIdProducto(''); setIdCategoria(''); setFechaInicio(''); setFechaFin('');
-      cargar();
-    } catch (e) { setMsg({ ok: false, texto: '❌ ' + e.message }); }
+    crearMutation.mutate(body);
   };
 
-  const toggle = async (id, activa) => {
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, activa }) => api.put(`/api/promociones/${id}`, { activa: !!activa }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['promociones'] }),
+    onError: (e) => handleApiError(e),
+  });
+  const toggle = (id, activa) => {
     if (!window.confirm(`¿Seguro que quieres ${activa ? 'activar' : 'desactivar'} esta promoción?`)) return;
-    try { await api.put(`/api/promociones/${id}`, { activa: !!activa }); cargar(); }
-    catch (e) { handleApiError(e); }
+    toggleMutation.mutate({ id, activa });
   };
 
   return (
     <div>
       <div className="page-title">Promociones</div>
       <div className="page-sub">Cupones y descuentos manuales</div>
-      {error && <div className="login-error">No se pudieron cargar las promociones: {error}</div>}
+      {error && <div className="login-error">No se pudieron cargar las promociones: {error.message}</div>}
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.4fr 1fr', alignItems: 'start' }}>
         <div className="card">
           <div className="card-header">
             <h3>{txt('🎟️ Cupones / Promociones')}</h3>
             <div className="actions">
-              <select value={filtro} onChange={e => { setFiltro(e.target.value); cargar(e.target.value); }}>
+              <select value={filtro} onChange={e => setFiltro(e.target.value)}>
                 <option value="">Todas</option>
                 <option value="1">Activas</option>
                 <option value="0">Inactivas</option>
               </select>
-              <button className="btn btn-secondary btn-sm" onClick={() => cargar()}>🔄</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button>
             </div>
           </div>
-          {rows === null && <div className="empty">Cargando...</div>}
+          {rows === undefined && <div className="empty">Cargando...</div>}
           {rows?.length === 0 && <div className="empty">Sin cupones</div>}
           {rows?.map(r => {
             const val = r.tipo === 'porcentaje' ? `${r.valor}%` : `$${fmt(r.valor)}`;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { fmt, fdate, soloTelefono } from '../lib/format';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
@@ -9,14 +10,12 @@ export default function Puntos() {
   const [codigo, setCodigo] = useState('');
   const [msg, setMsg] = useState(null);
   const [ticket, setTicket] = useState(null);
-  const [usados, setUsados] = useState(null);
-  const [error, setError] = useState('');
   const canvasRef = useRef(null);
 
-  const cargarUsados = () => {
-    api.get('/api/puntos/usados').then(setUsados).catch(e => setError(e.message));
-  };
-  useEffect(cargarUsados, []);
+  const { data: usados, error, refetch } = useQuery({
+    queryKey: ['puntos-usados'],
+    queryFn: () => api.get('/api/puntos/usados'),
+  });
 
   useEffect(() => {
     if (!ticket || !canvasRef.current) return;
@@ -49,7 +48,7 @@ export default function Puntos() {
     <div>
       <div className="page-title">Puntos QR</div>
       <div className="page-sub">Generador de QR de tickets para reclamar puntos de lealtad</div>
-      {error && <div className="login-error">No se pudieron cargar los tickets reclamados: {error}</div>}
+      {error && <div className="login-error">No se pudieron cargar los tickets reclamados: {error.message}</div>}
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1.4fr', alignItems: 'start' }}>
         <div className="card">
@@ -84,13 +83,13 @@ export default function Puntos() {
         <div className="card">
           <div className="card-header">
             <h3>{txt('📋 Tickets reclamados')}</h3>
-            <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargarUsados}>🔄</button></div>
+            <div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button></div>
           </div>
           <div className="table-wrap">
             <table>
               <thead><tr><th>Código</th><th>Total</th><th>Puntos</th><th>Teléfono</th><th>Reclamado</th></tr></thead>
               <tbody>
-                {usados === null && <tr><td colSpan={5} className="empty">Cargando...</td></tr>}
+                {usados === undefined && <tr><td colSpan={5} className="empty">Cargando...</td></tr>}
                 {usados?.length === 0 && <tr><td colSpan={5} className="empty">Sin tickets reclamados aún</td></tr>}
                 {usados?.map((r, i) => (
                   <tr key={i}>

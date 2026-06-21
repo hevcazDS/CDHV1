@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -13,25 +14,26 @@ const TABS = [
 
 export default function ColaAtencion() {
   const txt = useTextoEmoji();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState('en_espera');
-  const [rows, setRows] = useState(null);
-  const [error, setError] = useState('');
 
-  const cargar = () => {
-    api.get('/api/cola_atencion?estatus=' + tab).then(setRows).catch(e => setError(e.message));
-  };
-  useEffect(cargar, [tab]);
+  const { data: rows, error, refetch } = useQuery({
+    queryKey: ['cola-atencion', tab],
+    queryFn: () => api.get('/api/cola_atencion?estatus=' + tab),
+  });
 
-  const marcar = async (id, estatus) => {
-    try { await api.put(`/api/cola_atencion/${id}`, { estatus }); cargar(); }
-    catch (e) { handleApiError(e); }
-  };
+  const marcarMutation = useMutation({
+    mutationFn: ({ id, estatus }) => api.put(`/api/cola_atencion/${id}`, { estatus }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cola-atencion'] }),
+    onError: (e) => handleApiError(e),
+  });
+  const marcar = (id, estatus) => marcarMutation.mutate({ id, estatus });
 
   return (
     <div>
       <div className="page-title">Cola de atención</div>
       <div className="page-sub">Clientes escalados a un asesor humano</div>
-      {error && <div className="login-error">No se pudo cargar la cola: {error}</div>}
+      {error && <div className="login-error">No se pudo cargar la cola: {error.message}</div>}
 
       <div className="tabs">
         {TABS.map(t => (
@@ -45,14 +47,14 @@ export default function ColaAtencion() {
         <div className="card-header">
           <h3>{txt('🚨 Cola de atención humana')}</h3>
           <div className="actions">
-            <button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button>
           </div>
         </div>
         <div className="table-wrap">
           <table>
             <thead><tr><th>Cliente</th><th>Teléfono</th><th>Motivo</th><th>Prioridad</th><th>Estatus</th><th>Desde</th><th></th></tr></thead>
             <tbody>
-              {rows === null && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
+              {rows === undefined && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
               {rows?.length === 0 && <tr><td colSpan={7} className="empty">Sin clientes en este estatus</td></tr>}
               {rows?.map(r => (
                 <tr key={r.id}>

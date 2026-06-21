@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, BarChart, Bar,
 } from 'recharts';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
@@ -15,21 +16,27 @@ const TONO_COLOR = { A: 'azul', B: 'verde', C: 'amarillo', D: 'rojo', sin_dato: 
 
 export default function Metricas() {
   const txt = useTextoEmoji();
-  const [d, setD] = useState(null);
-  const [conv, setConv] = useState(null);
-  const [campanas, setCampanas] = useState([]);
-  const [motivos, setMotivos] = useState([]);
   const [reporteMsg, setReporteMsg] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [enviando, setEnviando] = useState(false);
 
-  const cargar = () => {
-    api.get('/api/metricas').then(setD).catch(() => setD(null));
-    api.get('/api/conversion').then(setConv).catch(() => setConv(null));
-    api.get('/api/metricas/campanas').then(setCampanas).catch(() => setCampanas([]));
-    api.get('/api/metricas/abandono-motivos').then(setMotivos).catch(() => setMotivos([]));
-  };
-  useEffect(cargar, []);
+  const { data: d, refetch: refetchMetricas } = useQuery({
+    queryKey: ['metricas'],
+    queryFn: () => api.get('/api/metricas').catch(() => null),
+  });
+  const { data: conv, refetch: refetchConv } = useQuery({
+    queryKey: ['conversion'],
+    queryFn: () => api.get('/api/conversion').catch(() => null),
+  });
+  const { data: campanas = [], refetch: refetchCampanas } = useQuery({
+    queryKey: ['metricas-campanas'],
+    queryFn: () => api.get('/api/metricas/campanas').catch(() => []),
+  });
+  const { data: motivos = [], refetch: refetchMotivos } = useQuery({
+    queryKey: ['metricas-abandono-motivos'],
+    queryFn: () => api.get('/api/metricas/abandono-motivos').catch(() => []),
+  });
+
+  const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); };
 
   const dias = d?.por_dia || [];
   const porEstatus = d?.por_estatus || [];
@@ -37,17 +44,16 @@ export default function Metricas() {
   const totalMotivos = motivos.reduce((s, m) => s + (m.n || 0), 0);
   const MOTIVO_COLOR = { precio: C_RED, envio: C_YELLOW, otro: C_DIM };
 
-  const enviarReporte = async (destino) => {
-    setEnviando(true);
-    try {
-      const r = await api.post('/api/reporte', { destino });
-      setEnviando(false);
+  const reporteMutation = useMutation({
+    mutationFn: (destino) => api.post('/api/reporte', { destino }),
+    onSuccess: (r) => {
       if (r.ok) {
         setReporteMsg({ ok: true, texto: '✅ ' + r.msg });
         if (r.preview) setPreview(r.preview.replace(/\*/g, '').replace(/_/g, ''));
       } else setReporteMsg({ ok: false, texto: '❌ ' + r.error });
-    } catch (e) { setEnviando(false); setReporteMsg({ ok: false, texto: '❌ ' + e.message }); }
-  };
+    },
+    onError: (e) => setReporteMsg({ ok: false, texto: '❌ ' + e.message }),
+  });
 
   return (
     <div>
@@ -198,8 +204,8 @@ export default function Metricas() {
         <div className="card-header"><h3>{txt('📤 Reporte al supervisor')}</h3></div>
         <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 12 }}>Resumen con pedidos, ingresos, clientes y alertas del día.</p>
         <div style={{ display: 'flex', gap: 7, marginBottom: 10 }}>
-          <button className="btn btn-primary" style={{ flex: 1 }} disabled={enviando} onClick={() => enviarReporte('whatsapp')}>{txt('📱 WhatsApp')}</button>
-          <button className="btn btn-secondary" style={{ flex: 1 }} disabled={enviando} onClick={() => enviarReporte('email')}>{txt('📧 Email')}</button>
+          <button className="btn btn-primary" style={{ flex: 1 }} disabled={reporteMutation.isPending} onClick={() => reporteMutation.mutate('whatsapp')}>{txt('📱 WhatsApp')}</button>
+          <button className="btn btn-secondary" style={{ flex: 1 }} disabled={reporteMutation.isPending} onClick={() => reporteMutation.mutate('email')}>{txt('📧 Email')}</button>
         </div>
         {preview && <pre style={{ background: 'var(--panel-2)', borderRadius: 7, padding: 10, fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 250, overflowY: 'auto' }}>{preview}</pre>}
         {reporteMsg && <div className={reporteMsg.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(reporteMsg.texto)}</div>}

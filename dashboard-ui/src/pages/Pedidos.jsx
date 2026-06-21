@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { fmt, fdate } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -10,21 +11,24 @@ const ESTATUS = ['pendiente', 'confirmado', 'preparando', 'enviado', 'entregado'
 
 export default function Pedidos() {
   const txt = useTextoEmoji();
-  const [rows, setRows] = useState(null);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
   const [ticket, setTicket] = useState(null);
   const [pagoModal, setPagoModal] = useState(null);
   const [referencia, setReferencia] = useState('');
 
-  const cargar = () => {
-    api.get('/api/pedidos').then(setRows).catch(e => setError(e.message));
-  };
-  useEffect(cargar, []);
+  const { data: rows, error, refetch } = useQuery({
+    queryKey: ['pedidos'],
+    queryFn: () => api.get('/api/pedidos'),
+  });
 
-  const cambiarEstatus = async (id, estatus) => {
-    if (estatus === 'cancelado' && !window.confirm('¿Cancelar este pedido? Se notificará al cliente.')) { cargar(); return; }
-    try { await api.put(`/api/pedidos/${id}`, { estatus }); cargar(); }
-    catch (e) { handleApiError(e); cargar(); }
+  const cambiarEstatusMutation = useMutation({
+    mutationFn: ({ id, estatus }) => api.put(`/api/pedidos/${id}`, { estatus }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pedidos'] }),
+    onError: (e) => { handleApiError(e); queryClient.invalidateQueries({ queryKey: ['pedidos'] }); },
+  });
+  const cambiarEstatus = (id, estatus) => {
+    if (estatus === 'cancelado' && !window.confirm('¿Cancelar este pedido? Se notificará al cliente.')) { refetch(); return; }
+    cambiarEstatusMutation.mutate({ id, estatus });
   };
 
   const abrirTicket = async (idPedido) => {
@@ -32,12 +36,17 @@ export default function Pedidos() {
     catch (e) { handleApiError(e, 'No se pudo cargar el ticket'); }
   };
 
-  const confirmarPago = async () => {
+  const confirmarPagoMutation = useMutation({
+    mutationFn: () => api.post(`/api/pagos/${pagoModal}/marcar-pagado`, { referencia_pago: referencia }),
+    onSuccess: () => {
+      setPagoModal(null); setReferencia('');
+      queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+    },
+    onError: (e) => handleApiError(e),
+  });
+  const confirmarPago = () => {
     if (!referencia.trim()) return;
-    try {
-      await api.post(`/api/pagos/${pagoModal}/marcar-pagado`, { referencia_pago: referencia });
-      setPagoModal(null); setReferencia(''); cargar();
-    } catch (e) { handleApiError(e); }
+    confirmarPagoMutation.mutate();
   };
 
   const exportarCSV = () => {
@@ -57,14 +66,14 @@ export default function Pedidos() {
     <div>
       <div className="page-title">Pedidos</div>
       <div className="page-sub">Pedidos recientes (últimos 100)</div>
-      {error && <div className="login-error">No se pudieron cargar los pedidos: {error}</div>}
+      {error && <div className="login-error">No se pudieron cargar los pedidos: {error.message}</div>}
 
       <div className="card">
         <div className="card-header">
           <h3>{txt('📦 Pedidos recientes')}</h3>
           <div className="actions">
             <button className="btn btn-secondary btn-sm" onClick={exportarCSV}>{txt('⬇️ CSV')}</button>
-            <button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button>
           </div>
         </div>
         <div className="table-wrap">
@@ -73,7 +82,7 @@ export default function Pedidos() {
               <tr><th>Folio</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Estatus</th><th>Guía</th><th>Entrega est.</th><th></th></tr>
             </thead>
             <tbody>
-              {rows === null && <tr><td colSpan={8} className="empty">Cargando...</td></tr>}
+              {rows === undefined && <tr><td colSpan={8} className="empty">Cargando...</td></tr>}
               {rows?.length === 0 && <tr><td colSpan={8} className="empty">Sin pedidos</td></tr>}
               {rows?.map(r => (
                 <tr key={r.id_pedido}>

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -13,41 +14,51 @@ const TABS = [
 
 export default function ColaEnvios() {
   const txt = useTextoEmoji();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState('pendientes');
-  const [cola, setCola] = useState(null);
-  const [programados, setProgramados] = useState(null);
-  const [historial, setHistorial] = useState(null);
 
-  const cargarCola = () => api.get('/api/cola').then(setCola).catch(() => setCola({ items: [] }));
-  const cargarProgramados = () => api.get('/api/cola/programados').then(setProgramados).catch(() => setProgramados([]));
-  const cargarHistorial = () => api.get('/api/cola/historial').then(setHistorial).catch(() => setHistorial([]));
+  const { data: cola, refetch: refetchCola } = useQuery({
+    queryKey: ['cola-envios'],
+    queryFn: () => api.get('/api/cola'),
+    enabled: tab === 'pendientes',
+  });
+  const { data: programados, refetch: refetchProgramados } = useQuery({
+    queryKey: ['cola-programados'],
+    queryFn: () => api.get('/api/cola/programados'),
+    enabled: tab === 'programados',
+  });
+  const { data: historial, refetch: refetchHistorial } = useQuery({
+    queryKey: ['cola-historial'],
+    queryFn: () => api.get('/api/cola/historial'),
+    enabled: tab === 'historial',
+  });
 
-  useEffect(() => {
-    if (tab === 'pendientes') cargarCola();
-    if (tab === 'programados') cargarProgramados();
-    if (tab === 'historial') cargarHistorial();
-  }, [tab]);
-
-  const reintentarTodo = async () => {
-    try {
-      const r = await api.post('/api/cola/reintentar', {});
+  const reintentarTodoMutation = useMutation({
+    mutationFn: () => api.post('/api/cola/reintentar', {}),
+    onSuccess: (r) => {
       window.alert(txt(`✅ ${r.reactivados || 0} mensajes reactivados`));
-      cargarCola();
-    } catch (e) { handleApiError(e); }
-  };
+      queryClient.invalidateQueries({ queryKey: ['cola-envios'] });
+    },
+    onError: (e) => handleApiError(e),
+  });
 
-  const reintentarUno = async (id) => {
-    try { await api.post(`/api/cola/reintentar/${id}`, {}); cargarCola(); }
-    catch (e) { handleApiError(e); }
-  };
+  const reintentarUnoMutation = useMutation({
+    mutationFn: (id) => api.post(`/api/cola/reintentar/${id}`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cola-envios'] }),
+    onError: (e) => handleApiError(e),
+  });
 
-  const cancelarCampana = async (asunto, enviar_despues_de) => {
-    if (!window.confirm('¿Cancelar esta campaña? Los mensajes pendientes no se enviarán.')) return;
-    try {
-      const r = await api.del('/api/cola/programados', { asunto, enviar_despues_de });
+  const cancelarCampanaMutation = useMutation({
+    mutationFn: ({ asunto, enviar_despues_de }) => api.del('/api/cola/programados', { asunto, enviar_despues_de }),
+    onSuccess: (r) => {
       window.alert(txt(`✅ ${r.cancelados || 0} mensajes cancelados`));
-      cargarProgramados();
-    } catch (e) { handleApiError(e); }
+      queryClient.invalidateQueries({ queryKey: ['cola-programados'] });
+    },
+    onError: (e) => handleApiError(e),
+  });
+  const cancelarCampana = (asunto, enviar_despues_de) => {
+    if (!window.confirm('¿Cancelar esta campaña? Los mensajes pendientes no se enviarán.')) return;
+    cancelarCampanaMutation.mutate({ asunto, enviar_despues_de });
   };
 
   return (
@@ -68,8 +79,8 @@ export default function ColaEnvios() {
           <div className="card-header">
             <h3>{txt('⏳ Mensajes en cola')}</h3>
             <div className="actions">
-              <button className="btn btn-secondary btn-sm" onClick={cargarCola}>🔄</button>
-              <button className="btn btn-danger btn-sm" onClick={reintentarTodo}>{txt('♻️ Reintentar')}</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => refetchCola()}>🔄</button>
+              <button className="btn btn-danger btn-sm" onClick={() => reintentarTodoMutation.mutate()}>{txt('♻️ Reintentar')}</button>
             </div>
           </div>
           {cola && (
@@ -82,7 +93,7 @@ export default function ColaEnvios() {
             <table>
               <thead><tr><th>ID</th><th>Destinatario</th><th>Asunto</th><th>Estatus</th><th>Intentos</th><th>Fecha</th><th></th></tr></thead>
               <tbody>
-                {cola === null && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
+                {cola === undefined && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
                 {cola?.items?.length === 0 && <tr><td colSpan={7} className="empty">Cola vacía</td></tr>}
                 {cola?.items?.map(r => (
                   <tr key={r.id}>
@@ -92,7 +103,7 @@ export default function ColaEnvios() {
                     <td><Badge value={r.estatus} map="notif" /></td>
                     <td style={{ textAlign: 'center' }}>{r.intentos || 0}</td>
                     <td className="text-muted" style={{ fontSize: 11 }}>{fdate(r.creada_en)}</td>
-                    <td><button className="btn btn-secondary btn-sm" onClick={() => reintentarUno(r.id)}>♻️</button></td>
+                    <td><button className="btn btn-secondary btn-sm" onClick={() => reintentarUnoMutation.mutate(r.id)}>♻️</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -103,8 +114,8 @@ export default function ColaEnvios() {
 
       {tab === 'programados' && (
         <div className="card">
-          <div className="card-header"><h3>{txt('🗓️ Campañas programadas')}</h3><div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargarProgramados}>🔄</button></div></div>
-          {programados === null && <div className="empty">Cargando...</div>}
+          <div className="card-header"><h3>{txt('🗓️ Campañas programadas')}</h3><div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetchProgramados()}>🔄</button></div></div>
+          {programados === undefined && <div className="empty">Cargando...</div>}
           {programados?.length === 0 && <div className="empty">No hay campañas programadas</div>}
           {programados?.map((r, i) => (
             <div key={i} style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 7, marginBottom: 8 }}>
@@ -125,12 +136,12 @@ export default function ColaEnvios() {
 
       {tab === 'historial' && (
         <div className="card">
-          <div className="card-header"><h3>{txt('📋 Historial')}</h3><div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargarHistorial}>🔄</button></div></div>
+          <div className="card-header"><h3>{txt('📋 Historial')}</h3><div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetchHistorial()}>🔄</button></div></div>
           <div className="table-wrap">
             <table>
               <thead><tr><th>Destinatario</th><th>Asunto</th><th>Estatus</th><th>Intentos</th><th>Fecha</th></tr></thead>
               <tbody>
-                {historial === null && <tr><td colSpan={5} className="empty">Cargando...</td></tr>}
+                {historial === undefined && <tr><td colSpan={5} className="empty">Cargando...</td></tr>}
                 {historial?.length === 0 && <tr><td colSpan={5} className="empty">Sin historial</td></tr>}
                 {historial?.map((r, i) => (
                   <tr key={i}>

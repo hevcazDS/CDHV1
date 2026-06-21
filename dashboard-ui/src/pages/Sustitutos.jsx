@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -6,43 +7,54 @@ import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 export default function Sustitutos() {
   const txt = useTextoEmoji();
+  const queryClient = useQueryClient();
   const [q, setQ] = useState('');
-  const [resultados, setResultados] = useState(null);
   const [base, setBase] = useState(null);
-  const [relacionados, setRelacionados] = useState(null);
   const [qVincular, setQVincular] = useState('');
-  const [resultadosVincular, setResultadosVincular] = useState(null);
 
-  const buscar = (valor) => {
-    setQ(valor);
-    if (valor.trim().length < 2) { setResultados(null); return; }
-    api.get('/api/productos/buscar?q=' + encodeURIComponent(valor)).then(setResultados).catch(() => {});
-  };
+  const { data: resultados } = useQuery({
+    queryKey: ['productos-buscar', q],
+    queryFn: () => api.get('/api/productos/buscar?q=' + encodeURIComponent(q)),
+    enabled: q.trim().length >= 2,
+  });
+
+  // Clave por base?.id: si se selecciona otro producto base mientras la
+  // consulta de relacionados anterior sigue en vuelo, TanStack Query
+  // descarta esa respuesta vieja en vez de pintarla sobre el producto nuevo.
+  const { data: relacionados } = useQuery({
+    queryKey: ['sustitutos', base?.id],
+    queryFn: () => api.get(`/api/sustitutos/${base.id}`),
+    enabled: !!base,
+  });
+
+  const { data: resultadosVincular } = useQuery({
+    queryKey: ['productos-buscar-vincular', qVincular],
+    queryFn: () => api.get('/api/productos/buscar?q=' + encodeURIComponent(qVincular)).then(r => r.slice(0, 5)),
+    enabled: qVincular.trim().length >= 2,
+  });
 
   const cargarSustitutos = (id, nombre) => {
     setBase({ id, nombre });
-    setQVincular(''); setResultadosVincular(null);
-    api.get(`/api/sustitutos/${id}`).then(setRelacionados).catch(() => setRelacionados([]));
+    setQVincular('');
   };
 
-  const buscarParaVincular = (valor) => {
-    setQVincular(valor);
-    if (valor.trim().length < 2) { setResultadosVincular(null); return; }
-    api.get('/api/productos/buscar?q=' + encodeURIComponent(valor)).then(r => setResultadosVincular(r.slice(0, 5))).catch(() => {});
-  };
+  const vincularMutation = useMutation({
+    mutationFn: (idSust) => api.post('/api/sustitutos', { id_producto: base.id, id_sustituto: idSust, score: 8 }),
+    onSuccess: () => {
+      setQVincular('');
+      queryClient.invalidateQueries({ queryKey: ['sustitutos', base.id] });
+    },
+    onError: (e) => handleApiError(e),
+  });
 
-  const vincular = async (idSust) => {
-    try {
-      await api.post('/api/sustitutos', { id_producto: base.id, id_sustituto: idSust, score: 8 });
-      setQVincular(''); setResultadosVincular(null);
-      cargarSustitutos(base.id, base.nombre);
-    } catch (e) { handleApiError(e); }
-  };
-
-  const eliminar = async (id) => {
+  const eliminarMutation = useMutation({
+    mutationFn: (id) => api.del(`/api/sustitutos/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sustitutos', base.id] }),
+    onError: (e) => handleApiError(e),
+  });
+  const eliminar = (id) => {
     if (!window.confirm('¿Eliminar esta relación?')) return;
-    try { await api.del(`/api/sustitutos/${id}`); cargarSustitutos(base.id, base.nombre); }
-    catch (e) { handleApiError(e); }
+    eliminarMutation.mutate(id);
   };
 
   return (
@@ -55,9 +67,9 @@ export default function Sustitutos() {
           <div className="card-header"><h3>{txt('🔍 Buscar producto')}</h3></div>
           <div className="login-field">
             <label>Nombre</label>
-            <input placeholder="Ej: Hot Wheels" value={q} onChange={e => buscar(e.target.value)} />
+            <input placeholder="Ej: Hot Wheels" value={q} onChange={e => setQ(e.target.value)} />
           </div>
-          {resultados === null && <div className="empty">Escribe para buscar...</div>}
+          {q.trim().length < 2 && <div className="empty">Escribe para buscar...</div>}
           {resultados?.length === 0 && <div className="empty">Sin resultados</div>}
           {resultados?.map(r => (
             <div key={r.id} onClick={() => cargarSustitutos(r.id, r.name)}
@@ -74,7 +86,7 @@ export default function Sustitutos() {
             <>
               <strong style={{ fontSize: 13 }}>{base.nombre}</strong>
               <div style={{ margin: '8px 0', borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-                {relacionados === null && <div className="empty">Cargando...</div>}
+                {relacionados === undefined && <div className="empty">Cargando...</div>}
                 {relacionados?.length === 0 && <div className="empty">Sin relacionados definidos</div>}
                 {relacionados?.map(r => (
                   <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
@@ -83,9 +95,9 @@ export default function Sustitutos() {
                   </div>
                 ))}
               </div>
-              <input placeholder="Buscar producto a vincular..." value={qVincular} onChange={e => buscarParaVincular(e.target.value)} style={{ marginTop: 8, width: '100%' }} />
+              <input placeholder="Buscar producto a vincular..." value={qVincular} onChange={e => setQVincular(e.target.value)} style={{ marginTop: 8, width: '100%' }} />
               {resultadosVincular?.map(r => (
-                <div key={r.id} onClick={() => vincular(r.id)} style={{ padding: '5px 9px', cursor: 'pointer', fontSize: 12, borderRadius: 4 }}>
+                <div key={r.id} onClick={() => vincularMutation.mutate(r.id)} style={{ padding: '5px 9px', cursor: 'pointer', fontSize: 12, borderRadius: 4 }}>
                   <Emoji>➕ </Emoji>{r.name} - ${fmt(r.price)}
                 </div>
               ))}

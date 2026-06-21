@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
@@ -22,77 +23,82 @@ function capitalizar(nombre) {
 
 export default function Notificaciones() {
   const txt = useTextoEmoji();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState('individual');
 
   // Individual
-  const [clientes, setClientes] = useState([]);
   const [filtro, setFiltro] = useState('');
   const [clienteSel, setClienteSel] = useState(null);
-  const [hilo, setHilo] = useState(null);
   const [msgInd, setMsgInd] = useState('');
   const [respInd, setRespInd] = useState(null);
-  const [enviandoInd, setEnviandoInd] = useState(false);
 
   // POS
   const [posQ, setPosQ] = useState('');
   const [posResultados, setPosResultados] = useState([]);
   const [posCarrito, setPosCarrito] = useState([]);
   const [respPos, setRespPos] = useState(null);
-  const [enviandoPos, setEnviandoPos] = useState(false);
 
   // Masivo
   const [audienciaTipo, setAudienciaTipo] = useState('todos');
   const [limM, setLimM] = useState(50);
-  const [audiencia, setAudiencia] = useState(null);
   const [msgMasivo, setMsgMasivo] = useState('');
   const [cuando, setCuando] = useState('ahora');
   const [fechaProg, setFechaProg] = useState('');
   const [respMasivo, setRespMasivo] = useState(null);
-  const [enviandoMasivo, setEnviandoMasivo] = useState(false);
 
-  useEffect(() => { api.get('/api/clientes').then(setClientes).catch(() => setClientes([])); }, []);
+  const { data: clientes = [] } = useQuery({
+    queryKey: ['clientes'],
+    queryFn: () => api.get('/api/clientes'),
+  });
 
-  const actualizarAudiencia = (tipo = audienciaTipo, lim = limM) => {
-    const params = new URLSearchParams({ limite: lim });
-    if (tipo === 'conPedido') params.set('soloConPedido', '1');
-    if (tipo === 'recurrentes') params.set('soloTags', 'cliente_recurrente');
-    if (tipo === 'sinActividad') params.set('sinActividad', '1');
-    setAudiencia(null);
-    api.get('/api/masivo/preview?' + params.toString())
-      .then(r => setAudiencia(r.ok ? r.clientes : []))
-      .catch(() => setAudiencia([]));
-  };
+  // clienteSel?.id como parte de la queryKey es lo que resuelve el bug ya
+  // documentado en la auditoría: antes, si se seleccionaba otro cliente
+  // mientras la respuesta de mensajes del cliente anterior seguía en vuelo,
+  // ese closure obsoleto podía pintar el hilo viejo encima del cliente nuevo.
+  // Con queryKey distinta por cliente, TanStack Query nunca aplica una
+  // respuesta vieja a la query actual.
+  const { data: hilo } = useQuery({
+    queryKey: ['mensajes-cliente', clienteSel?.id],
+    queryFn: () => api.get(`/api/clientes/${clienteSel.id}/mensajes`),
+    enabled: !!clienteSel,
+  });
 
-  useEffect(() => { if (tab === 'masivo') actualizarAudiencia(); }, [tab]);
+  const { data: audiencia } = useQuery({
+    queryKey: ['audiencia-masivo', audienciaTipo, limM],
+    queryFn: () => {
+      const params = new URLSearchParams({ limite: limM });
+      if (audienciaTipo === 'conPedido') params.set('soloConPedido', '1');
+      if (audienciaTipo === 'recurrentes') params.set('soloTags', 'cliente_recurrente');
+      if (audienciaTipo === 'sinActividad') params.set('sinActividad', '1');
+      return api.get('/api/masivo/preview?' + params.toString()).then(r => (r.ok ? r.clientes : []));
+    },
+    enabled: tab === 'masivo',
+  });
 
   const listaFiltrada = clientes.filter(c =>
     !filtro || (c.nombre || '').toLowerCase().includes(filtro.toLowerCase()) || (c.telefono || '').includes(filtro)
   );
-
-  const seleccionarCliente = (cli) => {
-    setClienteSel(cli);
-    setHilo(null);
-    api.get(`/api/clientes/${cli.id}/mensajes`).then(setHilo).catch(() => setHilo([]));
-  };
 
   const usarPlantilla = (tipo) => {
     const nombre = clienteSel ? capitalizar((clienteSel.nombre || '').split(' ')[0]) : '{nombre}';
     setMsgInd(PLANTILLAS_IND[tipo].replace('{nombre}', nombre));
   };
 
-  const enviarIndividual = async () => {
-    if (!clienteSel) { setRespInd({ ok: false, texto: 'Selecciona un cliente' }); return; }
-    if (!msgInd.trim()) { setRespInd({ ok: false, texto: 'Escribe el mensaje' }); return; }
-    setEnviandoInd(true);
-    try {
-      const r = await api.post('/api/notificar', { telefono: clienteSel.telefono, mensaje: msgInd });
-      setEnviandoInd(false);
+  const enviarIndMutation = useMutation({
+    mutationFn: () => api.post('/api/notificar', { telefono: clienteSel.telefono, mensaje: msgInd }),
+    onSuccess: (r) => {
       if (r.ok) {
         setRespInd({ ok: true, texto: '✅ Enviado a ' + capitalizar(clienteSel.nombre) });
         setMsgInd('');
-        api.get(`/api/clientes/${clienteSel.id}/mensajes`).then(setHilo).catch(() => {});
+        queryClient.invalidateQueries({ queryKey: ['mensajes-cliente', clienteSel.id] });
       } else setRespInd({ ok: false, texto: '❌ ' + r.error });
-    } catch (e) { setEnviandoInd(false); setRespInd({ ok: false, texto: '❌ ' + e.message }); }
+    },
+    onError: (e) => setRespInd({ ok: false, texto: '❌ ' + e.message }),
+  });
+  const enviarIndividual = () => {
+    if (!clienteSel) { setRespInd({ ok: false, texto: 'Selecciona un cliente' }); return; }
+    if (!msgInd.trim()) { setRespInd({ ok: false, texto: 'Escribe el mensaje' }); return; }
+    enviarIndMutation.mutate();
   };
 
   const buscarProductoPOS = () => {
@@ -110,19 +116,23 @@ export default function Notificaciones() {
 
   const quitarProductoPOS = (id) => setPosCarrito(c => c.filter(it => it.id_producto !== id));
 
-  const enviarVentaPrevia = async () => {
-    if (!clienteSel) { setRespPos({ ok: false, texto: 'Selecciona un cliente' }); return; }
-    if (!posCarrito.length) { setRespPos({ ok: false, texto: 'Agrega al menos un producto' }); return; }
-    setEnviandoPos(true);
-    try {
+  const enviarPosMutation = useMutation({
+    mutationFn: () => {
       const items = posCarrito.map(it => ({ id_producto: it.id_producto, cantidad: it.cantidad }));
-      const r = await api.post('/api/pos/venta-previa', { telefono: clienteSel.telefono, items });
-      setEnviandoPos(false);
+      return api.post('/api/pos/venta-previa', { telefono: clienteSel.telefono, items });
+    },
+    onSuccess: (r) => {
       if (r.ok) {
         setRespPos({ ok: true, texto: '✅ Venta previa enviada (folio ' + r.folio + ')' });
         setPosCarrito([]); setPosResultados([]); setPosQ('');
       } else setRespPos({ ok: false, texto: '❌ ' + r.error });
-    } catch (e) { setEnviandoPos(false); setRespPos({ ok: false, texto: '❌ ' + e.message }); }
+    },
+    onError: (e) => setRespPos({ ok: false, texto: '❌ ' + e.message }),
+  });
+  const enviarVentaPrevia = () => {
+    if (!clienteSel) { setRespPos({ ok: false, texto: 'Selecciona un cliente' }); return; }
+    if (!posCarrito.length) { setRespPos({ ok: false, texto: 'Agrega al menos un producto' }); return; }
+    enviarPosMutation.mutate();
   };
 
   const usarPlantillaMasiva = (tipo) => setMsgMasivo(PLANTILLAS_MAS[tipo]);
@@ -136,7 +146,19 @@ export default function Notificaciones() {
     }
   };
 
-  const enviarMasivo = async () => {
+  const enviarMasivoMutation = useMutation({
+    mutationFn: (body) => api.post('/api/masivo', body),
+    onSuccess: (r) => {
+      if (r.ok) {
+        setRespMasivo({ ok: true, texto: r.programado ? `✅ ${r.encolados} mensajes programados para ${new Date(r.enviar_en).toLocaleString('es-MX')}` : `✅ ${r.encolados} mensajes encolados` });
+        setMsgMasivo('');
+        setCuando('ahora');
+        queryClient.invalidateQueries({ queryKey: ['audiencia-masivo'] });
+      } else setRespMasivo({ ok: false, texto: '❌ ' + r.error });
+    },
+    onError: (e) => setRespMasivo({ ok: false, texto: '❌ ' + e.message }),
+  });
+  const enviarMasivo = () => {
     if (!msgMasivo.trim()) { setRespMasivo({ ok: false, texto: 'Escribe el mensaje primero' }); return; }
     if (!audiencia?.length) { setRespMasivo({ ok: false, texto: 'Actualiza la audiencia primero' }); return; }
     let enviarEn = null;
@@ -149,22 +171,12 @@ export default function Notificaciones() {
       ? `¿Programar para ${new Date(enviarEn).toLocaleString('es-MX')} a ${audiencia.length} clientes?`
       : `¿Enviar a ${audiencia.length} clientes ahora?`;
     if (!window.confirm(confirmTxt)) return;
-    setEnviandoMasivo(true);
-    try {
-      const r = await api.post('/api/masivo', {
-        mensaje: msgMasivo, limite: limM, enviarEn,
-        soloConPedido: audienciaTipo === 'conPedido',
-        soloTags: audienciaTipo === 'recurrentes' ? ['cliente_recurrente'] : [],
-        sinActividad: audienciaTipo === 'sinActividad',
-      });
-      setEnviandoMasivo(false);
-      if (r.ok) {
-        setRespMasivo({ ok: true, texto: r.programado ? `✅ ${r.encolados} mensajes programados para ${new Date(r.enviar_en).toLocaleString('es-MX')}` : `✅ ${r.encolados} mensajes encolados` });
-        setMsgMasivo('');
-        setCuando('ahora');
-        actualizarAudiencia();
-      } else setRespMasivo({ ok: false, texto: '❌ ' + r.error });
-    } catch (e) { setEnviandoMasivo(false); setRespMasivo({ ok: false, texto: '❌ ' + e.message }); }
+    enviarMasivoMutation.mutate({
+      mensaje: msgMasivo, limite: limM, enviarEn,
+      soloConPedido: audienciaTipo === 'conPedido',
+      soloTags: audienciaTipo === 'recurrentes' ? ['cliente_recurrente'] : [],
+      sinActividad: audienciaTipo === 'sinActividad',
+    });
   };
 
   return (
@@ -189,7 +201,7 @@ export default function Notificaciones() {
               {listaFiltrada.map(c => {
                 const sel = clienteSel?.id === c.id;
                 return (
-                  <div key={c.id} onClick={() => seleccionarCliente(c)} style={{
+                  <div key={c.id} onClick={() => setClienteSel(c)} style={{
                     display: 'flex', alignItems: 'center', gap: 9, padding: '9px 13px', cursor: 'pointer',
                     borderBottom: '1px solid var(--border)', background: sel ? 'var(--panel-2)' : 'transparent',
                     borderLeft: `3px solid ${sel ? 'var(--accent)' : 'transparent'}`,
@@ -229,8 +241,8 @@ export default function Notificaciones() {
             </div>
 
             {clienteSel && (
-              <div style={{ display: hilo === null || hilo?.length ? 'block' : 'block', maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 7, padding: 8, marginBottom: 12 }}>
-                {hilo === null && <div className="text-muted" style={{ fontSize: 12 }}>Cargando conversación...</div>}
+              <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 7, padding: 8, marginBottom: 12 }}>
+                {hilo === undefined && <div className="text-muted" style={{ fontSize: 12 }}>Cargando conversación...</div>}
                 {hilo?.length === 0 && <div className="text-muted" style={{ fontSize: 12 }}>Sin mensajes registrados todavía.</div>}
                 {hilo?.map((m, i) => {
                   const dcha = m.rol === 'bot' || m.rol === 'asesor';
@@ -260,7 +272,7 @@ export default function Notificaciones() {
               <label>Mensaje</label>
               <textarea value={msgInd} onChange={e => setMsgInd(e.target.value)} placeholder="Escribe o elige una plantilla..." style={{ minHeight: 110, width: '100%' }} />
             </div>
-            <button className="btn btn-primary" style={{ width: '100%' }} disabled={enviandoInd} onClick={enviarIndividual}>{txt('📤 Enviar por WhatsApp')}</button>
+            <button className="btn btn-primary" style={{ width: '100%' }} disabled={enviarIndMutation.isPending} onClick={enviarIndividual}>{txt('📤 Enviar por WhatsApp')}</button>
             {respInd && <div className={respInd.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respInd.texto)}</div>}
 
             <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
@@ -286,7 +298,7 @@ export default function Notificaciones() {
                   </div>
                 ))}
               </div>
-              <button className="btn btn-primary btn-sm" style={{ width: '100%' }} disabled={enviandoPos} onClick={enviarVentaPrevia}>{txt('📨 Crear venta previa y enviar')}</button>
+              <button className="btn btn-primary btn-sm" style={{ width: '100%' }} disabled={enviarPosMutation.isPending} onClick={enviarVentaPrevia}>{txt('📨 Crear venta previa y enviar')}</button>
               {respPos && <div className={respPos.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respPos.texto)}</div>}
             </div>
           </div>
@@ -298,7 +310,7 @@ export default function Notificaciones() {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{txt('🎯 Audiencia')}</div>
-              <select value={audienciaTipo} onChange={e => { setAudienciaTipo(e.target.value); actualizarAudiencia(e.target.value, limM); }} style={{ marginBottom: 7, width: '100%' }}>
+              <select value={audienciaTipo} onChange={e => setAudienciaTipo(e.target.value)} style={{ marginBottom: 7, width: '100%' }}>
                 <option value="todos">{txt('👥 Todos los clientes')}</option>
                 <option value="conPedido">{txt('📦 Con pedido previo')}</option>
                 <option value="recurrentes">{txt('⭐ Recurrentes')}</option>
@@ -306,11 +318,11 @@ export default function Notificaciones() {
               </select>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <label style={{ fontSize: 12, color: 'var(--text-mute)', whiteSpace: 'nowrap' }}>Máx:</label>
-                <input type="number" value={limM} min={1} max={500} onChange={e => setLimM(parseInt(e.target.value) || 50)} onBlur={() => actualizarAudiencia(audienciaTipo, limM)} style={{ width: 70 }} />
+                <input type="number" value={limM} min={1} max={500} onChange={e => setLimM(parseInt(e.target.value) || 50)} style={{ width: 70 }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-mute)' }}>
-                <span>{audiencia === null ? 'Calculando...' : 'clientes recibirán el mensaje'}</span>
-                <strong style={{ fontSize: 18, color: 'var(--accent)' }}>{audiencia === null ? '...' : audiencia.length}</strong>
+                <span>{audiencia === undefined ? 'Calculando...' : 'clientes recibirán el mensaje'}</span>
+                <strong style={{ fontSize: 18, color: 'var(--accent)' }}>{audiencia === undefined ? '...' : audiencia.length}</strong>
               </div>
             </div>
             <div style={{ maxHeight: 350, overflowY: 'auto', fontSize: 12 }}>
@@ -356,7 +368,7 @@ export default function Notificaciones() {
                 </div>
               )}
             </div>
-            <button className="btn btn-primary" style={{ width: '100%' }} disabled={enviandoMasivo} onClick={enviarMasivo}>
+            <button className="btn btn-primary" style={{ width: '100%' }} disabled={enviarMasivoMutation.isPending} onClick={enviarMasivo}>
               <Emoji>📣 </Emoji>Enviar a {audiencia?.length || 0} clientes
             </button>
             {respMasivo && <div className={respMasivo.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respMasivo.texto)}</div>}

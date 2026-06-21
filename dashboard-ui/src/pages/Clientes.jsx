@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -10,19 +11,17 @@ function capitalizar(nombre) {
 export default function Clientes() {
   const txt = useTextoEmoji();
   const [q, setQ] = useState('');
-  const [rows, setRows] = useState(null);
-  const [error, setError] = useState('');
 
-  const cargar = (texto) => {
-    api.get('/api/clientes?q=' + encodeURIComponent(texto ?? q)).then(setRows).catch(e => setError(e.message));
-  };
-  useEffect(() => { cargar(''); }, []);
+  const { data: rows, error, refetch } = useQuery({
+    queryKey: ['clientes-busqueda', q],
+    queryFn: () => api.get('/api/clientes?q=' + encodeURIComponent(q)),
+  });
 
   return (
     <div>
       <div className="page-title">Clientes</div>
       <div className="page-sub">Clientes registrados vía WhatsApp</div>
-      {error && <div className="login-error">No se pudieron cargar los clientes: {error}</div>}
+      {error && <div className="login-error">No se pudieron cargar los clientes: {error.message}</div>}
 
       <div className="card">
         <div className="card-header">
@@ -31,17 +30,17 @@ export default function Clientes() {
             <input
               placeholder="Buscar..."
               value={q}
-              onChange={e => { setQ(e.target.value); cargar(e.target.value); }}
+              onChange={e => setQ(e.target.value)}
               style={{ width: 200 }}
             />
-            <button className="btn btn-secondary btn-sm" onClick={() => cargar()}>🔄</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button>
           </div>
         </div>
         <div className="table-wrap">
           <table>
             <thead><tr><th>Nombre</th><th>Teléfono</th><th>Canal</th><th>Cód. referido</th><th>Tags</th><th>Registro</th></tr></thead>
             <tbody>
-              {rows === null && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
+              {rows === undefined && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
               {rows?.length === 0 && <tr><td colSpan={6} className="empty">Sin clientes</td></tr>}
               {rows?.map(r => (
                 <tr key={r.id}>

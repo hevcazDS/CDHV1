@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { Emoji } from '../context/EmojiContext';
 
@@ -12,29 +13,30 @@ const ETIQUETAS = {
 };
 
 export default function BotStatusWidget() {
-  const [estado, setEstado] = useState(null);
-  const [historial, setHistorial] = useState([]);
+  const queryClient = useQueryClient();
   const [abierto, setAbierto] = useState(false);
-  const [accionando, setAccionando] = useState(false);
   const ref = useRef(null);
 
-  const cargarEstado = async () => {
-    try {
-      const data = await api.get('/api/bot/status');
-      setEstado(data);
-    } catch {
-      setEstado({ ok: false, estatus: 'desconocido' });
-    }
-  };
-  const cargarHistorial = async () => {
-    try { setHistorial(await api.get('/api/bot/status-history')); } catch { setHistorial([]); }
-  };
+  const { data: estado } = useQuery({
+    queryKey: ['bot-status'],
+    queryFn: () => api.get('/api/bot/status').catch(() => ({ ok: false, estatus: 'desconocido' })),
+    refetchInterval: 15000,
+  });
 
-  useEffect(() => {
-    cargarEstado();
-    const t = setInterval(cargarEstado, 15000);
-    return () => clearInterval(t);
-  }, []);
+  const { data: historial = [] } = useQuery({
+    queryKey: ['bot-status-history'],
+    queryFn: () => api.get('/api/bot/status-history').catch(() => []),
+    enabled: abierto,
+  });
+
+  const accionMutation = useMutation({
+    mutationFn: (ruta) => api.post(`/api/bot/${ruta}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bot-status'] });
+      queryClient.invalidateQueries({ queryKey: ['bot-status-history'] });
+    },
+    onError: (e) => alert(e.message),
+  });
 
   useEffect(() => {
     function onClickFuera(e) {
@@ -44,23 +46,7 @@ export default function BotStatusWidget() {
     return () => document.removeEventListener('mousedown', onClickFuera);
   }, []);
 
-  const abrir = () => {
-    setAbierto(v => !v);
-    if (!abierto) cargarHistorial();
-  };
-
-  const accion = async (ruta) => {
-    setAccionando(true);
-    try {
-      await api.post(`/api/bot/${ruta}`);
-      await cargarEstado();
-      await cargarHistorial();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setAccionando(false);
-    }
-  };
+  const abrir = () => setAbierto(v => !v);
 
   const enLinea = estado?.estatus === 'online';
   const etiqueta = ETIQUETAS[estado?.estatus] || estado?.estatus || 'Cargando…';
@@ -75,9 +61,9 @@ export default function BotStatusWidget() {
         <div className="bot-status-dropdown">
           <h4>Estatus del bot</h4>
           <div className="bot-status-actions">
-            <button className="btn" disabled={accionando} onClick={() => accion('start')}>Encender</button>
-            <button className="btn" disabled={accionando} onClick={() => accion('restart')}>Reiniciar</button>
-            <button className="btn btn-danger" disabled={accionando} onClick={() => accion('stop')}>Apagar</button>
+            <button className="btn" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('start')}>Encender</button>
+            <button className="btn" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('restart')}>Reiniciar</button>
+            <button className="btn btn-danger" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('stop')}>Apagar</button>
           </div>
           <h4>Historial reciente</h4>
           <div className="bot-history-list">

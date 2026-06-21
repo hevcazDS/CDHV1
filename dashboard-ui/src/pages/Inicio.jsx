@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useWhatsAppQR } from '../hooks/useWhatsAppQR';
 import WhatsAppQR from '../components/WhatsAppQR';
@@ -6,21 +6,22 @@ import { useTextoEmoji } from '../context/EmojiContext';
 
 export default function Inicio() {
   const txt = useTextoEmoji();
-  const [pedidos, setPedidos] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [error, setError] = useState('');
   // Caso normal: ya hubo login al dashboard y WhatsApp se desvincula después
   // (ej. el teléfono "olvida" el dispositivo) — App.jsx solo cubre el primer
   // arranque, antes de loguearse; este aviso cubre el resto del tiempo.
   const { qr } = useWhatsAppQR();
 
-  useEffect(() => {
-    api.get('/api/pedidos').then(setPedidos).catch(e => setError(e.message));
-    // emails_error no tenía ningún lugar en el dashboard donde verse — antes
-    // un correo de confirmación fallido solo era visible consultando SQL
-    // directo (ver dashboard/server.js /api/stats).
-    api.get('/api/stats').then(setStats).catch(() => {});
-  }, []);
+  const { data: pedidos, error } = useQuery({
+    queryKey: ['pedidos'],
+    queryFn: () => api.get('/api/pedidos'),
+  });
+  // emails_error no tenía ningún lugar en el dashboard donde verse — antes
+  // un correo de confirmación fallido solo era visible consultando SQL
+  // directo (ver dashboard/server.js).
+  const { data: stats } = useQuery({
+    queryKey: ['stats'],
+    queryFn: () => api.get('/api/stats'),
+  });
 
   const total = pedidos?.length || 0;
   const pendientes = pedidos?.filter(p => p.estatus !== 'entregado' && p.estatus !== 'cancelado').length || 0;
@@ -30,7 +31,7 @@ export default function Inicio() {
     <div>
       <div className="page-title">Inicio</div>
       <div className="page-sub">Resumen general de la operación</div>
-      {error && <div className="login-error" style={{ marginBottom: 20 }}>No se pudieron cargar los pedidos: {error}</div>}
+      {error && <div className="login-error" style={{ marginBottom: 20 }}>No se pudieron cargar los pedidos: {error.message}</div>}
       <WhatsAppQR qr={qr} />
       <div className="kpi-grid">
         <div className="card kpi-card">

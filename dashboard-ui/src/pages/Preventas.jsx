@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -9,8 +10,7 @@ const hoy = () => new Date().toISOString().slice(0, 10);
 
 export default function Preventas() {
   const txt = useTextoEmoji();
-  const [rows, setRows] = useState(null);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
   const [idProducto, setIdProducto] = useState('');
   const [nombre, setNombre] = useState('');
   const [fechaEst, setFechaEst] = useState('');
@@ -21,12 +21,21 @@ export default function Preventas() {
   const [llegadaId, setLlegadaId] = useState(null);
   const [fechaLlegada, setFechaLlegada] = useState(hoy());
 
-  const cargar = () => {
-    api.get('/api/preventas').then(setRows).catch(e => setError(e.message));
-  };
-  useEffect(cargar, []);
+  const { data: rows, error, refetch } = useQuery({
+    queryKey: ['preventas'],
+    queryFn: () => api.get('/api/preventas'),
+  });
 
-  const crear = async () => {
+  const crearMutation = useMutation({
+    mutationFn: (body) => api.post('/api/preventas', body),
+    onSuccess: () => {
+      setMsg({ ok: true, texto: '✅ Preventa creada' });
+      setIdProducto(''); setNombre(''); setFechaEst(''); setPrecio(''); setStock('50'); setAnticipo('50');
+      queryClient.invalidateQueries({ queryKey: ['preventas'] });
+    },
+    onError: (e) => setMsg({ ok: false, texto: '❌ ' + e.message }),
+  });
+  const crear = () => {
     const body = {
       id_producto: parseInt(idProducto || 0),
       nombre_preventa: nombre,
@@ -38,35 +47,31 @@ export default function Preventas() {
     if (!body.id_producto || !body.nombre_preventa || !body.fecha_llegada_est) {
       setMsg({ ok: false, texto: 'Completa los campos requeridos' }); return;
     }
-    try {
-      await api.post('/api/preventas', body);
-      setMsg({ ok: true, texto: '✅ Preventa creada' });
-      setIdProducto(''); setNombre(''); setFechaEst(''); setPrecio(''); setStock('50'); setAnticipo('50');
-      cargar();
-    } catch (e) { setMsg({ ok: false, texto: '❌ ' + e.message }); }
+    crearMutation.mutate(body);
   };
 
-  const confirmarLlegada = async () => {
-    try {
-      await api.put(`/api/preventas/${llegadaId}`, { fecha_llegada_real: fechaLlegada });
+  const confirmarLlegadaMutation = useMutation({
+    mutationFn: () => api.put(`/api/preventas/${llegadaId}`, { fecha_llegada_real: fechaLlegada }),
+    onSuccess: () => {
       setLlegadaId(null);
-      cargar();
-    } catch (e) { handleApiError(e); }
-  };
+      queryClient.invalidateQueries({ queryKey: ['preventas'] });
+    },
+    onError: (e) => handleApiError(e),
+  });
 
   return (
     <div>
       <div className="page-title">Preventas</div>
       <div className="page-sub">Productos en preventa con apartado anticipado</div>
-      {error && <div className="login-error">No se pudieron cargar las preventas: {error}</div>}
+      {error && <div className="login-error">No se pudieron cargar las preventas: {error.message}</div>}
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.4fr 1fr', alignItems: 'start' }}>
         <div className="card">
           <div className="card-header">
             <h3>{txt('📅 Preventas activas')}</h3>
-            <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button></div>
+            <div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button></div>
           </div>
-          {rows === null && <div className="empty">Cargando...</div>}
+          {rows === undefined && <div className="empty">Cargando...</div>}
           {rows?.length === 0 && <div className="empty">Sin preventas activas</div>}
           {rows?.map(r => (
             <div key={r.id} style={{ border: '1px solid var(--border)', borderRadius: 7, padding: 12, marginBottom: 8 }}>
@@ -118,7 +123,7 @@ export default function Preventas() {
         <Modal title="Fecha de llegada" onClose={() => setLlegadaId(null)}
           actions={<>
             <button className="btn btn-secondary" onClick={() => setLlegadaId(null)}>Cancelar</button>
-            <button className="btn btn-primary" onClick={confirmarLlegada}>Aceptar</button>
+            <button className="btn btn-primary" onClick={() => confirmarLlegadaMutation.mutate()}>Aceptar</button>
           </>}>
           <p className="page-sub" style={{ margin: '0 0 12px' }}>Ingresa la fecha real de llegada</p>
           <input type="date" autoFocus value={fechaLlegada} onChange={e => setFechaLlegada(e.target.value)} style={{ width: '100%' }} />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -23,41 +23,45 @@ const TONOS = [
 
 export default function Modulos() {
   const txt = useTextoEmoji();
-  const [estado, setEstado] = useState(null);
-  const [tono, setTonoActual] = useState(null);
-  const [tonoMsg, setTonoMsg] = useState(null);
+  const queryClient = useQueryClient();
 
-  const cargarModulos = async () => {
-    const rows = [];
-    for (const m of MODULOS) {
-      try {
-        const r = await api.get(`/api/modulo/${m.key}`);
-        rows.push({ key: m.key, activo: r && !r.error ? !!r.activo : true });
-      } catch (_) { /* ignorar, mantiene la lista parcial */ }
-    }
-    setEstado(rows);
-  };
-  const cargarTono = () => {
-    api.get('/api/tono').then(r => setTonoActual(r?.tono || 'C')).catch(() => setTonoActual('C'));
-  };
-  useEffect(() => { cargarModulos(); cargarTono(); }, []);
+  const { data: estado } = useQuery({
+    queryKey: ['modulos-estado'],
+    queryFn: async () => {
+      const rows = [];
+      for (const m of MODULOS) {
+        try {
+          const r = await api.get(`/api/modulo/${m.key}`);
+          rows.push({ key: m.key, activo: r && !r.error ? !!r.activo : true });
+        } catch (_) { /* ignorar, mantiene la lista parcial */ }
+      }
+      return rows;
+    },
+  });
+
+  const { data: tono } = useQuery({
+    queryKey: ['tono'],
+    queryFn: () => api.get('/api/tono').then(r => r?.tono || 'C').catch(() => 'C'),
+  });
 
   const activoDe = (key) => estado?.find(r => r.key === key)?.activo ?? true;
 
-  const toggle = async (clave, activo) => {
+  const toggleMutation = useMutation({
+    mutationFn: ({ clave, activo }) => api.post('/api/puntos/config', { clave, activo }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['modulos-estado'] }),
+    onError: (e) => handleApiError(e),
+  });
+  const toggle = (clave, activo) => {
     const accion = activo ? 'activar' : 'desactivar';
     if (!window.confirm(`¿Seguro que quieres ${accion} este módulo? Afecta a los clientes de inmediato.`)) return;
-    try { await api.post('/api/puntos/config', { clave, activo }); cargarModulos(); }
-    catch (e) { handleApiError(e); }
+    toggleMutation.mutate({ clave, activo });
   };
 
-  const cambiarTono = async (t) => {
-    try {
-      const r = await api.post('/api/tono', { tono: t });
-      setTonoActual(r.tono);
-      setTonoMsg({ ok: true, texto: '✅ Modo actualizado. Aplica en menos de 60 segundos.' });
-    } catch (e) { setTonoMsg({ ok: false, texto: '❌ ' + e.message }); }
-  };
+  const cambiarTonoMutation = useMutation({
+    mutationFn: (t) => api.post('/api/tono', { tono: t }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tono'] }),
+  });
+  const cambiarTono = (t) => cambiarTonoMutation.mutate(t);
 
   return (
     <div>
@@ -81,7 +85,7 @@ export default function Modulos() {
 
         <div className="card">
           <div className="card-header"><h3>{txt('📋 Estado de módulos')}</h3></div>
-          {estado === null && <div className="empty">Cargando...</div>}
+          {estado === undefined && <div className="empty">Cargando...</div>}
           {estado?.map(r => (
             <div key={r.key} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
               <code style={{ fontSize: 12 }}>{r.key}</code>
@@ -106,7 +110,8 @@ export default function Modulos() {
             </div>
           ))}
         </div>
-        {tonoMsg && <div className={tonoMsg.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(tonoMsg.texto)}</div>}
+        {cambiarTonoMutation.isSuccess && <div className="card" style={{ marginTop: 12 }}>✅ Modo actualizado. Aplica en menos de 60 segundos.</div>}
+        {cambiarTonoMutation.isError && <div className="login-error" style={{ marginTop: 12 }}>❌ {cambiarTonoMutation.error.message}</div>}
       </div>
     </div>
   );
