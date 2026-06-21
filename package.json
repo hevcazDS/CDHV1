@@ -21,6 +21,8 @@
     "test:bot": "node tests/test_bot.js",
     "test:db": "node tests/test_db_flujo.js",
     "test:estres": "node tests/test_estres_bd.js",
+    "test:carrito": "node tests/test_carrito.js",
+    "test:dashboard-api": "node tests/test_dashboard_api.js",
     "migrate": "node scripts/migrate.js",
     "migrate:status": "node scripts/migrate.js --status",
     "lint": "echo 'Linting...'",
