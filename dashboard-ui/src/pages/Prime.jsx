@@ -17,6 +17,10 @@ export default function Prime() {
   const [diasEntrega, setDiasEntrega] = useState('');
   const [msg, setMsg] = useState('');
 
+  // ── Reconexión automática de WhatsApp ────────────────────────────────────
+  const [reconexionAuto, setReconexionAuto] = useState(false);
+  const [msgReconexion, setMsgReconexion] = useState('');
+
   const [palabras, setPalabras] = useState([]);
   const [nuevaCategoria, setNuevaCategoria] = useState('bw_word');
   const [nuevaPalabra, setNuevaPalabra] = useState('');
@@ -66,11 +70,21 @@ export default function Prime() {
     api.get('/api/prime/envio-default').then(d => setCostoDefault(String(d.costo_envio_default)));
     api.get('/api/prime/estafeta-dias-entrega').then(d => setDiasEntrega(String(d.dias_entrega)));
     api.get('/api/negocio').then(d => setNombreNegocio(d.nombre_negocio));
+    api.get('/api/prime/config').then(d => setReconexionAuto(!!d.reconexion_auto_activo)).catch(() => {});
     cargarPalabras();
     cargarSucursales();
     cargarUsuarios();
     cargarInventarios();
   }, []);
+
+  const toggleReconexionAuto = async () => {
+    setMsgReconexion('');
+    const activo = !reconexionAuto;
+    try {
+      await api.post('/api/prime/config', { clave: 'reconexion_auto_activo', activo });
+      setReconexionAuto(activo);
+    } catch (e) { setMsgReconexion(e.message); }
+  };
 
   const crearSucursal = async () => {
     setMsgSucursales('');
@@ -244,6 +258,24 @@ export default function Prime() {
           <input type="number" min="1" max="30" value={diasEntrega} onChange={e => setDiasEntrega(e.target.value)} />
         </div>
         <button className="btn btn-primary" onClick={guardarDiasEntrega}>Guardar</button>
+      </div>
+
+      <div className="card" style={{ marginBottom: 20, maxWidth: 420 }}>
+        <h3 style={{ marginTop: 0 }}>Reconexión automática de WhatsApp</h3>
+        <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+          Por defecto, si WhatsApp se desconecta el bot se queda detenido hasta que alguien lo
+          reinicie manualmente desde el widget de estatus. Activa esto si prefieres que el bot
+          intente reconectarse solo (en el mismo proceso) cuando no haya nadie pendiente de él —
+          a cambio de un riesgo pequeño de quedar con un Chrome zombie si la desconexión fue por
+          un perfil corrupto.
+        </p>
+        {msgReconexion && <div style={{ marginBottom: 12, color: '#e66' }}>{msgReconexion}</div>}
+        <button className="btn" onClick={toggleReconexionAuto}>
+          {reconexionAuto ? 'Desactivar reconexión automática' : 'Activar reconexión automática'}
+        </button>
+        <span className={`badge badge-${reconexionAuto ? 'verde' : 'rojo'}`} style={{ marginLeft: 10 }}>
+          {reconexionAuto ? '✅ Activa' : '⛔ Inactiva'}
+        </span>
       </div>
 
       <div className="card" style={{ maxWidth: 420 }}>

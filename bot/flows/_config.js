@@ -38,9 +38,12 @@ function getTono() { _refresh(); return _cache.tono; }
 function invalidarCache() { _cache.ts = 0; }
 
 // Flags que arrancan apagados si nunca se han tocado en `configuracion`:
-// puntos (módulo opcional) y las dos integraciones de API real, que deben
-// quedarse en modo simulado/demo hasta que el usuario prime las encienda.
-const _DEFAULT_OFF = new Set(['puntos_activo', 'pago_real_activo', 'estafeta_real_activo']);
+// puntos (módulo opcional), las dos integraciones de API real (deben
+// quedarse en modo simulado/demo hasta que el usuario prime las encienda),
+// y la reconexión automática de WhatsApp en el mismo proceso (por defecto
+// el bot se queda detenido tras un 'disconnected' en vez de reintentar solo
+// — ver bot/index.js y bot/reconexionAutomatica.js).
+const _DEFAULT_OFF = new Set(['puntos_activo', 'pago_real_activo', 'estafeta_real_activo', 'reconexion_auto_activo']);
 
 function moduloActivo(clave) {
     _refresh();

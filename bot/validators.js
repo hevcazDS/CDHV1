@@ -82,10 +82,11 @@ const ModuloConfigSchema = z.object({
     activo: z.boolean(),
 });
 
-// Flags de API real (pago/Estafeta) — solo el usuario prime puede tocarlos,
-// por eso viven en un schema separado del ModuloConfigSchema de uso general.
+// Flags de API real (pago/Estafeta) y de reconexión automática — solo el
+// usuario prime puede tocarlos, por eso viven en un schema separado del
+// ModuloConfigSchema de uso general.
 const PrimeConfigSchema = z.object({
-    clave: z.enum(['pago_real_activo', 'estafeta_real_activo']),
+    clave: z.enum(['pago_real_activo', 'estafeta_real_activo', 'reconexion_auto_activo']),
     activo: z.boolean(),
 });
 

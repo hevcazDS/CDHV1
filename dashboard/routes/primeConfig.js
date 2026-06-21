@@ -42,7 +42,7 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
     // para el usuario común: requieren credenciales propias desde .env.
     if (p === '/api/prime/config' && req.method === 'GET') {
         if (!requireSession(req, res, ['prime'])) return;
-        const claves = ['pago_real_activo', 'estafeta_real_activo'];
+        const claves = ['pago_real_activo', 'estafeta_real_activo', 'reconexion_auto_activo'];
         const out = {};
         for (const clave of claves) {
             const r = db.prepare('SELECT valor FROM configuracion WHERE clave=? LIMIT 1').get(clave);

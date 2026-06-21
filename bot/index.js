@@ -773,13 +773,23 @@ client.on('disconnected', reason => {
         }
     } catch (e) { log.warn('No se pudo encolar alerta de desconexión', e); }
     // whatsapp-web.js no se reconecta solo tras 'disconnected' (hay que
-    // volver a llamar initialize()) — en vez de reinicializar el cliente en
-    // el mismo proceso (puede dejar un browser/page zombie), se deja que
-    // pm2 relance el proceso completo: LocalAuth reintenta la sesión guardada
-    // y, si ya no es válida (ej. el celular "olvidó" el dispositivo), el
-    // propio cliente emite un 'qr' nuevo automáticamente — que ahora sí
-    // queda visible en el dashboard en vez de quedar el bot conectado a nada.
-    shutdown('disconnected');
+    // volver a llamar initialize()). Antes esto salía del proceso y dejaba
+    // que pm2 lo relanzara — pero combinado con el taskkill/ventana de
+    // Electron de abrirDashboard(), cada desconexión real terminaba
+    // matando también el navegador/ventana del usuario, no solo el del bot
+    // (ver intentarCerrarProcesosBrowser). Por defecto el bot ahora se
+    // queda detenido sin reiniciarse solo — el correo de arriba avisa, y
+    // hay que reiniciarlo manualmente desde el dashboard. Si se activa
+    // 'reconexion_auto_activo' (rol prime, /api/prime/config), en vez de
+    // quedarse detenido reintenta en el mismo proceso vía
+    // reconexionAutomatica.js — útil cuando no hay nadie pendiente del bot,
+    // a costa del riesgo de browser/page zombie que describía el comentario
+    // original.
+    if (botConfig.moduloActivo('reconexion_auto_activo')) {
+        require('./reconexionAutomatica').intentarReconectar(client, log);
+    } else {
+        log.warn('Reconexión automática desactivada — el bot queda detenido hasta un reinicio manual desde el dashboard');
+    }
 });
 client.on('ready', () => {
     log.info('Bot conectado y listo');
