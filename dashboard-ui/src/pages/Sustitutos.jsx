@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { fmt } from '../lib/format';
+import { handleApiError } from '../lib/apiError';
 
 export default function Sustitutos() {
   const [q, setQ] = useState('');
@@ -33,13 +34,13 @@ export default function Sustitutos() {
       await api.post('/api/sustitutos', { id_producto: base.id, id_sustituto: idSust, score: 8 });
       setQVincular(''); setResultadosVincular(null);
       cargarSustitutos(base.id, base.nombre);
-    } catch (e) { window.alert('❌ ' + e.message); }
+    } catch (e) { handleApiError(e); }
   };
 
   const eliminar = async (id) => {
     if (!window.confirm('¿Eliminar esta relación?')) return;
     try { await api.del(`/api/sustitutos/${id}`); cargarSustitutos(base.id, base.nombre); }
-    catch (e) { window.alert('❌ ' + e.message); }
+    catch (e) { handleApiError(e); }
   };
 
   return (

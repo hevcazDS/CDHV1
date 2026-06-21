@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fmt } from '../lib/format';
+import { handleApiError } from '../lib/apiError';
 
 export default function Promociones() {
   const [filtro, setFiltro] = useState('');
@@ -43,7 +44,7 @@ export default function Promociones() {
   const toggle = async (id, activa) => {
     if (!window.confirm(`¿Seguro que quieres ${activa ? 'activar' : 'desactivar'} esta promoción?`)) return;
     try { await api.put(`/api/promociones/${id}`, { activa: !!activa }); cargar(); }
-    catch (e) { window.alert('❌ ' + e.message); }
+    catch (e) { handleApiError(e); }
   };
 
   return (

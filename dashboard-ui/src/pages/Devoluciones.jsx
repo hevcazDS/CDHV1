@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fdate } from '../lib/format';
+import { handleApiError } from '../lib/apiError';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 
@@ -21,7 +22,7 @@ export default function Devoluciones() {
 
   const actualizar = async (id, estatus, notasVal) => {
     try { await api.put(`/api/devoluciones/${id}`, { estatus, notas: notasVal ?? null }); cargar(); }
-    catch (e) { window.alert('Error: ' + e.message); cargar(); }
+    catch (e) { handleApiError(e); cargar(); }
   };
 
   const cambiarEstatus = (id, estatus) => {

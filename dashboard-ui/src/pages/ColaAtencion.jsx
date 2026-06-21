@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
+import { handleApiError } from '../lib/apiError';
 import Badge from '../components/Badge';
 
 const TABS = [
@@ -21,7 +22,7 @@ export default function ColaAtencion() {
 
   const marcar = async (id, estatus) => {
     try { await api.put(`/api/cola_atencion/${id}`, { estatus }); cargar(); }
-    catch (e) { window.alert('Error: ' + e.message); }
+    catch (e) { handleApiError(e); }
   };
 
   return (

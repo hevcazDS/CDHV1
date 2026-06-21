@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fmt } from '../lib/format';
+import { handleApiError } from '../lib/apiError';
 
 export default function ListaEspera() {
   const [lista, setLista] = useState(null);
@@ -16,7 +17,7 @@ export default function ListaEspera() {
     try {
       const r = await api.post(`/api/notificar-lista/${idProducto}`);
       window.alert(`✅ ${r.notificados || 0} notificados`);
-    } catch (e) { window.alert('❌ Error al notificar: ' + e.message); }
+    } catch (e) { handleApiError(e, 'Error al notificar'); }
     cargar();
   };
 

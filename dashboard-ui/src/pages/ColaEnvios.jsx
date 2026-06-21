@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
+import { handleApiError } from '../lib/apiError';
 import Badge from '../components/Badge';
 
 const TABS = [
@@ -30,12 +31,12 @@ export default function ColaEnvios() {
       const r = await api.post('/api/cola/reintentar', {});
       window.alert(`✅ ${r.reactivados || 0} mensajes reactivados`);
       cargarCola();
-    } catch (e) { window.alert('❌ ' + e.message); }
+    } catch (e) { handleApiError(e); }
   };
 
   const reintentarUno = async (id) => {
     try { await api.post(`/api/cola/reintentar/${id}`, {}); cargarCola(); }
-    catch (e) { window.alert('❌ ' + e.message); }
+    catch (e) { handleApiError(e); }
   };
 
   const cancelarCampana = async (asunto, enviar_despues_de) => {
@@ -44,7 +45,7 @@ export default function ColaEnvios() {
       const r = await api.del('/api/cola/programados', { asunto, enviar_despues_de });
       window.alert(`✅ ${r.cancelados || 0} mensajes cancelados`);
       cargarProgramados();
-    } catch (e) { window.alert('❌ ' + e.message); }
+    } catch (e) { handleApiError(e); }
   };
 
   return (

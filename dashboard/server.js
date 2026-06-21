@@ -13,7 +13,7 @@ const path  = require('path');
 const fs    = require('fs');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
-const { NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema, safeEqual } = require('../bot/validators');
+const { NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema, safeEqual } = require('../bot/validators');
 require('dotenv').config({ quiet: true });
 const log = require('../bot/logger')('dashboard');
 
@@ -1431,8 +1431,9 @@ function handleAPI(req, res) {
     if (p === '/api/cupon/redimir' && req.method === 'POST') {
         return readBody(req, body => {
             try {
-                const { codigo, idTicket } = JSON.parse(body);
-                if (!codigo) return json(res, { ok:false, error:'Falta código' }, 400);
+                const parsed = validar(JSON.parse(body), CuponRedimirSchema, res);
+                if (!parsed) return;
+                const { codigo, idTicket } = parsed;
                 const hoy = new Date().toISOString().slice(0, 10);
                 const promo = db.prepare(`
                     SELECT * FROM promociones
@@ -1576,9 +1577,9 @@ function handleAPI(req, res) {
         const idPedido = parseInt(p.split('/')[4]);
         return readBody(req, body => {
             try {
-                const { costo_envio } = JSON.parse(body);
-                const costo = Number(costo_envio);
-                if (!Number.isFinite(costo) || costo < 0) return json(res, { ok:false, error:'costo_envio inválido' }, 400);
+                const parsed = validar(JSON.parse(body), CostoEnvioSchema, res);
+                if (!parsed) return;
+                const costo = parsed.costo_envio;
 
                 const envio = db.prepare('SELECT id FROM envios WHERE id_pedido=? LIMIT 1').get(idPedido);
                 if (!envio) return json(res, { ok:false, error:'Este pedido no tiene envío registrado' }, 404);
@@ -1606,9 +1607,9 @@ function handleAPI(req, res) {
         if (!requireSession(req, res, ['prime'])) return;
         return readBody(req, body => {
             try {
-                const { costo_envio } = JSON.parse(body);
-                const costo = Number(costo_envio);
-                if (!Number.isFinite(costo) || costo < 0) return json(res, { ok:false, error:'costo_envio inválido' }, 400);
+                const parsed = validar(JSON.parse(body), CostoEnvioSchema, res);
+                if (!parsed) return;
+                const costo = parsed.costo_envio;
                 db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('costo_envio_default', ?, datetime('now','localtime'))").run(String(costo));
                 log.info('[prime] costo_envio_default actualizado: ' + costo);
                 return json(res, { ok:true, costo_envio_default: costo });

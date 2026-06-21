@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fmt, fdate } from '../lib/format';
+import { handleApiError } from '../lib/apiError';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 
@@ -21,12 +22,12 @@ export default function Pedidos() {
   const cambiarEstatus = async (id, estatus) => {
     if (estatus === 'cancelado' && !window.confirm('¿Cancelar este pedido? Se notificará al cliente.')) { cargar(); return; }
     try { await api.put(`/api/pedidos/${id}`, { estatus }); cargar(); }
-    catch (e) { window.alert('Error: ' + e.message); cargar(); }
+    catch (e) { handleApiError(e); cargar(); }
   };
 
   const abrirTicket = async (idPedido) => {
     try { setTicket(await api.get(`/api/pedidos/${idPedido}/ticket`)); }
-    catch (e) { window.alert('No se pudo cargar el ticket: ' + e.message); }
+    catch (e) { handleApiError(e, 'No se pudo cargar el ticket'); }
   };
 
   const confirmarPago = async () => {
@@ -34,7 +35,7 @@ export default function Pedidos() {
     try {
       await api.post(`/api/pagos/${pagoModal}/marcar-pagado`, { referencia_pago: referencia });
       setPagoModal(null); setReferencia(''); cargar();
-    } catch (e) { window.alert('Error: ' + e.message); }
+    } catch (e) { handleApiError(e); }
   };
 
   const exportarCSV = () => {

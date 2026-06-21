@@ -12,6 +12,13 @@ async function request(path, { method = 'GET', body } = {}) {
     const error = new Error((data && data.error) || `Error ${res.status}`);
     error.status = res.status;
     error.data = data;
+    // No hay forma de que api.js (módulo plano, sin acceso a React) llame
+    // directo a AuthContext — un evento global es lo más simple para que
+    // CUALQUIER 401 (sesión expirada en CUALQUIER página) dispare el logout,
+    // no solo el que originó la request que falló.
+    if (res.status === 401 && path !== '/api/me') {
+      window.dispatchEvent(new Event('dashboard:unauthorized'));
+    }
     throw error;
   }
   return data;

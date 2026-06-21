@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fmt } from '../lib/format';
+import { handleApiError } from '../lib/apiError';
 import Modal from '../components/Modal';
 
 const hoy = () => new Date().toISOString().slice(0, 10);
@@ -48,7 +49,7 @@ export default function Preventas() {
       await api.put(`/api/preventas/${llegadaId}`, { fecha_llegada_real: fechaLlegada });
       setLlegadaId(null);
       cargar();
-    } catch (e) { window.alert('❌ ' + e.message); }
+    } catch (e) { handleApiError(e); }
   };
 
   return (

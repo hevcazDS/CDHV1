@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { handleApiError } from '../lib/apiError';
 
 const MODULOS = [
   { key: 'puntos_activo', titulo: '⭐ Puntos de Lealtad', desc: 'Clientes acumulan puntos con tickets QR' },
@@ -44,7 +45,7 @@ export default function Modulos() {
     const accion = activo ? 'activar' : 'desactivar';
     if (!window.confirm(`¿Seguro que quieres ${accion} este módulo? Afecta a los clientes de inmediato.`)) return;
     try { await api.post('/api/puntos/config', { clave, activo }); cargarModulos(); }
-    catch (e) { window.alert('❌ ' + e.message); }
+    catch (e) { handleApiError(e); }
   };
 
   const cambiarTono = async (t) => {

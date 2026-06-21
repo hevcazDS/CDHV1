@@ -20,6 +20,16 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { revisarSesion(); }, [revisarSesion]);
 
+  // Cualquier llamada a la API desde cualquier página puede recibir un 401
+  // si la sesión expiró a media navegación (api.js dispara este evento) —
+  // antes cada página solo mostraba un alert('Error 401') confuso y se
+  // quedaba en la misma pantalla. Esto regresa al login de forma consistente.
+  useEffect(() => {
+    const onUnauthorized = () => setUser(null);
+    window.addEventListener('dashboard:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('dashboard:unauthorized', onUnauthorized);
+  }, []);
+
   const login = async (username, password) => {
     const data = await api.post('/api/login', { username, password });
     setUser({ username: data.username, rol: data.rol });

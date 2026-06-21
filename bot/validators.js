@@ -95,6 +95,25 @@ const PagoConfirmadoSchema = z.object({
     referencia_pago: z.string().min(1, 'referencia_pago requerida').max(100),
 });
 
+// Costo de envío — usado tanto para corregir un pedido puntual
+// (PUT /api/prime/envio/:id) como para el default global
+// (PUT /api/prime/envio-default). Antes cada ruta repetía el mismo chequeo
+// inline (Number.isFinite + >=0); centralizado aquí para que ambas usen el
+// mismo helper validar() que el resto de rutas POST/PUT.
+const CostoEnvioSchema = z.object({
+    costo_envio: z.number().finite('costo_envio inválido').nonnegative('costo_envio inválido'),
+});
+
+// POST /api/cupon/redimir — antes no validaba el tipo de idTicket; un valor
+// no numérico no tronaba (better-sqlite3 simplemente no matcheaba ninguna
+// fila), pero dejaba el ticket sin ligar a la promoción de forma silenciosa.
+const CuponRedimirSchema = z.object({
+    codigo: z.string().min(1, 'Falta código'),
+    // nullish (no solo optional): el caller puede mandar null explícito para
+    // decir "sin ticket", igual que antes con el chequeo `if (idTicket)`.
+    idTicket: z.coerce.number().int().positive().nullish(),
+});
+
 // Carrito armado a mano por un asesor (POS) para un cliente — ids de
 // producto reales, validados/cargados desde la tabla productos en el
 // endpoint, no se confía en nombre/precio que venga del cliente HTTP.
@@ -198,6 +217,8 @@ module.exports = {
     ModuloConfigSchema: { safeParse: (d) => safe(ModuloConfigSchema, d) },
     PrimeConfigSchema:  { safeParse: (d) => safe(PrimeConfigSchema, d) },
     PagoConfirmadoSchema: { safeParse: (d) => safe(PagoConfirmadoSchema, d) },
+    CostoEnvioSchema:     { safeParse: (d) => safe(CostoEnvioSchema, d) },
+    CuponRedimirSchema:   { safeParse: (d) => safe(CuponRedimirSchema, d) },
     VentaPreviaSchema:  { safeParse: (d) => safe(VentaPreviaSchema, d) },
     NegocioSchema:      { safeParse: (d) => safe(NegocioSchema, d) },
     PalabraFiltroSchema: { safeParse: (d) => safe(PalabraFiltroSchema, d) },
