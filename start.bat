@@ -11,6 +11,14 @@ taskkill /F /IM chromium.exe /T >nul 2>&1
 taskkill /F /IM msedge.exe /T >nul 2>&1
 taskkill /F /IM electron.exe /T >nul 2>&1
 
+REM taskkill devuelve en cuanto manda la senal de cierre, pero Windows tarda
+REM un poco mas en liberar el lock del perfil de Chrome que usa la sesion de
+REM WhatsApp (.wwebjs_auth) -- sin esta pausa, Puppeteer choca con ese lock
+REM todavia vivo y el primer intento de lanzar el navegador falla siempre
+REM ("Failed to launch the browser process"). bot/index.js ya reintenta solo
+REM si esto llega a pasar, pero evitarlo aqui ahorra ese primer fallo.
+timeout /t 2 /nobreak >nul
+
 echo Iniciando bot y dashboard via PM2...
 call npx pm2 start ecosystem.config.js
 

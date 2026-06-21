@@ -24,13 +24,24 @@ let qrMostrado = false;
 let dashboardAbierto = false;
 let stockWatcherWorker = null;
 
+// Devuelve una Promise que resuelve cuando taskkill terminó (+ un colchón
+// breve) — antes esta función no se esperaba en ningún lado: se disparaba el
+// taskkill y, sin pausa, seguía directo a client.initialize(), que lanza un
+// Chrome nuevo casi al mismo tiempo que Windows todavía está liberando los
+// handles del Chrome anterior recién matado. Eso es justo lo que reprodujo
+// consistentemente "Failed to launch the browser process: Code: 1" en cada
+// arranque/reinicio (vía start.bat, pm2 restart o un crash-restart), no solo
+// como un caso raro — el reintento de client.initialize() (más abajo) lo
+// disimulaba, pero el primer intento fallaba siempre por esta carrera.
 function intentarCerrarProcesosBrowser() {
-    if (process.platform !== 'win32') return;
-    try {
-        execFile('taskkill', ['/F', '/IM', 'chrome.exe', '/IM', 'chromium.exe', '/IM', 'msedge.exe', '/IM', 'electron.exe'], {
-            windowsHide: true,
-        }, () => {});
-    } catch (_) {}
+    if (process.platform !== 'win32') return Promise.resolve();
+    return new Promise(resolve => {
+        try {
+            execFile('taskkill', ['/F', '/IM', 'chrome.exe', '/IM', 'chromium.exe', '/IM', 'msedge.exe', '/IM', 'electron.exe'], {
+                windowsHide: true,
+            }, () => setTimeout(resolve, 1500));
+        } catch (_) { resolve(); }
+    });
 }
 
 function limpiarSesionLocalAuth() {
@@ -50,7 +61,13 @@ function abrirDashboard() {
     if (dashboardAbierto) return;
     dashboardAbierto = true;
     const root = path.join(__dirname, '..');
-    log.info('Abriendo dashboard después de confirmar login del bot');
+    // Se abre al arrancar el bot, no al quedar 'ready' (autenticado) — si no,
+    // mientras WhatsApp no esté vinculado nunca aparece ninguna ventana desde
+    // donde escanear el QR (el propio QR solo se ve dentro del dashboard que
+    // esto abre), un punto muerto: para ver el QR había que esperar a estar
+    // ya conectado. desktop/main.js ya reintenta loadURL ~20s por su cuenta
+    // si el servidor del dashboard todavía no levantó.
+    log.info('Abriendo dashboard...');
     if (process.platform === 'win32') {
         execFile('cmd.exe', ['/d', '/s', '/c', 'npx.cmd --prefix desktop electron desktop'], {
             cwd: root,
@@ -580,7 +597,7 @@ function _resolveChromePath() {
     throw new Error('No se encontró Chrome/Chromium en PATH. Define CHROME_PATH en .env (ej. la salida de `which chromium`).');
 }
 
-intentarCerrarProcesosBrowser();
+const _cierreNavegadoresPrevios = intentarCerrarProcesosBrowser();
 
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -591,6 +608,8 @@ const client = new Client({
                '--no-first-run','--no-zygote','--disable-extensions'],
     },
 });
+
+abrirDashboard();
 
 // stockWatcher: proceso hijo separado — si crashea no afecta al bot.
 // Reintenta con backoff exponencial (10s→20s→40s→80s→160s, tope 300s) en vez
@@ -724,7 +743,6 @@ client.on('ready', () => {
     log.info('Bot conectado y listo');
     qrMostrado = false;
     _setWhatsAppQR('');
-    abrirDashboard();
     // Procesar cola de notificaciones cada 30 segundos
     setInterval(procesarColaNotificaciones, 30_000).unref();
     arrancarStockWatcherWorker();
@@ -1029,7 +1047,7 @@ async function shutdown(signal) {
         const msg = String(e && (e.message || e));
         log.warn('⚠️ Error al cerrar WhatsApp, intentando cierre forzado', e);
         if (/EBUSY|locked|already running|userDataDir|unlink/i.test(msg)) {
-            intentarCerrarProcesosBrowser();
+            await intentarCerrarProcesosBrowser();
             try {
                 await client.destroy();
                 log.info('✅ WhatsApp cerrado correctamente tras cierre forzado.');
@@ -1061,8 +1079,16 @@ process.on('exit', () => {
 // initialize() falla de verdad (perfil de Chrome bloqueado/corrupto) se
 // limpia y se reintenta una vez — el caso que el comentario original
 // describía ("evitar bloqueos de navegador") sin pagar el costo siempre.
-client.initialize().catch(e => {
-    log.error('Falló la inicialización de WhatsApp — limpiando sesión local y reintentando una vez', e);
-    limpiarSesionLocalAuth();
-    client.initialize().catch(e2 => log.error('🔴 El reintento de inicialización de WhatsApp también falló', e2));
+//
+// Se espera _cierreNavegadoresPrevios (ver intentarCerrarProcesosBrowser)
+// antes de lanzar Chrome — sin esto, initialize() se disparaba casi al mismo
+// tiempo que el taskkill de arriba, todavía liberando los handles del Chrome
+// anterior, y "Failed to launch the browser process" salía en el primer
+// intento de cada arranque/reinicio, no solo como caso raro.
+_cierreNavegadoresPrevios.then(() => {
+    client.initialize().catch(e => {
+        log.error('Falló la inicialización de WhatsApp — limpiando sesión local y reintentando una vez', e);
+        limpiarSesionLocalAuth();
+        client.initialize().catch(e2 => log.error('🔴 El reintento de inicialización de WhatsApp también falló', e2));
+    });
 });
