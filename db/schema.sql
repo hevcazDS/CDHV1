@@ -1,0 +1,687 @@
+-- db/schema.sql — esquema canónico de la base de datos (SQLite / better-sqlite3)
+--
+-- Por qué existe este archivo: el proyecto nunca tuvo un schema.sql consolidado.
+-- Cada tabla se creó a mano contra producción a lo largo del tiempo; solo
+-- unas pocas (sesiones_bot, palabras_filtro, configuracion, usuarios,
+-- bot_status_log, sesiones_dashboard, vision_cache, contadores_caso,
+-- ventas_previas) tienen `CREATE TABLE IF NOT EXISTS` en el código — el resto
+-- vive únicamente como rastros en migraciones_pendientes/*.sql y en el uso
+-- real de columnas vía db.prepare(...). Este archivo reconstruye TODAS las
+-- tablas que el código espera, para que un instalador pueda generar una base
+-- de datos nueva desde cero sin depender de una copia de producción.
+--
+-- Uso: sqlite3 ruta/al/nuevo.db < db/schema.sql
+-- (o ábrelo con better-sqlite3 y ejecuta db.exec(fs.readFileSync(...)) — ver
+-- scripts/instalarBaseDeDatos.js)
+--
+-- Reglas de este archivo:
+--   - Todo CREATE TABLE usa IF NOT EXISTS — correr este script dos veces
+--     sobre la misma BD nunca debe fallar ni duplicar nada.
+--   - El orden de las tablas respeta dependencias de FOREIGN KEY (la tabla
+--     referenciada se crea antes que la que la referencia), porque
+--     bot/db_connection.js corre `PRAGMA foreign_keys = ON`.
+--   - Las columnas que en el código fueron agregadas después vía
+--     migraciones_pendientes/*.sql (ALTER TABLE ... ADD COLUMN) ya vienen
+--     incluidas aquí directamente en el CREATE TABLE — un install nuevo no
+--     necesita correr esas migraciones, solo las BDs viejas que ya existían
+--     antes de que se agregara la columna.
+--   - Las tablas que el código crea él mismo en tiempo de ejecución
+--     (sesiones_bot, palabras_filtro, configuracion, usuarios,
+--     bot_status_log, sesiones_dashboard, vision_cache, contadores_caso,
+--     ventas_previas) se repiten aquí con la MISMA definición exacta que en
+--     el código, para que el instalador deje la BD completa de una sola vez
+--     sin tener que levantar el bot/dashboard primero.
+
+PRAGMA foreign_keys = ON;
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Configuración / catálogo del propio sistema (sin dependencias)
+-- ──────────────────────────────────────────────────────────────────────────
+
+-- "Personalidad" del negocio (nombre, tono, flags de módulo) — la lee
+-- bot/flows/_config.js (cache 60s) y dashboard/server.js. Una fila por
+-- `clave` (nombre_negocio, tono_bot, puntos_activo, vision_activo,
+-- costo_envio_default, etc.). El instalador llena nombre_negocio/tono_bot
+-- una vez al hacer el setup inicial de cada cliente.
+CREATE TABLE IF NOT EXISTS configuracion (
+    clave         TEXT PRIMARY KEY,
+    valor         TEXT NOT NULL DEFAULT '1',
+    descripcion   TEXT,
+    actualizado_en TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- Lleva el registro de qué archivos de migrations/*.sql ya se aplicaron a
+-- esta base (ver scripts/migrate.js, Fase JIUA 8). Una instalación nueva
+-- creada desde este schema.sql ya tiene todo integrado, así que nunca
+-- necesita correr migrate.js para ponerse al día — pero la tabla se declara
+-- aquí también para que su existencia no dependa de haberlo corrido nunca.
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version       TEXT PRIMARY KEY,
+    aplicado_en   TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- Usuarios del dashboard. rol='prime' es el único que puede tocar
+-- inventario/sucursales/altas de producto (ver sección POS más abajo) y los
+-- demás endpoints /api/prime/*. Sembrada al boot desde DASHBOARD_USER/
+-- DASHBOARD_PASS y USER_PRIME/USER_PRIME_PASSWORD (ver dashboard/server.js).
+CREATE TABLE IF NOT EXISTS usuarios (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    username      TEXT NOT NULL UNIQUE,
+    nombre        TEXT NOT NULL DEFAULT '',
+    password_hash TEXT NOT NULL,
+    salt          TEXT NOT NULL,
+    rol           TEXT NOT NULL CHECK(rol IN ('admin','prime')),
+    creado_en     TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS sesiones_dashboard (
+    token    TEXT PRIMARY KEY,
+    username TEXT NOT NULL,
+    rol      TEXT NOT NULL,
+    expira   INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bot_status_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    estatus       TEXT NOT NULL,
+    motivo        TEXT,
+    registrado_en TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- Sesión conversacional de cada usuario de WhatsApp (estado del flujo del
+-- bot). Ver bot/sessionManager.js — cache en memoria con TTL 30min respaldado
+-- por esta tabla.
+CREATE TABLE IF NOT EXISTS sesiones_bot (
+    id_usuario  TEXT PRIMARY KEY,
+    paso_actual TEXT NOT NULL DEFAULT 'MENU',
+    data_json   TEXT NOT NULL DEFAULT '{}'
+);
+
+-- Lista negra de contenido + frases de queja editables desde el dashboard
+-- (capa sobre las listas BASE de bot/filtroPalabras.js, que nunca se tocan).
+CREATE TABLE IF NOT EXISTS palabras_filtro (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    categoria  TEXT NOT NULL CHECK(categoria IN ('bw_word','bw_long','risk','queja_l1','queja_l2')),
+    palabra    TEXT NOT NULL,
+    puntos     INTEGER,
+    origen     TEXT NOT NULL DEFAULT 'dashboard' CHECK(origen IN ('codigo_fuente','dashboard')),
+    activo     INTEGER NOT NULL DEFAULT 1,
+    creado_por TEXT,
+    creado_en  TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_palabras_filtro_unica ON palabras_filtro(categoria, palabra);
+
+-- Cache de resultados de Google Cloud Vision por hash de imagen (TTL 7 días,
+-- ver bot/imageAnalyzer.js).
+CREATE TABLE IF NOT EXISTS vision_cache (
+    hash        TEXT PRIMARY KEY,
+    labels_json TEXT NOT NULL,
+    query_text  TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    hits        INTEGER NOT NULL DEFAULT 1
+);
+
+-- Secuenciador diario de números de caso (CASO-YYYYMMDD-NNN) para escaladas.
+CREATE TABLE IF NOT EXISTS contadores_caso (
+    fecha    TEXT PRIMARY KEY,
+    ultimo_n INTEGER NOT NULL DEFAULT 0
+);
+
+-- Secuenciadores de folio por tipo de documento (PED-, ESP-, etc.) — usado
+-- por bot/flows/_shared.js, services/estafetaService.js, services/stockService.js.
+CREATE TABLE IF NOT EXISTS series_folios (
+    tipo        TEXT PRIMARY KEY,
+    prefijo     TEXT,
+    ultimo_folio INTEGER NOT NULL DEFAULT 0,
+    longitud    INTEGER NOT NULL DEFAULT 6
+);
+
+-- Catálogo de categorías de producto (lookup, referenciado por nombre desde
+-- productos.cat). Solo existencia/datos verificados por tests/test_db_flujo.js.
+CREATE TABLE IF NOT EXISTS categorias (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL UNIQUE,
+    activa INTEGER NOT NULL DEFAULT 1
+);
+
+-- Zonas de cobertura de envío (bot/flows/_shared.js consulta por estado).
+CREATE TABLE IF NOT EXISTS cobertura (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    estado TEXT NOT NULL,
+    activa INTEGER NOT NULL DEFAULT 1
+);
+
+-- Puntos de recolección / sucursales para pickup (bot/flows/orderFlow.js).
+-- No confundir con la tabla `sucursales` de la sección POS más abajo: esta
+-- es la lista pública de "dónde puedes recoger tu pedido"; `sucursales` es
+-- el catálogo interno de inventario. Se mantienen separadas para no romper
+-- el flujo de pickup existente al introducir el módulo de inventario.
+CREATE TABLE IF NOT EXISTS puntos_entrega (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    estado   TEXT,
+    ciudad   TEXT,
+    telefono TEXT,
+    horario  TEXT,
+    activo   INTEGER NOT NULL DEFAULT 1
+);
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Clientes y catálogo de productos
+-- ──────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS clientes (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre            TEXT,
+    telefono          TEXT,
+    email             TEXT,
+    canal_origen      TEXT,
+    activo            INTEGER NOT NULL DEFAULT 1,
+    creado_en         TEXT DEFAULT (datetime('now','localtime')),
+    ultima_actividad  TEXT,
+    tags              TEXT,
+    -- columnas de perfil/ML agregadas por migraciones_pendientes/0019:
+    edad_pref         TEXT,
+    genero_pref       TEXT,
+    tipo_pref         TEXT,
+    presupuesto_pref  TEXT,
+    lead_score        INTEGER DEFAULT 0,
+    -- programa de referidos: código propio del cliente (formato REF-XXXXXXXX,
+    -- ver bot/handlers/referidosService.js) y quién lo refirió, si aplica.
+    codigo_referido   TEXT,
+    referido_por_id   INTEGER REFERENCES clientes(id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_codigo_referido ON clientes(codigo_referido);
+
+CREATE TABLE IF NOT EXISTS productos (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                    TEXT NOT NULL,
+    cat                     TEXT,
+    price                   REAL NOT NULL DEFAULT 0,
+    url_imagen              TEXT,
+    tags                    TEXT,
+    seo_description         TEXT,
+    edad_recomendada        TEXT,
+    edad_min                INTEGER,
+    genero                  TEXT,
+    activo                  INTEGER NOT NULL DEFAULT 1,
+    stock_tienda            INTEGER NOT NULL DEFAULT 0,
+    stock_cedis             INTEGER NOT NULL DEFAULT 0,
+    stock_san_luis_potosi   INTEGER NOT NULL DEFAULT 0,
+    ventas_simuladas        INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS productos_similares (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_producto  INTEGER NOT NULL REFERENCES productos(id),
+    id_sustituto INTEGER NOT NULL REFERENCES productos(id),
+    activa       INTEGER NOT NULL DEFAULT 1
+);
+
+-- Stock por producto y sucursal "legacy" (texto libre en `sucursal`, p.ej.
+-- 'san_luis_potosi', 'cedis') — distinta de la tabla `sucursales` normalizada
+-- del módulo de inventario; se deja intacta para no romper services/stockService.js.
+CREATE TABLE IF NOT EXISTS inventarios (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_producto   INTEGER NOT NULL REFERENCES productos(id),
+    sucursal      TEXT NOT NULL,
+    stock         INTEGER NOT NULL DEFAULT 0,
+    -- Leído por services/stockWatcher.js:checkStockMinimo() (alerta "Stock
+    -- mínimo"); en 0 esa alerta nunca dispara (mismo comportamiento que
+    -- tenía hoy mientras la columna no existía, pero sin tronar la consulta
+    -- SQL). Sin UI en el dashboard todavía para editarlo — Fase JIUA 2.
+    stock_minimo  INTEGER NOT NULL DEFAULT 0
+);
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Pedidos y todo lo que cuelga de un pedido
+-- ──────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS pedidos (
+    id_pedido       INTEGER PRIMARY KEY AUTOINCREMENT,
+    folio           TEXT,
+    cliente         TEXT,
+    id_cliente      INTEGER REFERENCES clientes(id),
+    id_producto     INTEGER REFERENCES productos(id),
+    cantidad        INTEGER,
+    ciudad_envio    TEXT,
+    cp              TEXT,                         -- migraciones_pendientes/0018
+    estatus         TEXT NOT NULL DEFAULT 'generado',
+    subtotal        REAL,
+    descuento       REAL DEFAULT 0,
+    total           REAL,
+    canal_creacion  TEXT NOT NULL DEFAULT 'bot',   -- migraciones_pendientes/0010
+    email_notificado INTEGER DEFAULT 0,
+    tono_bot        TEXT,                          -- migrations/0001_agregar_tono_bot.sql
+    creado_en       TEXT DEFAULT (datetime('now','localtime')),
+    actualizado_en  TEXT
+);
+
+-- Auto-rellena tono_bot desde la configuración activa al momento del INSERT,
+-- sin tener que tocar cada sitio del código que crea un pedido (ver
+-- migrations/0001_agregar_tono_bot.sql).
+CREATE TRIGGER IF NOT EXISTS trg_pedidos_tono_bot
+AFTER INSERT ON pedidos
+WHEN NEW.tono_bot IS NULL
+BEGIN
+    UPDATE pedidos SET tono_bot = (SELECT valor FROM configuracion WHERE clave = 'tono_bot')
+    WHERE id_pedido = NEW.id_pedido;
+END;
+
+CREATE TABLE IF NOT EXISTS pedido_detalle (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_pedido       INTEGER NOT NULL REFERENCES pedidos(id_pedido),
+    id_producto     INTEGER NOT NULL REFERENCES productos(id),
+    cantidad        INTEGER NOT NULL,
+    precio_unitario REAL NOT NULL,
+    subtotal_linea  REAL,
+    sucursal_origen TEXT
+);
+
+CREATE TABLE IF NOT EXISTS direcciones_envio (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente  INTEGER REFERENCES clientes(id),
+    alias       TEXT,
+    calle       TEXT,
+    colonia     TEXT,
+    ciudad      TEXT,
+    estado      TEXT,
+    cp          TEXT,
+    referencia  TEXT,
+    es_default  INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS reservas_pickup (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_pedido     INTEGER NOT NULL REFERENCES pedidos(id_pedido),
+    id_punto      INTEGER REFERENCES puntos_entrega(id),
+    estatus       TEXT NOT NULL DEFAULT 'apartado',
+    fecha_limite  TEXT,
+    codigo_retiro TEXT
+);
+
+CREATE TABLE IF NOT EXISTS envios (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_pedido               INTEGER NOT NULL REFERENCES pedidos(id_pedido),
+    id_paqueteria           INTEGER NOT NULL DEFAULT 1,
+    numero_guia             TEXT,
+    url_rastreo             TEXT,
+    costo_envio             REAL,
+    fecha_envio             TEXT,
+    fecha_entrega_estimada  TEXT,
+    estatus                 TEXT NOT NULL DEFAULT 'guia_generada'
+);
+
+CREATE TABLE IF NOT EXISTS estatus_envio_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_envio      INTEGER NOT NULL REFERENCES envios(id),
+    estatus       TEXT NOT NULL,
+    descripcion   TEXT,
+    ubicacion     TEXT,
+    registrado_en TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS guias_estafeta (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_envio            INTEGER REFERENCES envios(id),
+    id_pedido           INTEGER REFERENCES pedidos(id_pedido),
+    numero_guia         TEXT,
+    folio_interno       TEXT,
+    dest_nombre         TEXT,
+    dest_calle          TEXT,
+    dest_colonia        TEXT,
+    dest_ciudad         TEXT,
+    dest_estado         TEXT,
+    dest_cp             TEXT,
+    dest_telefono       TEXT,
+    peso_kg             REAL,
+    alto_cm             REAL,
+    ancho_cm            REAL,
+    largo_cm            REAL,
+    contenido           TEXT,
+    valor_declarado     REAL,
+    estatus             TEXT NOT NULL DEFAULT 'generada',
+    fecha_envio_est     TEXT,
+    fecha_entrega_est   TEXT,
+    fecha_entrega_real  TEXT,
+    estatus_entrega     TEXT,
+    es_simulada         INTEGER NOT NULL DEFAULT 1,
+    creada_en           TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS links_pago (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_pedido        INTEGER NOT NULL REFERENCES pedidos(id_pedido),
+    id_metodo        INTEGER,
+    url_link         TEXT,
+    token_externo    TEXT,
+    monto            REAL,
+    moneda           TEXT DEFAULT 'MXN',
+    estatus          TEXT NOT NULL DEFAULT 'generado',
+    fecha_expiracion TEXT,
+    referencia_pago  TEXT,                          -- migraciones_pendientes/0012
+    pagado_en        TEXT,
+    creado_en        TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Lista de espera / preventa / alertas de reabasto
+-- ──────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS lista_espera (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente          INTEGER REFERENCES clientes(id),
+    id_producto         INTEGER NOT NULL REFERENCES productos(id),
+    telefono            TEXT,
+    nombre_cliente      TEXT,
+    cantidad            INTEGER DEFAULT 1,
+    precio_al_registrar REAL,
+    estatus             TEXT NOT NULL DEFAULT 'activa',
+    canal               TEXT DEFAULT 'whatsapp',
+    notas               TEXT,
+    folio_lista_espera  TEXT,
+    creada_en           TEXT DEFAULT (datetime('now','localtime')),
+    notificado_en       TEXT
+);
+
+CREATE TABLE IF NOT EXISTS preventas (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_producto         INTEGER REFERENCES productos(id),
+    nombre_preventa     TEXT,
+    cantidad            INTEGER,
+    fecha_llegada_est   TEXT,
+    fecha_llegada_real  TEXT,
+    stock_comprometido  INTEGER DEFAULT 0,
+    activa              INTEGER NOT NULL DEFAULT 1,
+    creada_en           TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS preventa_clientes (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_preventa         INTEGER NOT NULL REFERENCES preventas(id),
+    id_cliente          INTEGER REFERENCES clientes(id),
+    telefono            TEXT,
+    cantidad            INTEGER DEFAULT 1,
+    notificado_llegada  INTEGER DEFAULT 0,
+    creada_en           TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS alertas_reabasto (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente  INTEGER REFERENCES clientes(id),
+    id_producto INTEGER NOT NULL REFERENCES productos(id),
+    telefono    TEXT,
+    estatus     TEXT NOT NULL DEFAULT 'activa',
+    creada_en   TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS carritos_abandonados (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    telefono     TEXT NOT NULL,
+    carrito_json TEXT NOT NULL,
+    ultimo_paso  TEXT,
+    motivo       TEXT,                              -- migraciones_pendientes/0021
+    notificado   INTEGER DEFAULT 0,
+    notificado_en TEXT,
+    convertido   INTEGER DEFAULT 0,
+    creada_en    TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Hilo de conversación (la base de datos de entrenamiento futura)
+-- ──────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS conversaciones (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente   INTEGER REFERENCES clientes(id),
+    telefono     TEXT NOT NULL,
+    canal        TEXT NOT NULL DEFAULT 'whatsapp',
+    estatus      TEXT NOT NULL DEFAULT 'activa',
+    id_pedido    INTEGER REFERENCES pedidos(id_pedido),
+    ultimo_paso  TEXT,                               -- migraciones_pendientes/0008
+    outcome      TEXT,                                -- 'venta'|'escalacion'|'queja'|'abandono' (services/mensajeService.js)
+    iniciada_en  TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS mensajes (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_conversacion INTEGER NOT NULL REFERENCES conversaciones(id),
+    rol             TEXT NOT NULL CHECK(rol IN ('cliente','bot','asesor')),
+    contenido       TEXT NOT NULL,
+    enviado_en      TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Colas de notificación / atención humana
+-- ──────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS cola_notificaciones (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo                TEXT NOT NULL,
+    destinatario        TEXT NOT NULL,
+    asunto              TEXT,
+    cuerpo              TEXT,
+    id_pedido           INTEGER REFERENCES pedidos(id_pedido),
+    estatus             TEXT NOT NULL DEFAULT 'pendiente',
+    intentos            INTEGER NOT NULL DEFAULT 0,
+    enviar_despues_de   TEXT,
+    campana             TEXT,                          -- migraciones_pendientes/0020
+    creada_en           TEXT DEFAULT (datetime('now','localtime')),
+    enviado_en          TEXT
+);
+
+CREATE TABLE IF NOT EXISTS cola_emails (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_pedido       INTEGER REFERENCES pedidos(id_pedido),
+    destinatarios   TEXT NOT NULL,
+    asunto          TEXT,
+    cuerpo_html     TEXT,
+    tipo            TEXT,
+    estatus         TEXT NOT NULL DEFAULT 'pendiente',
+    intentos        INTEGER NOT NULL DEFAULT 0,
+    creada_en       TEXT DEFAULT (datetime('now','localtime')),
+    actualizado_en  TEXT,
+    enviado_en      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS cola_atencion (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_conversacion INTEGER REFERENCES conversaciones(id),
+    id_cliente      INTEGER REFERENCES clientes(id),
+    motivo_escalada TEXT,
+    tipo            TEXT NOT NULL DEFAULT 'otro',       -- migraciones_pendientes/0016
+    caso            TEXT,                                -- migraciones_pendientes/0016
+    prioridad       INTEGER NOT NULL DEFAULT 1,
+    estatus         TEXT NOT NULL DEFAULT 'en_espera',
+    creada_en       TEXT DEFAULT (datetime('now','localtime')),
+    atendida_en     TEXT,
+    resuelta_en     TEXT,
+    reescalada_en   TEXT  -- timeout sin respuesta del asesor (services/stockWatcher.js checkQuejasSinRespuesta) ya re-notificó; evita re-notificar más de una vez por caso
+);
+
+CREATE TABLE IF NOT EXISTS devoluciones (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_pedido       INTEGER NOT NULL REFERENCES pedidos(id_pedido),
+    id_producto     INTEGER REFERENCES productos(id),   -- migraciones_pendientes/0014
+    cantidad        INTEGER,                              -- migraciones_pendientes/0014
+    motivo          TEXT,
+    canal           TEXT,
+    estatus         TEXT NOT NULL DEFAULT 'solicitada',
+    notas           TEXT,
+    creada_en       TEXT DEFAULT (datetime('now','localtime')),
+    actualizado_en  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS valoraciones (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_pedido     INTEGER REFERENCES pedidos(id_pedido),
+    id_cliente    INTEGER REFERENCES clientes(id),
+    calificacion  INTEGER,
+    comentario    TEXT,
+    canal         TEXT,
+    creada_en     TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Analítica / log de eventos (insumo para entrenar un modelo más adelante)
+-- ──────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS log_eventos (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo_evento   TEXT NOT NULL,
+    canal         TEXT,
+    valor         TEXT,
+    telefono      TEXT,                                  -- migraciones_pendientes/0017
+    resultados    INTEGER,                                -- migraciones_pendientes/0017
+    compro        INTEGER DEFAULT 0,                       -- migraciones_pendientes/0022
+    tono_bot      TEXT,                                     -- migrations/0001_agregar_tono_bot.sql
+    registrado_en TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- Auto-rellena tono_bot desde la configuración activa al momento del INSERT
+-- (ver migrations/0001_agregar_tono_bot.sql) — mismo patrón que pedidos.
+CREATE TRIGGER IF NOT EXISTS trg_log_eventos_tono_bot
+AFTER INSERT ON log_eventos
+WHEN NEW.tono_bot IS NULL
+BEGIN
+    UPDATE log_eventos SET tono_bot = (SELECT valor FROM configuracion WHERE clave = 'tono_bot')
+    WHERE id = NEW.id;
+END;
+
+-- Métricas agregadas del bot (panel "Métricas"). Solo verificada por
+-- tests/test_db_flujo.js como tabla existente; el código actual no le
+-- escribe directamente (las métricas se calculan on-the-fly desde pedidos/
+-- log_eventos), se deja como tabla de agregados pre-calculados a futuro.
+CREATE TABLE IF NOT EXISTS metricas_bot (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha         TEXT NOT NULL,
+    metrica       TEXT NOT NULL,
+    valor         REAL,
+    registrado_en TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Promociones / cupones / lealtad
+-- ──────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS promociones (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo       TEXT UNIQUE,
+    tipo         TEXT NOT NULL CHECK(tipo IN ('porcentaje','monto')),
+    valor        REAL NOT NULL,
+    id_producto  INTEGER REFERENCES productos(id),
+    fecha_inicio TEXT,
+    fecha_fin    TEXT,
+    usos_max     INTEGER,
+    usos_actual  INTEGER NOT NULL DEFAULT 0,
+    activa       INTEGER NOT NULL DEFAULT 1,
+    creada_en    TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS tickets_venta (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo_qr           TEXT UNIQUE NOT NULL,
+    telefono_cliente    TEXT,
+    total                REAL,
+    puntos_otorgados     INTEGER,
+    puntos_reclamados    INTEGER NOT NULL DEFAULT 0,
+    expira_reclamo_en    TEXT,
+    reclamado_en         TEXT,
+    creado_en            TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS puntos_cliente (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente        INTEGER REFERENCES clientes(id),
+    telefono          TEXT NOT NULL,
+    puntos_ganados    INTEGER NOT NULL DEFAULT 0,
+    puntos_canjeados  INTEGER NOT NULL DEFAULT 0,
+    ultimo_movimiento TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_puntos_cliente_telefono ON puntos_cliente(telefono);
+
+CREATE TABLE IF NOT EXISTS movimientos_puntos (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente  INTEGER REFERENCES clientes(id),
+    telefono    TEXT,
+    tipo        TEXT NOT NULL CHECK(tipo IN ('acumulacion','canje')),
+    puntos      INTEGER NOT NULL,
+    concepto    TEXT,
+    id_ticket   INTEGER REFERENCES tickets_venta(id),
+    creado_en   TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- Programa de referidos: registra cada vez que un código de referido
+-- (clientes.codigo_referido) otorgó puntos — historial/auditoría y, junto
+-- con creado_en, la base para el tope anti-fraude semanal por referente
+-- (ver bot/handlers/referidosService.js).
+CREATE TABLE IF NOT EXISTS referidos (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_referente      INTEGER NOT NULL REFERENCES clientes(id),
+    id_referido       INTEGER NOT NULL REFERENCES clientes(id),
+    telefono_referido TEXT,
+    puntos_otorgados  INTEGER NOT NULL DEFAULT 100,
+    creado_en         TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS regalos_lealtad (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente   INTEGER REFERENCES clientes(id),
+    telefono     TEXT,
+    codigo_cupon TEXT,
+    valor        REAL,
+    puntos_usados INTEGER,
+    expira_en    TEXT,
+    estatus      TEXT NOT NULL DEFAULT 'activo',
+    creada_en    TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Punto de venta físico (POS) — carritos armados por asesor desde el panel
+-- ──────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS ventas_previas (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    telefono     TEXT NOT NULL,
+    folio        TEXT,
+    carrito_json TEXT NOT NULL,
+    estatus      TEXT NOT NULL DEFAULT 'pendiente',
+    creada_en    TEXT DEFAULT (datetime('now','localtime')),
+    consumida_en TEXT
+);
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Inventario multi-sucursal (NUEVO — esquema + permisos diseñados, sin UI
+-- todavía; ver dashboard/server.js sección "Inventario (solo prime)" y
+-- CLAUDE.md). Solo el rol 'prime' puede escribir en sucursales/productos/
+-- movimientos_inventario — reutiliza requireSession(req, res, ['prime']).
+-- ──────────────────────────────────────────────────────────────────────────
+
+-- Catálogo normalizado de sucursales/almacenes de ESTE negocio. No reemplaza
+-- `inventarios.sucursal` (texto libre, ya usado por services/stockService.js
+-- para la red nacional simulada) ni `puntos_entrega` (lista pública de
+-- pickup) — es el catálogo interno que alimenta el ledger de movimientos.
+CREATE TABLE IF NOT EXISTS sucursales (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre    TEXT NOT NULL,
+    codigo    TEXT UNIQUE,
+    direccion TEXT,
+    activa    INTEGER NOT NULL DEFAULT 1,
+    creada_en TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- Ledger de movimientos de inventario: cada entrada/salida/ajuste queda
+-- registrada con quién la hizo (id_usuario, siempre un usuario 'prime' por
+-- el gate del API) — auditable, nunca se borra ni se actualiza una fila ya
+-- creada. El stock "actual" sigue viviendo en productos.stock_*/inventarios
+-- (no se duplica aquí); este ledger es el historial que los explica.
+CREATE TABLE IF NOT EXISTS movimientos_inventario (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_producto  INTEGER NOT NULL REFERENCES productos(id),
+    id_sucursal  INTEGER NOT NULL REFERENCES sucursales(id),
+    tipo         TEXT NOT NULL CHECK(tipo IN ('entrada','salida','ajuste')),
+    cantidad     INTEGER NOT NULL,
+    motivo       TEXT,
+    id_usuario   INTEGER REFERENCES usuarios(id),
+    creado_en    TEXT DEFAULT (datetime('now','localtime'))
+);

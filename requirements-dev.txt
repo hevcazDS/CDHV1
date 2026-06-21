@@ -1,0 +1,16 @@
+# ─────────────────────────────────────────────────────────────────────────
+# requirements-dev.txt — Referencia de dependencias de DESARROLLO (solo
+# documentación, npm no lee este archivo — la fuente real es package.json).
+#
+# Instalar con: npm ci
+# ─────────────────────────────────────────────────────────────────────────
+
+# ─── Desarrollo ───────────────────────────────────────────────────────
+nodemon@^3.0.2                 # Reinicia Node.js automáticamente al cambiar archivos
+
+# ─── Opcional: Linting y Formateo ─────────────────────────────────────
+# eslint@^8.56.0                # Linter para JavaScript (opcional)
+# prettier@^3.1.1               # Formateador de código (opcional)
+
+# Instalar opcionales con:
+#   npm install --save-dev eslint prettier

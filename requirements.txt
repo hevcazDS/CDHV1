@@ -1,0 +1,31 @@
+# ─────────────────────────────────────────────────────────────────────────
+# requirements.txt — Referencia de dependencias del proyecto Julio Cepeda Bot
+#
+# Este archivo es SOLO documentación — npm no lo lee. La fuente de verdad
+# real es package.json + package-lock.json.
+#
+# Para instalar (en Windows o NixOS, siempre igual):
+#   npm ci
+# (no "npm install" — npm ci respeta exactamente package-lock.json, así
+# ambas máquinas terminan con las mismas versiones, sin sorpresas)
+# ─────────────────────────────────────────────────────────────────────────
+
+# ─── Core Bot ──────────────────────────────────────────────────────────
+whatsapp-web.js@^1.25.0        # Cliente WhatsApp Web + Puppeteer integrado
+better-sqlite3@^11.9.1         # Base de datos SQLite (nativo C++, requiere compilar)
+dotenv@^17.4.2                 # Cargar variables de entorno desde .env
+puppeteer-core@^21.6.1         # Puppeteer sin Chrome incluido — usa CHROME_PATH
+qrcode-terminal@^0.12.0        # Mostrar el QR de WhatsApp en la terminal
+zod@^3.25.76                   # Validación de esquemas (bot/validators.js)
+
+# ─── Google Cloud ─────────────────────────────────────────────────────
+@google-cloud/vision@^4.2.0    # Google Cloud Vision API (análisis de imágenes)
+
+# Notas de instalación:
+# - better-sqlite3 se compila nativamente si no hay binario prebuilt para tu
+#   Node/OS — requiere Python 3 + compilador C/C++ (ver engines.node en
+#   package.json: la versión de Node debe coincidir en ambas máquinas).
+# - CHROME_PATH debe apuntar a un Chrome/Chromium real en .env. En Windows
+#   hay un default; en Linux/NixOS es obligatorio (ver bot/index.js).
+# - En NixOS, el entorno de compilación (python3, pkg-config, etc.) se
+#   declara en flake.nix — usa `nix develop` antes de `npm ci`.

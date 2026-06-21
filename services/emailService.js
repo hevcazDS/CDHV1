@@ -1,0 +1,387 @@
+// emailService.js
+// Servicio de correo para notificaciones de pedido.
+// Usa Node.js nativo (no nodemailer) — solo https/net + SMTP manual.
+// Configuración via .env — NUNCA hardcodear credenciales.
+//
+// Para activar: crea un archivo .env en la carpeta del bot con:
+//
+//   EMAIL_HOST=smtp.gmail.com
+//   EMAIL_PORT=587
+//   EMAIL_USER=tucorreo@gmail.com
+//   EMAIL_PASS=xxxx xxxx xxxx xxxx   <- Contraseña de aplicación Gmail (16 chars)
+//   EMAIL_FROM=Julio Cepeda Jugueterías <tucorreo@gmail.com>
+//   EMAIL_CEDIS=correo-cedis-monterrey@dominio.com
+//   EMAIL_PERSONAL=tu-correo-personal@gmail.com
+//   EMAIL_EXTRA=otro-correo@dominio.com
+//
+// PASOS PARA GMAIL:
+//   1. myaccount.google.com → Seguridad → Verificación en 2 pasos (activar)
+//   2. Verificación en 2 pasos → Contraseñas de aplicación
+//   3. Selecciona "Correo" y "Windows" → Genera → copia 16 chars al .env
+//
+// Para Outlook/Hotmail: EMAIL_HOST=smtp-mail.outlook.com EMAIL_PORT=587
+
+'use strict';
+
+const net    = require('net');
+const tls    = require('tls');
+const crypto = require('crypto');
+const db     = require('../bot/db_connection');
+const log    = require('../bot/logger')('emailService');
+require('dotenv').config({ quiet: true });
+
+// ── Config ────────────────────────────────────────────────────────────────
+const SMTP_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
+const SMTP_PORT = parseInt(process.env.EMAIL_PORT || '587');
+const SMTP_USER = process.env.EMAIL_USER || '';
+const SMTP_PASS = process.env.EMAIL_PASS || '';
+const FROM_ADDR = process.env.EMAIL_FROM || `Julio Cepeda Jugueterías <${SMTP_USER}>`;
+
+// Destinatarios fijos de notificaciones de pedido
+const DEST_CEDIS    = process.env.EMAIL_CEDIS    || '';
+const DEST_PERSONAL = process.env.EMAIL_PERSONAL || '';
+const DEST_EXTRA    = process.env.EMAIL_EXTRA    || '';
+
+function isConfigured() {
+    return !!(SMTP_USER && SMTP_PASS);
+}
+
+// ── SMTP client básico (STARTTLS) ─────────────────────────────────────────
+function _smtpSend(opts) {
+    return new Promise((resolve, reject) => {
+        const { host, port, user, pass, from, to, subject, html } = opts;
+        const boundary = `----=_Part_${crypto.randomBytes(8).toString('hex')}`;
+
+        const toList = Array.isArray(to) ? to : [to];
+        const toHeader = toList.join(', ');
+        const msgId    = `<${Date.now()}.${crypto.randomBytes(4).toString('hex')}@juliocepeda.bot>`;
+        const date     = new Date().toUTCString();
+
+        // Construir MIME multipart
+        const body = [
+            `From: ${from}`,
+            `To: ${toHeader}`,
+            `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+            `Date: ${date}`,
+            `Message-ID: ${msgId}`,
+            `MIME-Version: 1.0`,
+            `Content-Type: multipart/alternative; boundary="${boundary}"`,
+            '',
+            `--${boundary}`,
+            'Content-Type: text/plain; charset=UTF-8',
+            'Content-Transfer-Encoding: base64',
+            '',
+            Buffer.from(_htmlToText(html)).toString('base64'),
+            '',
+            `--${boundary}`,
+            'Content-Type: text/html; charset=UTF-8',
+            'Content-Transfer-Encoding: base64',
+            '',
+            Buffer.from(html).toString('base64'),
+            '',
+            `--${boundary}--`,
+        ].join('\r\n');
+
+        let socket = net.createConnection(port, host);
+        let state  = 'greeting';
+        let tlsSock = null;
+        let buf    = '';
+
+        const write = (s) => {
+            const sock = tlsSock || socket;
+            sock.write(s + '\r\n');
+        };
+
+        const handleLine = (line) => {
+            const code = parseInt(line.slice(0, 3));
+            if (state === 'greeting'    && code === 220) { write(`EHLO ${host}`); state = 'ehlo'; return; }
+            if (state === 'ehlo'        && code === 250) { write('STARTTLS');      state = 'starttls'; return; }
+            if (state === 'starttls'    && code === 220) {
+                tlsSock = tls.connect({ socket, servername: host }, () => {
+                    tlsSock.on('data', d => { buf += d; processBuffer(); });
+                    write(`EHLO ${host}`); state = 'ehlo2';
+                });
+                return;
+            }
+            if (state === 'ehlo2'       && code === 250) { write('AUTH LOGIN');    state = 'auth_user'; return; }
+            if (state === 'auth_user'   && code === 334) {
+                write(Buffer.from(user).toString('base64')); state = 'auth_pass'; return;
+            }
+            if (state === 'auth_pass'   && code === 334) {
+                write(Buffer.from(pass).toString('base64')); state = 'auth_ok'; return;
+            }
+            if (state === 'auth_ok'     && code === 235) {
+                write(`MAIL FROM:<${user}>`);               state = 'mail_from'; return;
+            }
+            if (state === 'mail_from'   && code === 250) {
+                // Enviar todos los RCPT TO
+                for (const addr of toList) write(`RCPT TO:<${addr.trim()}>`);
+                state = 'rcpt_to'; return;
+            }
+            if (state === 'rcpt_to'     && code === 250) {
+                // Solo avanzar cuando todos los RCPT respondieron
+                if (!_rcptDone) { _rcptDone = 1; } else {
+                    write('DATA'); state = 'data_cmd';
+                }
+                return;
+            }
+            if (state === 'data_cmd'    && code === 354) {
+                write(body + '\r\n.'); state = 'data_body'; return;
+            }
+            if (state === 'data_body'   && code === 250) {
+                write('QUIT'); state = 'quit'; return;
+            }
+            if (state === 'quit'        && code === 221) {
+                socket.destroy(); resolve({ ok: true, messageId: msgId }); return;
+            }
+            if (code >= 400) {
+                socket.destroy();
+                reject(new Error(`SMTP ${code}: ${line}`));
+            }
+        };
+
+        let _rcptDone = 0;
+        const processBuffer = () => {
+            const lines = buf.split('\r\n');
+            buf = lines.pop();
+            for (const line of lines) {
+                if (line) handleLine(line);
+            }
+        };
+
+        socket.on('data', d => { buf += d; processBuffer(); });
+        socket.on('error', reject);
+        socket.on('timeout', () => { socket.destroy(); reject(new Error('SMTP TIMEOUT')); });
+        socket.setTimeout(15000);
+    });
+}
+
+// ── Simplificar HTML a texto plano ────────────────────────────────────────
+function _htmlToText(html) {
+    return html
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<\/tr>/gi, '\n')
+        .replace(/<\/td>/gi, ' | ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+// ── Escapar HTML para evitar inyección en campos provenientes del cliente ──
+function esc(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ── Templates HTML ────────────────────────────────────────────────────────
+function _templatePedido(pedido) {
+    const {
+        folio, cliente, total, ciudad, estado, calle, colonia, cp,
+        productos, linkPago, codigoRetiro, tipoEntrega, guia,
+        fechaCreacion,
+    } = pedido;
+
+    const esEnvio = tipoEntrega === 'envio';
+
+    const rowsProductos = (productos || []).map(p =>
+        `<tr>
+            <td style="padding:8px;border-bottom:1px solid #eee">${esc(p.nombre)}</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${Number(p.cantidad)}</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">$${Number(p.precio).toFixed(2)}</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold">$${(p.precio*p.cantidad).toFixed(2)}</td>
+        </tr>`
+    ).join('');
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Pedido ${esc(folio)}</title></head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f4f4f4">
+<div style="max-width:620px;margin:20px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)">
+
+  <!-- Header -->
+  <div style="background:#e85d04;padding:24px 32px;text-align:center">
+    <h1 style="color:#fff;margin:0;font-size:24px">🧸 Julio Cepeda Jugueterías</h1>
+    <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:14px">Nuevo pedido registrado</p>
+  </div>
+
+  <!-- Folio y fecha -->
+  <div style="padding:20px 32px;background:#fff7f2;border-bottom:3px solid #e85d04">
+    <table width="100%"><tr>
+      <td><span style="font-size:12px;color:#888">FOLIO</span><br>
+          <strong style="font-size:20px;color:#e85d04">${esc(folio)}</strong></td>
+      <td style="text-align:right"><span style="font-size:12px;color:#888">FECHA</span><br>
+          <strong style="font-size:14px">${esc(fechaCreacion)}</strong></td>
+    </tr></table>
+  </div>
+
+  <!-- Cliente -->
+  <div style="padding:20px 32px;border-bottom:1px solid #eee">
+    <h3 style="margin:0 0 12px;color:#333;font-size:14px;text-transform:uppercase;letter-spacing:.05em">📋 Datos del cliente</h3>
+    <p style="margin:4px 0"><strong>Nombre:</strong> ${esc(cliente)}</p>
+    ${esEnvio ? `
+    <p style="margin:4px 0"><strong>Dirección:</strong> ${esc(calle)}, ${esc(colonia)}</p>
+    <p style="margin:4px 0"><strong>Ciudad:</strong> ${esc(ciudad)}, ${esc(estado)} CP ${esc(cp)}</p>` : `
+    <p style="margin:4px 0"><strong>Tipo:</strong> 🏪 Pick Up en sucursal</p>
+    ${codigoRetiro ? `<p style="margin:4px 0"><strong>Código de retiro:</strong> <code style="background:#f0f0f0;padding:2px 8px;border-radius:4px">${esc(codigoRetiro)}</code></p>` : ''}`}
+  </div>
+
+  <!-- Productos -->
+  <div style="padding:20px 32px;border-bottom:1px solid #eee">
+    <h3 style="margin:0 0 12px;color:#333;font-size:14px;text-transform:uppercase;letter-spacing:.05em">🧸 Productos</h3>
+    <table width="100%" style="border-collapse:collapse">
+      <thead>
+        <tr style="background:#f9f9f9">
+          <th style="padding:8px;text-align:left;font-size:12px;color:#666">Producto</th>
+          <th style="padding:8px;text-align:center;font-size:12px;color:#666">Cant.</th>
+          <th style="padding:8px;text-align:right;font-size:12px;color:#666">Precio</th>
+          <th style="padding:8px;text-align:right;font-size:12px;color:#666">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>${rowsProductos}</tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" style="padding:12px 8px;text-align:right;font-weight:bold">TOTAL:</td>
+          <td style="padding:12px 8px;text-align:right;font-weight:bold;color:#e85d04;font-size:18px">$${Number(total).toFixed(2)} MXN</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- Envío / Guía -->
+  ${esEnvio && guia ? `
+  <div style="padding:20px 32px;border-bottom:1px solid #eee;background:#f0f9ff">
+    <h3 style="margin:0 0 12px;color:#333;font-size:14px;text-transform:uppercase;letter-spacing:.05em">📦 Guía de envío</h3>
+    <p style="margin:4px 0"><strong>Número de guía:</strong> <code style="background:#e0f0ff;padding:2px 8px;border-radius:4px;font-size:16px">${esc(guia.numeroGuia)}</code></p>
+    <p style="margin:4px 0"><strong>Sale:</strong> ${esc(guia.fechaEnvioHuman)}</p>
+    <p style="margin:4px 0"><strong>Entrega estimada:</strong> ${esc(guia.fechaEntregaHuman)}</p>
+    <p style="margin:4px 0;font-size:12px;color:#888">⚠️ Guía simulada — se actualizará con número real al integrar Estafeta API</p>
+  </div>` : ''}
+
+  <!-- Link de pago -->
+  ${linkPago ? `
+  <div style="padding:20px 32px;text-align:center;border-bottom:1px solid #eee">
+    <a href="${esc(linkPago)}" style="display:inline-block;background:#e85d04;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:16px">
+      💳 Link de pago — $${Number(total).toFixed(2)} MXN
+    </a>
+    <p style="font-size:12px;color:#888;margin-top:8px">Link válido 48 horas</p>
+  </div>` : ''}
+
+  <!-- Footer -->
+  <div style="padding:16px 32px;background:#f9f9f9;text-align:center">
+    <p style="margin:0;font-size:12px;color:#aaa">Julio Cepeda Jugueterías — Bot de ventas WhatsApp<br>
+    Este es un mensaje automático. Para soporte: responde a este correo.</p>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+// ── Enviar notificación de pedido ─────────────────────────────────────────
+/**
+ * Envía correo de notificación a los 3 destinos configurados.
+ * Si el correo no está configurado, encola en cola_emails para reintento.
+ */
+async function notificarPedido(pedidoData) {
+    const { folio, idPedido } = pedidoData;
+
+    const destinatarios = [DEST_CEDIS, DEST_PERSONAL, DEST_EXTRA]
+        .filter(Boolean)
+        .filter(e => e.includes('@'));
+
+    if (!destinatarios.length) {
+        log.warn('No hay destinatarios configurados en .env');
+        return { ok: false, reason: 'NO_DESTINATARIOS' };
+    }
+
+    const html    = _templatePedido(pedidoData);
+    const asunto  = `Nuevo pedido ${folio} — ${pedidoData.cliente} — $${Number(pedidoData.total).toFixed(2)} MXN`;
+
+    // Siempre encolar primero (para historial)
+    try {
+        db.prepare(`
+            INSERT INTO cola_emails (id_pedido, destinatarios, asunto, html_body, estatus)
+            VALUES (?, ?, ?, ?, 'pendiente')
+        `).run(idPedido || null, JSON.stringify(destinatarios), asunto, html);
+    } catch(e) { log.debug('No se pudo encolar email en cola_emails: ' + e.message); }
+
+    if (!isConfigured()) {
+        log.warn('EMAIL_USER o EMAIL_PASS no configurados en .env');
+        return { ok: false, reason: 'NO_CONFIGURADO' };
+    }
+
+    try {
+        const result = await _smtpSend({
+            host: SMTP_HOST, port: SMTP_PORT,
+            user: SMTP_USER, pass: SMTP_PASS,
+            from: FROM_ADDR,
+            to: destinatarios,
+            subject: asunto,
+            html,
+        });
+
+        // Marcar como enviado en cola
+        db.prepare(`
+            UPDATE cola_emails SET estatus='enviado', enviado_en=datetime('now','localtime')
+            WHERE id_pedido=? AND estatus='pendiente'
+            ORDER BY id DESC LIMIT 1
+        `).run(idPedido || null);
+
+        // Marcar pedido como notificado
+        if (idPedido) {
+            db.prepare("UPDATE pedidos SET email_notificado=1 WHERE id_pedido=?").run(idPedido);
+        }
+
+        log.info(`Pedido ${folio} notificado a ${destinatarios.join(', ')}`);
+        return { ok: true, ...result };
+
+    } catch(e) {
+        log.error('Error enviando', e);
+        // Actualizar intentos
+        db.prepare(`
+            UPDATE cola_emails SET intentos=intentos+1, estatus='error'
+            WHERE id_pedido=? AND estatus='pendiente'
+            ORDER BY id DESC LIMIT 1
+        `).run(idPedido || null);
+        return { ok: false, reason: e.message };
+    }
+}
+
+// ── Reintentar emails fallidos (llamar periódicamente) ────────────────────
+async function reintentarPendientes() {
+    if (!isConfigured()) return;
+    const pendientes = db.prepare(
+        "SELECT * FROM cola_emails WHERE estatus IN ('pendiente','error') AND intentos < 5 ORDER BY id LIMIT 5"
+    ).all();
+
+    for (const email of pendientes) {
+        // Backoff exponencial: intento 1=0s, 2=2min, 3=8min, 4=30min, 5=2h
+        const backoffMin = [0, 2, 8, 30, 120][email.intentos] || 120;
+        if (email.intentos > 0) {
+            const ultimoIntento = new Date(email.actualizado_en || email.creada_en).getTime();
+            const minutosEspera = (Date.now() - ultimoIntento) / 60_000;
+            if (minutosEspera < backoffMin) continue; // aún no es momento
+        }
+        try {
+            const dests = JSON.parse(email.destinatarios);
+            await _smtpSend({
+                host: SMTP_HOST, port: SMTP_PORT,
+                user: SMTP_USER, pass: SMTP_PASS,
+                from: FROM_ADDR, to: dests,
+                subject: email.asunto, html: email.html_body,
+            });
+            db.prepare("UPDATE cola_emails SET estatus='enviado', enviado_en=datetime('now','localtime') WHERE id=?").run(email.id);
+            log.info('Correo enviado: ' + email.asunto);
+        } catch(e) {
+            db.prepare("UPDATE cola_emails SET intentos=intentos+1, estatus='error', actualizado_en=datetime('now','localtime') WHERE id=?").run(email.id);
+            log.warn('Reintento fallido: ' + email.asunto + ' — intento ' + (email.intentos + 1));
+        }
+    }
+}
+
+// Reintento automático cada 5 minutos (el backoff decide si actúa)
+setInterval(reintentarPendientes, 5 * 60_000).unref();
+
+module.exports = { notificarPedido, reintentarPendientes, isConfigured, _templatePedido };

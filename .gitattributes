@@ -1,0 +1,26 @@
+# Auto-normalize line endings to LF (para Linux/NixOS)
+* text=auto
+
+# JavaScript y Node.js siempre LF
+*.js text eol=lf
+*.json text eol=lf
+*.jsx text eol=lf
+
+# Shell scripts LF
+*.sh text eol=lf
+*.bash text eol=lf
+
+# SQL LF
+*.sql text eol=lf
+
+# Config LF
+.env.* text eol=lf
+.gitignore text eol=lf
+*.nix text eol=lf
+
+# Binarios no convertir
+*.db binary
+*.exe binary
+*.dll binary
+*.png binary
+*.jpg binary

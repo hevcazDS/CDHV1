@@ -1,0 +1,74 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# .gitignore — Julio Cepeda Bot
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── SEGURIDAD: Credenciales y secretos ──────────────────────────────────
+*.json
+!package.json
+!package-lock.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*-key.json
+*credentials*.json
+*service-account*.json
+google-vision-key.json
+arboreal-pager-497920-c5-af568a08e348.json
+
+# ── DATOS: Archivos locales ────────────────────────────────────────────
+# Base de datos SQLite
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# WhatsApp sesión
+.wwebjs_auth/
+.wwebjs_cache/
+.cache/
+
+# Chrome data
+chrome-data/
+chrome-profile/
+
+# ── DEPENDENCIAS ───────────────────────────────────────────────────────
+node_modules/
+npm-debug.log
+package-lock.json.bak
+
+# ── COMPILADOS ─────────────────────────────────────────────────────────
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.o
+
+# ── IDEs ───────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── SISTEMA ───────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── TEMPORALES ─────────────────────────────────────────────────────────
+*.tmp
+*.temp
+*.bak

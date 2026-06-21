@@ -1,0 +1,51 @@
+{
+  "name": "julio-cepeda-bot",
+  "version": "1.0.0",
+  "description": "WhatsApp Bot + Dashboard para Julio Cepeda Jugueterías",
+  "main": "bot/index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20.0.0 <21.0.0"
+  },
+  "scripts": {
+    "start": "node bot/index.js",
+    "start:dashboard": "node dashboard/server.js",
+    "start:all": "pm2 start ecosystem.config.js",
+    "dev:dashboard-ui": "npm --prefix dashboard-ui run dev",
+    "build:dashboard-ui": "npm --prefix dashboard-ui run build",
+    "install:all": "npm ci && npm --prefix dashboard-ui install && npm --prefix dashboard-ui run build && npm --prefix desktop install",
+    "install:nixos": "bash instalador-nixos-chatbot.sh",
+    "start:nixos": "bash iniciar-nixos-chatbot.sh",
+    "stop:nixos": "bash detener-nixos-chatbot.sh",
+    "test": "node tests/test_bot.js && node tests/test_db_flujo.js",
+    "test:bot": "node tests/test_bot.js",
+    "test:db": "node tests/test_db_flujo.js",
+    "test:estres": "node tests/test_estres_bd.js",
+    "migrate": "node scripts/migrate.js",
+    "migrate:status": "node scripts/migrate.js --status",
+    "lint": "echo 'Linting...'",
+    "dev": "nodemon bot/index.js",
+    "stop": "pm2 stop all"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "ecommerce",
+    "toys",
+    "mexico"
+  ],
+  "author": "Julio Cepeda Jugueterías",
+  "license": "PROPRIETARY",
+  "dependencies": {
+    "@google-cloud/vision": "^4.2.0",
+    "better-sqlite3": "^11.9.1",
+    "dotenv": "^17.4.2",
+    "puppeteer-core": "^21.6.1",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.25.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

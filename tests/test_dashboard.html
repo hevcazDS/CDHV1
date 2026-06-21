@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Test Dashboard — Julio Cepeda</title>
+<style>
+  body { font-family: monospace; padding: 20px; background: #1a1a2e; color: #e0e0e0; }
+  h2 { color: #e85d04; margin-top: 24px; }
+  .ok  { color: #4ade80; }
+  .err { color: #f87171; }
+  .warn{ color: #fbbf24; }
+  .box { background: #16213e; padding: 12px; border-radius: 6px; margin: 8px 0; font-size: 13px; }
+  pre  { white-space: pre-wrap; word-break: break-all; font-size: 12px; }
+  button { background: #e85d04; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin: 4px; font-size: 13px; }
+  button:hover { background: #c44d02; }
+  input { background: #0f3460; color: #fff; border: 1px solid #e85d04; padding: 6px 10px; border-radius: 4px; font-size: 13px; width: 300px; }
+</style>
+</head>
+<body>
+<h1 style="color:#e85d04">🔧 Test Dashboard — Julio Cepeda Jugueterías</h1>
+
+<h2>📡 APIs básicas</h2>
+<button onclick="testAPI('/health',          'health')">Health</button>
+<button onclick="testAPI('/api/stats',        'stats')">Stats</button>
+<button onclick="testAPI('/api/clientes',     'clientes')">Clientes</button>
+<button onclick="testAPI('/api/pedidos',      'pedidos')">Pedidos</button>
+<button onclick="testAPI('/api/guias',        'guias')">Guías</button>
+<button onclick="testAPI('/api/cola',         'cola')">Cola</button>
+<button onclick="testAPI('/api/ofertas',      'ofertas')">Ofertas</button>
+<button onclick="testAPI('/api/puntos/config','puntos-config')">Puntos config</button>
+
+<h2>👥 Clientes — búsqueda</h2>
+<input id="qCliente" placeholder="Nombre o teléfono..." value="">
+<button onclick="testAPI('/api/clientes?q='+document.getElementById('qCliente').value, 'busq-cli')">Buscar</button>
+<button onclick="testAPI('/api/clientes?tag=pedido_pendiente', 'tag-cli')">Tag: pedido_pendiente</button>
+
+<h2>📲 Notificar individual</h2>
+<input id="telNotif" placeholder="Teléfono (userId @lid)">
+<button onclick="testPOST('/api/notificar', {telefono: document.getElementById('telNotif').value, mensaje: 'Hola {nombre}, prueba desde test dashboard'}, 'notif')">Enviar prueba</button>
+
+<h2>📣 Masivo</h2>
+<button onclick="testPOST('/api/masivo', {mensaje:'Test masivo {nombre}', soloConPedido:false, limite:2}, 'masivo')">Masivo (2 clientes)</button>
+<button onclick="testPOST('/api/masivo', {mensaje:'Test tag', soloTags:['pedido_pendiente'], limite:5}, 'masivo-tag')">Masivo por tag</button>
+
+<h2>⚙️ Módulos</h2>
+<button onclick="testPOST('/api/puntos/config', {clave:'puntos_activo', activo:true},  'mod-on')">Puntos ON</button>
+<button onclick="testPOST('/api/puntos/config', {clave:'puntos_activo', activo:false}, 'mod-off')">Puntos OFF</button>
+<button onclick="testPOST('/api/puntos/config', {clave:'vision_activo', activo:false}, 'vis-off')">Vision OFF</button>
+
+<div id="resultados"></div>
+
+<script>
+const API = 'http://localhost:3001';
+
+function log(id, data, isErr) {
+  const el = document.getElementById('resultados');
+  const txt = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
+  const cls = isErr ? 'err' : 'ok';
+  el.innerHTML = '<h2>' + id + '</h2><div class="box"><pre class="'+cls+'">'+txt+'</pre></div>' + el.innerHTML;
+}
+
+async function testAPI(path, id) {
+  try {
+    const r = await fetch(API + path, {
+      headers: { 'Authorization': 'Basic ' + btoa('admin:cambiar_esto_urgente') }
+    });
+    const data = await r.json();
+    const count = Array.isArray(data) ? ' ('+data.length+' items)' : '';
+    log(id + count, data, !r.ok);
+  } catch(e) {
+    log(id, 'ERROR: ' + e.message, true);
+  }
+}
+
+async function testPOST(path, body, id) {
+  try {
+    const r = await fetch(API + path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Basic ' + btoa('admin:cambiar_esto_urgente')
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    log(id + ' ['+r.status+']', data, !r.ok);
+  } catch(e) {
+    log(id, 'ERROR: ' + e.message, true);
+  }
+}
+</script>
+</body>
+</html>
