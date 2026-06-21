@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useWhatsAppQR } from '../hooks/useWhatsAppQR';
 import WhatsAppQR from '../components/WhatsAppQR';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 export default function Inicio() {
+  const txt = useTextoEmoji();
   const [pedidos, setPedidos] = useState(null);
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
@@ -41,7 +43,7 @@ export default function Inicio() {
         </div>
         {emailsError > 0 && (
           <div className="card kpi-card" style={{ borderColor: 'var(--red)' }}>
-            <span className="kpi-label">⚠️ Emails con error</span>
+            <span className="kpi-label">{txt('⚠️ Emails con error')}</span>
             <span className="kpi-value">{emailsError}</span>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import { Emoji } from '../context/EmojiContext';
 
 const ETIQUETAS = {
   online: 'En línea',
@@ -67,7 +68,7 @@ export default function BotStatusWidget() {
   return (
     <div className="bot-status" ref={ref}>
       <button className="bot-status-pill" onClick={abrir}>
-        <span className={`bot-icon ${enLinea ? 'online' : 'offline'}`}>🤖</span>
+        <Emoji><span className={`bot-icon ${enLinea ? 'online' : 'offline'}`}>🤖</span></Emoji>
         {etiqueta}
       </button>
       {abierto && (

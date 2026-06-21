@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 function capitalizar(nombre) {
   return nombre ? nombre.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : '-';
 }
 
 export default function Clientes() {
+  const txt = useTextoEmoji();
   const [q, setQ] = useState('');
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
@@ -24,7 +26,7 @@ export default function Clientes() {
 
       <div className="card">
         <div className="card-header">
-          <h3>👥 Clientes</h3>
+          <h3>{txt('👥 Clientes')}</h3>
           <div className="actions">
             <input
               placeholder="Buscar..."

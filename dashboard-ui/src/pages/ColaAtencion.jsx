@@ -3,6 +3,7 @@ import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
 import Badge from '../components/Badge';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 const TABS = [
   { key: 'en_espera', label: '🚨 En espera' },
@@ -11,6 +12,7 @@ const TABS = [
 ];
 
 export default function ColaAtencion() {
+  const txt = useTextoEmoji();
   const [tab, setTab] = useState('en_espera');
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
@@ -34,14 +36,14 @@ export default function ColaAtencion() {
       <div className="tabs">
         {TABS.map(t => (
           <button key={t.key} className={`btn btn-sm ${tab === t.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab(t.key)}>
-            {t.label}
+            {txt(t.label)}
           </button>
         ))}
       </div>
 
       <div className="card">
         <div className="card-header">
-          <h3>🚨 Cola de atención humana</h3>
+          <h3>{txt('🚨 Cola de atención humana')}</h3>
           <div className="actions">
             <button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button>
           </div>
@@ -62,16 +64,16 @@ export default function ColaAtencion() {
                   <td className="text-muted" style={{ fontSize: 11 }}>{fdate(r.creada_en)}</td>
                   <td>
                     {r.estatus === 'en_espera' && (
-                      <button className="btn btn-secondary btn-sm" onClick={() => marcar(r.id, 'atendida')}>🗣️ Atender</button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => marcar(r.id, 'atendida')}>{txt('🗣️ Atender')}</button>
                     )}
                     {r.estatus === 'atendida' && (
                       <>
-                        <button className="btn btn-success btn-sm" onClick={() => marcar(r.id, 'resuelta')}>✅ Resolver</button>{' '}
-                        <button className="btn btn-secondary btn-sm" onClick={() => marcar(r.id, 'en_espera')}>↩️ Reabrir</button>
+                        <button className="btn btn-success btn-sm" onClick={() => marcar(r.id, 'resuelta')}>{txt('✅ Resolver')}</button>{' '}
+                        <button className="btn btn-secondary btn-sm" onClick={() => marcar(r.id, 'en_espera')}>{txt('↩️ Reabrir')}</button>
                       </>
                     )}
                     {r.estatus === 'resuelta' && (
-                      <button className="btn btn-secondary btn-sm" onClick={() => marcar(r.id, 'en_espera')}>↩️ Reabrir</button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => marcar(r.id, 'en_espera')}>{txt('↩️ Reabrir')}</button>
                     )}
                   </td>
                 </tr>

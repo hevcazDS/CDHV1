@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
+import { useEmojisActivos, useTextoEmoji } from '../context/EmojiContext';
 
 const MEDALLA = ['🥇', '🥈', '🥉'];
 
 export default function Ranking() {
+  const txt = useTextoEmoji();
+  const emojisOn = useEmojisActivos();
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
 
@@ -21,7 +24,7 @@ export default function Ranking() {
 
       <div className="card">
         <div className="card-header">
-          <h3>🏆 Top clientes por puntos</h3>
+          <h3>{txt('🏆 Top clientes por puntos')}</h3>
           <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button></div>
         </div>
         <div className="table-wrap">
@@ -32,7 +35,7 @@ export default function Ranking() {
               {rows?.length === 0 && <tr><td colSpan={7} className="empty">Sin datos de puntos aún</td></tr>}
               {rows?.map((r, i) => (
                 <tr key={i}>
-                  <td><strong>{MEDALLA[i] || i + 1}</strong></td>
+                  <td><strong>{(emojisOn && MEDALLA[i]) || i + 1}</strong></td>
                   <td>{r.nombre || '-'}</td>
                   <td><code style={{ fontSize: 11 }}>{soloTelefono(r.telefono)}</code></td>
                   <td>{r.puntos_ganados || 0}</td>

@@ -4,10 +4,12 @@ import { fmt, fdate } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 const ESTATUS = ['pendiente', 'confirmado', 'preparando', 'enviado', 'entregado', 'cancelado'];
 
 export default function Pedidos() {
+  const txt = useTextoEmoji();
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
   const [ticket, setTicket] = useState(null);
@@ -59,9 +61,9 @@ export default function Pedidos() {
 
       <div className="card">
         <div className="card-header">
-          <h3>📦 Pedidos recientes</h3>
+          <h3>{txt('📦 Pedidos recientes')}</h3>
           <div className="actions">
-            <button className="btn btn-secondary btn-sm" onClick={exportarCSV}>⬇️ CSV</button>
+            <button className="btn btn-secondary btn-sm" onClick={exportarCSV}>{txt('⬇️ CSV')}</button>
             <button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button>
           </div>
         </div>

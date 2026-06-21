@@ -3,6 +3,7 @@ import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
 import Badge from '../components/Badge';
+import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 const TABS = [
   { key: 'pendientes', label: '⏳ Pendientes' },
@@ -11,6 +12,7 @@ const TABS = [
 ];
 
 export default function ColaEnvios() {
+  const txt = useTextoEmoji();
   const [tab, setTab] = useState('pendientes');
   const [cola, setCola] = useState(null);
   const [programados, setProgramados] = useState(null);
@@ -29,7 +31,7 @@ export default function ColaEnvios() {
   const reintentarTodo = async () => {
     try {
       const r = await api.post('/api/cola/reintentar', {});
-      window.alert(`✅ ${r.reactivados || 0} mensajes reactivados`);
+      window.alert(txt(`✅ ${r.reactivados || 0} mensajes reactivados`));
       cargarCola();
     } catch (e) { handleApiError(e); }
   };
@@ -43,7 +45,7 @@ export default function ColaEnvios() {
     if (!window.confirm('¿Cancelar esta campaña? Los mensajes pendientes no se enviarán.')) return;
     try {
       const r = await api.del('/api/cola/programados', { asunto, enviar_despues_de });
-      window.alert(`✅ ${r.cancelados || 0} mensajes cancelados`);
+      window.alert(txt(`✅ ${r.cancelados || 0} mensajes cancelados`));
       cargarProgramados();
     } catch (e) { handleApiError(e); }
   };
@@ -56,7 +58,7 @@ export default function ColaEnvios() {
       <div className="tabs">
         {TABS.map(t => (
           <button key={t.key} className={`btn btn-sm ${tab === t.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab(t.key)}>
-            {t.label}
+            {txt(t.label)}
           </button>
         ))}
       </div>
@@ -64,16 +66,16 @@ export default function ColaEnvios() {
       {tab === 'pendientes' && (
         <div className="card">
           <div className="card-header">
-            <h3>⏳ Mensajes en cola</h3>
+            <h3>{txt('⏳ Mensajes en cola')}</h3>
             <div className="actions">
               <button className="btn btn-secondary btn-sm" onClick={cargarCola}>🔄</button>
-              <button className="btn btn-danger btn-sm" onClick={reintentarTodo}>♻️ Reintentar</button>
+              <button className="btn btn-danger btn-sm" onClick={reintentarTodo}>{txt('♻️ Reintentar')}</button>
             </div>
           </div>
           {cola && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-              <span className="badge badge-amarillo">⏳ {cola.pendientes || 0} pendientes</span>
-              <span className="badge badge-rojo">❌ {cola.fallidas || 0} fallidas</span>
+              <span className="badge badge-amarillo"><Emoji>⏳ </Emoji>{cola.pendientes || 0} pendientes</span>
+              <span className="badge badge-rojo"><Emoji>❌ </Emoji>{cola.fallidas || 0} fallidas</span>
             </div>
           )}
           <div className="table-wrap">
@@ -101,7 +103,7 @@ export default function ColaEnvios() {
 
       {tab === 'programados' && (
         <div className="card">
-          <div className="card-header"><h3>🗓️ Campañas programadas</h3><div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargarProgramados}>🔄</button></div></div>
+          <div className="card-header"><h3>{txt('🗓️ Campañas programadas')}</h3><div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargarProgramados}>🔄</button></div></div>
           {programados === null && <div className="empty">Cargando...</div>}
           {programados?.length === 0 && <div className="empty">No hay campañas programadas</div>}
           {programados?.map((r, i) => (
@@ -109,12 +111,12 @@ export default function ColaEnvios() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>{r.asunto || 'Sin asunto'}</div>
-                  <div className="text-muted">📅 {r.enviar_despues_de ? fdate(r.enviar_despues_de) : '-'} · 👥 {r.total || 0} mensajes</div>
+                  <div className="text-muted"><Emoji>📅 </Emoji>{r.enviar_despues_de ? fdate(r.enviar_despues_de) : '-'} · <Emoji>👥 </Emoji>{r.total || 0} mensajes</div>
                   <div style={{ fontSize: 12, background: 'var(--panel-2)', padding: 6, borderRadius: 5, marginTop: 6, fontFamily: 'monospace' }}>
                     {(r.cuerpo_muestra || '').slice(0, 80)}
                   </div>
                 </div>
-                <button className="btn btn-danger btn-sm" onClick={() => cancelarCampana(r.asunto, r.enviar_despues_de)}>🗑️ Cancelar</button>
+                <button className="btn btn-danger btn-sm" onClick={() => cancelarCampana(r.asunto, r.enviar_despues_de)}>{txt('🗑️ Cancelar')}</button>
               </div>
             </div>
           ))}
@@ -123,7 +125,7 @@ export default function ColaEnvios() {
 
       {tab === 'historial' && (
         <div className="card">
-          <div className="card-header"><h3>📋 Historial</h3><div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargarHistorial}>🔄</button></div></div>
+          <div className="card-header"><h3>{txt('📋 Historial')}</h3><div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargarHistorial}>🔄</button></div></div>
           <div className="table-wrap">
             <table>
               <thead><tr><th>Destinatario</th><th>Asunto</th><th>Estatus</th><th>Intentos</th><th>Fecha</th></tr></thead>

@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
+import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 export default function Sustitutos() {
+  const txt = useTextoEmoji();
   const [q, setQ] = useState('');
   const [resultados, setResultados] = useState(null);
   const [base, setBase] = useState(null);
@@ -50,7 +52,7 @@ export default function Sustitutos() {
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
         <div className="card">
-          <div className="card-header"><h3>🔍 Buscar producto</h3></div>
+          <div className="card-header"><h3>{txt('🔍 Buscar producto')}</h3></div>
           <div className="login-field">
             <label>Nombre</label>
             <input placeholder="Ej: Hot Wheels" value={q} onChange={e => buscar(e.target.value)} />
@@ -66,7 +68,7 @@ export default function Sustitutos() {
         </div>
 
         <div className="card">
-          <div className="card-header"><h3>🔄 Productos relacionados</h3></div>
+          <div className="card-header"><h3>{txt('🔄 Productos relacionados')}</h3></div>
           {!base && <div className="empty">Selecciona un producto</div>}
           {base && (
             <>
@@ -84,7 +86,7 @@ export default function Sustitutos() {
               <input placeholder="Buscar producto a vincular..." value={qVincular} onChange={e => buscarParaVincular(e.target.value)} style={{ marginTop: 8, width: '100%' }} />
               {resultadosVincular?.map(r => (
                 <div key={r.id} onClick={() => vincular(r.id)} style={{ padding: '5px 9px', cursor: 'pointer', fontSize: 12, borderRadius: 4 }}>
-                  ➕ {r.name} - ${fmt(r.price)}
+                  <Emoji>➕ </Emoji>{r.name} - ${fmt(r.price)}
                 </div>
               ))}
             </>

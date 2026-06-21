@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { api } from '../api';
 import { fmt, fdate, soloTelefono } from '../lib/format';
+import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 export default function Puntos() {
+  const txt = useTextoEmoji();
   const [codigo, setCodigo] = useState('');
   const [msg, setMsg] = useState(null);
   const [ticket, setTicket] = useState(null);
@@ -51,7 +53,7 @@ export default function Puntos() {
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1.4fr', alignItems: 'start' }}>
         <div className="card">
-          <div className="card-header"><h3>🔍 Generador de QR</h3></div>
+          <div className="card-header"><h3>{txt('🔍 Generador de QR')}</h3></div>
           <div className="login-field">
             <label>Código del ticket</label>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -60,7 +62,7 @@ export default function Puntos() {
             </div>
           </div>
           <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => generar()}>Generar QR</button>
-          {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{msg.texto}</div>}
+          {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{txt(msg.texto)}</div>}
           <div style={{ marginTop: 14, minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
             {!ticket && <span className="text-muted" style={{ fontSize: 13 }}>El QR aparecerá aquí</span>}
             {ticket && (
@@ -68,10 +70,10 @@ export default function Puntos() {
                 <canvas ref={canvasRef} />
                 <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-mute)', textAlign: 'center' }}>
                   <code>{ticket.codigo_qr}</code><br />
-                  💰 ${fmt(ticket.total)} · ⭐ {ticket.puntos_otorgados || 0} pts<br />
+                  <Emoji>💰 </Emoji>${fmt(ticket.total)} · <Emoji>⭐ </Emoji>{ticket.puntos_otorgados || 0} pts<br />
                   {ticket.puntos_reclamados
-                    ? <span style={{ color: 'var(--red)' }}>⛔ Ya reclamado</span>
-                    : <span style={{ color: 'var(--green)' }}>✅ Disponible</span>}
+                    ? <span style={{ color: 'var(--red)' }}>{txt('⛔ Ya reclamado')}</span>
+                    : <span style={{ color: 'var(--green)' }}>{txt('✅ Disponible')}</span>}
                   {' '}· Vence: {fdate(ticket.expira_reclamo_en)}
                 </div>
               </>
@@ -81,7 +83,7 @@ export default function Puntos() {
 
         <div className="card">
           <div className="card-header">
-            <h3>📋 Tickets reclamados</h3>
+            <h3>{txt('📋 Tickets reclamados')}</h3>
             <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargarUsados}>🔄</button></div>
           </div>
           <div className="table-wrap">

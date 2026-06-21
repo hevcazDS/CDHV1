@@ -4,10 +4,12 @@ import { fdate } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 const ESTATUS = ['solicitada', 'aprobada', 'rechazada', 'resuelta'];
 
 export default function Devoluciones() {
+  const txt = useTextoEmoji();
   const [filtro, setFiltro] = useState('');
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
@@ -43,7 +45,7 @@ export default function Devoluciones() {
 
       <div className="card">
         <div className="card-header">
-          <h3>↩️ Devoluciones</h3>
+          <h3>{txt('↩️ Devoluciones')}</h3>
           <div className="actions">
             <select value={filtro} onChange={e => { setFiltro(e.target.value); cargar(e.target.value); }}>
               <option value="">Todas</option>

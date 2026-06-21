@@ -1700,3 +1700,208 @@ de severidad reportada por el comité:
    SQLite en vez de aplicar cambios a mano contra producción
    (Arquitecto).
 
+## 36. Fase JIUA 8 — auditoría de bugs concretos (modo debug, 4 agentes en paralelo) + módulo de toggle de emojis del dashboard
+
+A petición explícita del operador ("entra en modo debug y analiza todo el
+código lentamente... documenta todos los bugs que llegues a encontrar para
+arreglarlos más adelante"), esta pasada es deliberadamente distinta a la
+sección 35: en vez de un comité de arquitectura/estrategia, se lanzaron 4
+agentes de exploración en paralelo, cada uno acotado a una porción del
+repo (`bot/`, `dashboard/` backend, `dashboard-ui/` frontend,
+`services/`+`scripts/`), con instrucción explícita de reportar **bugs
+concretos y reproducibles** (lógica incorrecta, condiciones de carrera,
+manejo de errores roto) y de **no** repetir hallazgos de arquitectura ya
+cubiertos en las secciones 30/35. Cada hallazgo reportado por un agente
+fue después releído línea por línea por el operador humano (este mismo
+paso de "loop") antes de registrarse aquí — uno de los hallazgos
+reportados (ver 36.3) no resistió esa verificación y se descarta
+explícitamente en vez de archivarse en silencio.
+
+### 36.1 Bugs confirmados (verificados leyendo el código real, no solo el reporte del agente)
+
+1. **(Alta) `enHorario()` declarada dos veces en `bot/flows/_shared.js` —
+   la segunda versión ignora la zona horaria de México y gana por
+   hoisting.** Líneas 55-58 definen `enHorario()` restando 6h a
+   `getUTCHours()` (conversión correcta a hora de México). Líneas 62-64
+   **redeclaran la misma función** usando `new Date().getHours()` sin
+   ninguna conversión — en JavaScript, la segunda `function enHorario()`
+   sobrescribe a la primera sin error ni warning. Todo el código que
+   llama a `enHorario()` (incluido `msgHorarioAsesor()` en la línea 66,
+   que decide si un asesor "te contactará en los próximos 30 minutos" o
+   hasta el siguiente horario) usa la hora **local del servidor**, no la
+   de México. Si el servidor corre en cualquier zona horaria distinta a
+   UTC-6 (un VPS en otra región, un contenedor con TZ=UTC), el bot le
+   dice a clientes que un asesor "ya viene en camino" fuera del horario
+   real 11am–8pm, o los hace esperar al día siguiente estando dentro de
+   horario. Fix sugerido: borrar la segunda declaración (líneas 62-64).
+
+2. **(Media) Carrera de cierre prematuro de hilo en `Notificaciones.jsx`
+   al cambiar de cliente mientras se envía un mensaje individual.**
+   `enviarIndividual()` (línea ~85) hace `await api.post('/api/notificar', ...)`
+   y, ya resuelto, llama `api.get(`/api/clientes/${clienteSel.id}/mensajes`).then(setHilo)`
+   — pero `clienteSel` es el valor capturado en el render donde se llamó
+   a la función, no el cliente seleccionado *actual*. Si el usuario
+   selecciona a otro cliente mientras el POST sigue en vuelo, el GET que
+   llega después sigue siendo del cliente viejo, y `setHilo()` pinta ese
+   hilo viejo encima de la conversación del cliente nuevo que ahora está
+   seleccionado en pantalla. Repro: seleccionar cliente A → enviar
+   mensaje → antes de que la respuesta llegue, seleccionar cliente B →
+   el hilo mostrado puede ser el de A con la cabecera mostrando a B.
+
+3. **(Media) `key={i}` (índice) en vez de `key={id}` en dos tablas —
+   `ListaEspera.jsx:46` y `ColaEnvios.jsx:108,134`.** React usa la `key`
+   para decidir qué nodo del DOM reutilizar entre renders; con índice en
+   vez de id estable, si el backend reordena la lista entre refrescos
+   (`cargarProgramados`/`cargarHistorial`/lista de espera por producto),
+   React puede reusar el nodo de la fila 0 para mostrar los datos de otra
+   fila, dejando inputs/estado local desincronizados de la fila visible.
+   Nota: `ColaEnvios.jsx:86` sí usa `key={r.id}` correctamente en la
+   tabla de pendientes — la inconsistencia es solo en programados/
+   historial de ese archivo y en la única tabla de `ListaEspera.jsx`.
+
+4. **(Media, alcance reducido respecto al reporte original) `scripts/backup.js#runBackupDB` no actualiza
+   `.backup_registro.json` si `comprimirArchivo()` lanza una excepción
+   antes de llegar a la línea 192.** El `catch` (línea 197) regresa
+   `false` sin pasar por `cargarRegistro()`/`guardarRegistro()`. Importante
+   matizar: los fallos de SMTP (timeout, socket error) **sí** se registran
+   correctamente porque `enviarBackup()` resuelve `false` en vez de
+   lanzar (línea 169-170) — solo una excepción real en la fase de
+   compresión (ej. el archivo de la DB bloqueado o sin permisos de
+   lectura) deja el registro sin actualizar. Como el timestamp
+   `ultimo_backup_db` no se mueve hacia adelante en ese caso, la alerta de
+   `checkBackupReciente()` (>36h sin éxito) sigue funcionando con el
+   último éxito real — el bug es de **visibilidad** (no queda registro
+   explícito de que se intentó y falló por esa causa puntual), no de
+   silenciar la alerta por completo.
+
+### 36.2 Reportados por los agentes, plausibles pero sin verificación línea-por-línea adicional del operador (revisar antes de actuar)
+
+Estos quedan documentados tal como los reportaron los agentes — no se
+descartan, pero tampoco se confirmaron con la misma rigurosidad que 36.1.
+Antes de "arreglarlos más adelante", vale la pena releer el código una vez
+más:
+
+- `Notificaciones.jsx` (masivo): cambiar rápido entre tipos de audiencia
+  lanza una nueva consulta sin cancelar la anterior — respuestas fuera de
+  orden pueden dejar el contador de audiencia inconsistente.
+- `Sustitutos.jsx#cargarSustitutos`: clics rápidos en productos distintos
+  lanzan fetches en paralelo sin `AbortController`; gana el último en
+  responder, no el último clicado.
+- Varios componentes (`Prime.jsx`, `BotStatusWidget.jsx`) hacen `setState`
+  tras un fetch sin comprobar si el componente sigue montado — el típico
+  warning de React en consola, sin impacto funcional confirmado más allá
+  de eso.
+- `Clientes.jsx`: la búsqueda dispara una request por cada tecla, sin
+  debounce — no es incorrecto, es ineficiente (ya lo nota como hallazgo
+  de eficiencia, no de corrección).
+- `dashboard/routes/atencionCliente.js` (~línea 44): si un pedido legacy
+  tiene `id_cliente` NULL, la consulta de mensajes devuelve `[]` en vez de
+  distinguir "sin cliente vinculado" de "sin mensajes" — confusión de UX,
+  no pérdida de datos.
+
+### 36.3 Hallazgo descartado tras verificación (documentado para no repetir la duda en el futuro)
+
+El agente de `dashboard/` backend reportó un posible doble-otorgamiento de
+puntos por primera compra si dos pagos del mismo cliente se confirman
+"simultáneamente" (`otorgarPuntosPorPrimeraCompra`, llamada desde
+`POST /api/pagos/:id/marcar-pagado` en `comunicacionPedidos.js:213`). Se
+verificó leyendo ambas funciones completas: **todo el camino, desde que
+`readBody()` invoca su callback hasta el `return json(...)` final, es
+síncrono** (better-sqlite3 no usa promesas internamente; no hay ningún
+`await` entre el `COUNT` de pedidos finalizados y la decisión de otorgar
+puntos). Node solo puede interleavar ejecución en puntos `await`/callback
+asíncrono — sin uno presente en esta ruta, dos requests "simultáneas" se
+procesan estrictamente una después de la otra en el mismo hilo, nunca a
+medias. La guarda de idempotencia (`nFinalizados !== 1`) sí hace su
+trabajo. No se requiere ningún cambio aquí.
+
+### 36.4 Módulo nuevo: toggle de emojis en el dashboard
+
+A petición del operador, en preparación para una futura migración a un
+template visual distinto (ver 36.5), se construyó un mecanismo para
+apagar los emojis del dashboard sin tocar la lógica de negocio del bot
+(los emojis en los mensajes de WhatsApp al cliente — plantillas de
+`Notificaciones.jsx`, tonos de `_config.js` — quedan **fuera de alcance a
+propósito**, ese es contenido que el cliente recibe, no "look" del panel).
+
+- `dashboard-ui/src/context/EmojiContext.jsx` (nuevo): `EmojiProvider`
+  (lee el estado al montar la app), `Emoji` (componente wrapper para JSX:
+  `<Emoji>🤖</Emoji>`), `useEmoji()` (interpola un emoji suelto dentro de
+  texto: `{emoji('📱')}Texto`), y `useTextoEmoji()` (quita cualquier
+  emoji — no solo al inicio — de un string ya armado:
+  `{txt('🤖 Estatus del bot')}`, vía una regex de rangos Unicode +
+  colapso de espacios sobrantes).
+- Persistencia: clave `emojis_dashboard_activo` en `configuracion`,
+  reutilizando el mecanismo genérico ya existente
+  (`GET /api/modulo/:clave`, `POST /api/puntos/config`,
+  `ModuloConfigSchema` en `bot/validators.js`) — cero rutas nuevas en el
+  backend. Control visible en la página Módulos (`dashboard-ui/src/pages/Modulos.jsx`),
+  igual que el resto de toggles. Default: **activo** (no cambia el look
+  actual hasta que se apague explícitamente).
+- Aplicado en: `Layout.jsx` (los 17 iconos del sidebar, omnipresentes en
+  toda la app), `BotStatusWidget.jsx`, `WhatsAppQR.jsx`, y el contenido
+  visual (headers de tarjeta, botones con texto, badges de estatus,
+  mensajes de éxito/error mostrados al operador) de **todas** las 20
+  páginas de `dashboard-ui/src/pages/`.
+- Deliberadamente **no** envuelto: botones que son solo un ícono sin
+  texto (🔄 refrescar, ✏️ editar, ✕ quitar, 🎲 aleatorio — apagarlos
+  dejaría el botón vacío e inutilizable), las plantillas de mensajes al
+  cliente en `Notificaciones.jsx` (`PLANTILLAS_IND`/`PLANTILLAS_MAS`,
+  contenido que se envía por WhatsApp, no parte del panel), las medallas
+  de `Ranking.jsx` (con fallback explícito al número de posición cuando
+  el toggle está apagado, para no perder el dato de ranking), y el
+  preview del reporte de `Metricas.jsx` (contenido de negocio generado
+  por el backend, no decoración de UI).
+- Verificación: `npm run build:dashboard-ui` limpio tras cada tanda de
+  archivos tocados (7 builds incrementales durante la sesión, todos sin
+  error); `node --check` limpio en los archivos de backend tocados
+  (`bot/validators.js`, `bot/flows/_config.js`, `dashboard/routes/primeConfig.js`
+  para el módulo de reconexión de la sesión anterior, sin relación con
+  esto); `npm run test:bot` 116/117 sin cambios respecto al checkout
+  limpio (el único fallo es preexistente, no relacionado — ver nota en
+  `CLAUDE.md`/sesión anterior sobre `DB_PATH` no disponible en esta
+  máquina).
+
+### 36.5 Cinco recomendaciones de templates/UI kits open source para la migración
+
+Pedido explícito del operador: el panel actual (`dashboard-ui/src/styles.css`,
+CSS escrito a mano, sin librería de UI) "se ve muy obsoleto". Cinco
+opciones genuinamente open source, compatibles con el stack actual
+(React + Vite), de más cercana al estilo actual (CSS propio + componentes
+sueltos) a más integral (framework completo):
+
+1. **Tabler** (tabler.io, MIT) — kit de UI para dashboards, muy completo
+   en componentes y look moderno; existen bindings de React
+   mantenidos por la comunidad. Migración incremental posible (reemplazar
+   página por página).
+2. **shadcn/ui** (ui.shadcn.com, MIT) + Tailwind — no es una librería que
+   se instala sino componentes que se copian al proyecto (se mantiene la
+   filosofía actual de "código propio, sin dependencia pesada de UI"),
+   construido sobre Radix UI; look moderno tipo "Linear/Vercel".
+3. **Mantine** (mantine.dev, MIT) — librería de componentes React con
+   buen soporte de modo oscuro nativo (el panel actual ya usa paleta
+   oscura), variables CSS personalizables similar al enfoque actual.
+4. **Refine** (refine.dev, MIT) — framework headless para paneles
+   admin/CRUD, se conecta a cualquier librería de UI (Ant Design, MUI,
+   Chakra, Mantine); encaja bien porque la mayoría de páginas del panel
+   son CRUD (sucursales, productos, usuarios, cupones).
+5. **Ant Design Pro** (pro.ant.design, MIT) — framework React completo
+   con layouts, ruteo y auth ya resueltos; el más "todo incluido" de la
+   lista, mayor curva de adopción pero menos trabajo de andamiaje propio.
+
+Ninguna de estas decisiones se implementó — son solo las recomendaciones
+pedidas; la migración en sí queda pendiente de que el operador elija una.
+
+### 36.6 Siguiente paso
+
+Backlog para cuando el operador lo indique, en orden sugerido: (1) el fix
+de `enHorario()` duplicada es de una línea y alto impacto — candidato
+obvio para la próxima pasada; (2) decidir si vale la pena blindar
+`enviarIndividual()` contra el cambio de cliente a medio envío (afecta
+UX del operador del panel, no a clientes finales); (3) corregir las dos
+`key={i}` señaladas; (4) el resto de 36.2 queda para revisión humana antes
+de tocar código. La elección de template (36.5) y la extensión del
+toggle de emojis a cualquier página nueva que se agregue quedan a
+discreción del operador — la infraestructura (`EmojiContext`) ya soporta
+ambas sin cambios adicionales.
+

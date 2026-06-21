@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { api } from '../api';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 export default function Beta() {
+  const txt = useTextoEmoji();
   const [codigo, setCodigo] = useState('');
   const [telefono, setTelefono] = useState('');
   const [msg, setMsg] = useState(null);
@@ -29,7 +31,7 @@ export default function Beta() {
 
       <div className="kpi-grid">
         <div className="card">
-          <div className="card-header"><h3>🧪 Reset betatestor</h3></div>
+          <div className="card-header"><h3>{txt('🧪 Reset betatestor')}</h3></div>
           <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 14 }}>Limpia datos de prueba de un número específico.</p>
           <div className="login-field">
             <label>Código de reset</label>
@@ -39,12 +41,12 @@ export default function Beta() {
             <label>Teléfono del betatestor</label>
             <input placeholder="5214441234567" value={telefono} onChange={e => setTelefono(e.target.value)} />
           </div>
-          <button className="btn btn-danger" onClick={resetBeta}>🗑️ Limpiar datos de prueba</button>
-          {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{msg.texto}</div>}
+          <button className="btn btn-danger" onClick={resetBeta}>{txt('🗑️ Limpiar datos de prueba')}</button>
+          {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{txt(msg.texto)}</div>}
         </div>
 
         <div className="card">
-          <div className="card-header"><h3>🔍 Diagnóstico del sistema</h3></div>
+          <div className="card-header"><h3>{txt('🔍 Diagnóstico del sistema')}</h3></div>
           <button className="btn btn-secondary" style={{ width: '100%', marginBottom: 10 }} onClick={verHealth}>Verificar /health</button>
           {!health && !healthError && <div className="empty">Presiona el botón para verificar</div>}
           {healthError && <div className="login-error">No se pudo conectar</div>}

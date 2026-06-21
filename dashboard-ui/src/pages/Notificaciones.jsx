@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
+import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 const PLANTILLAS_IND = {
   pedido_listo: 'Hola {nombre} 👋\n\nTe informamos que tu pedido está listo para enviarse. En breve recibirás tu guía de rastreo. ¡Gracias por tu compra! 🧸',
@@ -20,6 +21,7 @@ function capitalizar(nombre) {
 }
 
 export default function Notificaciones() {
+  const txt = useTextoEmoji();
   const [tab, setTab] = useState('individual');
 
   // Individual
@@ -143,10 +145,10 @@ export default function Notificaciones() {
       enviarEn = new Date(fechaProg).toISOString();
       if (new Date(enviarEn) <= new Date()) { setRespMasivo({ ok: false, texto: 'La hora ya pasó' }); return; }
     }
-    const txt = enviarEn
+    const confirmTxt = enviarEn
       ? `¿Programar para ${new Date(enviarEn).toLocaleString('es-MX')} a ${audiencia.length} clientes?`
       : `¿Enviar a ${audiencia.length} clientes ahora?`;
-    if (!window.confirm(txt)) return;
+    if (!window.confirm(confirmTxt)) return;
     setEnviandoMasivo(true);
     try {
       const r = await api.post('/api/masivo', {
@@ -171,15 +173,15 @@ export default function Notificaciones() {
       <div className="page-sub">Mensajes individuales, venta previa y campañas masivas</div>
 
       <div className="tabs">
-        <button className={`btn btn-sm ${tab === 'individual' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('individual')}>👤 Individual</button>
-        <button className={`btn btn-sm ${tab === 'masivo' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('masivo')}>📣 Masivo</button>
+        <button className={`btn btn-sm ${tab === 'individual' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('individual')}>{txt('👤 Individual')}</button>
+        <button className={`btn btn-sm ${tab === 'masivo' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('masivo')}>{txt('📣 Masivo')}</button>
       </div>
 
       {tab === 'individual' && (
         <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>👥 Seleccionar cliente</div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{txt('👥 Seleccionar cliente')}</div>
               <input placeholder="Buscar nombre o teléfono..." value={filtro} onChange={e => setFiltro(e.target.value)} />
             </div>
             <div style={{ maxHeight: 420, overflowY: 'auto' }}>
@@ -218,7 +220,7 @@ export default function Notificaciones() {
                     <div style={{ fontSize: 11, color: 'var(--text-mute)', fontFamily: 'monospace' }}>{soloTelefono(clienteSel.telefono)}</div>
                     {clienteSel.codigo_referido && (
                       <div style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'monospace' }} title="Código de referido — puedes mencionárselo al cliente en esta venta">
-                        🤝 {clienteSel.codigo_referido}
+                        <Emoji>🤝 </Emoji>{clienteSel.codigo_referido}
                       </div>
                     )}
                   </div>
@@ -248,21 +250,21 @@ export default function Notificaciones() {
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Plantillas</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('pedido_listo')}>📦 Pedido listo</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('guia_generada')}>🚚 Guía lista</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('pago_pendiente')}>💳 Pago pendiente</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('seguimiento')}>👋 Seguimiento</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('pedido_listo')}>{txt('📦 Pedido listo')}</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('guia_generada')}>{txt('🚚 Guía lista')}</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('pago_pendiente')}>{txt('💳 Pago pendiente')}</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('seguimiento')}>{txt('👋 Seguimiento')}</button>
               </div>
             </div>
             <div className="login-field">
               <label>Mensaje</label>
               <textarea value={msgInd} onChange={e => setMsgInd(e.target.value)} placeholder="Escribe o elige una plantilla..." style={{ minHeight: 110, width: '100%' }} />
             </div>
-            <button className="btn btn-primary" style={{ width: '100%' }} disabled={enviandoInd} onClick={enviarIndividual}>📤 Enviar por WhatsApp</button>
-            {respInd && <div className={respInd.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{respInd.texto}</div>}
+            <button className="btn btn-primary" style={{ width: '100%' }} disabled={enviandoInd} onClick={enviarIndividual}>{txt('📤 Enviar por WhatsApp')}</button>
+            {respInd && <div className={respInd.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respInd.texto)}</div>}
 
             <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>🛒 Venta previa (POS)</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>{txt('🛒 Venta previa (POS)')}</div>
               <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                 <input placeholder="Buscar producto..." value={posQ} onChange={e => setPosQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscarProductoPOS()} style={{ flex: 1 }} />
                 <button className="btn btn-secondary btn-sm" onClick={buscarProductoPOS}>Buscar</button>
@@ -284,8 +286,8 @@ export default function Notificaciones() {
                   </div>
                 ))}
               </div>
-              <button className="btn btn-primary btn-sm" style={{ width: '100%' }} disabled={enviandoPos} onClick={enviarVentaPrevia}>📨 Crear venta previa y enviar</button>
-              {respPos && <div className={respPos.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{respPos.texto}</div>}
+              <button className="btn btn-primary btn-sm" style={{ width: '100%' }} disabled={enviandoPos} onClick={enviarVentaPrevia}>{txt('📨 Crear venta previa y enviar')}</button>
+              {respPos && <div className={respPos.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respPos.texto)}</div>}
             </div>
           </div>
         </div>
@@ -295,12 +297,12 @@ export default function Notificaciones() {
         <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>🎯 Audiencia</div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{txt('🎯 Audiencia')}</div>
               <select value={audienciaTipo} onChange={e => { setAudienciaTipo(e.target.value); actualizarAudiencia(e.target.value, limM); }} style={{ marginBottom: 7, width: '100%' }}>
-                <option value="todos">👥 Todos los clientes</option>
-                <option value="conPedido">📦 Con pedido previo</option>
-                <option value="recurrentes">⭐ Recurrentes</option>
-                <option value="sinActividad">😴 Sin actividad 30+ días</option>
+                <option value="todos">{txt('👥 Todos los clientes')}</option>
+                <option value="conPedido">{txt('📦 Con pedido previo')}</option>
+                <option value="recurrentes">{txt('⭐ Recurrentes')}</option>
+                <option value="sinActividad">{txt('😴 Sin actividad 30+ días')}</option>
               </select>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <label style={{ fontSize: 12, color: 'var(--text-mute)', whiteSpace: 'nowrap' }}>Máx:</label>
@@ -326,9 +328,9 @@ export default function Notificaciones() {
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Plantillas</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantillaMasiva('promocion')}>🏷️ Promoción</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantillaMasiva('reactivacion')}>👋 Reactivación</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantillaMasiva('novedad')}>✨ Novedad</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantillaMasiva('promocion')}>{txt('🏷️ Promoción')}</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantillaMasiva('reactivacion')}>{txt('👋 Reactivación')}</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantillaMasiva('novedad')}>{txt('✨ Novedad')}</button>
               </div>
             </div>
             <div className="login-field">
@@ -336,10 +338,10 @@ export default function Notificaciones() {
               <textarea value={msgMasivo} onChange={e => setMsgMasivo(e.target.value)} placeholder="Hola {nombre}..." style={{ minHeight: 120, width: '100%' }} />
             </div>
             <div style={{ padding: '8px 12px', background: 'var(--panel-2)', borderRadius: 6, fontSize: 12, color: 'var(--yellow)', marginBottom: 10 }}>
-              ⚠️ Excluidos: troll, blacklist, queja, devolucion
+              {txt('⚠️ Excluidos: troll, blacklist, queja, devolucion')}
             </div>
             <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 7, textTransform: 'uppercase' }}>⏰ Programar</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 7, textTransform: 'uppercase' }}>{txt('⏰ Programar')}</div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, cursor: 'pointer' }}>
                   <input type="radio" name="mCuando" checked={cuando === 'ahora'} onChange={() => toggleProgramar(false)} /> Ahora
@@ -355,9 +357,9 @@ export default function Notificaciones() {
               )}
             </div>
             <button className="btn btn-primary" style={{ width: '100%' }} disabled={enviandoMasivo} onClick={enviarMasivo}>
-              📣 Enviar a {audiencia?.length || 0} clientes
+              <Emoji>📣 </Emoji>Enviar a {audiencia?.length || 0} clientes
             </button>
-            {respMasivo && <div className={respMasivo.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{respMasivo.texto}</div>}
+            {respMasivo && <div className={respMasivo.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respMasivo.texto)}</div>}
           </div>
         </div>
       )}

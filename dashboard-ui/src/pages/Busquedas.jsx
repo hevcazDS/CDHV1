@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fdate } from '../lib/format';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 export default function Busquedas() {
+  const txt = useTextoEmoji();
   const [filas, setFilas] = useState(null);
 
   const cargar = () => api.get('/api/busquedas').then(setFilas).catch(() => setFilas([]));
@@ -15,7 +17,7 @@ export default function Busquedas() {
 
       <div className="card">
         <div className="card-header">
-          <h3>🔍 Log de búsquedas</h3>
+          <h3>{txt('🔍 Log de búsquedas')}</h3>
           <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button></div>
         </div>
         <div className="table-wrap">

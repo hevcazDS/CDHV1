@@ -77,7 +77,7 @@ const ModuloConfigSchema = z.object({
     clave: z.enum([
         'puntos_activo','vision_activo','ofertas_activo',
         'upselling_activo','lista_espera_activo','carritos_activo','csat_activo',
-        'referidos_activo',
+        'referidos_activo','emojis_dashboard_activo',
     ]),
     activo: z.boolean(),
 });

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fmt } from '../lib/format';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 export default function Ofertas() {
+  const txt = useTextoEmoji();
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
 
@@ -19,7 +21,7 @@ export default function Ofertas() {
 
       <div className="card">
         <div className="card-header">
-          <h3>🏷️ Ofertas activas</h3>
+          <h3>{txt('🏷️ Ofertas activas')}</h3>
           <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button></div>
         </div>
         <div className="table-wrap">

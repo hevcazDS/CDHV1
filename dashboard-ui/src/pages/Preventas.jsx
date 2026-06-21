@@ -3,10 +3,12 @@ import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
 import Modal from '../components/Modal';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
 export default function Preventas() {
+  const txt = useTextoEmoji();
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
   const [idProducto, setIdProducto] = useState('');
@@ -61,7 +63,7 @@ export default function Preventas() {
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.4fr 1fr', alignItems: 'start' }}>
         <div className="card">
           <div className="card-header">
-            <h3>📅 Preventas activas</h3>
+            <h3>{txt('📅 Preventas activas')}</h3>
             <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button></div>
           </div>
           {rows === null && <div className="empty">Cargando...</div>}
@@ -75,14 +77,14 @@ export default function Preventas() {
               <div className="text-muted">ID: {r.id_producto} · ${fmt(r.precio_preventa)} · Anticipo {r.porcentaje_anticipo || 50}%</div>
               <div className="text-muted">Llegada estimada: {r.fecha_llegada_est || '-'}</div>
               {r.fecha_llegada_real
-                ? <span className="badge badge-verde">✅ Llegó: {r.fecha_llegada_real}</span>
-                : <button className="btn btn-success btn-sm" style={{ marginTop: 7 }} onClick={() => { setLlegadaId(r.id); setFechaLlegada(hoy()); }}>✅ Marcar como llegada</button>}
+                ? <span className="badge badge-verde">{txt('✅ Llegó: ')}{r.fecha_llegada_real}</span>
+                : <button className="btn btn-success btn-sm" style={{ marginTop: 7 }} onClick={() => { setLlegadaId(r.id); setFechaLlegada(hoy()); }}>{txt('✅ Marcar como llegada')}</button>}
             </div>
           ))}
         </div>
 
         <div className="card">
-          <div className="card-header"><h3>➕ Nueva preventa</h3></div>
+          <div className="card-header"><h3>{txt('➕ Nueva preventa')}</h3></div>
           <div className="login-field">
             <label>ID Producto</label>
             <input type="number" value={idProducto} onChange={e => setIdProducto(e.target.value)} />
@@ -108,7 +110,7 @@ export default function Preventas() {
             <input type="number" min="10" max="100" value={anticipo} onChange={e => setAnticipo(e.target.value)} />
           </div>
           <button className="btn btn-primary" onClick={crear}>Crear preventa</button>
-          {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{msg.texto}</div>}
+          {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{txt(msg.texto)}</div>}
         </div>
       </div>
 

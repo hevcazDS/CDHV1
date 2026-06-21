@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 const CATEGORIAS_FILTRO = [
   { valor: 'bw_word',   etiqueta: 'Lista negra — palabra corta (match exacto)' },
@@ -10,6 +11,7 @@ const CATEGORIAS_FILTRO = [
 ];
 
 export default function Prime() {
+  const txt = useTextoEmoji();
   const [costoDefault, setCostoDefault] = useState('');
   const [idPedido, setIdPedido] = useState('');
   const [costoPedido, setCostoPedido] = useState('');
@@ -274,7 +276,7 @@ export default function Prime() {
           {reconexionAuto ? 'Desactivar reconexión automática' : 'Activar reconexión automática'}
         </button>
         <span className={`badge badge-${reconexionAuto ? 'verde' : 'rojo'}`} style={{ marginLeft: 10 }}>
-          {reconexionAuto ? '✅ Activa' : '⛔ Inactiva'}
+          {txt(reconexionAuto ? '✅ Activa' : '⛔ Inactiva')}
         </span>
       </div>
 

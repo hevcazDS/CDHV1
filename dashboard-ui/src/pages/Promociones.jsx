@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 export default function Promociones() {
+  const txt = useTextoEmoji();
   const [filtro, setFiltro] = useState('');
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
@@ -56,7 +58,7 @@ export default function Promociones() {
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.4fr 1fr', alignItems: 'start' }}>
         <div className="card">
           <div className="card-header">
-            <h3>🎟️ Cupones / Promociones</h3>
+            <h3>{txt('🎟️ Cupones / Promociones')}</h3>
             <div className="actions">
               <select value={filtro} onChange={e => { setFiltro(e.target.value); cargar(e.target.value); }}>
                 <option value="">Todas</option>
@@ -80,7 +82,7 @@ export default function Promociones() {
                 <div className="text-muted">Descuento: <strong>{val}</strong>{r.nombre_producto ? ` · ${r.nombre_producto}` : ''}</div>
                 <div className="text-muted">Vigencia: {r.fecha_inicio || '-'} a {r.fecha_fin || 'Sin vencimiento'} · Usos: {r.usos_actual || 0}/{r.usos_max || '∞'}</div>
                 <button className={`btn btn-sm ${r.activa ? 'btn-danger' : 'btn-success'}`} style={{ marginTop: 7 }} onClick={() => toggle(r.id, r.activa ? 0 : 1)}>
-                  {r.activa ? '🚫 Desactivar' : '✅ Activar'}
+                  {txt(r.activa ? '🚫 Desactivar' : '✅ Activar')}
                 </button>
               </div>
             );
@@ -88,7 +90,7 @@ export default function Promociones() {
         </div>
 
         <div className="card">
-          <div className="card-header"><h3>➕ Nuevo cupón</h3></div>
+          <div className="card-header"><h3>{txt('➕ Nuevo cupón')}</h3></div>
           <div className="login-field">
             <label>Código</label>
             <input placeholder="Ej: VERANO10" value={codigo} onChange={e => setCodigo(e.target.value)} />
@@ -129,7 +131,7 @@ export default function Promociones() {
             <input type="number" value={usosMax} onChange={e => setUsosMax(e.target.value)} />
           </div>
           <button className="btn btn-primary" onClick={crear}>Crear cupón</button>
-          {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{msg.texto}</div>}
+          {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{txt(msg.texto)}</div>}
         </div>
       </div>
     </div>

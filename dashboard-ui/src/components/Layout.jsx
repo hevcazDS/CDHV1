@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Emoji } from '../context/EmojiContext';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
 
@@ -65,7 +66,7 @@ export default function Layout() {
               <div className="sidebar-group-title">{g.titulo}</div>
               {g.enlaces.map(e => (
                 <NavLink key={e.to} to={e.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`} end={e.to === '/'}>
-                  <span>{e.icon}</span> {e.label}
+                  <Emoji><span>{e.icon}</span> </Emoji>{e.label}
                 </NavLink>
               ))}
             </div>

@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { api } from '../api';
 import { fmt } from '../lib/format';
+import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 const ESTATUS_COLOR = { pendiente: 'amarillo', confirmado: 'azul', preparando: 'azul', enviado: 'azul', entregado: 'verde', cancelado: 'rojo' };
 const C_ACCENT = '#5b8cff', C_GREEN = '#36d399', C_YELLOW = '#fbbd23', C_RED = '#f4566c', C_GRID = '#262f42', C_DIM = '#9aa4b8';
@@ -13,6 +14,7 @@ const TONO_LABEL = { A: 'A · Formal', B: 'B · Casual', C: 'C · Amigable', D: 
 const TONO_COLOR = { A: 'azul', B: 'verde', C: 'amarillo', D: 'rojo', sin_dato: 'azul' };
 
 export default function Metricas() {
+  const txt = useTextoEmoji();
   const [d, setD] = useState(null);
   const [conv, setConv] = useState(null);
   const [campanas, setCampanas] = useState([]);
@@ -78,7 +80,7 @@ export default function Metricas() {
       <div className="kpi-grid" style={{ marginBottom: 16 }}>
         <div className="card">
           <div className="card-header">
-            <h3>📈 Pedidos últimos 7 días {conv && <span className="badge badge-azul">Conversión: {conv.tasa_conversion}</span>}</h3>
+            <h3><Emoji>📈 </Emoji>Pedidos últimos 7 días {conv && <span className="badge badge-azul">Conversión: {conv.tasa_conversion}</span>}</h3>
             <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button></div>
           </div>
           {dias.length === 0
@@ -106,7 +108,7 @@ export default function Metricas() {
             )}
         </div>
         <div className="card">
-          <div className="card-header"><h3>📋 Por estatus</h3></div>
+          <div className="card-header"><h3>{txt('📋 Por estatus')}</h3></div>
           {porEstatus.length === 0 && <div className="empty">Sin pedidos</div>}
           {porEstatus.map((e, i) => {
             const pct = totalEstatus ? Math.round((e.n / totalEstatus) * 100) : 0;
@@ -124,7 +126,7 @@ export default function Metricas() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header"><h3>🎭 Pedidos por tono del bot</h3></div>
+        <div className="card-header"><h3>{txt('🎭 Pedidos por tono del bot')}</h3></div>
         {(!conv?.por_tono || conv.por_tono.length === 0) && <div className="empty">Sin pedidos todavía</div>}
         {conv?.por_tono?.length > 0 && (() => {
           const totalTono = conv.por_tono.reduce((s, t) => s + (t.pedidos || 0), 0);
@@ -147,7 +149,7 @@ export default function Metricas() {
 
       <div className="kpi-grid" style={{ marginBottom: 16 }}>
         <div className="card">
-          <div className="card-header"><h3>🎯 Conversión por campaña</h3></div>
+          <div className="card-header"><h3>{txt('🎯 Conversión por campaña')}</h3></div>
           {campanas.length === 0 && <div className="empty">Sin datos todavía — corre la migración 0020 si ya hiciste envíos masivos/automáticos.</div>}
           {campanas.length > 0 && (
             <ResponsiveContainer width="100%" height={Math.max(campanas.length * 40, 120)}>
@@ -163,7 +165,7 @@ export default function Metricas() {
           )}
         </div>
         <div className="card">
-          <div className="card-header"><h3>💬 Por qué no compraron</h3></div>
+          <div className="card-header"><h3>{txt('💬 Por qué no compraron')}</h3></div>
           {motivos.length === 0 && <div className="empty">Sin datos todavía — se llena cuando los clientes responden al mensaje de carrito abandonado.</div>}
           {motivos.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -193,14 +195,14 @@ export default function Metricas() {
       </div>
 
       <div className="card">
-        <div className="card-header"><h3>📤 Reporte al supervisor</h3></div>
+        <div className="card-header"><h3>{txt('📤 Reporte al supervisor')}</h3></div>
         <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 12 }}>Resumen con pedidos, ingresos, clientes y alertas del día.</p>
         <div style={{ display: 'flex', gap: 7, marginBottom: 10 }}>
-          <button className="btn btn-primary" style={{ flex: 1 }} disabled={enviando} onClick={() => enviarReporte('whatsapp')}>📱 WhatsApp</button>
-          <button className="btn btn-secondary" style={{ flex: 1 }} disabled={enviando} onClick={() => enviarReporte('email')}>📧 Email</button>
+          <button className="btn btn-primary" style={{ flex: 1 }} disabled={enviando} onClick={() => enviarReporte('whatsapp')}>{txt('📱 WhatsApp')}</button>
+          <button className="btn btn-secondary" style={{ flex: 1 }} disabled={enviando} onClick={() => enviarReporte('email')}>{txt('📧 Email')}</button>
         </div>
         {preview && <pre style={{ background: 'var(--panel-2)', borderRadius: 7, padding: 10, fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 250, overflowY: 'auto' }}>{preview}</pre>}
-        {reporteMsg && <div className={reporteMsg.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{reporteMsg.texto}</div>}
+        {reporteMsg && <div className={reporteMsg.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(reporteMsg.texto)}</div>}
       </div>
     </div>
   );

@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 export default function ListaEspera() {
+  const txt = useTextoEmoji();
   const [lista, setLista] = useState(null);
   const [error, setError] = useState('');
 
@@ -16,7 +18,7 @@ export default function ListaEspera() {
     if (!window.confirm(`¿Notificar a ${total || 0} persona(s) que este producto ya tiene stock?`)) return;
     try {
       const r = await api.post(`/api/notificar-lista/${idProducto}`);
-      window.alert(`✅ ${r.notificados || 0} notificados`);
+      window.alert(txt(`✅ ${r.notificados || 0} notificados`));
     } catch (e) { handleApiError(e, 'Error al notificar'); }
     cargar();
   };
@@ -29,7 +31,7 @@ export default function ListaEspera() {
 
       <div className="card">
         <div className="card-header">
-          <h3>🔔 Lista de espera</h3>
+          <h3>{txt('🔔 Lista de espera')}</h3>
           <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button></div>
         </div>
         <div className="table-wrap">
@@ -48,7 +50,7 @@ export default function ListaEspera() {
                     <td>${fmt(p.precio)}</td>
                     <td><span className={`badge badge-${conStock ? 'verde' : 'rojo'}`}>{conStock ? 'Con stock' : 'Sin stock'}</span></td>
                     <td><strong>{n}</strong> personas</td>
-                    <td><button className="btn btn-success btn-sm" onClick={() => notificar(idProducto, n)}>📲 Notificar</button></td>
+                    <td><button className="btn btn-success btn-sm" onClick={() => notificar(idProducto, n)}>{txt('📲 Notificar')}</button></td>
                   </tr>
                 );
               })}

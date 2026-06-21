@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import Badge from '../components/Badge';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 const ESTATUS_GUIA = ['generada', 'recolectada', 'en_camino', 'en_ciudad', 'intento_fallido', 'entregada'];
 
 export default function Guias() {
+  const txt = useTextoEmoji();
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
   const [numero, setNumero] = useState('');
@@ -41,7 +43,7 @@ export default function Guias() {
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.6fr 1fr', alignItems: 'start' }}>
         <div className="card">
           <div className="card-header">
-            <h3>🚚 Guías activas</h3>
+            <h3>{txt('🚚 Guías activas')}</h3>
             <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button></div>
           </div>
           <div className="table-wrap">
@@ -66,7 +68,7 @@ export default function Guias() {
         </div>
 
         <div className="card">
-          <div className="card-header"><h3>✏️ Actualizar guía</h3></div>
+          <div className="card-header"><h3>{txt('✏️ Actualizar guía')}</h3></div>
           <div className="login-field">
             <label>Número de guía</label>
             <input placeholder="HVCZ-000001" value={numero} onChange={e => setNumero(e.target.value)} />
@@ -82,7 +84,7 @@ export default function Guias() {
             <input placeholder="Ej: En ruta de entrega" value={descripcion} onChange={e => setDescripcion(e.target.value)} />
           </div>
           <button className="btn btn-primary" onClick={actualizar}>Actualizar guía</button>
-          {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{msg.texto}</div>}
+          {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{txt(msg.texto)}</div>}
         </div>
       </div>
     </div>

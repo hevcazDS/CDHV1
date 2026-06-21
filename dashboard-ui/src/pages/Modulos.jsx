@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 const MODULOS = [
   { key: 'puntos_activo', titulo: '⭐ Puntos de Lealtad', desc: 'Clientes acumulan puntos con tickets QR' },
@@ -10,6 +11,7 @@ const MODULOS = [
   { key: 'carritos_activo', titulo: '🛒 Carritos abandonados', desc: 'Mensaje automático 2h después' },
   { key: 'vision_activo', titulo: '📸 Búsqueda por imagen', desc: 'Vision API para búsqueda con fotos' },
   { key: 'referidos_activo', titulo: '🤝 Programa de referidos', desc: 'Código de referido y puntos en la primera compra' },
+  { key: 'emojis_dashboard_activo', titulo: '🙂 Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
 ];
 
 const TONOS = [
@@ -20,6 +22,7 @@ const TONOS = [
 ];
 
 export default function Modulos() {
+  const txt = useTextoEmoji();
   const [estado, setEstado] = useState(null);
   const [tono, setTonoActual] = useState(null);
   const [tonoMsg, setTonoMsg] = useState(null);
@@ -63,11 +66,11 @@ export default function Modulos() {
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.3fr 1fr', alignItems: 'start' }}>
         <div className="card">
-          <div className="card-header"><h3>⚙️ Módulos del sistema</h3></div>
+          <div className="card-header"><h3>{txt('⚙️ Módulos del sistema')}</h3></div>
           <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 14 }}>Activa o desactiva funciones sin reiniciar el bot.</p>
           {MODULOS.map(m => (
             <div className="toggle-row" key={m.key}>
-              <div className="info"><h4>{m.titulo}</h4><p>{m.desc}</p></div>
+              <div className="info"><h4>{txt(m.titulo)}</h4><p>{m.desc}</p></div>
               <label className="switch">
                 <input type="checkbox" checked={activoDe(m.key)} onChange={e => toggle(m.key, e.target.checked)} />
                 <span className="switch-slider"></span>
@@ -77,33 +80,33 @@ export default function Modulos() {
         </div>
 
         <div className="card">
-          <div className="card-header"><h3>📋 Estado de módulos</h3></div>
+          <div className="card-header"><h3>{txt('📋 Estado de módulos')}</h3></div>
           {estado === null && <div className="empty">Cargando...</div>}
           {estado?.map(r => (
             <div key={r.key} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
               <code style={{ fontSize: 12 }}>{r.key}</code>
-              <span className={`badge badge-${r.activo ? 'verde' : 'rojo'}`}>{r.activo ? '✅ Activo' : '⛔ Inactivo'}</span>
+              <span className={`badge badge-${r.activo ? 'verde' : 'rojo'}`}>{txt(r.activo ? '✅ Activo' : '⛔ Inactivo')}</span>
             </div>
           ))}
         </div>
       </div>
 
       <div className="card" style={{ marginTop: 14 }}>
-        <div className="card-header"><h3>🎭 Modo de conversación del bot</h3></div>
+        <div className="card-header"><h3>{txt('🎭 Modo de conversación del bot')}</h3></div>
         <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 14 }}>Define el estilo con el que el bot le habla a los clientes. El cambio aplica en menos de 60 segundos, sin reiniciar el bot.</p>
         <div className="kpi-grid" style={{ gap: 10 }}>
-          {TONOS.map(t => (
-            <div key={t.id} className={`tono-opt${tono === t.id ? ' sel' : ''}`} onClick={() => cambiarTono(t.id)}>
+          {TONOS.map(tonoOpt => (
+            <div key={tonoOpt.id} className={`tono-opt${tono === tonoOpt.id ? ' sel' : ''}`} onClick={() => cambiarTono(tonoOpt.id)}>
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <h4>{t.titulo}</h4>
+                <h4>{txt(tonoOpt.titulo)}</h4>
                 <span className="tono-check badge badge-verde">Activo</span>
               </div>
-              <p>{t.desc}</p>
-              <em>"{t.ejemplo}"</em>
+              <p>{tonoOpt.desc}</p>
+              <em>"{tonoOpt.ejemplo}"</em>
             </div>
           ))}
         </div>
-        {tonoMsg && <div className={tonoMsg.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{tonoMsg.texto}</div>}
+        {tonoMsg && <div className={tonoMsg.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(tonoMsg.texto)}</div>}
       </div>
     </div>
   );
