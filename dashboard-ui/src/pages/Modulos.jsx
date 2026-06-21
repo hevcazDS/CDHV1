@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Switch } from '@mantine/core';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -75,10 +76,7 @@ export default function Modulos() {
           {MODULOS.map(m => (
             <div className="toggle-row" key={m.key}>
               <div className="info"><h4>{txt(m.titulo)}</h4><p>{m.desc}</p></div>
-              <label className="switch">
-                <input type="checkbox" checked={activoDe(m.key)} onChange={e => toggle(m.key, e.target.checked)} />
-                <span className="switch-slider"></span>
-              </label>
+              <Switch checked={activoDe(m.key)} onChange={e => toggle(m.key, e.target.checked)} color="blue" />
             </div>
           ))}
         </div>

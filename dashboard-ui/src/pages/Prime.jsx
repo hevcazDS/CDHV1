@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from '@mantine/form';
+import { TextInput, NumberInput, PasswordInput, Select, Textarea, Button } from '@mantine/core';
 import { api } from '../api';
 import { useTextoEmoji } from '../context/EmojiContext';
 
@@ -31,7 +33,7 @@ export default function Prime() {
   const [msgFiltro, setMsgFiltro] = useState('');
 
   // ── Sucursales ──────────────────────────────────────────────────────────
-  const [nuevaSucursal, setNuevaSucursal] = useState({ nombre: '', codigo: '', direccion: '' });
+  const sucursalForm = useForm({ initialValues: { nombre: '', codigo: '', direccion: '' } });
   const [msgSucursales, setMsgSucursales] = useState('');
 
   // ── Alta de productos ──────────────────────────────────────────────────
@@ -40,11 +42,11 @@ export default function Prime() {
     edad_recomendada: '', edad_min: '', genero: '',
     stock_tienda: '0', stock_cedis: '0', stock_san_luis_potosi: '0',
   };
-  const [nuevoProducto, setNuevoProducto] = useState(PRODUCTO_VACIO);
+  const productoForm = useForm({ initialValues: PRODUCTO_VACIO });
   const [msgProducto, setMsgProducto] = useState('');
 
   // ── Usuarios del dashboard ──────────────────────────────────────────────
-  const [nuevoUsuario, setNuevoUsuario] = useState({ username: '', password: '', rol: 'admin' });
+  const usuarioForm = useForm({ initialValues: { username: '', password: '', rol: 'admin' } });
   const [msgUsuarios, setMsgUsuarios] = useState('');
 
   // ── Stock mínimo por producto+sucursal ──────────────────────────────────
@@ -89,18 +91,18 @@ export default function Prime() {
   };
 
   const crearSucursalMutation = useMutation({
-    mutationFn: () => api.post('/api/prime/sucursales', {
-      nombre: nuevaSucursal.nombre,
-      codigo: nuevaSucursal.codigo || undefined,
-      direccion: nuevaSucursal.direccion || undefined,
+    mutationFn: (values) => api.post('/api/prime/sucursales', {
+      nombre: values.nombre,
+      codigo: values.codigo || undefined,
+      direccion: values.direccion || undefined,
     }),
     onSuccess: () => {
-      setNuevaSucursal({ nombre: '', codigo: '', direccion: '' });
+      sucursalForm.reset();
       queryClient.invalidateQueries({ queryKey: ['prime-sucursales'] });
     },
     onError: (e) => setMsgSucursales(e.message),
   });
-  const crearSucursal = () => { setMsgSucursales(''); crearSucursalMutation.mutate(); };
+  const crearSucursal = () => { setMsgSucursales(''); crearSucursalMutation.mutate(sucursalForm.values); };
 
   const toggleSucursalMutation = useMutation({
     mutationFn: ({ id, activa }) => api.put(`/api/prime/sucursales/${id}`, { activa }),
@@ -117,44 +119,45 @@ export default function Prime() {
   const borrarSucursal = (id) => borrarSucursalMutation.mutate(id);
 
   const crearProductoMutation = useMutation({
-    mutationFn: () => api.post('/api/prime/productos', {
-      ...nuevoProducto,
-      price: Number(nuevoProducto.price),
-      edad_min: nuevoProducto.edad_min ? Number(nuevoProducto.edad_min) : undefined,
-      stock_tienda: Number(nuevoProducto.stock_tienda || 0),
-      stock_cedis: Number(nuevoProducto.stock_cedis || 0),
-      stock_san_luis_potosi: Number(nuevoProducto.stock_san_luis_potosi || 0),
-      cat: nuevoProducto.cat || undefined,
-      url_imagen: nuevoProducto.url_imagen || undefined,
-      tags: nuevoProducto.tags || undefined,
-      seo_description: nuevoProducto.seo_description || undefined,
-      edad_recomendada: nuevoProducto.edad_recomendada || undefined,
-      genero: nuevoProducto.genero || undefined,
+    mutationFn: (v) => api.post('/api/prime/productos', {
+      ...v,
+      price: Number(v.price),
+      edad_min: v.edad_min ? Number(v.edad_min) : undefined,
+      stock_tienda: Number(v.stock_tienda || 0),
+      stock_cedis: Number(v.stock_cedis || 0),
+      stock_san_luis_potosi: Number(v.stock_san_luis_potosi || 0),
+      cat: v.cat || undefined,
+      url_imagen: v.url_imagen || undefined,
+      tags: v.tags || undefined,
+      seo_description: v.seo_description || undefined,
+      edad_recomendada: v.edad_recomendada || undefined,
+      genero: v.genero || undefined,
     }),
-    onSuccess: () => {
-      setMsgProducto(`Producto "${nuevoProducto.name}" creado.`);
-      setNuevoProducto(PRODUCTO_VACIO);
+    onSuccess: (_, v) => {
+      setMsgProducto(`Producto "${v.name}" creado.`);
+      productoForm.reset();
     },
     onError: (e) => setMsgProducto(e.message),
   });
   const crearProducto = () => {
     setMsgProducto('');
-    if (!nuevoProducto.name.trim() || !nuevoProducto.price) {
+    const v = productoForm.values;
+    if (!v.name.trim() || !v.price) {
       setMsgProducto('Nombre y precio son obligatorios.');
       return;
     }
-    crearProductoMutation.mutate();
+    crearProductoMutation.mutate(v);
   };
 
   const crearUsuarioMutation = useMutation({
-    mutationFn: () => api.post('/api/prime/usuarios', nuevoUsuario),
+    mutationFn: (values) => api.post('/api/prime/usuarios', values),
     onSuccess: () => {
-      setNuevoUsuario({ username: '', password: '', rol: 'admin' });
+      usuarioForm.reset();
       queryClient.invalidateQueries({ queryKey: ['prime-usuarios'] });
     },
     onError: (e) => setMsgUsuarios(e.message),
   });
-  const crearUsuario = () => { setMsgUsuarios(''); crearUsuarioMutation.mutate(); };
+  const crearUsuario = () => { setMsgUsuarios(''); crearUsuarioMutation.mutate(usuarioForm.values); };
 
   const cambiarRolUsuarioMutation = useMutation({
     mutationFn: ({ id, rol }) => api.put(`/api/prime/usuarios/${id}`, { rol }),
@@ -394,14 +397,11 @@ export default function Prime() {
           Registro de tiendas/bodegas. Desactiva en vez de borrar si ya tiene movimientos de inventario.
         </p>
         {msgSucursales && <div style={{ marginBottom: 12, color: '#e66' }}>{msgSucursales}</div>}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          <input type="text" placeholder="Nombre" value={nuevaSucursal.nombre}
-            onChange={e => setNuevaSucursal({ ...nuevaSucursal, nombre: e.target.value })} style={{ flex: 1, minWidth: 160 }} />
-          <input type="text" placeholder="Código (opcional)" value={nuevaSucursal.codigo}
-            onChange={e => setNuevaSucursal({ ...nuevaSucursal, codigo: e.target.value })} style={{ width: 140 }} />
-          <input type="text" placeholder="Dirección (opcional)" value={nuevaSucursal.direccion}
-            onChange={e => setNuevaSucursal({ ...nuevaSucursal, direccion: e.target.value })} style={{ flex: 1, minWidth: 200 }} />
-          <button className="btn btn-primary" disabled={!nuevaSucursal.nombre.trim()} onClick={crearSucursal}>Agregar</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-end' }}>
+          <TextInput placeholder="Nombre" {...sucursalForm.getInputProps('nombre')} style={{ flex: 1, minWidth: 160 }} />
+          <TextInput placeholder="Código (opcional)" {...sucursalForm.getInputProps('codigo')} style={{ width: 140 }} />
+          <TextInput placeholder="Dirección (opcional)" {...sucursalForm.getInputProps('direccion')} style={{ flex: 1, minWidth: 200 }} />
+          <Button disabled={!sucursalForm.values.nombre.trim()} onClick={crearSucursal}>Agregar</Button>
         </div>
         <table className="table">
           <thead><tr><th>Nombre</th><th>Código</th><th>Dirección</th><th>Activa</th><th></th></tr></thead>
@@ -471,32 +471,20 @@ export default function Prime() {
         </p>
         {msgProducto && <div style={{ marginBottom: 12 }}>{msgProducto}</div>}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-          <input type="text" placeholder="Nombre *" value={nuevoProducto.name}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, name: e.target.value })} />
-          <input type="number" min="0" step="0.01" placeholder="Precio *" value={nuevoProducto.price}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, price: e.target.value })} />
-          <input type="text" placeholder="Categoría" value={nuevoProducto.cat}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, cat: e.target.value })} />
-          <input type="text" placeholder="Género" value={nuevoProducto.genero}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, genero: e.target.value })} />
-          <input type="text" placeholder="Edad recomendada" value={nuevoProducto.edad_recomendada}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, edad_recomendada: e.target.value })} />
-          <input type="number" min="0" placeholder="Edad mínima" value={nuevoProducto.edad_min}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, edad_min: e.target.value })} />
-          <input type="text" placeholder="Tags (separados por coma)" value={nuevoProducto.tags}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, tags: e.target.value })} style={{ gridColumn: '1 / -1' }} />
-          <input type="text" placeholder="URL de imagen" value={nuevoProducto.url_imagen}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, url_imagen: e.target.value })} style={{ gridColumn: '1 / -1' }} />
-          <textarea placeholder="Descripción SEO" value={nuevoProducto.seo_description}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, seo_description: e.target.value })} style={{ gridColumn: '1 / -1' }} />
-          <input type="number" min="0" placeholder="Stock tienda" value={nuevoProducto.stock_tienda}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, stock_tienda: e.target.value })} />
-          <input type="number" min="0" placeholder="Stock CEDIS" value={nuevoProducto.stock_cedis}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, stock_cedis: e.target.value })} />
-          <input type="number" min="0" placeholder="Stock San Luis Potosí" value={nuevoProducto.stock_san_luis_potosi}
-            onChange={e => setNuevoProducto({ ...nuevoProducto, stock_san_luis_potosi: e.target.value })} />
+          <TextInput placeholder="Nombre *" {...productoForm.getInputProps('name')} />
+          <TextInput type="number" min={0} step="0.01" placeholder="Precio *" {...productoForm.getInputProps('price')} />
+          <TextInput placeholder="Categoría" {...productoForm.getInputProps('cat')} />
+          <TextInput placeholder="Género" {...productoForm.getInputProps('genero')} />
+          <TextInput placeholder="Edad recomendada" {...productoForm.getInputProps('edad_recomendada')} />
+          <TextInput type="number" min={0} placeholder="Edad mínima" {...productoForm.getInputProps('edad_min')} />
+          <TextInput placeholder="Tags (separados por coma)" {...productoForm.getInputProps('tags')} style={{ gridColumn: '1 / -1' }} />
+          <TextInput placeholder="URL de imagen" {...productoForm.getInputProps('url_imagen')} style={{ gridColumn: '1 / -1' }} />
+          <Textarea placeholder="Descripción SEO" {...productoForm.getInputProps('seo_description')} style={{ gridColumn: '1 / -1' }} />
+          <TextInput type="number" min={0} placeholder="Stock tienda" {...productoForm.getInputProps('stock_tienda')} />
+          <TextInput type="number" min={0} placeholder="Stock CEDIS" {...productoForm.getInputProps('stock_cedis')} />
+          <TextInput type="number" min={0} placeholder="Stock San Luis Potosí" {...productoForm.getInputProps('stock_san_luis_potosi')} />
         </div>
-        <button className="btn btn-primary" onClick={crearProducto}>Crear producto</button>
+        <Button onClick={crearProducto}>Crear producto</Button>
       </div>
 
       <div className="card" style={{ marginTop: 20, maxWidth: 720 }}>
@@ -506,18 +494,14 @@ export default function Prime() {
           cuenta ni dejar el sistema sin ningún usuario prime.
         </p>
         {msgUsuarios && <div style={{ marginBottom: 12, color: '#e66' }}>{msgUsuarios}</div>}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          <input type="text" placeholder="Usuario" value={nuevoUsuario.username}
-            onChange={e => setNuevoUsuario({ ...nuevoUsuario, username: e.target.value })} style={{ minWidth: 160 }} />
-          <input type="password" placeholder="Password (mín. 8)" value={nuevoUsuario.password}
-            onChange={e => setNuevoUsuario({ ...nuevoUsuario, password: e.target.value })} style={{ minWidth: 160 }} />
-          <select value={nuevoUsuario.rol} onChange={e => setNuevoUsuario({ ...nuevoUsuario, rol: e.target.value })}>
-            <option value="admin">admin</option>
-            <option value="prime">prime</option>
-          </select>
-          <button className="btn btn-primary" disabled={!nuevoUsuario.username.trim() || !nuevoUsuario.password} onClick={crearUsuario}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-end' }}>
+          <TextInput placeholder="Usuario" {...usuarioForm.getInputProps('username')} style={{ minWidth: 160 }} />
+          <PasswordInput placeholder="Password (mín. 8)" {...usuarioForm.getInputProps('password')} style={{ minWidth: 160 }} />
+          <Select data={[{ value: 'admin', label: 'admin' }, { value: 'prime', label: 'prime' }]}
+            allowDeselect={false} {...usuarioForm.getInputProps('rol')} />
+          <Button disabled={!usuarioForm.values.username.trim() || !usuarioForm.values.password} onClick={crearUsuario}>
             Crear usuario
-          </button>
+          </Button>
         </div>
         <table className="table">
           <thead><tr><th>Usuario</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
