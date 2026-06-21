@@ -185,6 +185,14 @@ async function runBackupDB() {
             'Backup DB Julio Cepeda - ' + fecha
         );
         console.log(ok ? '[backup] OK DB enviada a ' + DEST_MAIL : '[backup] ERROR DB fallo');
+        // Antes no había ningún registro persistido de si el backup de DB
+        // (el más importante — es la única copia fuera del servidor) corrió
+        // o falló; stockWatcher.checkBackupReciente() depende de este campo
+        // para alertar si pasan >36h sin un backup exitoso.
+        const registro = cargarRegistro();
+        registro.ultimo_backup_db = new Date().toISOString();
+        registro.ultimo_backup_db_ok = ok;
+        guardarRegistro(registro);
         return ok;
     } catch(e) { console.error('[backup] Error DB:', e.message); return false; }
 }

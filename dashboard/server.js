@@ -508,12 +508,20 @@ function handleAPI(req, res) {
                 }
                 const estatus = proc.pm2_env?.status || 'desconocido';
                 registrarCambioEstatusBot(estatus, null);
+                // stockwatcher_modo lo escribe bot/index.js (proceso separado) en
+                // `configuracion` — 'fork' es lo sano, 'in-process'/'caido' indican
+                // que los checks de stock/marketing dejaron de correr aislados.
+                let stockwatcherModo = null;
+                try {
+                    stockwatcherModo = db.prepare("SELECT valor FROM configuracion WHERE clave='stockwatcher_modo'").get()?.valor || null;
+                } catch (_) {}
                 return json(res, {
                     ok:true, registrado:true,
                     estatus,
                     uptime_ms:  proc.pm2_env?.pm_uptime ? Date.now() - proc.pm2_env.pm_uptime : 0,
                     reinicios:  proc.pm2_env?.restart_time || 0,
                     memoria_mb: proc.monit?.memory ? Math.round(proc.monit.memory / 1024 / 1024) : 0,
+                    stockwatcher_modo: stockwatcherModo,
                 });
             } catch(e) { return json(res, { ok:false, error:e.message }, 500); }
         });

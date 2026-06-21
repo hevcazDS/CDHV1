@@ -95,6 +95,31 @@ function tryRequire(mod) {
 const imageAnalyzer = tryRequire('./imageAnalyzer');
 
 // ══════════════════════════════════════════════════════════════════
+//  CUOTA DIARIA DE IMÁGENES GUARDADAS EN DISCO — el rate-limiter de abajo
+//  ya frena ráfagas (3/min), pero no frena acumulación sostenida 24/7: un
+//  solo número podría llenar bot/imagenes_clientes/ indefinidamente y tirar
+//  el disco (bot + dashboard comparten volumen). Esto NO bloquea Vision ni
+//  la búsqueda del cliente — solo deja de persistir el archivo en disco
+//  pasado el tope diario.
+// ══════════════════════════════════════════════════════════════════
+const _imgDiario = new Map(); // userId → { fecha: 'YYYY-MM-DD', count }
+const IMG_DIARIO_MAX = 30;
+function permitirGuardarImagen(userId) {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const d = _imgDiario.get(userId);
+    if (!d || d.fecha !== hoy) { _imgDiario.set(userId, { fecha: hoy, count: 1 }); return true; }
+    if (d.count >= IMG_DIARIO_MAX) return false;
+    d.count++;
+    return true;
+}
+// Limpiar entradas de días anteriores una vez al día — el Map nunca crece
+// más allá del número de usuarios activos en las últimas ~24-48h.
+setInterval(() => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    for (const [uid, d] of _imgDiario) if (d.fecha !== hoy) _imgDiario.delete(uid);
+}, 6 * 3_600_000).unref();
+
+// ══════════════════════════════════════════════════════════════════
 //  RATE LIMITER — ventana deslizante en memoria, sin archivos extra
 // ══════════════════════════════════════════════════════════════════
 const _rl = new Map(); // userId → [timestamps]
@@ -581,6 +606,16 @@ const STOCKWATCHER_BACKOFF_MAX_MS  = 300_000;
 const STOCKWATCHER_ESTABLE_MS      = 30_000;
 const STOCKWATCHER_MAX_INTENTOS    = 8;
 
+// Persiste el modo activo en `configuracion` para que el dashboard (proceso
+// separado) pueda mostrarlo en /api/bot/status sin IPC — mismo mecanismo que
+// ya usa _config.js para tono/módulos.
+function _setStockWatcherModo(modo) {
+    try {
+        const _db = require('./db_connection');
+        _db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('stockwatcher_modo', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor, actualizado_en=datetime('now','localtime')").run(modo);
+    } catch (e) { log.debug('No se pudo guardar stockwatcher_modo: ' + e.message); }
+}
+
 function arrancarStockWatcherWorker(intentos = 1) {
     const { fork } = require('child_process');
     let swWorker;
@@ -593,8 +628,11 @@ function arrancarStockWatcherWorker(intentos = 1) {
         stockWatcherWorker = swWorker;
     } catch (e) {
         if (intentos === 1) {
-            // Fallback: correr en el mismo proceso si el primer fork falla síncronamente
-            log.warn('stockWatcher: fork falló, corriendo en proceso principal', e);
+            // Fallback: correr en el mismo proceso si el primer fork falla síncronamente.
+            // Es un modo degradado permanente (nadie reintenta el fork después de esto),
+            // así que es error, no warn — semanas en este modo pasan inadvertidas si no.
+            log.error('stockWatcher: fork falló, corriendo en proceso principal (modo degradado)', e);
+            _setStockWatcherModo('in-process');
             const sw = tryRequire('../services/stockWatcher');
             if (sw) { sw.runAll(); setInterval(() => sw.runAll(), 60 * 60_000).unref(); }
         } else {
@@ -604,12 +642,14 @@ function arrancarStockWatcherWorker(intentos = 1) {
     }
 
     const inicio = Date.now();
+    _setStockWatcherModo('fork');
     swWorker.on('exit', (code, signal) => {
         log.warn('stockWatcher proceso hijo terminó', { code, signal, intentos });
         const corrioEstable = Date.now() - inicio >= STOCKWATCHER_ESTABLE_MS;
         const proximoIntento = corrioEstable ? 1 : intentos + 1;
         if (!corrioEstable && proximoIntento > STOCKWATCHER_MAX_INTENTOS) {
             log.error('stockWatcher: ' + STOCKWATCHER_MAX_INTENTOS + ' intentos consecutivos sin estabilizarse — dejo de reintentar. Revisar manualmente.');
+            _setStockWatcherModo('caido');
             return;
         }
         const espera = Math.min(STOCKWATCHER_BACKOFF_BASE_MS * 2 ** (proximoIntento - 1), STOCKWATCHER_BACKOFF_MAX_MS);
@@ -633,6 +673,20 @@ client.on('authenticated', () => {
 });
 client.on('auth_failure', msg => {
     log.error('Falló la autenticación de WhatsApp', msg);
+});
+client.on('disconnected', reason => {
+    // No se puede avisar por WhatsApp si WhatsApp es justo lo que se cayó —
+    // se encola un correo (cola_emails la drena el propio proceso del bot,
+    // y también el dashboard si éste sigue vivo, vía emailService.js).
+    log.error('🔴 WhatsApp desconectado', { reason });
+    try {
+        const _db = require('./db_connection');
+        const _dest = process.env.EMAIL_PERSONAL || process.env.EMAIL_CEDIS || process.env.EMAIL_USER;
+        if (_dest) {
+            _db.prepare("INSERT INTO cola_emails (destinatarios, asunto, html_body, estatus, tipo) VALUES (?, 'Bot de WhatsApp desconectado', ?, 'pendiente', 'alerta')")
+                .run(JSON.stringify([_dest]), '<p>El bot de WhatsApp se desconectó.</p><p>Motivo: ' + String(reason) + '</p><p>' + new Date().toLocaleString('es-MX') + '</p>');
+        }
+    } catch (e) { log.warn('No se pudo encolar alerta de desconexión', e); }
 });
 client.on('ready', () => {
     log.info('Bot conectado y listo');
@@ -764,19 +818,23 @@ client.on('message', async msg => {
                     if (media) {
                         // ── Guardar imagen localmente para el dashboard ────────
                         try {
-                            const _fs   = require('fs');
-                            const _path = require('path');
-                            const _imgDir = _path.join(__dirname, 'imagenes_clientes');
-                            if (!_fs.existsSync(_imgDir)) _fs.mkdirSync(_imgDir, { recursive: true });
-                            // Mimetype viene del remitente de WhatsApp — nunca derivar la
-                            // extensión directamente de ese string (riesgo de path traversal).
-                            const _MIME_EXT = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif' };
-                            const _ext  = _MIME_EXT[(media.mimetype || '').split(';')[0]] || 'jpg';
-                            const _tel  = userId.replace(/@.*$/, '');
-                            const _ts   = Date.now();
-                            const _fname = `${_tel}_${_ts}.${_ext}`;
-                            _fs.writeFileSync(_path.join(_imgDir, _fname),
-                                Buffer.from(media.data, 'base64'));
+                            if (permitirGuardarImagen(userId)) {
+                                const _fs   = require('fs');
+                                const _path = require('path');
+                                const _imgDir = _path.join(__dirname, 'imagenes_clientes');
+                                if (!_fs.existsSync(_imgDir)) _fs.mkdirSync(_imgDir, { recursive: true });
+                                // Mimetype viene del remitente de WhatsApp — nunca derivar la
+                                // extensión directamente de ese string (riesgo de path traversal).
+                                const _MIME_EXT = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif' };
+                                const _ext  = _MIME_EXT[(media.mimetype || '').split(';')[0]] || 'jpg';
+                                const _tel  = userId.replace(/@.*$/, '');
+                                const _ts   = Date.now();
+                                const _fname = `${_tel}_${_ts}.${_ext}`;
+                                _fs.writeFileSync(_path.join(_imgDir, _fname),
+                                    Buffer.from(media.data, 'base64'));
+                            } else {
+                                log.warn('Cuota diaria de imágenes alcanzada, no se guarda en disco', { userId });
+                            }
                         } catch (_) {}
 
                         const result = await imageAnalyzer.analyzeImage(media);

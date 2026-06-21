@@ -1,6 +1,8 @@
 // stockWatcher.js — Vigilante periódico de inventario
 // Solo escribe en cola_notificaciones — NUNCA llama a WhatsApp directamente
 'use strict';
+const fs          = require('fs');
+const path        = require('path');
 const db          = require('../bot/db_connection');
 const log         = require('../bot/logger')('stockWatcher');
 const stockService = require('./stockService');
@@ -542,6 +544,58 @@ function _runCheck(fn, nombre) {
     try { fn(); } catch (e) { log.warn(`Check ${nombre} falló: ` + e.message); }
 }
 
+const BACKUP_REGISTRO_PATH = path.join(__dirname, '..', 'scripts', '.backup_registro.json');
+const BACKUP_MAX_EDAD_MS   = 36 * 3_600_000; // 36h — el backup de DB corre a las 11:00 todos los días
+
+// El backup de DB (scripts/backup.js) es la única copia fuera del servidor.
+// Antes de hoy, si el proceso que lo hospeda no llegaba a las 11:00 (caída,
+// reinicio) nadie se enteraba — esto lo detecta y avisa por correo.
+function checkBackupReciente() {
+    let registro;
+    try {
+        if (!fs.existsSync(BACKUP_REGISTRO_PATH)) { log.warn('Sin registro de backups todavía (.backup_registro.json no existe)'); return; }
+        registro = JSON.parse(fs.readFileSync(BACKUP_REGISTRO_PATH, 'utf8'));
+    } catch (e) { log.warn('No se pudo leer registro de backups: ' + e.message); return; }
+
+    const ultimo = registro.ultimo_backup_db ? new Date(registro.ultimo_backup_db).getTime() : 0;
+    const edadMs = Date.now() - ultimo;
+    if (ultimo && edadMs < BACKUP_MAX_EDAD_MS && registro.ultimo_backup_db_ok !== false) return; // todo bien
+
+    const yaAlertadoHoy = db.prepare("SELECT id FROM cola_emails WHERE tipo='alerta_backup' AND date(creada_en)=date('now','localtime') LIMIT 1").get();
+    if (yaAlertadoHoy) return;
+
+    const dest = process.env.EMAIL_PERSONAL || process.env.EMAIL_CEDIS || process.env.EMAIL_USER;
+    if (!dest) { log.error('Backup de DB atrasado/falló y no hay EMAIL_PERSONAL/EMAIL_USER configurado para alertar'); return; }
+    log.error('Backup de DB atrasado o falló — último intento: ' + (registro.ultimo_backup_db || 'nunca'));
+    try {
+        db.prepare("INSERT INTO cola_emails (destinatarios, asunto, html_body, estatus, tipo) VALUES (?, 'Backup de la base de datos atrasado', ?, 'pendiente', 'alerta_backup')")
+            .run(JSON.stringify([dest]), '<p>El backup diario de la base de datos no se ha completado en las últimas 36 horas.</p><p>Último intento registrado: ' + (registro.ultimo_backup_db || 'nunca') + '</p>');
+    } catch (e) { log.warn('No se pudo encolar alerta de backup: ' + e.message); }
+}
+
+// Purga imágenes de clientes viejas, pero SOLO las que ya están confirmadas
+// en el registro de backup como enviadas — nunca borra algo que no se sabe
+// si ya quedó respaldado fuera del servidor.
+const IMG_DIR = path.join(__dirname, '..', 'bot', 'imagenes_clientes');
+const IMG_PURGA_EDAD_MS = 60 * 24 * 3_600_000; // 60 días
+function purgarImagenesAntiguas() {
+    if (!fs.existsSync(IMG_DIR)) return;
+    let registro;
+    try { registro = JSON.parse(fs.readFileSync(BACKUP_REGISTRO_PATH, 'utf8')); }
+    catch (_) { return; } // sin registro de backup confirmado, no se borra nada
+    const yaRespaldadas = new Set(registro.enviados || []);
+    const ahora = Date.now();
+    let borradas = 0;
+    for (const f of fs.readdirSync(IMG_DIR)) {
+        if (f.startsWith('.') || !yaRespaldadas.has(f)) continue;
+        try {
+            const ruta = path.join(IMG_DIR, f);
+            if (ahora - fs.statSync(ruta).mtimeMs > IMG_PURGA_EDAD_MS) { fs.unlinkSync(ruta); borradas++; }
+        } catch (e) { log.debug('No se pudo purgar ' + f + ': ' + e.message); }
+    }
+    if (borradas) log.info(`Purgadas ${borradas} imágenes de clientes ya respaldadas (>60 días)`);
+}
+
 async function runAll() {
     try {
         // Solo ejecutar checks costosos si hay datos relevantes
@@ -564,6 +618,8 @@ async function runAll() {
         }
         _runCheck(checkStockMinimo, 'checkStockMinimo');
         _runCheck(checkClientesDormidos, 'checkClientesDormidos');
+        _runCheck(checkBackupReciente, 'checkBackupReciente');
+        _runCheck(purgarImagenesAntiguas, 'purgarImagenesAntiguas');
         _runCheck(actualizarLeadScores, 'actualizarLeadScores');
         _runCheck(actualizarComprasDesdeEventos, 'actualizarComprasDesdeEventos');
         // Puntos inactivos — corre pero solo notifica si han pasado 30 días
