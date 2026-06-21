@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { Emoji } from '../context/EmojiContext';
 
@@ -12,8 +12,15 @@ const ETIQUETAS = {
   desconocido: 'Desconocido',
 };
 
+// Solo informativo a propósito — encender/apagar/reiniciar el bot ya NO se
+// dispara desde aquí. Hacerlo desde el propio proceso del dashboard daba la
+// sensación de que reiniciar el bot "reiniciaba el dash" (la ventana de
+// Electron se cerraba y volvía a abrir en el mismo clic, y todo vivía dentro
+// del mismo request HTTP) — confuso e ilógico para el operador. El control
+// real ahora es bot-control.bat / scripts/bot-control.ps1, un proceso
+// independiente que no depende de que el dashboard esté sano para apagar o
+// reiniciar el bot.
 export default function BotStatusWidget() {
-  const queryClient = useQueryClient();
   const [abierto, setAbierto] = useState(false);
   const ref = useRef(null);
 
@@ -27,15 +34,6 @@ export default function BotStatusWidget() {
     queryKey: ['bot-status-history'],
     queryFn: () => api.get('/api/bot/status-history').catch(() => []),
     enabled: abierto,
-  });
-
-  const accionMutation = useMutation({
-    mutationFn: (ruta) => api.post(`/api/bot/${ruta}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bot-status'] });
-      queryClient.invalidateQueries({ queryKey: ['bot-status-history'] });
-    },
-    onError: (e) => alert(e.message),
   });
 
   useEffect(() => {
@@ -60,11 +58,10 @@ export default function BotStatusWidget() {
       {abierto && (
         <div className="bot-status-dropdown">
           <h4>Estatus del bot</h4>
-          <div className="bot-status-actions">
-            <button className="btn" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('start')}>Encender</button>
-            <button className="btn" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('restart')}>Reiniciar</button>
-            <button className="btn btn-danger" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('stop')}>Apagar</button>
-          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-mute)', margin: '0 0 12px' }}>
+            Para encender, apagar o reiniciar el bot usa <code>bot-control.bat</code> en la carpeta
+            del proyecto — independiente del dashboard a propósito.
+          </p>
           <h4>Historial reciente</h4>
           <div className="bot-history-list">
             {historial.length === 0 && <div className="bot-history-item">Sin cambios registrados aún.</div>}
