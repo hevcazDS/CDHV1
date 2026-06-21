@@ -257,6 +257,10 @@ CREATE TABLE IF NOT EXISTS pedidos (
     actualizado_en  TEXT
 );
 
+-- migrations/0002_indices_estabilidad.sql
+CREATE INDEX IF NOT EXISTS idx_pedidos_estatus ON pedidos(estatus);
+CREATE INDEX IF NOT EXISTS idx_pedidos_fecha   ON pedidos(date(creado_en));
+
 -- Auto-rellena tono_bot desde la configuración activa al momento del INSERT,
 -- sin tener que tocar cada sitio del código que crea un pedido (ver
 -- migrations/0001_agregar_tono_bot.sql).
@@ -470,6 +474,10 @@ CREATE TABLE IF NOT EXISTS cola_notificaciones (
     enviado_en          TEXT
 );
 
+-- migrations/0002_indices_estabilidad.sql
+CREATE INDEX IF NOT EXISTS idx_cola_notif_estatus_tipo ON cola_notificaciones(estatus, tipo);
+CREATE INDEX IF NOT EXISTS idx_cola_notif_fecha         ON cola_notificaciones(date(creada_en));
+
 CREATE TABLE IF NOT EXISTS cola_emails (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     id_pedido       INTEGER REFERENCES pedidos(id_pedido),
@@ -483,6 +491,10 @@ CREATE TABLE IF NOT EXISTS cola_emails (
     actualizado_en  TEXT,
     enviado_en      TEXT
 );
+
+-- migrations/0002_indices_estabilidad.sql
+CREATE INDEX IF NOT EXISTS idx_cola_emails_estatus ON cola_emails(estatus);
+CREATE INDEX IF NOT EXISTS idx_cola_emails_fecha    ON cola_emails(date(creada_en));
 
 CREATE TABLE IF NOT EXISTS cola_atencion (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
