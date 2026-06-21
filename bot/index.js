@@ -24,7 +24,7 @@ let qrMostrado = false;
 let dashboardAbierto = false;
 let stockWatcherWorker = null;
 
-// Devuelve una Promise que resuelve cuando taskkill terminó (+ un colchón
+// Devuelve una Promise que resuelve cuando el cierre terminó (+ un colchón
 // breve) — antes esta función no se esperaba en ningún lado: se disparaba el
 // taskkill y, sin pausa, seguía directo a client.initialize(), que lanza un
 // Chrome nuevo casi al mismo tiempo que Windows todavía está liberando los
@@ -33,11 +33,21 @@ let stockWatcherWorker = null;
 // arranque/reinicio (vía start.bat, pm2 restart o un crash-restart), no solo
 // como un caso raro — el reintento de client.initialize() (más abajo) lo
 // disimulaba, pero el primer intento fallaba siempre por esta carrera.
+//
+// Antes mataba por nombre de imagen (chrome.exe/chromium.exe/msedge.exe/
+// electron.exe) sin distinción: en cada reinicio del bot se llevaba por
+// delante el navegador personal del usuario y la ventana de Electron del
+// dashboard si estaban abiertos, dando la sensación de ventanas que se
+// abren y cierran solas. Ahora solo apunta al chrome.exe que usa el
+// user-data-dir de WhatsApp de este proyecto (.wwebjs_auth), identificado
+// por su línea de comando — nunca toca otros procesos del sistema.
 function intentarCerrarProcesosBrowser() {
     if (process.platform !== 'win32') return Promise.resolve();
     return new Promise(resolve => {
+        const sessionDir = path.join(__dirname, '..', '.wwebjs_auth').replace(/'/g, "''");
+        const ps = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${sessionDir}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
         try {
-            execFile('taskkill', ['/F', '/IM', 'chrome.exe', '/IM', 'chromium.exe', '/IM', 'msedge.exe', '/IM', 'electron.exe'], {
+            execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], {
                 windowsHide: true,
             }, () => setTimeout(resolve, 1500));
         } catch (_) { resolve(); }
@@ -59,7 +69,6 @@ function limpiarSesionLocalAuth() {
 
 function abrirDashboard() {
     if (dashboardAbierto) return;
-    dashboardAbierto = true;
     const root = path.join(__dirname, '..');
     // Se abre al arrancar el bot, no al quedar 'ready' (autenticado) — si no,
     // mientras WhatsApp no esté vinculado nunca aparece ninguna ventana desde
@@ -67,9 +76,21 @@ function abrirDashboard() {
     // esto abre), un punto muerto: para ver el QR había que esperar a estar
     // ya conectado. desktop/main.js ya reintenta loadURL ~20s por su cuenta
     // si el servidor del dashboard todavía no levantó.
-    log.info('Abriendo dashboard...');
-    if (process.platform === 'win32') {
-        execFile('cmd.exe', ['/d', '/s', '/c', 'npx.cmd --prefix desktop electron desktop'], {
+    const lanzar = () => {
+        dashboardAbierto = true;
+        log.info('Abriendo dashboard...');
+        if (process.platform === 'win32') {
+            execFile('cmd.exe', ['/d', '/s', '/c', 'npx.cmd --prefix desktop electron desktop'], {
+                cwd: root,
+                windowsHide: false,
+            }, (err) => {
+                if (err) {
+                    log.warn('No se pudo abrir el dashboard automáticamente', err.message);
+                }
+            });
+            return;
+        }
+        execFile('npx', ['--prefix', 'desktop', 'electron', 'desktop'], {
             cwd: root,
             windowsHide: false,
         }, (err) => {
@@ -77,16 +98,28 @@ function abrirDashboard() {
                 log.warn('No se pudo abrir el dashboard automáticamente', err.message);
             }
         });
+    };
+    // Antes esto se lanzaba sin comprobar nada: cada reinicio del bot (un
+    // `disconnected` de WhatsApp, un crash, un click en "Reiniciar" del
+    // widget de estatus) abría OTRA ventana de Electron encima de la que el
+    // usuario ya tenía abierta — eso, sumado al taskkill de arriba matando
+    // esa misma ventana vieja en cada arranque, es lo que se veía como
+    // "se abre y cierra una ventana sola cada poco tiempo".
+    if (process.platform === 'win32') {
+        const desktopDir = path.join(root, 'desktop').replace(/'/g, "''");
+        const ps = `(Get-CimInstance Win32_Process -Filter "Name='electron.exe'" | Where-Object { $_.CommandLine -like '*${desktopDir}*' }).Count`;
+        execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true }, (err, stdout) => {
+            const yaAbierta = !err && parseInt(String(stdout).trim(), 10) > 0;
+            if (yaAbierta) {
+                dashboardAbierto = true;
+                log.info('Ventana del dashboard ya está abierta — no se abre otra');
+                return;
+            }
+            lanzar();
+        });
         return;
     }
-    execFile('npx', ['--prefix', 'desktop', 'electron', 'desktop'], {
-        cwd: root,
-        windowsHide: false,
-    }, (err) => {
-        if (err) {
-            log.warn('No se pudo abrir el dashboard automáticamente', err.message);
-        }
-    });
+    lanzar();
 }
 
 // ── Validar .env al arrancar ────────────────────────────────────
