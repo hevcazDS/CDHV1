@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Emoji } from '../context/EmojiContext';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
+import ThemeSwitcher from './ThemeSwitcher';
 
 // Antes era una sola lista plana de 20 enlaces — para un solo operador
 // humano eso ya era carga cognitiva alta (hallazgo del comité de diseño/UX).
@@ -81,6 +82,7 @@ export default function Layout() {
         <header className="topbar">
           <div className="topbar-left">Panel de operaciones</div>
           <div className="topbar-right">
+            <ThemeSwitcher />
             <BotStatusWidget />
             <span className="hevcaz-badge-react">Hevcaz Solutions</span>
           </div>

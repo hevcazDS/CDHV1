@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mantine/core": "^7.17.8",
+    "@mantine/hooks": "^7.17.8",
     "@tanstack/react-query": "^5.101.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",

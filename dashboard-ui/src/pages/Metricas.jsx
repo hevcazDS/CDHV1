@@ -1,12 +1,20 @@
 import { useState } from 'react';
 import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, BarChart, Bar,
 } from 'recharts';
+import { SegmentedControl } from '@mantine/core';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
+
+const ESTILOS_CHART = [
+  { value: 'area', label: 'Área' },
+  { value: 'linea', label: 'Línea' },
+  { value: 'barras', label: 'Barras' },
+];
+const CHART_TIPO_KEY = 'metricas_chart_tipo';
 
 const ESTATUS_COLOR = { pendiente: 'amarillo', confirmado: 'azul', preparando: 'azul', enviado: 'azul', entregado: 'verde', cancelado: 'rojo' };
 const C_ACCENT = '#5b8cff', C_GREEN = '#36d399', C_YELLOW = '#fbbd23', C_RED = '#f4566c', C_GRID = '#262f42', C_DIM = '#9aa4b8';
@@ -18,6 +26,8 @@ export default function Metricas() {
   const txt = useTextoEmoji();
   const [reporteMsg, setReporteMsg] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [chartTipo, setChartTipo] = useState(() => localStorage.getItem(CHART_TIPO_KEY) || 'area');
+  const cambiarChartTipo = (v) => { setChartTipo(v); localStorage.setItem(CHART_TIPO_KEY, v); };
 
   const { data: d, refetch: refetchMetricas } = useQuery({
     queryKey: ['metricas'],
@@ -87,29 +97,58 @@ export default function Metricas() {
         <div className="card">
           <div className="card-header">
             <h3><Emoji>📈 </Emoji>Pedidos últimos 7 días {conv && <span className="badge badge-azul">Conversión: {conv.tasa_conversion}</span>}</h3>
-            <div className="actions"><button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button></div>
+            <div className="actions">
+              <SegmentedControl size="xs" value={chartTipo} onChange={cambiarChartTipo} data={ESTILOS_CHART} />
+              <button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button>
+            </div>
           </div>
           {dias.length === 0
             ? <div className="empty">Sin pedidos esta semana</div>
             : (
               <ResponsiveContainer width="100%" height={180}>
-                <AreaChart data={dias.map(dd => ({ ...dd, diaCorto: (dd.dia || '').slice(5) }))}>
-                  <defs>
-                    <linearGradient id="gradPedidos" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={C_ACCENT} stopOpacity={0.45} />
-                      <stop offset="100%" stopColor={C_ACCENT} stopOpacity={0.03} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke={C_GRID} vertical={false} />
-                  <XAxis dataKey="diaCorto" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} />
-                  <YAxis stroke={C_DIM} fontSize={11} tickLine={false} axisLine={false} width={32} />
-                  <Tooltip
-                    contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 8, fontSize: 12 }}
-                    labelStyle={{ color: '#fff' }}
-                    formatter={(value, name) => [name === 't' ? `$${fmt(value)}` : value, name === 't' ? 'Monto' : 'Pedidos']}
-                  />
-                  <Area type="monotone" dataKey="t" stroke={C_ACCENT} fill="url(#gradPedidos)" strokeWidth={2} />
-                </AreaChart>
+                {chartTipo === 'linea' ? (
+                  <LineChart data={dias.map(dd => ({ ...dd, diaCorto: (dd.dia || '').slice(5) }))}>
+                    <CartesianGrid stroke={C_GRID} vertical={false} />
+                    <XAxis dataKey="diaCorto" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} />
+                    <YAxis stroke={C_DIM} fontSize={11} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip
+                      contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: '#fff' }}
+                      formatter={(value, name) => [name === 't' ? `$${fmt(value)}` : value, name === 't' ? 'Monto' : 'Pedidos']}
+                    />
+                    <Line type="monotone" dataKey="t" stroke={C_ACCENT} strokeWidth={2} dot={{ r: 3, fill: C_ACCENT }} />
+                  </LineChart>
+                ) : chartTipo === 'barras' ? (
+                  <BarChart data={dias.map(dd => ({ ...dd, diaCorto: (dd.dia || '').slice(5) }))}>
+                    <CartesianGrid stroke={C_GRID} vertical={false} />
+                    <XAxis dataKey="diaCorto" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} />
+                    <YAxis stroke={C_DIM} fontSize={11} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip
+                      contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: '#fff' }}
+                      formatter={(value, name) => [name === 't' ? `$${fmt(value)}` : value, name === 't' ? 'Monto' : 'Pedidos']}
+                    />
+                    <Bar dataKey="t" fill={C_ACCENT} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                ) : (
+                  <AreaChart data={dias.map(dd => ({ ...dd, diaCorto: (dd.dia || '').slice(5) }))}>
+                    <defs>
+                      <linearGradient id="gradPedidos" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={C_ACCENT} stopOpacity={0.45} />
+                        <stop offset="100%" stopColor={C_ACCENT} stopOpacity={0.03} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke={C_GRID} vertical={false} />
+                    <XAxis dataKey="diaCorto" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} />
+                    <YAxis stroke={C_DIM} fontSize={11} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip
+                      contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: '#fff' }}
+                      formatter={(value, name) => [name === 't' ? `$${fmt(value)}` : value, name === 't' ? 'Monto' : 'Pedidos']}
+                    />
+                    <Area type="monotone" dataKey="t" stroke={C_ACCENT} fill="url(#gradPedidos)" strokeWidth={2} />
+                  </AreaChart>
+                )}
               </ResponsiveContainer>
             )}
         </div>

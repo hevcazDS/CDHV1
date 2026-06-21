@@ -1,4 +1,7 @@
 :root {
+  /* Paleta oscura — también el valor por default antes de que Mantine
+     monte y fije data-mantine-color-scheme en <html> (evita un flash con
+     colores distintos a los de siempre). */
   --bg:        #0b0f17;
   --bg-soft:   #11161f;
   --panel:     #161c28;
@@ -17,6 +20,29 @@
   --radius-lg: 16px;
   --shadow:    0 8px 24px rgba(0,0,0,0.35);
   font-family: -apple-system, 'Segoe UI', system-ui, Roboto, sans-serif;
+}
+
+/* Tema claro — Mantine resuelve "auto" contra prefers-color-scheme y
+   refleja el resultado ('light' o 'dark') en este mismo atributo, así que
+   este bloque también cubre el modo "Auto" sin lógica adicional. Las 20
+   páginas siguen usando estas variables (no Mantine) para su CSS, por eso
+   el cambio de tema repinta todo el panel y no solo los componentes nuevos. */
+[data-mantine-color-scheme="light"] {
+  --bg:        #f4f5f8;
+  --bg-soft:   #ffffff;
+  --panel:     #ffffff;
+  --panel-2:   #eef0f4;
+  --border:    #e1e4ea;
+  --text:      #1a1d24;
+  --text-dim:  #5b6172;
+  --text-mute: #8b91a0;
+  --accent:    #3b6fe0;
+  --accent-2:  #6c4cd8;
+  --accent-soft: rgba(59, 111, 224, 0.10);
+  --green:     #1f9d6f;
+  --yellow:    #b8860b;
+  --red:       #d23652;
+  --shadow:    0 8px 24px rgba(20, 20, 30, 0.08);
 }
 
 * { box-sizing: border-box; }
