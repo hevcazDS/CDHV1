@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Accordion } from '@mantine/core';
 import { useAuth } from '../context/AuthContext';
 import { Emoji } from '../context/EmojiContext';
 import { api } from '../api';
@@ -44,8 +45,21 @@ const GRUPOS = [
   ]},
 ];
 
+// Mantine Accordion estilizado para verse como las secciones de siempre
+// (título compacto en mayúsculas) en vez del look "card" por default —
+// solo cambia el contenedor, no los enlaces de adentro.
+const ACCORDION_STYLES = {
+  item: { border: 'none', background: 'transparent' },
+  control: { padding: '10px 8px' },
+  label: { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-mute)' },
+  chevron: { color: 'var(--text-mute)' },
+  panel: { padding: 0 },
+  content: { padding: '0 0 4px' },
+};
+
 export default function Layout() {
   const { user, logout } = useAuth();
+  const location = useLocation();
   const grupos = GRUPOS
     .map(g => ({ ...g, enlaces: g.enlaces.filter(e => !e.rolRequerido || e.rolRequerido === user?.rol) }))
     .filter(g => g.enlaces.length > 0);
@@ -57,21 +71,34 @@ export default function Layout() {
     api.get('/api/negocio').then(d => d?.nombre_negocio && setNombreNegocio(d.nombre_negocio)).catch(() => {});
   }, []);
 
+  // Antes los 6 grupos (~20 enlaces) estaban siempre expandidos: en pantallas
+  // de laptop el sidebar se volvía más alto que el contenido y rompía el
+  // layout de la derecha (hallazgo directo del operador). Ahora es un
+  // acordeón de un solo grupo abierto a la vez, y ese grupo es siempre el
+  // que contiene la ruta activa — así nunca se "pierde" la página actual.
+  const grupoActivo = grupos.find(g => g.enlaces.some(e => e.to === location.pathname))?.titulo || grupos[0]?.titulo;
+  const [abierto, setAbierto] = useState(grupoActivo);
+  useEffect(() => { setAbierto(grupoActivo); }, [grupoActivo]);
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">{nombreNegocio}</div>
         <nav className="sidebar-nav">
-          {grupos.map(g => (
-            <div className="sidebar-group" key={g.titulo}>
-              <div className="sidebar-group-title">{g.titulo}</div>
-              {g.enlaces.map(e => (
-                <NavLink key={e.to} to={e.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`} end={e.to === '/'}>
-                  <Emoji><span>{e.icon}</span> </Emoji>{e.label}
-                </NavLink>
-              ))}
-            </div>
-          ))}
+          <Accordion value={abierto} onChange={setAbierto} chevronSize={14} styles={ACCORDION_STYLES}>
+            {grupos.map(g => (
+              <Accordion.Item value={g.titulo} key={g.titulo}>
+                <Accordion.Control>{g.titulo}</Accordion.Control>
+                <Accordion.Panel>
+                  {g.enlaces.map(e => (
+                    <NavLink key={e.to} to={e.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`} end={e.to === '/'}>
+                      <Emoji><span>{e.icon}</span> </Emoji>{e.label}
+                    </NavLink>
+                  ))}
+                </Accordion.Panel>
+              </Accordion.Item>
+            ))}
+          </Accordion>
         </nav>
         <div className="sidebar-foot">
           {user?.username} · {user?.rol}

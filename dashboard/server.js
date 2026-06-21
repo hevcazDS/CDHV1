@@ -29,17 +29,27 @@ process.on('unhandledRejection', e => log.error('🔴 PROMESA (dashboard)', e in
 // solo se expone por HTTP para que una ventana (navegador en modo app,
 // Electron, lo que sea) pueda prender/apagar/monitorear sin terminal.
 const ECOSYSTEM_PATH = path.join(__dirname, '..', 'ecosystem.config.js');
-// pm2 global se instala como pm2.cmd en Windows. En ese caso, la forma
-// confiable de ejecutar el comando es pasarle el shell de Windows y una
-// cadena completa, porque execFile() no lanza correctamente archivos .cmd.
+// pm2 global se instala como pm2.cmd en Windows. Node 20+ ya no deja que
+// execFile() lance un .cmd directamente (EINVAL) sin spawnear cmd.exe, así
+// que hay que armar la línea de comando a mano — pero eso choca con una
+// regla específica de cmd.exe /c: si recibe varios tokens entre comillas en
+// vez de UNA sola cadena entre comillas, los toma literalmente como parte
+// del nombre del programa ("\"pm2.cmd\"" no se reconoce...) en vez de
+// despojar las comillas. La solución verificada es envolver TODO el
+// comando en un par extra de comillas (cmd.exe sí sabe despojar ese par
+// externo) y pasar windowsVerbatimArguments:true para que Node no vuelva a
+// escapar esa cadena ya armada — sin esto último, Node duplica las
+// comillas y se rompe igual. windowsHide:true evita que parpadee una
+// ventana de consola en cada poll de estatus (cada 15s desde el dashboard).
 const PM2_BIN = process.platform === 'win32' ? 'pm2.cmd' : 'pm2';
 function pm2(args, cb) {
     if (process.platform === 'win32') {
-        const command = [PM2_BIN, ...args].map(arg => `"${String(arg).replace(/"/g, '\\"')}"`).join(' ');
-        execFile('cmd.exe', ['/d', '/s', '/c', command], { timeout: 15000 }, (err, stdout, stderr) => cb(err, stdout, stderr));
+        const inner = [PM2_BIN, ...args].map(arg => `"${String(arg).replace(/"/g, '\\"')}"`).join(' ');
+        const command = `"${inner}"`;
+        execFile('cmd.exe', ['/d', '/s', '/c', command], { timeout: 15000, windowsHide: true, windowsVerbatimArguments: true }, (err, stdout, stderr) => cb(err, stdout, stderr));
         return;
     }
-    execFile(PM2_BIN, args, { timeout: 15000 }, (err, stdout, stderr) => cb(err, stdout, stderr));
+    execFile(PM2_BIN, args, { timeout: 15000, windowsHide: true }, (err, stdout, stderr) => cb(err, stdout, stderr));
 }
 
 const PORT  = parseInt(process.env.DASHBOARD_PORT || '3001');

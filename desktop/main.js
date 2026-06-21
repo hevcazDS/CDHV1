@@ -15,13 +15,18 @@ const PM2_BIN = process.platform === 'win32' ? 'pm2.cmd' : 'pm2';
 // identificador del proceso/app de escritorio en si.
 app.setName('botdashapp');
 
+// Mismo arreglo que dashboard/server.js: cmd.exe /c necesita el comando
+// envuelto en un par extra de comillas para no tomar las comillas internas
+// como parte literal del nombre del programa, y windowsVerbatimArguments
+// evita que Node vuelva a escapar esa cadena ya armada.
 function pm2(args, cb) {
     if (process.platform === 'win32') {
-        const command = [PM2_BIN, ...args].map(arg => `"${String(arg).replace(/"/g, '\\"')}"`).join(' ');
-        execFile('cmd.exe', ['/d', '/s', '/c', command], { timeout: 15000 }, (err, stdout, stderr) => cb(err, stdout, stderr));
+        const inner = [PM2_BIN, ...args].map(arg => `"${String(arg).replace(/"/g, '\\"')}"`).join(' ');
+        const command = `"${inner}"`;
+        execFile('cmd.exe', ['/d', '/s', '/c', command], { timeout: 15000, windowsHide: true, windowsVerbatimArguments: true }, (err, stdout, stderr) => cb(err, stdout, stderr));
         return;
     }
-    execFile(PM2_BIN, args, { timeout: 15000 }, cb);
+    execFile(PM2_BIN, args, { timeout: 15000, windowsHide: true }, cb);
 }
 
 let win;

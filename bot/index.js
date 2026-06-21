@@ -91,7 +91,7 @@ function abrirDashboard() {
         if (process.platform === 'win32') {
             execFile('cmd.exe', ['/d', '/s', '/c', 'npx.cmd --prefix desktop electron desktop'], {
                 cwd: root,
-                windowsHide: false,
+                windowsHide: true,
             }, (err) => {
                 if (err) {
                     log.warn('No se pudo abrir el dashboard automáticamente', err.message);
