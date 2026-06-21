@@ -150,6 +150,18 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
         return json(res, rows);
     }
 
+    // GET /api/bot/qr — QR de WhatsApp pendiente de escanear, si hay uno.
+    // bot/index.js (proceso separado, sin IPC) lo publica en `configuracion`
+    // en cada evento 'qr' y lo limpia al autenticar — antes el único lugar
+    // donde aparecía era la terminal del proceso pm2, invisible desde aquí.
+    if (p === '/api/bot/qr' && req.method === 'GET') {
+        let fila = null;
+        try {
+            fila = db.prepare("SELECT valor, actualizado_en FROM configuracion WHERE clave='whatsapp_qr'").get();
+        } catch (_) {}
+        return json(res, { qr: fila?.valor || null, actualizado_en: fila?.actualizado_en || null });
+    }
+
     // POST /api/bot/start — enciende solo bot-whatsapp (no toca el dashboard)
     if (p === '/api/bot/start' && req.method === 'POST') {
         pm2(['start', ECOSYSTEM_PATH, '--only', 'bot-whatsapp'], (err, stdout, stderr) => {

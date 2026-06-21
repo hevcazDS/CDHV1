@@ -90,6 +90,13 @@ async function main() {
     const health = await fetch(BASE + '/health');
     ok(health.status === 200, 'GET /health no requiere sesión');
 
+    // ── 5b. /api/bot/qr — lo publica bot/index.js en `configuracion` ────
+    const qrVacio = await (await fetch(BASE + '/api/bot/qr', { headers: authHeaders })).json();
+    ok(qrVacio.qr === null, 'GET /api/bot/qr sin QR pendiente devuelve null');
+    db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('whatsapp_qr', 'dato-qr-de-prueba') ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run();
+    const qrConDato = await (await fetch(BASE + '/api/bot/qr', { headers: authHeaders })).json();
+    ok(qrConDato.qr === 'dato-qr-de-prueba', 'GET /api/bot/qr refleja el QR publicado por el bot');
+
     // ── 6. /api/stats agrega correctamente ───────────────────────────────
     const stats = await fetch(BASE + '/api/stats', { headers: authHeaders });
     const statsBody = await stats.json();

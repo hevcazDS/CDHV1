@@ -581,7 +581,6 @@ function _resolveChromePath() {
 }
 
 intentarCerrarProcesosBrowser();
-limpiarSesionLocalAuth();
 
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -614,6 +613,19 @@ function _setStockWatcherModo(modo) {
         const _db = require('./db_connection');
         _db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('stockwatcher_modo', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor, actualizado_en=datetime('now','localtime')").run(modo);
     } catch (e) { log.debug('No se pudo guardar stockwatcher_modo: ' + e.message); }
+}
+
+// Mismo mecanismo que _setStockWatcherModo: el dashboard (proceso separado)
+// no tiene acceso directo al cliente de WhatsApp, así que el QR pendiente de
+// escanear se publica en `configuracion` para que /api/bot/qr lo exponga y
+// la página Inicio lo renderice — antes el único lugar donde aparecía era la
+// terminal del proceso pm2, invisible para quien solo usa el dashboard.
+// Vacío ('') significa "no hay QR pendiente" (ya autenticado o aún no llegó).
+function _setWhatsAppQR(qr) {
+    try {
+        const _db = require('./db_connection');
+        _db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('whatsapp_qr', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor, actualizado_en=datetime('now','localtime')").run(qr || '');
+    } catch (e) { log.debug('No se pudo guardar whatsapp_qr: ' + e.message); }
 }
 
 function arrancarStockWatcherWorker(intentos = 1) {
@@ -661,15 +673,27 @@ function arrancarStockWatcherWorker(intentos = 1) {
 }
 
 client.on('qr', qr => {
-    if (qrMostrado) return;
-    qrMostrado = true;
-    // Volver al tamaño original para evitar que el QR quede demasiado grande
-    // y sea difícil de escanear correctamente en la terminal.
-    qrcode.generate(qr, { small: true });
-    log.info('QR de WhatsApp listo — escanea la sesión desde la ventana o terminal.');
+    // WhatsApp expira el QR cada ~20-30s y whatsapp-web.js emite uno nuevo
+    // automáticamente mientras nadie escanea — antes este handler ignoraba
+    // todo evento después del primero (`if (qrMostrado) return`), así que
+    // ese QR único quedaba inválido en menos de un minuto sin forma de
+    // refrescarlo salvo reiniciar el proceso entero. Ahora cada refresh se
+    // publica en `configuracion` (ver _setWhatsAppQR) para que el dashboard
+    // siempre muestre uno vigente; el dibujo ASCII en terminal y el log
+    // solo se hacen la primera vez para no inundar el log cada 20s.
+    _setWhatsAppQR(qr);
+    if (!qrMostrado) {
+        qrMostrado = true;
+        qrcode.generate(qr, { small: true });
+        log.info('QR de WhatsApp listo — escanéalo desde el dashboard (Inicio) o la terminal.');
+    } else {
+        log.debug('QR de WhatsApp actualizado (el anterior expiró)');
+    }
 });
 client.on('authenticated', () => {
     log.info('WhatsApp autenticado correctamente');
+    qrMostrado = false;
+    _setWhatsAppQR('');
 });
 client.on('auth_failure', msg => {
     log.error('Falló la autenticación de WhatsApp', msg);
@@ -687,9 +711,19 @@ client.on('disconnected', reason => {
                 .run(JSON.stringify([_dest]), '<p>El bot de WhatsApp se desconectó.</p><p>Motivo: ' + String(reason) + '</p><p>' + new Date().toLocaleString('es-MX') + '</p>');
         }
     } catch (e) { log.warn('No se pudo encolar alerta de desconexión', e); }
+    // whatsapp-web.js no se reconecta solo tras 'disconnected' (hay que
+    // volver a llamar initialize()) — en vez de reinicializar el cliente en
+    // el mismo proceso (puede dejar un browser/page zombie), se deja que
+    // pm2 relance el proceso completo: LocalAuth reintenta la sesión guardada
+    // y, si ya no es válida (ej. el celular "olvidó" el dispositivo), el
+    // propio cliente emite un 'qr' nuevo automáticamente — que ahora sí
+    // queda visible en el dashboard en vez de quedar el bot conectado a nada.
+    shutdown('disconnected');
 });
 client.on('ready', () => {
     log.info('Bot conectado y listo');
+    qrMostrado = false;
+    _setWhatsAppQR('');
     abrirDashboard();
     // Procesar cola de notificaciones cada 30 segundos
     setInterval(procesarColaNotificaciones, 30_000).unref();
@@ -1019,4 +1053,16 @@ process.on('exit', () => {
     }
 });
 
-client.initialize();
+// Antes limpiarSesionLocalAuth() se llamaba incondicionalmente ANTES de
+// construir el cliente, en cada arranque — eso borraba la sesión de
+// WhatsApp ya autenticada en cada `pm2 restart`/crash-restart, forzando un
+// QR nuevo cada vez (la causa real de quedar "desconectado" tras cualquier
+// reinicio). Ahora la sesión guardada se intenta usar normalmente; solo si
+// initialize() falla de verdad (perfil de Chrome bloqueado/corrupto) se
+// limpia y se reintenta una vez — el caso que el comentario original
+// describía ("evitar bloqueos de navegador") sin pagar el costo siempre.
+client.initialize().catch(e => {
+    log.error('Falló la inicialización de WhatsApp — limpiando sesión local y reintentando una vez', e);
+    limpiarSesionLocalAuth();
+    client.initialize().catch(e2 => log.error('🔴 El reintento de inicialización de WhatsApp también falló', e2));
+});
