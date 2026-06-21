@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Card, Text } from '@mantine/core';
 import { api } from '../api';
 import { useWhatsAppQR } from '../hooks/useWhatsAppQR';
 import WhatsAppQR from '../components/WhatsAppQR';
@@ -34,19 +35,19 @@ export default function Inicio() {
       {error && <div className="login-error" style={{ marginBottom: 20 }}>No se pudieron cargar los pedidos: {error.message}</div>}
       <WhatsAppQR qr={qr} />
       <div className="kpi-grid">
-        <div className="card kpi-card">
-          <span className="kpi-label">Pedidos (últimos 100)</span>
-          <span className="kpi-value">{total}</span>
-        </div>
-        <div className="card kpi-card">
-          <span className="kpi-label">Pendientes</span>
-          <span className="kpi-value">{pendientes}</span>
-        </div>
+        <Card withBorder radius="md" p="lg" className="kpi-card">
+          <Text size="sm" c="dimmed">Pedidos (últimos 100)</Text>
+          <Text size="26px" fw={700}>{total}</Text>
+        </Card>
+        <Card withBorder radius="md" p="lg" className="kpi-card">
+          <Text size="sm" c="dimmed">Pendientes</Text>
+          <Text size="26px" fw={700}>{pendientes}</Text>
+        </Card>
         {emailsError > 0 && (
-          <div className="card kpi-card" style={{ borderColor: 'var(--red)' }}>
-            <span className="kpi-label">{txt('⚠️ Emails con error')}</span>
-            <span className="kpi-value">{emailsError}</span>
-          </div>
+          <Card withBorder radius="md" p="lg" className="kpi-card" style={{ borderColor: 'var(--red)' }}>
+            <Text size="sm" c="dimmed">{txt('⚠️ Emails con error')}</Text>
+            <Text size="26px" fw={700}>{emailsError}</Text>
+          </Card>
         )}
       </div>
     </div>

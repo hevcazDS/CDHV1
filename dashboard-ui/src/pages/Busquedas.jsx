@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Table } from '@mantine/core';
 import { api } from '../api';
 import { fdate } from '../lib/format';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -16,13 +17,13 @@ export default function Busquedas() {
       <div className="page-title">Búsquedas</div>
       <div className="page-sub">Términos que los clientes buscan en el bot</div>
 
-      <div className="card">
-        <div className="card-header">
-          <h3>{txt('🔍 Log de búsquedas')}</h3>
-          <div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button></div>
-        </div>
+      <Card withBorder radius="md" p="lg">
+        <Group justify="space-between" mb="md">
+          <Title order={4}>{txt('🔍 Log de búsquedas')}</Title>
+          <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+        </Group>
         <div className="table-wrap">
-          <table>
+          <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Término buscado</th><th>Veces</th><th>Compras</th><th>Última búsqueda</th></tr></thead>
             <tbody>
               {filas === undefined && <tr><td colSpan={4} className="empty">Cargando...</td></tr>}
@@ -36,9 +37,9 @@ export default function Busquedas() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Table } from '@mantine/core';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { useEmojisActivos, useTextoEmoji } from '../context/EmojiContext';
@@ -20,13 +21,13 @@ export default function Ranking() {
       <div className="page-sub">Top clientes por puntos de lealtad</div>
       {error && <div className="login-error">No se pudo cargar el ranking: {error.message}</div>}
 
-      <div className="card">
-        <div className="card-header">
-          <h3>{txt('🏆 Top clientes por puntos')}</h3>
-          <div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button></div>
-        </div>
+      <Card withBorder radius="md" p="lg">
+        <Group justify="space-between" mb="md">
+          <Title order={4}>{txt('🏆 Top clientes por puntos')}</Title>
+          <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+        </Group>
         <div className="table-wrap">
-          <table>
+          <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>#</th><th>Cliente</th><th>Teléfono</th><th>Puntos ganados</th><th>Disponibles</th><th>Canjeados</th><th>Último mov.</th></tr></thead>
             <tbody>
               {rows === undefined && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
@@ -43,9 +44,9 @@ export default function Ranking() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

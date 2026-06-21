@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Table } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -17,13 +18,13 @@ export default function Ofertas() {
       <div className="page-sub">Ofertas activas con precio rebajado</div>
       {error && <div className="login-error">No se pudieron cargar las ofertas: {error.message}</div>}
 
-      <div className="card">
-        <div className="card-header">
-          <h3>{txt('🏷️ Ofertas activas')}</h3>
-          <div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button></div>
-        </div>
+      <Card withBorder radius="md" p="lg">
+        <Group justify="space-between" mb="md">
+          <Title order={4}>{txt('🏷️ Ofertas activas')}</Title>
+          <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+        </Group>
         <div className="table-wrap">
-          <table>
+          <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Código</th><th>Producto</th><th>Descuento</th><th>Precio oferta</th><th>Vence</th><th>Usos</th></tr></thead>
             <tbody>
               {rows === undefined && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
@@ -39,9 +40,9 @@ export default function Ofertas() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
