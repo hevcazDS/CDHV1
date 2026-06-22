@@ -13,7 +13,7 @@ const path  = require('path');
 const fs    = require('fs');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
-const { NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema, safeEqual } = require('../bot/validators');
+const { NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema, safeEqual } = require('../bot/validators');
 require('dotenv').config({ quiet: true });
 const log = require('../bot/logger')('dashboard');
 const { registrarErrorDB } = require('../bot/dbErrorLog');
@@ -367,10 +367,14 @@ function validar(parsed, schema, res, ruta) {
 // helper para un nuevo endpoint.
 const TABLAS_ACTUALIZABLES = {
     sucursales: ['nombre', 'codigo', 'direccion', 'activa'],
-    productos: ['name', 'cat', 'price', 'url_imagen', 'tags', 'seo_description',
-        'edad_recomendada', 'edad_min', 'genero', 'stock_tienda', 'stock_cedis',
-        'stock_san_luis_potosi', 'activo'],
+    productos: ['name', 'cat', 'price', 'sku', 'upc', 'brand', 'handle', 'description',
+        'url_imagen', 'tags', 'seo_description', 'material', 'color', 'target_audience',
+        'tipo_juguete', 'edad_recomendada', 'edad_min', 'edad_max', 'genero', 'id_categoria',
+        'peso_kg', 'alto_cm', 'ancho_cm', 'largo_cm', 'stock_tienda', 'stock_cedis',
+        'stock_san_luis_potosi', 'stock_exhibicion', 'stock_queretaro', 'stock_monterrey',
+        'stock_cdmx_centro', 'stock_base', 'activo'],
     inventarios: ['stock_minimo'],
+    categorias: ['nombre', 'descripcion', 'activa'],
 };
 
 // ── Helper: UPDATE dinámico a partir de los campos presentes en `datos`,
@@ -449,7 +453,7 @@ function construirAudienciaMasivo({ soloConPedido, excluirTags, soloTags, sinAct
 // el mismo fallthrough secuencial del  original — ningún módulo sabe si
 // "matcheó" salvo por no llamar a next().
 const ctx = {
-    db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, registrarErrorDB, SECURITY_HEADERS, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema,
+    db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, registrarErrorDB, SECURITY_HEADERS, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema,
 };
 
 const ROUTE_MODULES = [

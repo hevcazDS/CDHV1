@@ -20,8 +20,20 @@ function pkInventarios(db) {
     return _pkInventarios;
 }
 
+// Mismo patrón de redacción que ya existía en el dato real: "{min} a {max}
+// años" o "{min}+ años" cuando el tope es 99 (sin límite superior real).
+// El cliente nunca manda edad_recomendada directamente (ver ProductoSchema
+// en bot/validators.js) -- así no puede quedar texto suelto inconsistente
+// con los rangos numéricos que bot/flows/_shared.js usa para filtrar.
+function calcularEdadRecomendada(edadMin, edadMax) {
+    if (edadMin == null && edadMax == null) return null;
+    const min = edadMin ?? 0;
+    const max = edadMax ?? 99;
+    return max >= 99 ? `${min}+ años` : `${min} a ${max} años`;
+}
+
 module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
-    const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
+    const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
     if (p === '/api/prime/palabras-filtro' && req.method === 'POST') {
         const ses = requireSession(req, res, ['prime']);
         if (!ses) return;
@@ -116,6 +128,31 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
         }
     }
 
+    // ── Categorías (tabla `categorias`) — lookup para el Select "crear
+    // categoría nueva" del alta/edición de producto, en vez de texto libre
+    // suelto en productos.cat. ──────────────────────────────────────────────
+    if (p === '/api/prime/categorias' && req.method === 'GET') {
+        if (!requireSession(req, res, ['prime'])) return;
+        try {
+            return json(res, db.prepare('SELECT id, nombre, descripcion, activa FROM categorias WHERE activa = 1 ORDER BY nombre').all());
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    }
+
+    if (p === '/api/prime/categorias' && req.method === 'POST') {
+        if (!requireSession(req, res, ['prime'])) return;
+        return readBody(req, body => {
+            try {
+                const datos = validar(JSON.parse(body || '{}'), CategoriaSchema, res, p);
+                if (!datos) return;
+                const r = db.prepare('INSERT INTO categorias (nombre, descripcion) VALUES (?, ?)').run(datos.nombre, datos.descripcion || null);
+                return json(res, { ok: true, id: r.lastInsertRowid, nombre: datos.nombre });
+            } catch (e) {
+                if (String(e.message).includes('UNIQUE')) return json(res, { ok: false, error: 'Ya existe una categoría con ese nombre' }, 400);
+                return json(res, { ok: false, error: e.message }, 500);
+            }
+        });
+    }
+
     // ── Productos — listado con búsqueda y paginación (para la pestaña
     // Catálogo del Prime: antes solo había alta, sin forma de ver/editar los
     // productos que ya existen). ────────────────────────────────────────────
@@ -127,12 +164,13 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
             const pagina = Math.max(1, parseInt(u2.searchParams.get('pagina') || '1', 10) || 1);
             const porPagina = 20;
             const offset = (pagina - 1) * porPagina;
-            const whereSql = q ? 'WHERE name LIKE ?' : '';
-            const params = q ? ['%' + q + '%'] : [];
-            const total = db.prepare(`SELECT COUNT(*) AS n FROM productos ${whereSql}`).get(...params).n;
+            const whereSql = q ? 'WHERE p.name LIKE ? OR p.sku LIKE ?' : '';
+            const params = q ? ['%' + q + '%', '%' + q + '%'] : [];
+            const total = db.prepare(`SELECT COUNT(*) AS n FROM productos p ${whereSql}`).get(...params).n;
             const items = db.prepare(`
-                SELECT id, name, cat, price, stock_tienda, stock_cedis, stock_san_luis_potosi
-                FROM productos ${whereSql} ORDER BY name LIMIT ? OFFSET ?
+                SELECT p.*, c.nombre AS categoria_nombre
+                FROM productos p LEFT JOIN categorias c ON c.id = p.id_categoria
+                ${whereSql} ORDER BY p.name LIMIT ? OFFSET ?
             `).all(...params, porPagina, offset);
             return json(res, { items, total, pagina, porPagina });
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
@@ -148,22 +186,53 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // services/stockWatcher.js (alerta de stock mínimo) en las otras 11
     // sucursales, aunque sí se pueda comprar en tienda/CEDIS/SLP. ───────────
     if (p === '/api/prime/productos' && req.method === 'POST') {
-        if (!requireSession(req, res, ['prime'])) return;
+        const ses = requireSession(req, res, ['prime']);
+        if (!ses) return;
         return readBody(req, body => {
             try {
                 const d = validar(JSON.parse(body || '{}'), ProductoSchema, res, p);
                 if (!d) return;
+                const edadRecomendada = calcularEdadRecomendada(d.edad_min, d.edad_max);
                 const crear = db.transaction((datos) => {
                     const r = db.prepare(`
-                        INSERT INTO productos (name, cat, price, url_imagen, tags, seo_description, edad_recomendada, edad_min, genero, stock_tienda, stock_cedis, stock_san_luis_potosi)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    `).run(datos.name, datos.cat || '', datos.price, datos.url_imagen || null, datos.tags || null, datos.seo_description || null, datos.edad_recomendada || null, datos.edad_min ?? null, datos.genero || null, datos.stock_tienda, datos.stock_cedis, datos.stock_san_luis_potosi);
+                        INSERT INTO productos (
+                            name, cat, price, sku, upc, brand, handle, description, url_imagen,
+                            tags, seo_description, material, color, target_audience, tipo_juguete,
+                            edad_recomendada, edad_min, edad_max, genero, id_categoria,
+                            peso_kg, alto_cm, ancho_cm, largo_cm,
+                            stock_tienda, stock_cedis, stock_san_luis_potosi, stock_exhibicion,
+                            stock_queretaro, stock_monterrey, stock_cdmx_centro, stock_base, creado_por, creado_en
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+                    `).run(
+                        datos.name, datos.cat || '', datos.price, datos.sku || null, datos.upc || null,
+                        datos.brand || null, datos.handle || null, datos.description || null, datos.url_imagen || null,
+                        datos.tags || null, datos.seo_description || null, datos.material || null, datos.color || null,
+                        datos.target_audience || null, datos.tipo_juguete || null,
+                        edadRecomendada, datos.edad_min ?? null, datos.edad_max ?? null, datos.genero || null, datos.id_categoria ?? null,
+                        datos.peso_kg ?? null, datos.alto_cm ?? null, datos.ancho_cm ?? null, datos.largo_cm ?? null,
+                        datos.stock_tienda, datos.stock_cedis, datos.stock_san_luis_potosi, datos.stock_exhibicion,
+                        datos.stock_queretaro, datos.stock_monterrey, datos.stock_cdmx_centro, datos.stock_base ?? null,
+                        ses.username
+                    );
                     const idProducto = r.lastInsertRowid;
+                    // Un id de producto recién creado por AUTOINCREMENT puede coincidir con
+                    // un id_producto huérfano de un producto borrado hace tiempo (ver memoria
+                    // "inventarios-filas-huerfanas" -- ~7,315 filas confirmadas, huecos como
+                    // el 601/602 reproducidos en pruebas). Esas filas viejas NUNCA pueden
+                    // pertenecer al producto que se está creando ahora, así que se limpian
+                    // antes de sembrar el inventario real -- si no, quedarían dos filas por
+                    // sucursal (la huérfana "revivida" + la nueva) sin forma de distinguirlas.
+                    db.prepare('DELETE FROM inventarios WHERE id_producto = ?').run(idProducto);
                     const sucursales = db.prepare('SELECT nombre FROM sucursales WHERE activa = 1').all();
                     const insertInv = db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock, stock_minimo) VALUES (?, ?, ?, 0)');
+                    const insertMov = db.prepare(`
+                        INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo, creado_por)
+                        VALUES (?, ?, 'alta', NULL, ?, 'Alta de producto', ?)
+                    `);
                     for (const s of sucursales) {
                         const stock = (datos.stock_sucursales && datos.stock_sucursales[s.nombre]) || 0;
                         insertInv.run(idProducto, s.nombre, stock);
+                        insertMov.run(idProducto, s.nombre, stock, ses.username);
                     }
                     return idProducto;
                 });
@@ -182,6 +251,12 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
                 const datos = validar(JSON.parse(body || '{}'), ProductoUpdateSchema, res, p);
                 if (!datos) return;
                 if (!db.prepare('SELECT id FROM productos WHERE id=?').get(id)) return json(res, { ok: false, error: 'Producto no encontrado' }, 404);
+                if (datos.edad_min !== undefined || datos.edad_max !== undefined) {
+                    const actual = db.prepare('SELECT edad_min, edad_max FROM productos WHERE id=?').get(id);
+                    const edadMin = datos.edad_min !== undefined ? datos.edad_min : actual.edad_min;
+                    const edadMax = datos.edad_max !== undefined ? datos.edad_max : actual.edad_max;
+                    datos.edad_recomendada = calcularEdadRecomendada(edadMin, edadMax);
+                }
                 if (!actualizarCampos('productos', id, datos)) return json(res, { ok: false, error: 'Nada que actualizar' }, 400);
                 return json(res, { ok: true, id });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
@@ -226,18 +301,54 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     }
 
     if (req.method === 'PUT' && p.match(/^\/api\/prime\/inventarios\/\d+$/)) {
-        if (!requireSession(req, res, ['prime'])) return;
+        const ses = requireSession(req, res, ['prime']);
+        if (!ses) return;
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body || '{}'), InventarioMinimoSchema, res, p);
                 if (!datos) return;
                 const pk = pkInventarios(db);
-                if (!db.prepare(`SELECT ${pk} FROM inventarios WHERE ${pk}=?`).get(id)) return json(res, { ok: false, error: 'Registro de inventario no encontrado' }, 404);
+                const fila = db.prepare(`SELECT ${pk} AS id, id_producto, sucursal, stock_minimo FROM inventarios WHERE ${pk}=?`).get(id);
+                if (!fila) return json(res, { ok: false, error: 'Registro de inventario no encontrado' }, 404);
                 actualizarCampos('inventarios', id, datos, pk);
+                db.prepare(`
+                    INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo, creado_por)
+                    VALUES (?, ?, 'ajuste_minimo', ?, ?, 'Ajuste de stock mínimo', ?)
+                `).run(fila.id_producto, fila.sucursal, fila.stock_minimo, datos.stock_minimo, ses.username);
                 return json(res, { ok: true, id, stock_minimo: datos.stock_minimo });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });
+    }
+
+    // ── Historial de movimientos de inventario (altas y ajustes de stock
+    // mínimo) — auditoría: quién/cuándo se dio de alta o se ajustó cada
+    // producto+sucursal (ver migrations/0006_auditoria_productos_inventario.sql).
+    if (p === '/api/prime/inventario-movimientos' && req.method === 'GET') {
+        if (!requireSession(req, res, ['prime'])) return;
+        try {
+            const u2 = new URL(req.url, 'http://x');
+            const q = (u2.searchParams.get('q') || '').trim();
+            const sucursal = (u2.searchParams.get('sucursal') || '').trim();
+            const pagina = Math.max(1, parseInt(u2.searchParams.get('pagina') || '1', 10) || 1);
+            const porPagina = 30;
+            const offset = (pagina - 1) * porPagina;
+            const cond = [];
+            const params = [];
+            if (q) { cond.push('p.name LIKE ?'); params.push('%' + q + '%'); }
+            if (sucursal) { cond.push('m.sucursal = ?'); params.push(sucursal); }
+            const whereSql = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
+            const total = db.prepare(`
+                SELECT COUNT(*) AS n FROM inventario_movimientos m LEFT JOIN productos p ON p.id = m.id_producto ${whereSql}
+            `).get(...params).n;
+            const items = db.prepare(`
+                SELECT m.id, m.id_producto, p.name AS producto, m.sucursal, m.tipo,
+                       m.cantidad_anterior, m.cantidad_nueva, m.motivo, m.creado_por, m.creado_en
+                FROM inventario_movimientos m LEFT JOIN productos p ON p.id = m.id_producto
+                ${whereSql} ORDER BY m.creado_en DESC, m.id DESC LIMIT ? OFFSET ?
+            `).all(...params, porPagina, offset);
+            return json(res, { items, total, pagina, porPagina });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
     }
 
     // ── Usuarios del dashboard — alta/edición/baja, solo prime. No se puede

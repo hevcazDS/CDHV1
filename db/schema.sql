@@ -153,11 +153,16 @@ CREATE TABLE IF NOT EXISTS series_folios (
 );
 
 -- Catálogo de categorías de producto (lookup, referenciado por nombre desde
--- productos.cat). Solo existencia/datos verificados por tests/test_db_flujo.js.
+-- productos.cat y por id desde productos.id_categoria/promociones.id_categoria).
+-- Estuvo sin ningún código que la leyera/escribiera hasta que
+-- dashboard/routes/primeCatalogo.js la conectó (selector "crear categoría
+-- nueva" en Alta de producto).
 CREATE TABLE IF NOT EXISTS categorias (
-    id     INTEGER PRIMARY KEY AUTOINCREMENT,
-    nombre TEXT NOT NULL UNIQUE,
-    activa INTEGER NOT NULL DEFAULT 1
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre      TEXT NOT NULL UNIQUE,
+    descripcion TEXT,
+    activa      INTEGER NOT NULL DEFAULT 1,
+    creada_en   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 -- Zonas de cobertura de envío (bot/flows/_shared.js consulta por estado).
@@ -209,22 +214,62 @@ CREATE TABLE IF NOT EXISTS clientes (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_codigo_referido ON clientes(codigo_referido);
 
+-- Esta tabla había quedado mucho más angosta aquí que en la base de
+-- producción real (drift -- ver advertencia general al inicio de este
+-- archivo): faltaban sku/upc/brand/material/color/dimensiones/edad_max/
+-- tipo_juguete/target_audience/id_categoria/stock_exhibicion y las otras 3
+-- columnas de stock por sucursal legacy, todas usadas ahora por
+-- dashboard/routes/primeCatalogo.js (alta de producto) y/o leídas por
+-- bot/flows/_shared.js. Columnas y defaults mirroreados 1:1 desde
+-- PRAGMA table_info() de la base real (2026-06-22), con un único cambio
+-- intencional: `cat` aquí sí lleva DEFAULT '' (en producción es NOT NULL
+-- sin default, lo que ya causó un error real al dar de alta sin categoría;
+-- ver migrations/ -- este es el patrón correcto a seguir de aquí en
+-- adelante, no el que ya existe en producción).
 CREATE TABLE IF NOT EXISTS productos (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    sku                     TEXT,
+    upc                     TEXT,
+    brand                   TEXT,
+    handle                  TEXT,
     name                    TEXT NOT NULL,
-    cat                     TEXT,
+    cat                     TEXT NOT NULL DEFAULT '',
     price                   REAL NOT NULL DEFAULT 0,
     url_imagen              TEXT,
-    tags                    TEXT,
+    description             TEXT,
     seo_description         TEXT,
+    tags                    TEXT,
+    material                TEXT,
+    color                   TEXT,
     edad_recomendada        TEXT,
-    edad_min                INTEGER,
-    genero                  TEXT,
+    target_audience         TEXT,
+    stock_base              INTEGER,
+    stock_cedis             INTEGER DEFAULT 0,
+    stock_tienda            INTEGER DEFAULT 0,
+    stock_exhibicion        INTEGER DEFAULT 0,
+    stock_san_luis_potosi   INTEGER DEFAULT 0,
+    -- stock_queretaro/monterrey/cdmx_centro existen en la base real pero
+    -- ningún código (bot ni dashboard) los lee todavía -- se mirrorean para
+    -- no perder la columna en una instalación nueva, no porque ya alimenten
+    -- algo. Si en el futuro se conectan a busqueda/recomendación, avisar en
+    -- este comentario que dejó de aplicar.
+    stock_queretaro         INTEGER DEFAULT 0,
+    stock_monterrey         INTEGER DEFAULT 0,
+    stock_cdmx_centro       INTEGER DEFAULT 0,
     activo                  INTEGER NOT NULL DEFAULT 1,
-    stock_tienda            INTEGER NOT NULL DEFAULT 0,
-    stock_cedis             INTEGER NOT NULL DEFAULT 0,
-    stock_san_luis_potosi   INTEGER NOT NULL DEFAULT 0,
-    ventas_simuladas        INTEGER DEFAULT 0
+    peso_kg                 REAL DEFAULT 0,
+    alto_cm                 REAL DEFAULT 0,
+    ancho_cm                REAL DEFAULT 0,
+    largo_cm                REAL DEFAULT 0,
+    id_categoria            INTEGER REFERENCES categorias(id),
+    genero                  TEXT,
+    ventas_simuladas        INTEGER DEFAULT 0,
+    edad_min                INTEGER DEFAULT 0,
+    edad_max                INTEGER DEFAULT 99,
+    tipo_juguete            TEXT DEFAULT 'diversion',
+    -- Quién/cuándo se dio de alta (migrations/0006_auditoria_productos_inventario.sql).
+    creado_por              TEXT,
+    creado_en               TEXT DEFAULT (datetime('now','localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS productos_similares (
@@ -248,6 +293,26 @@ CREATE TABLE IF NOT EXISTS inventarios (
     -- SQL). Sin UI en el dashboard todavía para editarlo — Fase JIUA 2.
     stock_minimo  INTEGER NOT NULL DEFAULT 0
 );
+
+-- Ledger de auditoría de catálogo/inventario (inspirado en StockItemTracking
+-- de InvenTree) — historial de cada alta de producto y ajuste de stock,
+-- consumido por dashboard/routes/primeCatalogo.js. Sin FK a productos/
+-- inventarios a propósito: un registro de auditoría no debe poder
+-- desaparecer ni romperse si el producto se borra después (mismo patrón ya
+-- usado por cola_emails/logs_error, que tampoco dependen de que la fila
+-- referenciada siga existiendo). Ver migrations/0006_auditoria_productos_inventario.sql.
+CREATE TABLE IF NOT EXISTS inventario_movimientos (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_producto       INTEGER NOT NULL,
+    sucursal          TEXT NOT NULL,
+    tipo              TEXT NOT NULL CHECK(tipo IN ('alta', 'ajuste_minimo', 'ajuste_stock')),
+    cantidad_anterior INTEGER,
+    cantidad_nueva    INTEGER,
+    motivo            TEXT,
+    creado_por        TEXT,
+    creado_en         TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_inventario_movimientos_producto ON inventario_movimientos(id_producto, sucursal);
 
 -- ──────────────────────────────────────────────────────────────────────────
 -- Pedidos y todo lo que cuelga de un pedido

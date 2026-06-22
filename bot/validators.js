@@ -167,23 +167,56 @@ const SucursalUpdateSchema = z.object({
 // (la red de 11 sucursales reales, ver migrations/0005_sucursales_seed.sql)
 // que dashboard/routes/primeCatalogo.js inserta en `inventarios` -- no
 // reemplaza ni se mezcla con los 3 campos fijos de arriba.
-const ProductoSchema = z.object({
+// edad_recomendada NO se acepta del cliente: dashboard/routes/primeCatalogo.js
+// la calcula siempre a partir de edad_min/edad_max ("{min} a {max} años" /
+// "{min}+ años" si max>=99) -- evita que quede texto libre inconsistente con
+// los rangos numéricos que sí usa bot/flows/_shared.js para filtrar.
+const ProductoBaseSchema = z.object({
     name:                  z.string().min(1, 'name requerido').max(200),
     cat:                   z.string().max(80).optional().nullable(),
     price:                 z.number().min(0),
+    sku:                   z.string().max(60).optional().nullable(),
+    upc:                   z.string().max(60).optional().nullable(),
+    brand:                 z.string().max(100).optional().nullable(),
+    handle:                z.string().max(200).optional().nullable(),
+    description:           z.string().max(2000).optional().nullable(),
     url_imagen:            z.string().max(500).optional().nullable(),
     tags:                  z.string().max(300).optional().nullable(),
     seo_description:       z.string().max(500).optional().nullable(),
-    edad_recomendada:      z.string().max(50).optional().nullable(),
-    edad_min:              z.number().int().min(0).optional().nullable(),
+    material:              z.string().max(100).optional().nullable(),
+    color:                 z.string().max(60).optional().nullable(),
+    target_audience:       z.string().max(100).optional().nullable(),
+    tipo_juguete:          z.string().max(50).optional().nullable(),
+    edad_min:              z.number().int().min(0).max(99).optional().nullable(),
+    edad_max:              z.number().int().min(0).max(99).optional().nullable(),
     genero:                z.string().max(20).optional().nullable(),
+    id_categoria:          z.number().int().positive().optional().nullable(),
+    peso_kg:               z.number().min(0).optional().nullable(),
+    alto_cm:               z.number().min(0).optional().nullable(),
+    ancho_cm:              z.number().min(0).optional().nullable(),
+    largo_cm:              z.number().min(0).optional().nullable(),
     stock_tienda:          z.number().int().min(0).default(0),
     stock_cedis:           z.number().int().min(0).default(0),
     stock_san_luis_potosi: z.number().int().min(0).default(0),
+    stock_exhibicion:      z.number().int().min(0).default(0),
+    stock_queretaro:       z.number().int().min(0).default(0),
+    stock_monterrey:       z.number().int().min(0).default(0),
+    stock_cdmx_centro:     z.number().int().min(0).default(0),
+    stock_base:            z.number().int().min(0).optional().nullable(),
     stock_sucursales:      z.record(z.string(), z.number().int().min(0)).optional(),
 });
-const ProductoUpdateSchema = ProductoSchema.partial().extend({
+const _edadCoherente = (d) => d.edad_max == null || d.edad_min == null || d.edad_max >= d.edad_min;
+const _edadCoherenteOpts = { message: 'edad_max no puede ser menor que edad_min', path: ['edad_max'] };
+const ProductoSchema = ProductoBaseSchema.refine(_edadCoherente, _edadCoherenteOpts);
+const ProductoUpdateSchema = ProductoBaseSchema.partial().extend({
     activo: z.boolean().optional(),
+}).refine(_edadCoherente, _edadCoherenteOpts);
+
+// Categoría de producto (tabla `categorias`) — lookup creable desde el
+// formulario de alta ("crear categoría nueva" en vez de texto libre suelto).
+const CategoriaSchema = z.object({
+    nombre:      z.string().min(1, 'nombre requerido').max(80),
+    descripcion: z.string().max(300).optional().nullable(),
 });
 
 // Alta de usuarios del dashboard — solo prime crea cuentas y decide el rol.
@@ -233,6 +266,7 @@ module.exports = {
     SucursalUpdateSchema: { safeParse: (d) => safe(SucursalUpdateSchema, d) },
     ProductoSchema:       { safeParse: (d) => safe(ProductoSchema, d) },
     ProductoUpdateSchema: { safeParse: (d) => safe(ProductoUpdateSchema, d) },
+    CategoriaSchema:      { safeParse: (d) => safe(CategoriaSchema, d) },
     UsuarioSchema:        { safeParse: (d) => safe(UsuarioSchema, d) },
     UsuarioUpdateSchema:  { safeParse: (d) => safe(UsuarioUpdateSchema, d) },
 };
