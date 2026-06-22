@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Table, Button } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -32,13 +33,13 @@ export default function ListaEspera() {
       <div className="page-sub">Clientes esperando que vuelva el stock</div>
       {error && <div className="login-error">No se pudo cargar la lista de espera: {error.message}</div>}
 
-      <div className="card">
-        <div className="card-header">
-          <h3>{txt('🔔 Lista de espera')}</h3>
-          <div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button></div>
-        </div>
+      <Card withBorder radius="md" p="lg">
+        <Group justify="space-between" mb="md">
+          <Title order={4}>{txt('🔔 Lista de espera')}</Title>
+          <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+        </Group>
         <div className="table-wrap">
-          <table>
+          <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>En espera</th><th>Acción</th></tr></thead>
             <tbody>
               {lista === undefined && <tr><td colSpan={5} className="empty">Cargando...</td></tr>}
@@ -53,14 +54,14 @@ export default function ListaEspera() {
                     <td>${fmt(p.precio)}</td>
                     <td><span className={`badge badge-${conStock ? 'verde' : 'rojo'}`}>{conStock ? 'Con stock' : 'Sin stock'}</span></td>
                     <td><strong>{n}</strong> personas</td>
-                    <td><button className="btn btn-success btn-sm" onClick={() => notificar(idProducto, n)}>{txt('📲 Notificar')}</button></td>
+                    <td><Button variant="light" color="teal" size="xs" onClick={() => notificar(idProducto, n)}>{txt('📲 Notificar')}</Button></td>
                   </tr>
                 );
               })}
             </tbody>
-          </table>
+          </Table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

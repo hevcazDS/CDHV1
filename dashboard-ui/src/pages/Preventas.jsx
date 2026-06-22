@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -66,11 +67,11 @@ export default function Preventas() {
       {error && <div className="login-error">No se pudieron cargar las preventas: {error.message}</div>}
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.4fr 1fr', alignItems: 'start' }}>
-        <div className="card">
-          <div className="card-header">
-            <h3>{txt('📅 Preventas activas')}</h3>
-            <div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button></div>
-          </div>
+        <Card withBorder radius="md" p="lg">
+          <Group justify="space-between" mb="md">
+            <Title order={4}>{txt('📅 Preventas activas')}</Title>
+            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+          </Group>
           {rows === undefined && <div className="empty">Cargando...</div>}
           {rows?.length === 0 && <div className="empty">Sin preventas activas</div>}
           {rows?.map(r => (
@@ -83,50 +84,32 @@ export default function Preventas() {
               <div className="text-muted">Llegada estimada: {r.fecha_llegada_est || '-'}</div>
               {r.fecha_llegada_real
                 ? <span className="badge badge-verde">{txt('✅ Llegó: ')}{r.fecha_llegada_real}</span>
-                : <button className="btn btn-success btn-sm" style={{ marginTop: 7 }} onClick={() => { setLlegadaId(r.id); setFechaLlegada(hoy()); }}>{txt('✅ Marcar como llegada')}</button>}
+                : <Button variant="light" color="teal" size="xs" mt={7} onClick={() => { setLlegadaId(r.id); setFechaLlegada(hoy()); }}>{txt('✅ Marcar como llegada')}</Button>}
             </div>
           ))}
-        </div>
+        </Card>
 
-        <div className="card">
-          <div className="card-header"><h3>{txt('➕ Nueva preventa')}</h3></div>
-          <div className="login-field">
-            <label>ID Producto</label>
-            <input type="number" value={idProducto} onChange={e => setIdProducto(e.target.value)} />
-          </div>
-          <div className="login-field">
-            <label>Nombre</label>
-            <input placeholder="Ej: Hot Wheels Navidad 2026" value={nombre} onChange={e => setNombre(e.target.value)} />
-          </div>
-          <div className="login-field">
-            <label>Fecha estimada llegada</label>
-            <input type="date" value={fechaEst} onChange={e => setFechaEst(e.target.value)} />
-          </div>
-          <div className="login-field">
-            <label>Precio</label>
-            <input type="number" step="0.01" value={precio} onChange={e => setPrecio(e.target.value)} />
-          </div>
-          <div className="login-field">
-            <label>Unidades disponibles</label>
-            <input type="number" value={stock} onChange={e => setStock(e.target.value)} />
-          </div>
-          <div className="login-field">
-            <label>Anticipo %</label>
-            <input type="number" min="10" max="100" value={anticipo} onChange={e => setAnticipo(e.target.value)} />
-          </div>
-          <button className="btn btn-primary" onClick={crear}>Crear preventa</button>
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb="md">{txt('➕ Nueva preventa')}</Title>
+          <TextInput type="number" label="ID Producto" value={idProducto} onChange={e => setIdProducto(e.target.value)} mb="sm" />
+          <TextInput label="Nombre" placeholder="Ej: Hot Wheels Navidad 2026" value={nombre} onChange={e => setNombre(e.target.value)} mb="sm" />
+          <TextInput type="date" label="Fecha estimada llegada" value={fechaEst} onChange={e => setFechaEst(e.target.value)} mb="sm" />
+          <TextInput type="number" step="0.01" label="Precio" value={precio} onChange={e => setPrecio(e.target.value)} mb="sm" />
+          <TextInput type="number" label="Unidades disponibles" value={stock} onChange={e => setStock(e.target.value)} mb="sm" />
+          <TextInput type="number" min="10" max="100" label="Anticipo %" value={anticipo} onChange={e => setAnticipo(e.target.value)} mb="sm" />
+          <Button onClick={crear}>Crear preventa</Button>
           {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{txt(msg.texto)}</div>}
-        </div>
+        </Card>
       </div>
 
       {llegadaId && (
         <Modal title="Fecha de llegada" onClose={() => setLlegadaId(null)}
           actions={<>
-            <button className="btn btn-secondary" onClick={() => setLlegadaId(null)}>Cancelar</button>
-            <button className="btn btn-primary" onClick={() => confirmarLlegadaMutation.mutate()}>Aceptar</button>
+            <Button variant="default" onClick={() => setLlegadaId(null)}>Cancelar</Button>
+            <Button onClick={() => confirmarLlegadaMutation.mutate()}>Aceptar</Button>
           </>}>
           <p className="page-sub" style={{ margin: '0 0 12px' }}>Ingresa la fecha real de llegada</p>
-          <input type="date" autoFocus value={fechaLlegada} onChange={e => setFechaLlegada(e.target.value)} style={{ width: '100%' }} />
+          <TextInput type="date" autoFocus value={fechaLlegada} onChange={e => setFechaLlegada(e.target.value)} />
         </Modal>
       )}
     </div>

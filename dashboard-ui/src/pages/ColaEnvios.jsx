@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Table, Tabs, Button } from '@mantine/core';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -66,23 +67,21 @@ export default function ColaEnvios() {
       <div className="page-title">Cola de envíos</div>
       <div className="page-sub">Mensajes pendientes, campañas programadas e historial de notificaciones</div>
 
-      <div className="tabs">
-        {TABS.map(t => (
-          <button key={t.key} className={`btn btn-sm ${tab === t.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab(t.key)}>
-            {txt(t.label)}
-          </button>
-        ))}
-      </div>
+      <Tabs value={tab} onChange={setTab} mb="md">
+        <Tabs.List>
+          {TABS.map(t => <Tabs.Tab key={t.key} value={t.key}>{txt(t.label)}</Tabs.Tab>)}
+        </Tabs.List>
+      </Tabs>
 
       {tab === 'pendientes' && (
-        <div className="card">
-          <div className="card-header">
-            <h3>{txt('⏳ Mensajes en cola')}</h3>
-            <div className="actions">
-              <button className="btn btn-secondary btn-sm" onClick={() => refetchCola()}>🔄</button>
-              <button className="btn btn-danger btn-sm" onClick={() => reintentarTodoMutation.mutate()}>{txt('♻️ Reintentar')}</button>
-            </div>
-          </div>
+        <Card withBorder radius="md" p="lg">
+          <Group justify="space-between" mb="md">
+            <Title order={4}>{txt('⏳ Mensajes en cola')}</Title>
+            <Group gap="xs">
+              <ActionIcon variant="default" onClick={() => refetchCola()}>🔄</ActionIcon>
+              <Button variant="light" color="red" size="xs" onClick={() => reintentarTodoMutation.mutate()}>{txt('♻️ Reintentar')}</Button>
+            </Group>
+          </Group>
           {cola && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               <span className="badge badge-amarillo"><Emoji>⏳ </Emoji>{cola.pendientes || 0} pendientes</span>
@@ -90,7 +89,7 @@ export default function ColaEnvios() {
             </div>
           )}
           <div className="table-wrap">
-            <table>
+            <Table highlightOnHover verticalSpacing="xs">
               <thead><tr><th>ID</th><th>Destinatario</th><th>Asunto</th><th>Estatus</th><th>Intentos</th><th>Fecha</th><th></th></tr></thead>
               <tbody>
                 {cola === undefined && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
@@ -103,18 +102,21 @@ export default function ColaEnvios() {
                     <td><Badge value={r.estatus} map="notif" /></td>
                     <td style={{ textAlign: 'center' }}>{r.intentos || 0}</td>
                     <td className="text-muted" style={{ fontSize: 11 }}>{fdate(r.creada_en)}</td>
-                    <td><button className="btn btn-secondary btn-sm" onClick={() => reintentarUnoMutation.mutate(r.id)}>♻️</button></td>
+                    <td><ActionIcon variant="default" onClick={() => reintentarUnoMutation.mutate(r.id)}>♻️</ActionIcon></td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
-        </div>
+        </Card>
       )}
 
       {tab === 'programados' && (
-        <div className="card">
-          <div className="card-header"><h3>{txt('🗓️ Campañas programadas')}</h3><div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetchProgramados()}>🔄</button></div></div>
+        <Card withBorder radius="md" p="lg">
+          <Group justify="space-between" mb="md">
+            <Title order={4}>{txt('🗓️ Campañas programadas')}</Title>
+            <ActionIcon variant="default" onClick={() => refetchProgramados()}>🔄</ActionIcon>
+          </Group>
           {programados === undefined && <div className="empty">Cargando...</div>}
           {programados?.length === 0 && <div className="empty">No hay campañas programadas</div>}
           {programados?.map((r, i) => (
@@ -127,18 +129,21 @@ export default function ColaEnvios() {
                     {(r.cuerpo_muestra || '').slice(0, 80)}
                   </div>
                 </div>
-                <button className="btn btn-danger btn-sm" onClick={() => cancelarCampana(r.asunto, r.enviar_despues_de)}>{txt('🗑️ Cancelar')}</button>
+                <Button variant="light" color="red" size="xs" onClick={() => cancelarCampana(r.asunto, r.enviar_despues_de)}>{txt('🗑️ Cancelar')}</Button>
               </div>
             </div>
           ))}
-        </div>
+        </Card>
       )}
 
       {tab === 'historial' && (
-        <div className="card">
-          <div className="card-header"><h3>{txt('📋 Historial')}</h3><div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetchHistorial()}>🔄</button></div></div>
+        <Card withBorder radius="md" p="lg">
+          <Group justify="space-between" mb="md">
+            <Title order={4}>{txt('📋 Historial')}</Title>
+            <ActionIcon variant="default" onClick={() => refetchHistorial()}>🔄</ActionIcon>
+          </Group>
           <div className="table-wrap">
-            <table>
+            <Table highlightOnHover verticalSpacing="xs">
               <thead><tr><th>Destinatario</th><th>Asunto</th><th>Estatus</th><th>Intentos</th><th>Fecha</th></tr></thead>
               <tbody>
                 {historial === undefined && <tr><td colSpan={5} className="empty">Cargando...</td></tr>}
@@ -153,9 +158,9 @@ export default function ColaEnvios() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

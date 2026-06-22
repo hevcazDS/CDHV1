@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Table, Tabs, Button } from '@mantine/core';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -35,23 +36,19 @@ export default function ColaAtencion() {
       <div className="page-sub">Clientes escalados a un asesor humano</div>
       {error && <div className="login-error">No se pudo cargar la cola: {error.message}</div>}
 
-      <div className="tabs">
-        {TABS.map(t => (
-          <button key={t.key} className={`btn btn-sm ${tab === t.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab(t.key)}>
-            {txt(t.label)}
-          </button>
-        ))}
-      </div>
+      <Tabs value={tab} onChange={setTab} mb="md">
+        <Tabs.List>
+          {TABS.map(t => <Tabs.Tab key={t.key} value={t.key}>{txt(t.label)}</Tabs.Tab>)}
+        </Tabs.List>
+      </Tabs>
 
-      <div className="card">
-        <div className="card-header">
-          <h3>{txt('🚨 Cola de atención humana')}</h3>
-          <div className="actions">
-            <button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button>
-          </div>
-        </div>
+      <Card withBorder radius="md" p="lg">
+        <Group justify="space-between" mb="md">
+          <Title order={4}>{txt('🚨 Cola de atención humana')}</Title>
+          <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+        </Group>
         <div className="table-wrap">
-          <table>
+          <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Cliente</th><th>Teléfono</th><th>Motivo</th><th>Prioridad</th><th>Estatus</th><th>Desde</th><th></th></tr></thead>
             <tbody>
               {rows === undefined && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
@@ -65,25 +62,27 @@ export default function ColaAtencion() {
                   <td><Badge value={r.estatus} map="cola" /></td>
                   <td className="text-muted" style={{ fontSize: 11 }}>{fdate(r.creada_en)}</td>
                   <td>
-                    {r.estatus === 'en_espera' && (
-                      <button className="btn btn-secondary btn-sm" onClick={() => marcar(r.id, 'atendida')}>{txt('🗣️ Atender')}</button>
-                    )}
-                    {r.estatus === 'atendida' && (
-                      <>
-                        <button className="btn btn-success btn-sm" onClick={() => marcar(r.id, 'resuelta')}>{txt('✅ Resolver')}</button>{' '}
-                        <button className="btn btn-secondary btn-sm" onClick={() => marcar(r.id, 'en_espera')}>{txt('↩️ Reabrir')}</button>
-                      </>
-                    )}
-                    {r.estatus === 'resuelta' && (
-                      <button className="btn btn-secondary btn-sm" onClick={() => marcar(r.id, 'en_espera')}>{txt('↩️ Reabrir')}</button>
-                    )}
+                    <Group gap={6} wrap="nowrap">
+                      {r.estatus === 'en_espera' && (
+                        <Button variant="default" size="xs" onClick={() => marcar(r.id, 'atendida')}>{txt('🗣️ Atender')}</Button>
+                      )}
+                      {r.estatus === 'atendida' && (
+                        <>
+                          <Button variant="light" color="teal" size="xs" onClick={() => marcar(r.id, 'resuelta')}>{txt('✅ Resolver')}</Button>
+                          <Button variant="default" size="xs" onClick={() => marcar(r.id, 'en_espera')}>{txt('↩️ Reabrir')}</Button>
+                        </>
+                      )}
+                      {r.estatus === 'resuelta' && (
+                        <Button variant="default" size="xs" onClick={() => marcar(r.id, 'en_espera')}>{txt('↩️ Reabrir')}</Button>
+                      )}
+                    </Group>
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
