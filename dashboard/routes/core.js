@@ -73,7 +73,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
         // Backfill perezoso: clientes creados antes del programa de referidos
         // (o por una vía que no sea el primer-contacto) aún no tienen código —
         // se genera aquí mismo para que el asesor siempre tenga uno que mencionar.
-        const { asegurarCodigoReferido } = require('../bot/handlers/referidosService');
+        const { asegurarCodigoReferido } = require('../../bot/handlers/referidosService');
         for (const r of rows) {
             if (!r.codigo_referido) r.codigo_referido = asegurarCodigoReferido(r.id);
         }
