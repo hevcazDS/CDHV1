@@ -215,7 +215,13 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .topbar-left { font-size: 15px; font-weight: 600; color: var(--text-dim); }
 .topbar-right { display: flex; align-items: center; gap: 16px; }
 
-.content { overflow: auto; padding: 28px; }
+/* Sin padding aquí a propósito: el prop `padding` de AppShell (Layout.jsx)
+   ya lo agrega, sumado al offset del navbar, vía padding-inline-start
+   calculado por Mantine. Un `padding: 28px` plano en esta clase pisaba
+   ese cálculo (misma especificidad, cargado después del CSS de Mantine)
+   y dejaba el contenido sin el espacio reservado para el sidebar — causa
+   real de que la tabla se viera "debajo" del sidebar en vez de a su lado. */
+.content { overflow: auto; }
 
 .hevcaz-badge-react {
   font-size: 11px;

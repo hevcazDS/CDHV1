@@ -88,8 +88,25 @@ export default function Layout() {
   // slot, así que la apariencia y los temas claro/oscuro (variables CSS de
   // styles.css) no cambian; lo que gana es el manejo de offsets/scroll de
   // header+navbar+main resuelto por Mantine en vez de a mano.
+  //
+  // Sin `breakpoint` en `navbar`: confirmado en el código fuente de Mantine
+  // (assign-navbar-variables.ts) que CUALQUIER `breakpoint` truthy sin
+  // `collapsed.mobile` agrega un `@media (max-width: breakpoint)` que pone
+  // `--app-shell-navbar-offset: 0px` — es decir, el sidebar pasa a overlay
+  // (se monta encima del contenido en vez de empujarlo) por debajo de ese
+  // ancho, pensado para un Burger toggle que aquí no existe. Esta app es
+  // una sola ventana de Electron sin versión móvil, así que no se necesita
+  // ningún breakpoint — se omite (no 0, porque `breakpoint` debe ser
+  // explícitamente falsy/ausente para que la condición nunca se cumpla).
+  //
+  // `padding={28}` en vez de 0: el prop suma este valor al offset del
+  // navbar/header en el padding-inline-start/top calculado de
+  // AppShell.Main (ver AppShell.module.css). Antes era padding={0} y el
+  // padding de página se ponía en la clase `.content` — pero esa clase
+  // sobrescribía por completo ese cálculo (mismo padding-left, cargada
+  // después en el CSS), anulando el offset reservado para el sidebar.
   return (
-    <AppShell header={{ height: 64 }} navbar={{ width: 252, breakpoint: 'xs' }} padding={0}>
+    <AppShell header={{ height: 64 }} navbar={{ width: 252 }} padding={28}>
       <AppShell.Header className="topbar">
         <div className="topbar-left">Panel de operaciones</div>
         <div className="topbar-right">
