@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Switch } from '@mantine/core';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
-import { useTextoEmoji } from '../context/EmojiContext';
+import { useTextoEmoji, EMOJIS_ACTIVO_QUERY_KEY } from '../context/EmojiContext';
 
 const MODULOS = [
   { key: 'puntos_activo', titulo: '⭐ Puntos de Lealtad', desc: 'Clientes acumulan puntos con tickets QR' },
@@ -49,7 +49,10 @@ export default function Modulos() {
 
   const toggleMutation = useMutation({
     mutationFn: ({ clave, activo }) => api.post('/api/puntos/config', { clave, activo }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['modulos-estado'] }),
+    onSuccess: (_data, { clave }) => {
+      queryClient.invalidateQueries({ queryKey: ['modulos-estado'] });
+      if (clave === 'emojis_dashboard_activo') queryClient.invalidateQueries({ queryKey: EMOJIS_ACTIVO_QUERY_KEY });
+    },
     onError: (e) => handleApiError(e),
   });
   const toggle = (clave, activo) => {

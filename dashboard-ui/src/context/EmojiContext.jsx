@@ -1,5 +1,13 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
+
+// Mismo queryKey que usa Modulos.jsx al invalidar tras el toggle — así el
+// contexto se refresca solo cuando se activa/desactiva desde esa página,
+// en vez de quedar pegado al valor que tenía al montar la app (antes era
+// un fetch único en useEffect, sin ninguna forma de saber que el valor en
+// BD había cambiado sin recargar la pestaña entera).
+export const EMOJIS_ACTIVO_QUERY_KEY = ['emojis-dashboard-activo'];
 
 // Toggle global de emojis en el dashboard — clave 'emojis_dashboard_activo'
 // en `configuracion`, mismo patrón genérico que el resto de módulos
@@ -19,13 +27,11 @@ function quitarEmojis(texto) {
 }
 
 export function EmojiProvider({ children }) {
-  const [activo, setActivo] = useState(true);
-
-  useEffect(() => {
-    api.get('/api/modulo/emojis_dashboard_activo')
-      .then(r => { if (r && typeof r.activo === 'boolean') setActivo(r.activo); })
-      .catch(() => {});
-  }, []);
+  const { data } = useQuery({
+    queryKey: EMOJIS_ACTIVO_QUERY_KEY,
+    queryFn: () => api.get('/api/modulo/emojis_dashboard_activo'),
+  });
+  const activo = typeof data?.activo === 'boolean' ? data.activo : true;
 
   return <EmojiContext.Provider value={activo}>{children}</EmojiContext.Provider>;
 }

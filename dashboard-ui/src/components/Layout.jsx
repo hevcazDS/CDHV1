@@ -50,9 +50,12 @@ const GRUPOS = [
 // solo cambia el contenedor, no los enlaces de adentro.
 const ACCORDION_STYLES = {
   item: { border: 'none', background: 'transparent' },
-  control: { padding: '10px 8px' },
-  label: { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-mute)' },
-  chevron: { color: 'var(--text-mute)' },
+  control: { padding: '10px 8px', minWidth: 0 },
+  label: {
+    fontSize: 12, fontWeight: 700, letterSpacing: '0.02em', color: 'var(--text-mute)',
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
+  },
+  chevron: { color: 'var(--text-mute)', flexShrink: 0 },
   panel: { padding: 0 },
   content: { padding: '0 0 4px' },
 };
@@ -86,7 +89,7 @@ export default function Layout() {
   // styles.css) no cambian; lo que gana es el manejo de offsets/scroll de
   // header+navbar+main resuelto por Mantine en vez de a mano.
   return (
-    <AppShell header={{ height: 64 }} navbar={{ width: 230, breakpoint: 0 }} padding={0}>
+    <AppShell header={{ height: 64 }} navbar={{ width: 252, breakpoint: 'xs' }} padding={0}>
       <AppShell.Header className="topbar">
         <div className="topbar-left">Panel de operaciones</div>
         <div className="topbar-right">
