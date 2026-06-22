@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, Tabs, Button, TextInput, Textarea, Select, Radio, Group } from '@mantine/core';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
@@ -184,17 +185,19 @@ export default function Notificaciones() {
       <div className="page-title">Notificaciones</div>
       <div className="page-sub">Mensajes individuales, venta previa y campañas masivas</div>
 
-      <div className="tabs">
-        <button className={`btn btn-sm ${tab === 'individual' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('individual')}>{txt('👤 Individual')}</button>
-        <button className={`btn btn-sm ${tab === 'masivo' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('masivo')}>{txt('📣 Masivo')}</button>
-      </div>
+      <Tabs value={tab} onChange={setTab} mb="md">
+        <Tabs.List>
+          <Tabs.Tab value="individual">{txt('👤 Individual')}</Tabs.Tab>
+          <Tabs.Tab value="masivo">{txt('📣 Masivo')}</Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
 
       {tab === 'individual' && (
         <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <Card withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{txt('👥 Seleccionar cliente')}</div>
-              <input placeholder="Buscar nombre o teléfono..." value={filtro} onChange={e => setFiltro(e.target.value)} />
+              <TextInput placeholder="Buscar nombre o teléfono..." value={filtro} onChange={e => setFiltro(e.target.value)} />
             </div>
             <div style={{ maxHeight: 420, overflowY: 'auto' }}>
               {listaFiltrada.length === 0 && <div className="empty">Sin resultados</div>}
@@ -217,9 +220,9 @@ export default function Notificaciones() {
                 );
               })}
             </div>
-          </div>
+          </Card>
 
-          <div className="card">
+          <Card withBorder radius="md" p="lg">
             <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 12, minHeight: 50, display: 'flex', alignItems: 'center' }}>
               {!clienteSel && <span style={{ color: 'var(--text-mute)', fontSize: 13 }}>← Selecciona un cliente</span>}
               {clienteSel && (
@@ -262,31 +265,28 @@ export default function Notificaciones() {
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Plantillas</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('pedido_listo')}>{txt('📦 Pedido listo')}</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('guia_generada')}>{txt('🚚 Guía lista')}</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('pago_pendiente')}>{txt('💳 Pago pendiente')}</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantilla('seguimiento')}>{txt('👋 Seguimiento')}</button>
+                <Button variant="default" size="xs" onClick={() => usarPlantilla('pedido_listo')}>{txt('📦 Pedido listo')}</Button>
+                <Button variant="default" size="xs" onClick={() => usarPlantilla('guia_generada')}>{txt('🚚 Guía lista')}</Button>
+                <Button variant="default" size="xs" onClick={() => usarPlantilla('pago_pendiente')}>{txt('💳 Pago pendiente')}</Button>
+                <Button variant="default" size="xs" onClick={() => usarPlantilla('seguimiento')}>{txt('👋 Seguimiento')}</Button>
               </div>
             </div>
-            <div className="login-field">
-              <label>Mensaje</label>
-              <textarea value={msgInd} onChange={e => setMsgInd(e.target.value)} placeholder="Escribe o elige una plantilla..." style={{ minHeight: 110, width: '100%' }} />
-            </div>
-            <button className="btn btn-primary" style={{ width: '100%' }} disabled={enviarIndMutation.isPending} onClick={enviarIndividual}>{txt('📤 Enviar por WhatsApp')}</button>
+            <Textarea label="Mensaje" value={msgInd} onChange={e => setMsgInd(e.target.value)} placeholder="Escribe o elige una plantilla..." minRows={4} mb="sm" />
+            <Button fullWidth disabled={enviarIndMutation.isPending} onClick={enviarIndividual}>{txt('📤 Enviar por WhatsApp')}</Button>
             {respInd && <div className={respInd.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respInd.texto)}</div>}
 
             <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>{txt('🛒 Venta previa (POS)')}</div>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                <input placeholder="Buscar producto..." value={posQ} onChange={e => setPosQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscarProductoPOS()} style={{ flex: 1 }} />
-                <button className="btn btn-secondary btn-sm" onClick={buscarProductoPOS}>Buscar</button>
-              </div>
+              <Group gap={6} mb={8} wrap="nowrap">
+                <TextInput placeholder="Buscar producto..." value={posQ} onChange={e => setPosQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscarProductoPOS()} style={{ flex: 1 }} />
+                <Button variant="default" size="xs" onClick={buscarProductoPOS}>Buscar</Button>
+              </Group>
               <div style={{ maxHeight: 140, overflowY: 'auto', marginBottom: 8 }}>
                 {posResultados.length === 0 && <div className="text-muted" style={{ fontSize: 12 }}>{posQ ? 'Sin resultados.' : ''}</div>}
                 {posResultados.map(p => (
                   <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
                     <div style={{ flex: 1 }}>{p.name} — ${Number(p.price).toFixed(2)}</div>
-                    <button className="btn btn-secondary btn-sm" onClick={() => agregarProductoPOS(p)}>+ Agregar</button>
+                    <Button variant="default" size="xs" onClick={() => agregarProductoPOS(p)}>+ Agregar</Button>
                   </div>
                 ))}
               </div>
@@ -294,31 +294,34 @@ export default function Notificaciones() {
                 {posCarrito.length === 0 ? 'Carrito vacío' : posCarrito.map(it => (
                   <div key={it.id_producto} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
                     <span style={{ flex: 1 }}>{it.nombre} ×{it.cantidad}</span>
-                    <button className="btn btn-secondary btn-sm" onClick={() => quitarProductoPOS(it.id_producto)}>✕</button>
+                    <Button variant="default" size="xs" onClick={() => quitarProductoPOS(it.id_producto)}>✕</Button>
                   </div>
                 ))}
               </div>
-              <button className="btn btn-primary btn-sm" style={{ width: '100%' }} disabled={enviarPosMutation.isPending} onClick={enviarVentaPrevia}>{txt('📨 Crear venta previa y enviar')}</button>
+              <Button fullWidth size="sm" disabled={enviarPosMutation.isPending} onClick={enviarVentaPrevia}>{txt('📨 Crear venta previa y enviar')}</Button>
               {respPos && <div className={respPos.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respPos.texto)}</div>}
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
       {tab === 'masivo' && (
         <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <Card withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{txt('🎯 Audiencia')}</div>
-              <select value={audienciaTipo} onChange={e => setAudienciaTipo(e.target.value)} style={{ marginBottom: 7, width: '100%' }}>
-                <option value="todos">{txt('👥 Todos los clientes')}</option>
-                <option value="conPedido">{txt('📦 Con pedido previo')}</option>
-                <option value="recurrentes">{txt('⭐ Recurrentes')}</option>
-                <option value="sinActividad">{txt('😴 Sin actividad 30+ días')}</option>
-              </select>
+              <Select
+                mb={7} value={audienciaTipo} onChange={v => setAudienciaTipo(v ?? audienciaTipo)} comboboxProps={{ withinPortal: true }}
+                data={[
+                  { value: 'todos', label: txt('👥 Todos los clientes') },
+                  { value: 'conPedido', label: txt('📦 Con pedido previo') },
+                  { value: 'recurrentes', label: txt('⭐ Recurrentes') },
+                  { value: 'sinActividad', label: txt('😴 Sin actividad 30+ días') },
+                ]}
+              />
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <label style={{ fontSize: 12, color: 'var(--text-mute)', whiteSpace: 'nowrap' }}>Máx:</label>
-                <input type="number" value={limM} min={1} max={500} onChange={e => setLimM(parseInt(e.target.value) || 50)} style={{ width: 70 }} />
+                <TextInput type="number" value={limM} min={1} max={500} onChange={e => setLimM(parseInt(e.target.value) || 50)} w={70} size="xs" />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-mute)' }}>
                 <span>{audiencia === undefined ? 'Calculando...' : 'clientes recibirán el mensaje'}</span>
@@ -334,45 +337,41 @@ export default function Notificaciones() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
-          <div className="card">
+          <Card withBorder radius="md" p="lg">
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Plantillas</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantillaMasiva('promocion')}>{txt('🏷️ Promoción')}</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantillaMasiva('reactivacion')}>{txt('👋 Reactivación')}</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => usarPlantillaMasiva('novedad')}>{txt('✨ Novedad')}</button>
+                <Button variant="default" size="xs" onClick={() => usarPlantillaMasiva('promocion')}>{txt('🏷️ Promoción')}</Button>
+                <Button variant="default" size="xs" onClick={() => usarPlantillaMasiva('reactivacion')}>{txt('👋 Reactivación')}</Button>
+                <Button variant="default" size="xs" onClick={() => usarPlantillaMasiva('novedad')}>{txt('✨ Novedad')}</Button>
               </div>
             </div>
-            <div className="login-field">
-              <label>Mensaje <span style={{ fontWeight: 400, color: 'var(--text-mute)' }}>- usa {'{nombre}'}</span></label>
-              <textarea value={msgMasivo} onChange={e => setMsgMasivo(e.target.value)} placeholder="Hola {nombre}..." style={{ minHeight: 120, width: '100%' }} />
-            </div>
+            <Textarea
+              label={<>Mensaje <span style={{ fontWeight: 400, color: 'var(--text-mute)' }}>- usa {'{nombre}'}</span></>}
+              value={msgMasivo} onChange={e => setMsgMasivo(e.target.value)} placeholder="Hola {nombre}..." minRows={5} mb="sm"
+            />
             <div style={{ padding: '8px 12px', background: 'var(--panel-2)', borderRadius: 6, fontSize: 12, color: 'var(--yellow)', marginBottom: 10 }}>
               {txt('⚠️ Excluidos: troll, blacklist, queja, devolucion')}
             </div>
             <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 7, textTransform: 'uppercase' }}>{txt('⏰ Programar')}</div>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, cursor: 'pointer' }}>
-                  <input type="radio" name="mCuando" checked={cuando === 'ahora'} onChange={() => toggleProgramar(false)} /> Ahora
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, cursor: 'pointer' }}>
-                  <input type="radio" name="mCuando" checked={cuando === 'programar'} onChange={() => toggleProgramar(true)} /> Programar...
-                </label>
-              </div>
+              <Radio.Group value={cuando} onChange={v => toggleProgramar(v === 'programar')}>
+                <Group gap={12}>
+                  <Radio value="ahora" label="Ahora" />
+                  <Radio value="programar" label="Programar..." />
+                </Group>
+              </Radio.Group>
               {cuando === 'programar' && (
-                <div style={{ marginTop: 8 }}>
-                  <input type="datetime-local" value={fechaProg} onChange={e => setFechaProg(e.target.value)} style={{ fontSize: 12 }} />
-                </div>
+                <TextInput type="datetime-local" value={fechaProg} onChange={e => setFechaProg(e.target.value)} size="xs" mt={8} />
               )}
             </div>
-            <button className="btn btn-primary" style={{ width: '100%' }} disabled={enviarMasivoMutation.isPending} onClick={enviarMasivo}>
+            <Button fullWidth disabled={enviarMasivoMutation.isPending} onClick={enviarMasivo}>
               <Emoji>📣 </Emoji>Enviar a {audiencia?.length || 0} clientes
-            </button>
+            </Button>
             {respMasivo && <div className={respMasivo.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respMasivo.texto)}</div>}
-          </div>
+          </Card>
         </div>
       )}
     </div>

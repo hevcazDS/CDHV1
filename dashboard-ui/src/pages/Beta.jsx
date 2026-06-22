@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Card, Title, Button, PasswordInput, TextInput } from '@mantine/core';
 import { api } from '../api';
 import { useTextoEmoji } from '../context/EmojiContext';
 
@@ -30,28 +31,22 @@ export default function Beta() {
       <div className="page-sub">Herramientas de prueba y diagnóstico del sistema</div>
 
       <div className="kpi-grid">
-        <div className="card">
-          <div className="card-header"><h3>{txt('🧪 Reset betatestor')}</h3></div>
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb="xs">{txt('🧪 Reset betatestor')}</Title>
           <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 14 }}>Limpia datos de prueba de un número específico.</p>
-          <div className="login-field">
-            <label>Código de reset</label>
-            <input type="password" placeholder="Código secreto" value={codigo} onChange={e => setCodigo(e.target.value)} />
-          </div>
-          <div className="login-field">
-            <label>Teléfono del betatestor</label>
-            <input placeholder="5214441234567" value={telefono} onChange={e => setTelefono(e.target.value)} />
-          </div>
-          <button className="btn btn-danger" onClick={resetBeta}>{txt('🗑️ Limpiar datos de prueba')}</button>
+          <PasswordInput label="Código de reset" placeholder="Código secreto" value={codigo} onChange={e => setCodigo(e.target.value)} mb="sm" />
+          <TextInput label="Teléfono del betatestor" placeholder="5214441234567" value={telefono} onChange={e => setTelefono(e.target.value)} mb="sm" />
+          <Button color="red" onClick={resetBeta}>{txt('🗑️ Limpiar datos de prueba')}</Button>
           {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{txt(msg.texto)}</div>}
-        </div>
+        </Card>
 
-        <div className="card">
-          <div className="card-header"><h3>{txt('🔍 Diagnóstico del sistema')}</h3></div>
-          <button className="btn btn-secondary" style={{ width: '100%', marginBottom: 10 }} onClick={verHealth}>Verificar /health</button>
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb="md">{txt('🔍 Diagnóstico del sistema')}</Title>
+          <Button variant="default" fullWidth mb={10} onClick={verHealth}>Verificar /health</Button>
           {!health && !healthError && <div className="empty">Presiona el botón para verificar</div>}
           {healthError && <div className="login-error">No se pudo conectar</div>}
           {health && <pre style={{ fontSize: 11, background: 'var(--panel-2)', padding: 10, borderRadius: 6, overflowX: 'auto' }}>{JSON.stringify(health, null, 2)}</pre>}
-        </div>
+        </Card>
       </div>
     </div>
   );
