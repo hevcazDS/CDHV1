@@ -33,6 +33,7 @@ REACT_VERSION_INSTALADA="(no detectado)"
 DESKTOP_STATUS="no ejecutado"
 ENV_STATUS="no configurado"
 DB_STATUS="no configurada"
+MIGRACIONES_STATUS="no ejecutado"
 
 escribir_reporte() {
   {
@@ -51,6 +52,7 @@ escribir_reporte() {
     echo "-------------------------------------------------"
     echo ".env: $ENV_STATUS"
     echo "Base de datos: $DB_STATUS"
+    echo "Migraciones (migrations/*.sql): $MIGRACIONES_STATUS"
     echo "================================================="
   } > "$REPORTE_PATH"
   ok "Reporte de instalación escrito en: $REPORTE_PATH"
@@ -316,6 +318,25 @@ else
     err "No se pudo determinar la ruta de la base de datos -- revisa el mensaje de arriba y define DB_PATH manualmente en .env."
     DB_STATUS="ERROR: no se pudo determinar la ruta (revisa el log de arriba)"
   fi
+fi
+
+# ── 9) Migraciones versionadas ───────────────────────────────────────────
+# db/schema.sql ya trae mirroreado el contenido de migrations/*.sql (ver
+# convención en CLAUDE.md), así que esto normalmente no aplica nada nuevo —
+# es la red de seguridad para si algún día una migración se sube sin
+# mirrorear a tiempo, y además deja poblada schema_migrations desde el
+# primer arranque. Idempotente: tolera columnas/tablas que ya existen.
+if [[ "$DB_STATUS" != ERROR:* ]]; then
+  step "Aplicando migraciones versionadas (migrations/*.sql)"
+  if node scripts/migrate.js; then
+    MIGRACIONES_STATUS="aplicadas (ver detalle arriba)"
+    ok "Migraciones al día."
+  else
+    MIGRACIONES_STATUS="ERROR -- revisa el log de arriba"
+    err "Alguna migración falló -- revisa el log de arriba antes de arrancar el bot."
+  fi
+else
+  MIGRACIONES_STATUS="omitido (no se determinó DB_PATH)"
 fi
 
 escribir_reporte

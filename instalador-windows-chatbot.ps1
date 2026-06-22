@@ -248,6 +248,7 @@ $dbPathActual = $null
 if ((Get-Content ".env" -Raw) -match '(?m)^DB_PATH=(.*)$') {
     $dbPathActual = $Matches[1].Trim()
 }
+$dbOk = $true
 if ($dbPathActual -and (Test-Path $dbPathActual)) {
     Ok "DB_PATH ya apunta a un archivo existente: $dbPathActual -- se verifica que tenga todo lo necesario."
     node scripts/instalarBaseDeDatos.js verificar-y-completar $dbPathActual
@@ -275,6 +276,23 @@ if ($dbPathActual -and (Test-Path $dbPathActual)) {
         Ok "DB_PATH escrito en .env: $dbPathResultante"
     } else {
         Err2 "No se pudo determinar la ruta de la base de datos -- revisa el mensaje de arriba y define DB_PATH manualmente en .env."
+        $dbOk = $false
+    }
+}
+
+# ── 9) Migraciones versionadas ──────────────────────────────────────────
+# db/schema.sql ya trae mirroreado el contenido de migrations/*.sql (ver
+# convención en CLAUDE.md), así que esto normalmente no aplica nada nuevo --
+# es la red de seguridad para si algún día una migración se sube sin
+# mirrorear a tiempo, y además deja poblada schema_migrations desde el
+# primer arranque. Idempotente: tolera columnas/tablas que ya existen.
+if ($dbOk) {
+    Step "Aplicando migraciones versionadas (migrations/*.sql)"
+    node scripts/migrate.js
+    if ($LASTEXITCODE -eq 0) {
+        Ok "Migraciones al día."
+    } else {
+        Err2 "Alguna migración falló -- revisa el log de arriba antes de arrancar el bot."
     }
 }
 
