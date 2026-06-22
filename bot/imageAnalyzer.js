@@ -441,20 +441,20 @@ async function analyzeImage(media) {
         const hash     = _hash(base64.slice(0, 1000) + base64.length);
         const cached   = _cacheGet(hash);
         if (cached) {
-            return { ok: true, query: cached.queryText, labels: cached.labels, fromCache: true };
+            return { ok: true, query: cached.queryText, labels: cached.labels, fromCache: true, hash };
         }
 
         // Llamar a Vision API
         const rawLabels = await _callVisionAPI(base64);
         if (!rawLabels.length) {
-            return { ok: false, reason: 'SIN_ETIQUETAS' };
+            return { ok: false, reason: 'SIN_ETIQUETAS', hash };
         }
 
         const labels    = _translateLabels(rawLabels);
         const queryText = _buildSearchQuery(labels);
 
         _cacheSet(hash, labels, queryText);
-        return { ok: true, query: queryText, labels, fromCache: false };
+        return { ok: true, query: queryText, labels, fromCache: false, hash };
 
     } catch (err) {
         if (err.message === 'NO_CREDENTIALS') {

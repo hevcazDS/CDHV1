@@ -16,6 +16,7 @@ const { execFile } = require('child_process');
 const { NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema, safeEqual } = require('../bot/validators');
 require('dotenv').config({ quiet: true });
 const log = require('../bot/logger')('dashboard');
+const { registrarErrorDB } = require('../bot/dbErrorLog');
 
 // Respaldo de último recurso para código fuera del try/catch de cada request
 // (setInterval de limpieza, callbacks de pm2(), etc). El try/catch alrededor
@@ -339,9 +340,20 @@ function readBody(req, cb) {
 // escribe la respuesta 400 y regresa null (el caller solo necesita
 // "if (!datos) return;") — reemplaza el bloque de 3 líneas que se repetía
 // copiado en cada ruta POST/PUT (parsear -> safeParse -> 400 si falla).
-function validar(parsed, schema, res) {
+// `ruta` (4to parámetro, la `p` de cada módulo de dashboard/routes/*.js) es
+// opcional para no romper otros callers, pero cada ruta nueva debe pasarla
+// — sin ella el fallo queda en logs_error con proceso genérico, sin decir
+// cuál endpoint fue. `v.error` ya es un string "campo: mensaje, ..." (ver
+// zodError() en bot/validators.js, que envuelve safeParse para nunca
+// exponer un ZodError crudo) — nunca incluye el valor recibido, solo
+// nombre de campo + mensaje, así que es seguro guardarlo tal cual.
+function validar(parsed, schema, res, ruta) {
     const v = schema.safeParse(parsed);
-    if (!v.success) { json(res, { ok: false, error: v.error }, 400); return null; }
+    if (!v.success) {
+        registrarErrorDB('dashboard:validar' + (ruta ? ' ' + ruta : ''), 'Validación fallida', { detalle: v.error });
+        json(res, { ok: false, error: v.error }, 400);
+        return null;
+    }
     return v.data;
 }
 
@@ -431,7 +443,7 @@ function construirAudienciaMasivo({ soloConPedido, excluirTags, soloTags, sinAct
 // el mismo fallthrough secuencial del  original — ningún módulo sabe si
 // "matcheó" salvo por no llamar a next().
 const ctx = {
-    db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema,
+    db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, registrarErrorDB, SECURITY_HEADERS, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema,
 };
 
 const ROUTE_MODULES = [
@@ -440,6 +452,7 @@ const ROUTE_MODULES = [
     require('./routes/atencionCliente'),
     require('./routes/catalogoCola'),
     require('./routes/marketing'),
+    require('./routes/etiquetas'),
     require('./routes/primeConfig'),
     require('./routes/primeCatalogo'),
     require('./routes/primeUsuariosPuntos'),

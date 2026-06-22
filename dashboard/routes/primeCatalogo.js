@@ -11,7 +11,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
         if (!ses) return;
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body || '{}'), PalabraFiltroSchema, res);
+                const datos = validar(JSON.parse(body || '{}'), PalabraFiltroSchema, res, p);
                 if (!datos) return;
                 const id = filtroPalabras.agregarPalabra(db, { ...datos, creado_por: ses.username });
                 return json(res, { ok: true, id });
@@ -58,7 +58,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
         if (!requireSession(req, res, ['prime'])) return;
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body || '{}'), SucursalSchema, res);
+                const datos = validar(JSON.parse(body || '{}'), SucursalSchema, res, p);
                 if (!datos) return;
                 const { nombre, codigo, direccion } = datos;
                 const r = db.prepare('INSERT INTO sucursales (nombre, codigo, direccion) VALUES (?, ?, ?)').run(nombre, codigo || null, direccion || null);
@@ -76,7 +76,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body || '{}'), SucursalUpdateSchema, res);
+                const datos = validar(JSON.parse(body || '{}'), SucursalUpdateSchema, res, p);
                 if (!datos) return;
                 if (!db.prepare('SELECT id FROM sucursales WHERE id=?').get(id)) return json(res, { ok: false, error: 'Sucursal no encontrada' }, 404);
                 if (!actualizarCampos('sucursales', id, datos)) return json(res, { ok: false, error: 'Nada que actualizar' }, 400);
@@ -106,7 +106,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
         if (!requireSession(req, res, ['prime'])) return;
         return readBody(req, body => {
             try {
-                const d = validar(JSON.parse(body || '{}'), ProductoSchema, res);
+                const d = validar(JSON.parse(body || '{}'), ProductoSchema, res, p);
                 if (!d) return;
                 const r = db.prepare(`
                     INSERT INTO productos (name, cat, price, url_imagen, tags, seo_description, edad_recomendada, edad_min, genero, stock_tienda, stock_cedis, stock_san_luis_potosi)
@@ -123,7 +123,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body || '{}'), ProductoUpdateSchema, res);
+                const datos = validar(JSON.parse(body || '{}'), ProductoUpdateSchema, res, p);
                 if (!datos) return;
                 if (!db.prepare('SELECT id FROM productos WHERE id=?').get(id)) return json(res, { ok: false, error: 'Producto no encontrado' }, 404);
                 if (!actualizarCampos('productos', id, datos)) return json(res, { ok: false, error: 'Nada que actualizar' }, 400);
@@ -160,7 +160,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body || '{}'), InventarioMinimoSchema, res);
+                const datos = validar(JSON.parse(body || '{}'), InventarioMinimoSchema, res, p);
                 if (!datos) return;
                 if (!db.prepare('SELECT id FROM inventarios WHERE id=?').get(id)) return json(res, { ok: false, error: 'Registro de inventario no encontrado' }, 404);
                 actualizarCampos('inventarios', id, datos);

@@ -6,6 +6,7 @@ import { Emoji } from '../context/EmojiContext';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
 import ThemeSwitcher from './ThemeSwitcher';
+import NotificationBell from './NotificationBell';
 
 // Antes era una sola lista plana de 20 enlaces — para un solo operador
 // humano eso ya era carga cognitiva alta (hallazgo del comité de diseño/UX).
@@ -37,6 +38,7 @@ const GRUPOS = [
     { to: '/sustitutos', label: 'Relacionados', icon: '🔄' },
     { to: '/busquedas', label: 'Búsquedas', icon: '🔍' },
     { to: '/metricas', label: 'Métricas', icon: '📊' },
+    { to: '/etiquetas', label: 'Etiquetas', icon: '🏷️' },
   ]},
   { titulo: 'Sistema', enlaces: [
     { to: '/modulos', label: 'Módulos', icon: '⚙️' },
@@ -111,6 +113,7 @@ export default function Layout() {
         <div className="topbar-left">Panel de operaciones</div>
         <div className="topbar-right">
           <ThemeSwitcher />
+          <NotificationBell />
           <BotStatusWidget />
           <span className="hevcaz-badge-react">Hevcaz Solutions</span>
         </div>

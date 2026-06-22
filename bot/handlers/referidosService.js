@@ -15,6 +15,7 @@
 
 const db = require('../db_connection');
 const log = require('../logger')('referidosService');
+const { registrarErrorDB } = require('../dbErrorLog');
 
 const PUNTOS_REFERIDO      = 100;
 const MAX_REFERIDOS_SEMANA = 3;
@@ -113,7 +114,7 @@ function otorgarPuntosPorPrimeraCompra(idCliente) {
                 '🎉 ¡Gracias por tu compra! Este es tu código de referido: *' + codigoPropio + '*\n\n' +
                 'Compártelo con un amigo. Cuando nos escriba por primera vez mencionándolo y haga su primera compra, ' +
                 'te llevas *' + PUNTOS_REFERIDO + ' puntos* extra (máximo ' + MAX_REFERIDOS_SEMANA + ' referidos por semana). ⭐');
-        } catch (e) { log.debug('No se pudo notificar código de referido: ' + e.message); }
+        } catch (e) { log.debug('No se pudo notificar código de referido: ' + e.message); registrarErrorDB('referidosService:codigoPropio', e.message, { idCliente }); }
     }
 
     if (!cliente.referido_por_id) return { ok: true, idCliente, otorgoPuntosReferente: false };
@@ -157,7 +158,7 @@ function otorgarPuntosPorPrimeraCompra(idCliente) {
             VALUES ('whatsapp',?,'Puntos por referido',?,'pendiente')`
         ).run(telReferente,
             '🎉 ¡Tu código de referido funcionó! La persona que invitaste completó su primera compra.\n\n+' + PUNTOS_REFERIDO + ' puntos sumados a tu cuenta. Escribe *mis puntos* para ver tu saldo. ⭐');
-    } catch (e) { log.debug('No se pudo notificar puntos por referido: ' + e.message); }
+    } catch (e) { log.debug('No se pudo notificar puntos por referido: ' + e.message); registrarErrorDB('referidosService:puntosReferente', e.message, { idReferente: referente.id }); }
 
     return { ok: true, idCliente, otorgoPuntosReferente: true, idReferente: referente.id };
 }

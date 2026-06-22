@@ -9,7 +9,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/notificar' && req.method === 'POST') {
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body), NotificarSchema, res);
+                const datos = validar(JSON.parse(body), NotificarSchema, res, p);
                 if (!datos) return;
                 const { telefono, mensaje, idPedido } = datos;
 
@@ -52,7 +52,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/pos/venta-previa' && req.method === 'POST') {
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body), VentaPreviaSchema, res);
+                const datos = validar(JSON.parse(body), VentaPreviaSchema, res, p);
                 if (!datos) return;
                 const { telefono, items } = datos;
 
@@ -95,7 +95,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/masivo' && req.method === 'POST') {
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body), MasivoSchema, res);
+                const datos = validar(JSON.parse(body), MasivoSchema, res, p);
                 if (!datos) return;
                 const { mensaje, soloConPedido, limite, excluirTags, soloTags, sinActividad } = datos;
 
@@ -186,7 +186,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
         const id = parseInt(p.split('/')[3]);
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body || '{}'), PagoConfirmadoSchema, res);
+                const datos = validar(JSON.parse(body || '{}'), PagoConfirmadoSchema, res, p);
                 if (!datos) return;
                 const { referencia_pago } = datos;
 

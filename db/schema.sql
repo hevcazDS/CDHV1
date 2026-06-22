@@ -121,6 +121,22 @@ CREATE TABLE IF NOT EXISTS vision_cache (
     hits        INTEGER NOT NULL DEFAULT 1
 );
 
+-- Una fila por foto de cliente realmente guardada (vision_cache es caché por
+-- contenido, no por ocurrencia) — enlaza el archivo en bot/imagenes_clientes/
+-- con el hash de Vision que le tocó, para revisión humana de la etiqueta
+-- desde el dashboard (ver migrations/0003_vision_revisiones.sql).
+CREATE TABLE IF NOT EXISTS vision_revisiones (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    archivo_imagen      TEXT NOT NULL,
+    hash_vision         TEXT NOT NULL,
+    telefono            TEXT,
+    estado              TEXT NOT NULL DEFAULT 'pendiente',
+    etiqueta_corregida  TEXT,
+    registrado_en       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    revisado_en         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_vision_revisiones_estado ON vision_revisiones(estado);
+
 -- Secuenciador diario de números de caso (CASO-YYYYMMDD-NNN) para escaladas.
 CREATE TABLE IF NOT EXISTS contadores_caso (
     fecha    TEXT PRIMARY KEY,
@@ -559,6 +575,18 @@ BEGIN
     UPDATE log_eventos SET tono_bot = (SELECT valor FROM configuracion WHERE clave = 'tono_bot')
     WHERE id = NEW.id;
 END;
+
+-- Fallos persistidos a SQL (validaciones Zod rechazadas, inserciones de
+-- colas que fallan, etc.) — complementa bot/logs/*.log para que se puedan
+-- listar desde el dashboard (ver migrations/0004_logs_error.sql).
+CREATE TABLE IF NOT EXISTS logs_error (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    proceso       TEXT NOT NULL,
+    motivo        TEXT NOT NULL,
+    contexto_json TEXT,
+    registrado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_logs_error_fecha ON logs_error(date(registrado_en));
 
 -- Métricas agregadas del bot (panel "Métricas"). Solo verificada por
 -- tests/test_db_flujo.js como tabla existente; el código actual no le

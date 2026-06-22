@@ -67,7 +67,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/actualizar_guia' && req.method === 'POST') {
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body), GuiaSchema, res);
+                const datos = validar(JSON.parse(body), GuiaSchema, res, p);
                 if (!datos) return;
                 const { numeroGuia, estatus, descripcion, ubicacion } = datos;
 
@@ -183,7 +183,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/preventas' && req.method === 'POST') {
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body), PreventaSchema, res);
+                const datos = validar(JSON.parse(body), PreventaSchema, res, p);
                 if (!datos) return;
                 const { id_producto, nombre_preventa, fecha_llegada_est,
                         stock_maximo, precio_preventa, porcentaje_anticipo } = datos;

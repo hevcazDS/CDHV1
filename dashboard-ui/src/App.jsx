@@ -23,6 +23,7 @@ import ColaEnvios from './pages/ColaEnvios';
 import Beta from './pages/Beta';
 import Metricas from './pages/Metricas';
 import Notificaciones from './pages/Notificaciones';
+import Etiquetas from './pages/Etiquetas';
 import Prime from './pages/Prime';
 
 export default function App() {
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="/beta" element={<Beta />} />
         <Route path="/metricas" element={<Metricas />} />
         <Route path="/notificaciones" element={<Notificaciones />} />
+        <Route path="/etiquetas" element={<Etiquetas />} />
         {user.rol === 'prime' && <Route path="/prime" element={<Prime />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

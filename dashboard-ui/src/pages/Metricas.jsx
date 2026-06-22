@@ -192,6 +192,24 @@ export default function Metricas() {
         })()}
       </Card>
 
+      <Card withBorder radius="md" p="lg" mb={16}>
+        <Title order={4} mb={4}>{txt('📈 Conversión real por tono')}</Title>
+        <p style={{ fontSize: 11, color: 'var(--text-mute)', marginBottom: 12 }}>
+          {txt('⚠️ ')}El cruce búsqueda→compra es aproximado (por teléfono), no exacto — usar como tendencia, no como dato definitivo.
+        </p>
+        {(!conv?.conversion_por_tono || conv.conversion_por_tono.length === 0) && <div className="empty">Sin búsquedas registradas todavía</div>}
+        {conv?.conversion_por_tono?.map((t, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+            <span className={`badge badge-${TONO_COLOR[t.tono] || 'azul'}`} style={{ minWidth: 170, justifyContent: 'center' }}>{TONO_LABEL[t.tono] || t.tono}</span>
+            <div style={{ flex: 1, background: 'var(--panel-2)', borderRadius: 99, height: 7 }}>
+              <div style={{ width: t.tasa + '%', background: 'var(--green)', height: 7, borderRadius: 99 }}></div>
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>{t.tasa}%</span>
+            <span style={{ fontSize: 12, color: 'var(--text-mute)', minWidth: 110, textAlign: 'right' }}>{t.convertidos}/{t.total} búsquedas</span>
+          </div>
+        ))}
+      </Card>
+
       <div className="kpi-grid" style={{ marginBottom: 16 }}>
         <Card withBorder radius="md" p="lg">
           <Title order={4} mb="md">{txt('🎯 Conversión por campaña')}</Title>

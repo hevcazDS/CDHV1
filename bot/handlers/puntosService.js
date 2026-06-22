@@ -11,6 +11,7 @@
 const db      = require('../db_connection');
 const crypto  = require('crypto');
 const log     = require('../logger')('puntosService');
+const { registrarErrorDB } = require('../dbErrorLog');
 
 const PUNTOS_POR_PESO   = 1;      // 1 punto = $1
 const PUNTOS_REGALO     = 2000;   // puntos necesarios para una recompensa
@@ -272,7 +273,7 @@ function checkPuntosInactivos() {
                 VALUES ('whatsapp',?,'Puntos inactivos',?,'pendiente')`
             ).run(c.telefono, cuerpo);
             total++;
-        } catch(e) { log.debug('No se pudo notificar puntos inactivos: ' + e.message); }
+        } catch(e) { log.debug('No se pudo notificar puntos inactivos: ' + e.message); registrarErrorDB('puntosService:inactivos', e.message, { telefono: c.telefono }); }
     }
     if (total > 0) log.info('Recordatorio inactivos', { total });
     return total;

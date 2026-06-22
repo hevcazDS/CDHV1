@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Card, Title, Button, PasswordInput, TextInput } from '@mantine/core';
+import { useQuery } from '@tanstack/react-query';
+import { Card, Title, ActionIcon, Group, Button, PasswordInput, TextInput, Table } from '@mantine/core';
 import { api } from '../api';
+import { fdate } from '../lib/format';
 import { useTextoEmoji } from '../context/EmojiContext';
 
 export default function Beta() {
@@ -25,6 +27,15 @@ export default function Beta() {
     catch (_) { setHealth(null); setHealthError(true); }
   };
 
+  // Fase 3: logs_error es la tabla SQL que complementa bot/logs/*.log (ver
+  // migrations/0004_logs_error.sql) — validaciones rechazadas y fallos de
+  // colas que antes solo se veían en el archivo de texto, ahora también
+  // listables aquí sin tocar el servidor por SSH.
+  const { data: errores, refetch: refetchErrores } = useQuery({
+    queryKey: ['logs-error'],
+    queryFn: () => api.get('/api/logs_error?limite=30').catch(() => []),
+  });
+
   return (
     <div>
       <div className="page-title">Beta / Pruebas</div>
@@ -48,6 +59,30 @@ export default function Beta() {
           {health && <pre style={{ fontSize: 11, background: 'var(--panel-2)', padding: 10, borderRadius: 6, overflowX: 'auto' }}>{JSON.stringify(health, null, 2)}</pre>}
         </Card>
       </div>
+
+      <Card withBorder radius="md" p="lg" mt={14}>
+        <Group justify="space-between" mb="md">
+          <Title order={4}>{txt('🪵 Errores registrados')}</Title>
+          <ActionIcon variant="default" onClick={() => refetchErrores()}>🔄</ActionIcon>
+        </Group>
+        <div className="table-wrap">
+          <Table highlightOnHover verticalSpacing="xs">
+            <thead><tr><th>Proceso</th><th>Motivo</th><th>Contexto</th><th>Fecha</th></tr></thead>
+            <tbody>
+              {errores === undefined && <tr><td colSpan={4} className="empty">Cargando...</td></tr>}
+              {errores?.length === 0 && <tr><td colSpan={4} className="empty">Sin errores registrados</td></tr>}
+              {errores?.map(e => (
+                <tr key={e.id}>
+                  <td><code style={{ fontSize: 11 }}>{e.proceso}</code></td>
+                  <td style={{ fontSize: 12 }}>{e.motivo}</td>
+                  <td style={{ fontSize: 11, fontFamily: 'monospace', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.contexto_json || '-'}</td>
+                  <td className="text-muted" style={{ fontSize: 11 }}>{fdate(e.registrado_en)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </div>
+      </Card>
     </div>
   );
 }

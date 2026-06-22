@@ -142,7 +142,23 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
             GROUP BY tono
             ORDER BY pedidos DESC
         `).all();
-        return json(res, { busquedas_total: 0, pedidos_total: pedidos, clientes_total: clientes, tasa_conversion: tasa+'%', top_busquedas: topBusquedas, por_tono: porTono });
+        // Tasa de conversión REAL por tono (a diferencia de porTono arriba,
+        // que es solo volumen/ingreso de pedidos): cruza log_eventos.compro
+        // contra el tono que tenía el bot en cada búsqueda registrada. El
+        // matching búsqueda→compra que rellena `compro` es por teléfono
+        // (LIKE, ver services/stockWatcher.js) — aproximado, no exacto; se
+        // expone igual para no ocultar el dato, pero Metricas.jsx debe
+        // mostrar la advertencia junto a este número.
+        const conversionPorTono = db.prepare(`
+            SELECT COALESCE(tono_bot, 'sin_dato') AS tono,
+                   COUNT(*) AS total,
+                   COALESCE(SUM(compro), 0) AS convertidos
+            FROM log_eventos
+            WHERE tipo_evento = 'busqueda'
+            GROUP BY tono
+            ORDER BY total DESC
+        `).all().map(r => ({ ...r, tasa: r.total > 0 ? +((r.convertidos / r.total) * 100).toFixed(1) : 0 }));
+        return json(res, { busquedas_total: 0, pedidos_total: pedidos, clientes_total: clientes, tasa_conversion: tasa+'%', top_busquedas: topBusquedas, por_tono: porTono, conversion_por_tono: conversionPorTono });
     }
 
     // GET /api/ofertas — ofertas activas con precio original y oferta
@@ -192,7 +208,7 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/cupon/redimir' && req.method === 'POST') {
         return readBody(req, body => {
             try {
-                const parsed = validar(JSON.parse(body), CuponRedimirSchema, res);
+                const parsed = validar(JSON.parse(body), CuponRedimirSchema, res, p);
                 if (!parsed) return;
                 const { codigo, idTicket } = parsed;
                 const hoy = new Date().toISOString().slice(0, 10);

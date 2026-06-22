@@ -919,6 +919,7 @@ client.on('message', async msg => {
                 // Intentar análisis con Vision API
                 try {
                     const media = await msg.downloadMedia();
+                    let _fnameGuardado = null;
                     if (media) {
                         // ── Guardar imagen localmente para el dashboard ────────
                         try {
@@ -936,6 +937,7 @@ client.on('message', async msg => {
                                 const _fname = `${_tel}_${_ts}.${_ext}`;
                                 _fs.writeFileSync(_path.join(_imgDir, _fname),
                                     Buffer.from(media.data, 'base64'));
+                                _fnameGuardado = _fname;
                             } else {
                                 log.warn('Cuota diaria de imágenes alcanzada, no se guarda en disco', { userId });
                             }
@@ -946,6 +948,16 @@ client.on('message', async msg => {
                             log.info(`Vision → "${result.query}" (cache:${result.fromCache})`, { userId });
                             // Evento "imagen" para analítica/ML
                             try { const _dbV = require('./db_connection'); _dbV.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('imagen','whatsapp',?,?)").run(result.query.slice(0,200), userId.replace(/@.*$/,'')); } catch(e){ log.debug('No se pudo registrar evento imagen: ' + e.message); }
+                            // Vincula la foto realmente guardada (si se guardó, ver bloque de
+                            // arriba) con el hash de Vision que le tocó — para revisión humana
+                            // de la etiqueta desde el dashboard (Fase 3, vision_revisiones).
+                            if (_fnameGuardado) {
+                                try {
+                                    const _dbR = require('./db_connection');
+                                    _dbR.prepare('INSERT INTO vision_revisiones (archivo_imagen, hash_vision, telefono) VALUES (?, ?, ?)')
+                                        .run(_fnameGuardado, result.hash, userId.replace(/@.*$/, ''));
+                                } catch (e) { log.debug('No se pudo registrar vision_revisiones: ' + e.message); }
+                            }
                             msgFinal = { ...msg, body: result.query, _fromImage: true, _visionQuery: result.query };
                         } else {
                             return await client.sendMessage(userId,

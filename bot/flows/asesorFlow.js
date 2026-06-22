@@ -3,6 +3,7 @@
 // y NO tumba el resto del bot. Frases con sistema de tonos via t().
 'use strict';
 const shared = require('./_shared');
+const { registrarErrorDB } = require('../dbErrorLog');
 const {
     enHorario,
     msgHorarioAsesor,
@@ -281,7 +282,7 @@ async function handle(ctx) {
                         _at, 'Devoluci\u00f3n solicitada',
                         '\u21A9\uFE0F *DEVOLUCI\u00d3N SOLICITADA*\nFolio: ' + (data.folio||'Sin folio') + '\nCliente: ' + tel + '\nMotivo: ' + data.motivo + '\nCanal: ' + data.canalCompra + '\nPago: ' + _metodo + '\nFoto: ' + (data.tieneFoto?'S\u00ed':'No') + '\nTotal: $' + Number(data.total||0).toFixed(2) + ' MXN'
                     );
-                } catch(e){ log.debug('No se pudo notificar devolución al asesor: ' + e.message); }
+                } catch(e){ log.debug('No se pudo notificar devolución al asesor: ' + e.message); registrarErrorDB('asesorFlow:devolucion', e.message, { folio: data.folio }); }
             }
 
             sessionManager.clearSession(userId);

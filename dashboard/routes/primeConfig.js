@@ -55,7 +55,7 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         if (!requireSession(req, res, ['prime'])) return;
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body), PrimeConfigSchema, res);
+                const datos = validar(JSON.parse(body), PrimeConfigSchema, res, p);
                 if (!datos) return;
                 const { clave, activo } = datos;
                 db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES (?, ?, datetime('now','localtime'))").run(clave, activo ? '1' : '0');
@@ -73,7 +73,7 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         const idPedido = parseInt(p.split('/')[4]);
         return readBody(req, body => {
             try {
-                const parsed = validar(JSON.parse(body), CostoEnvioSchema, res);
+                const parsed = validar(JSON.parse(body), CostoEnvioSchema, res, p);
                 if (!parsed) return;
                 const costo = parsed.costo_envio;
 
@@ -103,7 +103,7 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         if (!requireSession(req, res, ['prime'])) return;
         return readBody(req, body => {
             try {
-                const parsed = validar(JSON.parse(body), CostoEnvioSchema, res);
+                const parsed = validar(JSON.parse(body), CostoEnvioSchema, res, p);
                 if (!parsed) return;
                 const costo = parsed.costo_envio;
                 db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('costo_envio_default', ?, datetime('now','localtime'))").run(String(costo));
@@ -149,7 +149,7 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         if (!requireSession(req, res, ['prime'])) return;
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body || '{}'), NegocioSchema, res);
+                const datos = validar(JSON.parse(body || '{}'), NegocioSchema, res, p);
                 if (!datos) return;
                 const { nombre_negocio } = datos;
                 db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('nombre_negocio', ?, datetime('now','localtime'))").run(nombre_negocio);

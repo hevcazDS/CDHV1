@@ -10,6 +10,7 @@ const sessionManager  = require('../sessionManager');
 const estafeta        = require('../../services/estafetaService');
 const emailSvc        = require('../../services/emailService');
 const db              = require('../db_connection');
+const { registrarErrorDB } = require('../dbErrorLog');
 const stockService    = require('../../services/stockService');
 // Sistema de tonos (A/B/C/D) y módulos activables desde el dashboard
 const { t, moduloActivo } = (() => {
@@ -944,10 +945,11 @@ function registrarEscalada(userId, idPedido, motivo, telefono, tipo, caso) {
         if (_asesorTel) {
             const _hh = (new Date().getUTCHours() - 6 + 24) % 24;
             const _msgA = '\u26a0\ufe0f *Cliente esperando atencion*\n\nTel: ' + telefono + '\nMotivo: ' + (motivo || 'Sin especificar') + '\nHorario: ' + (_hh >= 11 && _hh < 20 ? 'En horario' : 'Fuera de horario') + '\n\nResponde directamente a *' + telefono + '*';
-            try { db.prepare("INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES ('whatsapp',?,?,?,'pendiente')").run(_asesorTel, 'Escalada asesor', _msgA); } catch(e) { log.debug('No se pudo notificar al asesor: ' + e.message); }
+            try { db.prepare("INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES ('whatsapp',?,?,?,'pendiente')").run(_asesorTel, 'Escalada asesor', _msgA); } catch(e) { log.debug('No se pudo notificar al asesor: ' + e.message); registrarErrorDB('_shared:registrarEscalada:notificarAsesor', e.message, { telefono }); }
         }
     } catch(e) {
         log.error('registrarEscalada error', e);
+        registrarErrorDB('_shared:registrarEscalada', e.message, { telefono, motivo });
     }
 }
 

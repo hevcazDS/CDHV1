@@ -10,7 +10,7 @@ module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
         if (!requireSession(req, res, ['prime'])) return;
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body || '{}'), UsuarioSchema, res);
+                const datos = validar(JSON.parse(body || '{}'), UsuarioSchema, res, p);
                 if (!datos) return;
                 const { username, password, rol, nombre: nombreInput } = datos;
                 const nombre = String(nombreInput || username || '').trim();
@@ -34,7 +34,7 @@ module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body || '{}'), UsuarioUpdateSchema, res);
+                const datos = validar(JSON.parse(body || '{}'), UsuarioUpdateSchema, res, p);
                 if (!datos) return;
                 const existente = db.prepare('SELECT id, rol FROM usuarios WHERE id=?').get(id);
                 if (!existente) return json(res, { ok: false, error: 'Usuario no encontrado' }, 404);
@@ -120,7 +120,7 @@ module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/puntos/config' && req.method === 'POST') {
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body), ModuloConfigSchema, res);
+                const datos = validar(JSON.parse(body), ModuloConfigSchema, res, p);
                 if (!datos) return;
                 const { clave, activo } = datos;
                 db.prepare('INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES (?, ?, datetime(\'now\',\'localtime\'))').run(clave, activo ? '1' : '0');
