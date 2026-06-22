@@ -22,6 +22,7 @@
             sqlite
             chromium
             stdenv.cc.cc.lib
+            newt # whiptail -- TUI del instalador (instalador-nixos-chatbot.sh)
           ];
 
           shellHook = ''
@@ -45,13 +46,17 @@
         apps =
           let
             runtimeInputs = with pkgs; [ nodejs_20 python3 pkg-config sqlite chromium ];
+            # El instalador usa whiptail (paquete `newt`) para su TUI paso a
+            # paso si está disponible -- si no, cae solo a texto plano sin
+            # romperse (ver HAVE_WHIPTAIL en instalador-nixos-chatbot.sh).
+            runtimeInputsInstalar = runtimeInputs ++ [ pkgs.newt ];
             repoDir = toString ./.;
           in {
             instalar = {
               type = "app";
               program = "${pkgs.writeShellApplication {
                 name = "instalar-chatbot";
-                inherit runtimeInputs;
+                runtimeInputs = runtimeInputsInstalar;
                 text = ''cd "${repoDir}" && exec bash ./instalador-nixos-chatbot.sh "$@"'';
               }}/bin/instalar-chatbot";
             };

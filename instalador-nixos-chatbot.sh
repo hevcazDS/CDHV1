@@ -11,10 +11,83 @@
 # Uso no interactivo: ENV_PATH=/ruta/a/.env ./instalador-nixos-chatbot.sh
 set -uo pipefail
 
-step() { printf '\n\033[36m==> %s\033[0m\n' "$1"; }
+# TUI con whiptail (paquete `newt`, ya en flake.nix) cuando hay una terminal
+# real disponible -- pantallas claras de "qué está pasando" y menús de
+# flechas en vez de tener que teclear una letra a mano (menos probabilidad
+# de "marcar algo mal" sin querer). Si no hay whiptail (terminal mínima,
+# CI, pipe) todo cae automáticamente al mismo texto plano de siempre: nada
+# de lo de abajo es obligatorio para que el instalador funcione.
+HAVE_WHIPTAIL=0
+if command -v whiptail >/dev/null 2>&1 && [ -t 0 ] && [ -t 1 ]; then
+  HAVE_WHIPTAIL=1
+fi
+TUI_TITULO="Instalador - Chatbot Julio Cepeda"
+PASO_ACTUAL=0
+
+step() {
+  PASO_ACTUAL=$((PASO_ACTUAL + 1))
+  printf '\n\033[36m==> %s\033[0m\n' "$1"
+  if [ "$HAVE_WHIPTAIL" = "1" ]; then
+    whiptail --title "$TUI_TITULO" --infobox "Paso $PASO_ACTUAL\n\n$1" 9 70
+    sleep 1
+  fi
+}
 ok()   { printf '    \033[32mOK: %s\033[0m\n' "$1"; }
 warn() { printf '    \033[33mAVISO: %s\033[0m\n' "$1"; }
 err()  { printf '    \033[31mERROR: %s\033[0m\n' "$1"; }
+
+# Menú de una sola letra (U/O/N, N/E, etc.) con flechas en vez de teclear a
+# mano. $1 = texto descriptivo (mismo que ya se usaba como prompt de
+# ask_var), $2 = letra default, resto = pares letra/descripción para el
+# menú. Si no hay whiptail, o el usuario cancela con Esc, cae al prompt de
+# texto de siempre (ask_var) con ese mismo texto descriptivo.
+pedir_opcion() {
+  local titulo="$1" default="$2"; shift 2
+  if [ "$HAVE_WHIPTAIL" = "1" ]; then
+    local seleccion
+    if seleccion="$(whiptail --title "$TUI_TITULO" --menu "$titulo" 16 76 6 "$@" --default-item "$default" 3>&1 1>&2 2>&3)"; then
+      echo "$seleccion"
+      return 0
+    fi
+    warn "Cancelado -- se usa la opción por defecto ($default)."
+    echo "$default"
+    return 0
+  fi
+  ask_var "$titulo" "$default"
+}
+
+# Como ask_var pero en un cuadro whiptail (más claro que escribir en la
+# misma línea del prompt) cuando hay terminal TUI disponible.
+pedir_valor() {
+  local titulo="$1" default="$2"
+  if [ "$HAVE_WHIPTAIL" = "1" ]; then
+    local valor
+    if valor="$(whiptail --title "$TUI_TITULO" --inputbox "$titulo" 10 70 "$default" 3>&1 1>&2 2>&3)"; then
+      echo "$valor"
+      return 0
+    fi
+    echo "$default"
+    return 0
+  fi
+  ask_var "$titulo" "$default"
+}
+
+# Como pedir_valor pero enmascarando la entrada (passwordbox) -- para
+# DASHBOARD_PASS/USER_PRIME_PASSWORD, que en texto plano sí muestran lo que
+# se teclea.
+pedir_password() {
+  local titulo="$1"
+  if [ "$HAVE_WHIPTAIL" = "1" ]; then
+    local valor
+    if valor="$(whiptail --title "$TUI_TITULO" --passwordbox "$titulo" 10 70 3>&1 1>&2 2>&3)"; then
+      echo "$valor"
+      return 0
+    fi
+    echo ""
+    return 0
+  fi
+  ask_var "$titulo" ""
+}
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
@@ -56,6 +129,12 @@ escribir_reporte() {
     echo "================================================="
   } > "$REPORTE_PATH"
   ok "Reporte de instalación escrito en: $REPORTE_PATH"
+  # Mismo contenido en una pantalla TUI con scroll -- se llama desde TODAS
+  # las salidas (éxito y fallos a medias), así que esto siempre refleja el
+  # estado real, no solo el del final feliz.
+  if [ "$HAVE_WHIPTAIL" = "1" ]; then
+    whiptail --title "$TUI_TITULO" --scrolltext --textbox "$REPORTE_PATH" 22 78
+  fi
 }
 
 echo "================================================="
@@ -213,13 +292,18 @@ if [ -n "${ENV_PATH:-}" ]; then
   fi
 elif [ -f .env ] && [ -t 0 ]; then
   ok ".env ya existe en esta carpeta."
-  MODO_ENV="$(ask_var '¿Usar el .env existente (U), apuntar a OTRO archivo .env (O), o crear uno nuevo guiado (N)?' U)"
+  MODO_ENV="$(pedir_opcion '¿Qué hacer con el .env que ya existe en esta carpeta?' U \
+    U 'Usar el .env existente, sin cambios' \
+    O 'Apuntar a OTRO archivo .env ya existente' \
+    N 'Crear uno nuevo, paso a paso')"
 elif [ -f .env ]; then
   ok ".env ya existe en esta carpeta (sin terminal interactiva, se usa tal cual)."
   ENV_LISTO=1
   ENV_STATUS="existente, sin cambios (sin terminal interactiva)"
 else
-  MODO_ENV="$(ask_var '¿Tienes ya un .env de otra instalación/backup que quieras usar (O), o prefieres llenarlo paso a paso (N)?' N)"
+  MODO_ENV="$(pedir_opcion '¿Ya tienes un .env de otra instalación/backup, o prefieres llenarlo paso a paso?' N \
+    O 'Ya tengo un .env de otra instalación/backup' \
+    N 'Llenarlo paso a paso (guiado)')"
 fi
 
 if [ -n "${MODO_ENV:-}" ]; then
@@ -229,7 +313,7 @@ case "$(echo "${MODO_ENV:-}" | tr '[:lower:]' '[:upper:]')" in
     ENV_STATUS="existente, sin cambios"
     ;;
   O)
-    ORIGEN="$(ask_var 'Ruta completa al archivo .env a usar' '')"
+    ORIGEN="$(pedir_valor 'Ruta completa al archivo .env a usar' '')"
     if [ -n "$ORIGEN" ] && [ -f "$ORIGEN" ]; then
       cp "$ORIGEN" .env
       ok ".env copiado desde: $ORIGEN"
@@ -243,19 +327,23 @@ case "$(echo "${MODO_ENV:-}" | tr '[:lower:]' '[:upper:]')" in
   N)
     cp .env.example .env
     step "Llenando .env paso a paso (Enter para dejar el valor entre []) "
-    NOMBRE_NEGOCIO="$(ask_var 'Nombre del negocio (para personalizar al bot)' '')"
-    TONO_BOT="$(ask_var 'Tono del bot: A=formal, B=casual, C=amigable, D=ventas/urgencia' C)"
-    set_env_var DASHBOARD_USER "$(ask_var 'Usuario admin del dashboard' admin)"
-    DASH_PASS_NUEVO="$(ask_var 'Password del usuario admin del dashboard' '')"
+    NOMBRE_NEGOCIO="$(pedir_valor 'Nombre del negocio (para personalizar al bot)' '')"
+    TONO_BOT="$(pedir_opcion 'Tono del bot' C \
+      A 'Formal' \
+      B 'Casual' \
+      C 'Amigable (recomendado)' \
+      D 'Ventas / urgencia')"
+    set_env_var DASHBOARD_USER "$(pedir_valor 'Usuario admin del dashboard' admin)"
+    DASH_PASS_NUEVO="$(pedir_password 'Password del usuario admin del dashboard')"
     [ -n "$DASH_PASS_NUEVO" ] && set_env_var DASHBOARD_PASS "$DASH_PASS_NUEVO"
-    USER_PRIME_NUEVO="$(ask_var 'Usuario "prime" (inventario/sucursales) -- vacío si no se usa todavía' '')"
+    USER_PRIME_NUEVO="$(pedir_valor 'Usuario "prime" (inventario/sucursales) -- vacío si no se usa todavía' '')"
     if [ -n "$USER_PRIME_NUEVO" ]; then
       set_env_var USER_PRIME "$USER_PRIME_NUEVO"
-      set_env_var USER_PRIME_PASSWORD "$(ask_var 'Password del usuario prime' '')"
+      set_env_var USER_PRIME_PASSWORD "$(pedir_password 'Password del usuario prime')"
     fi
-    set_env_var CHROME_PATH "$(ask_var 'Ruta a chromium/chrome' "$CHROME_PATH_DETECTADO")"
-    set_env_var ASESOR_WHATSAPP "$(ask_var 'WhatsApp del asesor humano (con código de país, ej. 521...)' '')"
-    set_env_var FLETE_UMBRAL "$(ask_var 'Monto mínimo de compra para envío gratis' 699)"
+    set_env_var CHROME_PATH "$(pedir_valor 'Ruta a chromium/chrome' "$CHROME_PATH_DETECTADO")"
+    set_env_var ASESOR_WHATSAPP "$(pedir_valor 'WhatsApp del asesor humano (con código de país, ej. 521...)' '')"
+    set_env_var FLETE_UMBRAL "$(pedir_valor 'Monto mínimo de compra para envío gratis' 699)"
     ok ".env creado paso a paso."
     ENV_LISTO=1
     ENV_STATUS="creado paso a paso (guiado)"
@@ -299,13 +387,15 @@ if [ -n "$DB_PATH_ACTUAL" ] && [ -f "$DB_PATH_ACTUAL" ]; then
   node scripts/instalarBaseDeDatos.js verificar-y-completar "$DB_PATH_ACTUAL"
   DB_STATUS="existente, verificada/completada: $DB_PATH_ACTUAL"
 else
-  MODO_DB="$(ask_var '¿Crear una base de datos NUEVA (N) o ya tienes una y solo hay que apuntarla/completarla (E)?' N)"
+  MODO_DB="$(pedir_opcion '¿Qué hacer con la base de datos?' N \
+    N 'Crear una base de datos NUEVA desde cero' \
+    E 'Ya tengo una -- solo apuntarla/completarla')"
   if [ "$(echo "$MODO_DB" | tr '[:lower:]' '[:upper:]')" = "E" ]; then
-    RUTA_DB="$(ask_var 'Ruta completa al archivo .db existente' '')"
+    RUTA_DB="$(pedir_valor 'Ruta completa al archivo .db existente' '')"
     SALIDA_DB="$(node scripts/instalarBaseDeDatos.js verificar-y-completar "$RUTA_DB")"
     DB_MODO_DESC="existente, verificada/completada"
   else
-    RUTA_DB="$(ask_var 'Ruta donde crear la base de datos nueva' "$REPO_ROOT/db/jugueteria.db")"
+    RUTA_DB="$(pedir_valor 'Ruta donde crear la base de datos nueva' "$REPO_ROOT/db/jugueteria.db")"
     SALIDA_DB="$(node scripts/instalarBaseDeDatos.js crear-nueva "$RUTA_DB" "${NOMBRE_NEGOCIO:-}" "${TONO_BOT:-}")"
     DB_MODO_DESC="nueva, creada desde cero"
   fi
