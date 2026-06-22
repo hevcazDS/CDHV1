@@ -4,6 +4,22 @@
 // módulos. NINGUNA línea de lógica fue reescrita, solo movida; ctx trae todo
 // lo que este rango referenciaba como variable de módulo en el archivo
 // original (ver dashboard/server.js para la construcción de ctx).
+// db/schema.sql declara `inventarios.id` como PK autoincrement (instalación
+// nueva), pero la base de producción real tiene `id_inventory` como PK
+// verdadero y un `id` separado que quedó NULL en las 13,926 filas existentes
+// -- drift real de esquema, no un typo. Se detecta una sola vez por proceso
+// (PRAGMA es barato, pero no hay necesidad de repetirlo en cada request) y
+// se usa esa columna tanto para leer como para el WHERE del PUT.
+let _pkInventarios = null;
+function pkInventarios(db) {
+    if (_pkInventarios) return _pkInventarios;
+    try {
+        const cols = db.prepare('PRAGMA table_info(inventarios)').all().map(c => c.name);
+        _pkInventarios = cols.includes('id_inventory') ? 'id_inventory' : 'id';
+    } catch (_) { _pkInventarios = 'id'; }
+    return _pkInventarios;
+}
+
 module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
     if (p === '/api/prime/palabras-filtro' && req.method === 'POST') {
@@ -100,20 +116,60 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
         }
     }
 
+    // ── Productos — listado con búsqueda y paginación (para la pestaña
+    // Catálogo del Prime: antes solo había alta, sin forma de ver/editar los
+    // productos que ya existen). ────────────────────────────────────────────
+    if (p === '/api/prime/productos' && req.method === 'GET') {
+        if (!requireSession(req, res, ['prime'])) return;
+        try {
+            const u2 = new URL(req.url, 'http://x');
+            const q = (u2.searchParams.get('q') || '').trim();
+            const pagina = Math.max(1, parseInt(u2.searchParams.get('pagina') || '1', 10) || 1);
+            const porPagina = 20;
+            const offset = (pagina - 1) * porPagina;
+            const whereSql = q ? 'WHERE name LIKE ?' : '';
+            const params = q ? ['%' + q + '%'] : [];
+            const total = db.prepare(`SELECT COUNT(*) AS n FROM productos ${whereSql}`).get(...params).n;
+            const items = db.prepare(`
+                SELECT id, name, cat, price, stock_tienda, stock_cedis, stock_san_luis_potosi
+                FROM productos ${whereSql} ORDER BY name LIMIT ? OFFSET ?
+            `).all(...params, porPagina, offset);
+            return json(res, { items, total, pagina, porPagina });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    }
+
     // ── Productos — alta y edición (solo prime; la carga masiva del catálogo
-    // sigue siendo aparte, esto es para agregar/corregir productos puntuales) ──
+    // sigue siendo aparte, esto es para agregar/corregir productos puntuales).
+    // Al crear, además de las 3 columnas fijas que usa bot/flows/_shared.js
+    // para buscar/recomendar, se siembra una fila en `inventarios` por cada
+    // sucursal activa (red de 11 sucursales reales) con el stock inicial que
+    // se haya capturado en stock_sucursales -- sin esto, un producto nuevo
+    // queda invisible para services/stockService.js (red nacional) y
+    // services/stockWatcher.js (alerta de stock mínimo) en las otras 11
+    // sucursales, aunque sí se pueda comprar en tienda/CEDIS/SLP. ───────────
     if (p === '/api/prime/productos' && req.method === 'POST') {
         if (!requireSession(req, res, ['prime'])) return;
         return readBody(req, body => {
             try {
                 const d = validar(JSON.parse(body || '{}'), ProductoSchema, res, p);
                 if (!d) return;
-                const r = db.prepare(`
-                    INSERT INTO productos (name, cat, price, url_imagen, tags, seo_description, edad_recomendada, edad_min, genero, stock_tienda, stock_cedis, stock_san_luis_potosi)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `).run(d.name, d.cat || null, d.price, d.url_imagen || null, d.tags || null, d.seo_description || null, d.edad_recomendada || null, d.edad_min ?? null, d.genero || null, d.stock_tienda, d.stock_cedis, d.stock_san_luis_potosi);
+                const crear = db.transaction((datos) => {
+                    const r = db.prepare(`
+                        INSERT INTO productos (name, cat, price, url_imagen, tags, seo_description, edad_recomendada, edad_min, genero, stock_tienda, stock_cedis, stock_san_luis_potosi)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `).run(datos.name, datos.cat || '', datos.price, datos.url_imagen || null, datos.tags || null, datos.seo_description || null, datos.edad_recomendada || null, datos.edad_min ?? null, datos.genero || null, datos.stock_tienda, datos.stock_cedis, datos.stock_san_luis_potosi);
+                    const idProducto = r.lastInsertRowid;
+                    const sucursales = db.prepare('SELECT nombre FROM sucursales WHERE activa = 1').all();
+                    const insertInv = db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock, stock_minimo) VALUES (?, ?, ?, 0)');
+                    for (const s of sucursales) {
+                        const stock = (datos.stock_sucursales && datos.stock_sucursales[s.nombre]) || 0;
+                        insertInv.run(idProducto, s.nombre, stock);
+                    }
+                    return idProducto;
+                });
+                const id = crear(d);
                 log.info('[prime] producto creado: ' + d.name);
-                return json(res, { ok: true, id: r.lastInsertRowid });
+                return json(res, { ok: true, id });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });
     }
@@ -136,22 +192,36 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // dispara la alerta de services/stockWatcher.js:checkStockMinimo(). La
     // columna stock_minimo existe desde Fase JIUA 2 pero no tenía UI para
     // editarla (default 0 = alerta desactivada para esa fila). ──────────────
+    // Antes devolvía hasta 300 filas de golpe sin paginar y sin poder filtrar
+    // por sucursal (con 13,926 filas reales, esas 300 ya eran una tabla
+    // enorme de desplazar, y siempre las mismas ~27 productos por orden
+    // alfabético). Ahora pagina de verdad y permite acotar a una sucursal --
+    // patrón estándar de un sistema de inventario real: elegir ubicación
+    // primero, después buscar/paginar dentro de ella.
     if (p === '/api/prime/inventarios' && req.method === 'GET') {
         if (!requireSession(req, res, ['prime'])) return;
         try {
-            const q = (new URL(req.url, 'http://x').searchParams.get('q') || '').trim();
-            const rows = q
-                ? db.prepare(`
-                    SELECT i.id, i.id_producto, p.name AS producto, i.sucursal, i.stock, i.stock_minimo
-                    FROM inventarios i JOIN productos p ON p.id = i.id_producto
-                    WHERE p.name LIKE ? ORDER BY p.name, i.sucursal LIMIT 300
-                  `).all('%' + q + '%')
-                : db.prepare(`
-                    SELECT i.id, i.id_producto, p.name AS producto, i.sucursal, i.stock, i.stock_minimo
-                    FROM inventarios i JOIN productos p ON p.id = i.id_producto
-                    ORDER BY p.name, i.sucursal LIMIT 300
-                  `).all();
-            return json(res, rows);
+            const pk = pkInventarios(db);
+            const u2 = new URL(req.url, 'http://x');
+            const q = (u2.searchParams.get('q') || '').trim();
+            const sucursal = (u2.searchParams.get('sucursal') || '').trim();
+            const pagina = Math.max(1, parseInt(u2.searchParams.get('pagina') || '1', 10) || 1);
+            const porPagina = 30;
+            const offset = (pagina - 1) * porPagina;
+            const cond = [];
+            const params = [];
+            if (q) { cond.push('p.name LIKE ?'); params.push('%' + q + '%'); }
+            if (sucursal) { cond.push('i.sucursal = ?'); params.push(sucursal); }
+            const whereSql = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
+            const total = db.prepare(`
+                SELECT COUNT(*) AS n FROM inventarios i JOIN productos p ON p.id = i.id_producto ${whereSql}
+            `).get(...params).n;
+            const items = db.prepare(`
+                SELECT i.${pk} AS id, i.id_producto, p.name AS producto, i.sucursal, i.stock, i.stock_minimo
+                FROM inventarios i JOIN productos p ON p.id = i.id_producto
+                ${whereSql} ORDER BY p.name, i.sucursal LIMIT ? OFFSET ?
+            `).all(...params, porPagina, offset);
+            return json(res, { items, total, pagina, porPagina });
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
     }
 
@@ -162,8 +232,9 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
             try {
                 const datos = validar(JSON.parse(body || '{}'), InventarioMinimoSchema, res, p);
                 if (!datos) return;
-                if (!db.prepare('SELECT id FROM inventarios WHERE id=?').get(id)) return json(res, { ok: false, error: 'Registro de inventario no encontrado' }, 404);
-                actualizarCampos('inventarios', id, datos);
+                const pk = pkInventarios(db);
+                if (!db.prepare(`SELECT ${pk} FROM inventarios WHERE ${pk}=?`).get(id)) return json(res, { ok: false, error: 'Registro de inventario no encontrado' }, 404);
+                actualizarCampos('inventarios', id, datos, pk);
                 return json(res, { ok: true, id, stock_minimo: datos.stock_minimo });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });

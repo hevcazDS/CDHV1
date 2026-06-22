@@ -163,6 +163,10 @@ const SucursalUpdateSchema = z.object({
 // Alta/edición de productos — solo prime crea catálogo nuevo o ajusta el
 // stock fijo por sucursal (stock_tienda/stock_cedis/stock_san_luis_potosi),
 // que es justo lo que bot/flows/_shared.js usa para buscar y recomendar.
+// stock_sucursales es aparte: stock inicial por cada fila de `sucursales`
+// (la red de 11 sucursales reales, ver migrations/0005_sucursales_seed.sql)
+// que dashboard/routes/primeCatalogo.js inserta en `inventarios` -- no
+// reemplaza ni se mezcla con los 3 campos fijos de arriba.
 const ProductoSchema = z.object({
     name:                  z.string().min(1, 'name requerido').max(200),
     cat:                   z.string().max(80).optional().nullable(),
@@ -176,6 +180,7 @@ const ProductoSchema = z.object({
     stock_tienda:          z.number().int().min(0).default(0),
     stock_cedis:           z.number().int().min(0).default(0),
     stock_san_luis_potosi: z.number().int().min(0).default(0),
+    stock_sucursales:      z.record(z.string(), z.number().int().min(0)).optional(),
 });
 const ProductoUpdateSchema = ProductoSchema.partial().extend({
     activo: z.boolean().optional(),

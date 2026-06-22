@@ -4,8 +4,10 @@ import { useForm } from '@mantine/form';
 import {
   Card, Title, Group, ActionIcon, Table, Badge, Switch, Tabs, SimpleGrid,
   TextInput, NumberInput, PasswordInput, Select, Textarea, Button,
+  Fieldset, Pagination,
 } from '@mantine/core';
 import { api } from '../api';
+import Modal from '../components/Modal';
 import { useTextoEmoji } from '../context/EmojiContext';
 
 const CATEGORIAS_FILTRO = [
@@ -57,15 +59,38 @@ export default function Prime() {
   };
   const productoForm = useForm({ initialValues: PRODUCTO_VACIO });
   const [msgProducto, setMsgProducto] = useState('');
+  // Stock inicial por sucursal real (red de 11, ver migrations/0005) -- se
+  // siembra en `inventarios` al crear el producto, aparte de las 3 columnas
+  // fijas (stock_tienda/cedis/san_luis_potosi) que sigue usando el bot para
+  // buscar/recomendar. Las claves son el `nombre` exacto de cada sucursal.
+  const [stockPorSucursal, setStockPorSucursal] = useState({});
+
+  // ── Catálogo: ver/buscar/editar productos existentes (antes solo había
+  // alta, sin forma de revisar los 600 que ya existen) ─────────────────────
+  const [buscarCatalogo, setBuscarCatalogo] = useState('');
+  const [paginaCatalogo, setPaginaCatalogo] = useState(1);
+  const [productoEditando, setProductoEditando] = useState(null);
+  const editarForm = useForm({ initialValues: { name: '', cat: '', price: '', stock_tienda: '', stock_cedis: '', stock_san_luis_potosi: '' } });
+  const [msgEditarProducto, setMsgEditarProducto] = useState('');
 
   // ── Usuarios del dashboard ──────────────────────────────────────────────
   const usuarioForm = useForm({ initialValues: { username: '', password: '', rol: 'admin' } });
   const [msgUsuarios, setMsgUsuarios] = useState('');
 
-  // ── Stock mínimo por producto+sucursal ──────────────────────────────────
+  // ── Stock por producto+sucursal (tabla `inventarios`, ahora con filtro
+  // por sucursal real y paginación -- antes mostraba hasta 300 filas de
+  // golpe sin forma de llegar a las demás) ──────────────────────────────────
   const [buscarInventario, setBuscarInventario] = useState('');
+  const [sucursalInventario, setSucursalInventario] = useState('');
+  const [paginaInventario, setPaginaInventario] = useState(1);
   const [editandoMinimo, setEditandoMinimo] = useState({});
   const [msgInventario, setMsgInventario] = useState('');
+
+  // ── Filtros: por default solo se ve lo que el dashboard administra -- las
+  // 117 palabras de código fuente (fijas, nunca se editan) quedan ocultas
+  // salvo que se pidan explícitamente, y se puede acotar por categoría ────
+  const [categoriaVistaFiltros, setCategoriaVistaFiltros] = useState('todas');
+  const [mostrarCodigoFuente, setMostrarCodigoFuente] = useState(false);
 
   const { data: palabras = [] } = useQuery({
     queryKey: ['prime-palabras-filtro'],
@@ -79,12 +104,35 @@ export default function Prime() {
     queryKey: ['prime-usuarios'],
     queryFn: () => api.get('/api/prime/usuarios'),
   });
-  const { data: inventarios = [] } = useQuery({
-    queryKey: ['prime-inventarios', buscarInventario],
+  const { data: inventariosResp } = useQuery({
+    queryKey: ['prime-inventarios', buscarInventario, sucursalInventario, paginaInventario],
     queryFn: () => {
-      const qs = buscarInventario ? `?q=${encodeURIComponent(buscarInventario)}` : '';
-      return api.get(`/api/prime/inventarios${qs}`);
+      const params = new URLSearchParams();
+      if (buscarInventario) params.set('q', buscarInventario);
+      if (sucursalInventario) params.set('sucursal', sucursalInventario);
+      params.set('pagina', String(paginaInventario));
+      return api.get(`/api/prime/inventarios?${params.toString()}`);
     },
+  });
+  const inventarios = inventariosResp?.items || [];
+  const totalPaginasInventario = Math.max(1, Math.ceil((inventariosResp?.total || 0) / (inventariosResp?.porPagina || 30)));
+
+  const { data: productosResp } = useQuery({
+    queryKey: ['prime-productos-lista', buscarCatalogo, paginaCatalogo],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (buscarCatalogo) params.set('q', buscarCatalogo);
+      params.set('pagina', String(paginaCatalogo));
+      return api.get(`/api/prime/productos?${params.toString()}`);
+    },
+  });
+  const productosLista = productosResp?.items || [];
+  const totalPaginasCatalogo = Math.max(1, Math.ceil((productosResp?.total || 0) / (productosResp?.porPagina || 20)));
+
+  const palabrasFiltradas = palabras.filter(p => {
+    if (!mostrarCodigoFuente && p.origen === 'codigo_fuente') return false;
+    if (categoriaVistaFiltros !== 'todas' && p.categoria !== categoriaVistaFiltros) return false;
+    return true;
   });
 
   useEffect(() => {
@@ -145,10 +193,14 @@ export default function Prime() {
       seo_description: v.seo_description || undefined,
       edad_recomendada: v.edad_recomendada || undefined,
       genero: v.genero || undefined,
+      stock_sucursales: Object.fromEntries(Object.entries(stockPorSucursal).map(([k, val]) => [k, Number(val) || 0])),
     }),
     onSuccess: (_, v) => {
       setMsgProducto(`Producto "${v.name}" creado.`);
       productoForm.reset();
+      setStockPorSucursal({});
+      queryClient.invalidateQueries({ queryKey: ['prime-productos-lista'] });
+      queryClient.invalidateQueries({ queryKey: ['prime-inventarios'] });
     },
     onError: (e) => setMsgProducto(e.message),
   });
@@ -160,6 +212,38 @@ export default function Prime() {
       return;
     }
     crearProductoMutation.mutate(v);
+  };
+
+  const editarProductoMutation = useMutation({
+    mutationFn: ({ id, datos }) => api.put(`/api/prime/productos/${id}`, datos),
+    onSuccess: () => {
+      setProductoEditando(null);
+      queryClient.invalidateQueries({ queryKey: ['prime-productos-lista'] });
+      queryClient.invalidateQueries({ queryKey: ['prime-inventarios'] });
+    },
+    onError: (e) => setMsgEditarProducto(e.message),
+  });
+  const abrirEdicionProducto = (p) => {
+    setMsgEditarProducto('');
+    editarForm.setValues({
+      name: p.name, cat: p.cat || '', price: String(p.price),
+      stock_tienda: String(p.stock_tienda ?? 0), stock_cedis: String(p.stock_cedis ?? 0),
+      stock_san_luis_potosi: String(p.stock_san_luis_potosi ?? 0),
+    });
+    setProductoEditando(p);
+  };
+  const guardarEdicionProducto = () => {
+    setMsgEditarProducto('');
+    const v = editarForm.values;
+    if (!v.name.trim() || !v.price) { setMsgEditarProducto('Nombre y precio son obligatorios.'); return; }
+    editarProductoMutation.mutate({
+      id: productoEditando.id,
+      datos: {
+        name: v.name, cat: v.cat || undefined, price: Number(v.price),
+        stock_tienda: Number(v.stock_tienda || 0), stock_cedis: Number(v.stock_cedis || 0),
+        stock_san_luis_potosi: Number(v.stock_san_luis_potosi || 0),
+      },
+    });
   };
 
   const crearUsuarioMutation = useMutation({
@@ -374,18 +458,30 @@ export default function Prime() {
 
       {tab === 'inventario' && (
         <Card withBorder radius="md" p="lg">
-          <Title order={4} mb={4}>Stock mínimo por sucursal</Title>
+          <Title order={4} mb={4}>Stock por sucursal</Title>
           <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-            Umbral que dispara la alerta automática al asesor cuando el stock de un producto
-            en una sucursal cae a este nivel o menos. En 0, la alerta queda desactivada para esa fila.
+            Elige una sucursal para acotar la vista (con {sucursales.length || 11} sucursales y cientos
+            de productos, mostrar todo de golpe no es manejable). La columna "Stock mínimo" es el umbral
+            que dispara la alerta automática al asesor cuando el stock cae a ese nivel o menos; en 0, la
+            alerta queda desactivada para esa fila.
           </p>
           {msgInventario && <div className="login-error" style={{ marginBottom: 12 }}>{msgInventario}</div>}
-          <TextInput
-            placeholder="Buscar producto..."
-            value={buscarInventario}
-            onChange={e => setBuscarInventario(e.target.value)}
-            mb="md"
-          />
+          <Group gap="xs" mb="md" wrap="wrap">
+            <Select
+              placeholder="Todas las sucursales"
+              data={sucursales.map(s => ({ value: s.nombre, label: s.nombre }))}
+              value={sucursalInventario || null}
+              onChange={v => { setSucursalInventario(v || ''); setPaginaInventario(1); }}
+              clearable
+              style={{ minWidth: 220 }}
+            />
+            <TextInput
+              placeholder="Buscar producto..."
+              value={buscarInventario}
+              onChange={e => { setBuscarInventario(e.target.value); setPaginaInventario(1); }}
+              style={{ flex: 1, minWidth: 200 }}
+            />
+          </Group>
           <div className="table-wrap">
             <Table highlightOnHover verticalSpacing="xs">
               <thead><tr><th>Producto</th><th>Sucursal</th><th>Stock</th><th>Stock mínimo</th><th></th></tr></thead>
@@ -411,32 +507,130 @@ export default function Prime() {
               </tbody>
             </Table>
           </div>
+          {totalPaginasInventario > 1 && (
+            <Group justify="center" mt="md">
+              <Pagination total={totalPaginasInventario} value={paginaInventario} onChange={setPaginaInventario} size="sm" />
+            </Group>
+          )}
         </Card>
       )}
 
       {tab === 'catalogo' && (
-        <Card withBorder radius="md" p="lg">
-          <Title order={4} mb={4}>Alta de producto</Title>
-          <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-            Agrega un producto puntual al catálogo (la carga masiva sigue siendo aparte).
-          </p>
-          {msgProducto && <div style={{ marginBottom: 12 }}>{msgProducto}</div>}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-            <TextInput placeholder="Nombre *" {...productoForm.getInputProps('name')} />
-            <TextInput type="number" min={0} step="0.01" placeholder="Precio *" {...productoForm.getInputProps('price')} />
-            <TextInput placeholder="Categoría" {...productoForm.getInputProps('cat')} />
-            <TextInput placeholder="Género" {...productoForm.getInputProps('genero')} />
-            <TextInput placeholder="Edad recomendada" {...productoForm.getInputProps('edad_recomendada')} />
-            <TextInput type="number" min={0} placeholder="Edad mínima" {...productoForm.getInputProps('edad_min')} />
-            <TextInput placeholder="Tags (separados por coma)" {...productoForm.getInputProps('tags')} style={{ gridColumn: '1 / -1' }} />
-            <TextInput placeholder="URL de imagen" {...productoForm.getInputProps('url_imagen')} style={{ gridColumn: '1 / -1' }} />
-            <Textarea placeholder="Descripción SEO" {...productoForm.getInputProps('seo_description')} style={{ gridColumn: '1 / -1' }} />
-            <TextInput type="number" min={0} placeholder="Stock tienda" {...productoForm.getInputProps('stock_tienda')} />
-            <TextInput type="number" min={0} placeholder="Stock CEDIS" {...productoForm.getInputProps('stock_cedis')} />
-            <TextInput type="number" min={0} placeholder="Stock San Luis Potosí" {...productoForm.getInputProps('stock_san_luis_potosi')} />
-          </div>
-          <Button onClick={crearProducto}>Crear producto</Button>
-        </Card>
+        <div>
+          <Card withBorder radius="md" p="lg" mb={20}>
+            <Title order={4} mb={4}>Alta de producto</Title>
+            <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+              Agrega un producto puntual al catálogo (la carga masiva sigue siendo aparte).
+            </p>
+            {msgProducto && <div style={{ marginBottom: 12 }}>{msgProducto}</div>}
+
+            <Fieldset legend="Datos básicos" mb="md">
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8 }}>
+                <TextInput label="Nombre" placeholder="Nombre *" {...productoForm.getInputProps('name')} />
+                <TextInput label="Precio" type="number" min={0} step="0.01" placeholder="Precio *" {...productoForm.getInputProps('price')} />
+                <TextInput label="Categoría" placeholder="Categoría" {...productoForm.getInputProps('cat')} />
+              </div>
+            </Fieldset>
+
+            <Fieldset legend="Clasificación" mb="md">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+                <TextInput label="Género" placeholder="Género" {...productoForm.getInputProps('genero')} />
+                <TextInput label="Edad recomendada" placeholder="Edad recomendada" {...productoForm.getInputProps('edad_recomendada')} />
+                <TextInput label="Edad mínima" type="number" min={0} placeholder="Edad mínima" {...productoForm.getInputProps('edad_min')} />
+              </div>
+              <TextInput label="Tags (separados por coma)" {...productoForm.getInputProps('tags')} />
+            </Fieldset>
+
+            <Fieldset legend="Imagen y descripción" mb="md">
+              <TextInput label="URL de imagen" {...productoForm.getInputProps('url_imagen')} mb="sm" />
+              <Textarea label="Descripción SEO" {...productoForm.getInputProps('seo_description')} />
+            </Fieldset>
+
+            <Fieldset legend="Stock por sucursal" mb="md">
+              <p className="page-sub" style={{ margin: '0 0 12px' }}>
+                Las 3 primeras alimentan directamente la búsqueda del bot; las demás son la red
+                nacional (alertas de stock mínimo y reabasto).
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, marginBottom: sucursales.length ? 12 : 0 }}>
+                <NumberInput label="Tienda" min={0} {...productoForm.getInputProps('stock_tienda')} />
+                <NumberInput label="CEDIS" min={0} {...productoForm.getInputProps('stock_cedis')} />
+                <NumberInput label="San Luis Potosí" min={0} {...productoForm.getInputProps('stock_san_luis_potosi')} />
+              </div>
+              {sucursales.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+                  {sucursales.filter(s => s.activa).map(s => (
+                    <NumberInput
+                      key={s.id}
+                      label={s.nombre}
+                      min={0}
+                      value={Number(stockPorSucursal[s.nombre] || 0)}
+                      onChange={v => setStockPorSucursal(prev => ({ ...prev, [s.nombre]: v }))}
+                    />
+                  ))}
+                </div>
+              )}
+            </Fieldset>
+
+            <Button onClick={crearProducto}>Crear producto</Button>
+          </Card>
+
+          <Card withBorder radius="md" p="lg">
+            <Title order={4} mb={4}>Productos existentes</Title>
+            <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+              {productosResp?.total ?? 0} producto(s) en el catálogo.
+            </p>
+            <TextInput
+              placeholder="Buscar producto..."
+              value={buscarCatalogo}
+              onChange={e => { setBuscarCatalogo(e.target.value); setPaginaCatalogo(1); }}
+              mb="md"
+            />
+            <div className="table-wrap">
+              <Table highlightOnHover verticalSpacing="xs">
+                <thead><tr><th>Nombre</th><th>Categoría</th><th>Precio</th><th>Tienda</th><th>CEDIS</th><th>SLP</th><th></th></tr></thead>
+                <tbody>
+                  {productosLista.length === 0 && <tr><td colSpan={7} className="empty">Sin resultados</td></tr>}
+                  {productosLista.map(p => (
+                    <tr key={p.id}>
+                      <td>{p.name}</td>
+                      <td>{p.cat || '-'}</td>
+                      <td>${p.price}</td>
+                      <td>{p.stock_tienda}</td>
+                      <td>{p.stock_cedis}</td>
+                      <td>{p.stock_san_luis_potosi}</td>
+                      <td><ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionProducto(p)}>✏️</ActionIcon></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+            {totalPaginasCatalogo > 1 && (
+              <Group justify="center" mt="md">
+                <Pagination total={totalPaginasCatalogo} value={paginaCatalogo} onChange={setPaginaCatalogo} size="sm" />
+              </Group>
+            )}
+          </Card>
+
+          {productoEditando && (
+            <Modal title={`Editar — ${productoEditando.name}`} onClose={() => setProductoEditando(null)}
+              actions={<>
+                <Button variant="default" onClick={() => setProductoEditando(null)}>Cancelar</Button>
+                <Button onClick={guardarEdicionProducto}>Guardar</Button>
+              </>}>
+              {msgEditarProducto && <div className="login-error" style={{ marginBottom: 12 }}>{msgEditarProducto}</div>}
+              <TextInput label="Nombre" {...editarForm.getInputProps('name')} mb="sm" />
+              <Group grow mb="sm">
+                <TextInput label="Precio" type="number" min={0} step="0.01" {...editarForm.getInputProps('price')} />
+                <TextInput label="Categoría" {...editarForm.getInputProps('cat')} />
+              </Group>
+              <Group grow>
+                <NumberInput label="Stock tienda" min={0} {...editarForm.getInputProps('stock_tienda')} />
+                <NumberInput label="Stock CEDIS" min={0} {...editarForm.getInputProps('stock_cedis')} />
+                <NumberInput label="Stock SLP" min={0} {...editarForm.getInputProps('stock_san_luis_potosi')} />
+              </Group>
+            </Modal>
+          )}
+        </div>
       )}
 
       {tab === 'usuarios' && (
@@ -514,6 +708,23 @@ export default function Prime() {
             <Button disabled={!nuevaPalabra.trim()} onClick={agregarPalabra}>Agregar</Button>
           </Group>
 
+          <Group gap="md" mb="md" wrap="wrap">
+            <Select
+              label="Ver categoría"
+              data={[{ value: 'todas', label: 'Todas las categorías' }, ...CATEGORIAS_FILTRO.map(c => ({ value: c.valor, label: c.etiqueta }))]}
+              value={categoriaVistaFiltros}
+              onChange={v => v && setCategoriaVistaFiltros(v)}
+              allowDeselect={false}
+              style={{ minWidth: 260 }}
+            />
+            <Switch
+              label="Mostrar también las de código fuente (fijas, no editables)"
+              checked={mostrarCodigoFuente}
+              onChange={e => setMostrarCodigoFuente(e.target.checked)}
+              mt={22}
+            />
+          </Group>
+
           <div className="table-wrap">
             <Table highlightOnHover verticalSpacing="xs">
               <thead>
@@ -527,8 +738,8 @@ export default function Prime() {
                 </tr>
               </thead>
               <tbody>
-                {palabras.length === 0 && <tr><td colSpan={6} className="empty">Sin palabras</td></tr>}
-                {palabras.map((p, i) => (
+                {palabrasFiltradas.length === 0 && <tr><td colSpan={6} className="empty">Sin palabras en esta vista</td></tr>}
+                {palabrasFiltradas.map((p, i) => (
                   <tr key={p.id ?? `base-${i}`}>
                     <td>{p.categoria}</td>
                     <td>{p.palabra}</td>

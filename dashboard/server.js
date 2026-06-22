@@ -377,13 +377,19 @@ const TABLAS_ACTUALIZABLES = {
 // filtrados contra TABLAS_ACTUALIZABLES. Reemplaza el bloque de
 // "campos/sets/valores" que se repetía en cada ruta PUT de edición parcial
 // (sucursales, productos, ...).
-function actualizarCampos(tabla, id, datos) {
+// pkColumna es configurable porque `inventarios` tiene drift real entre
+// instalaciones: db/schema.sql declara `id` como PK autoincrement, pero la
+// base de producción real tiene `id_inventory` como PK verdadero y un `id`
+// separado que quedó NULL en las 13,926 filas existentes (ver
+// dashboard/routes/primeCatalogo.js's pkInventarios()). Todas las demás
+// tablas siguen usando el default 'id'.
+function actualizarCampos(tabla, id, datos, pkColumna = 'id') {
     const permitidas = TABLAS_ACTUALIZABLES[tabla] || [];
     const campos = Object.keys(datos).filter(c => permitidas.includes(c));
     if (!campos.length) return false;
     const sets = campos.map(c => `${c}=?`).join(', ');
     const valores = campos.map(c => typeof datos[c] === 'boolean' ? (datos[c] ? 1 : 0) : datos[c]);
-    db.prepare(`UPDATE ${tabla} SET ${sets} WHERE id=?`).run(...valores, id);
+    db.prepare(`UPDATE ${tabla} SET ${sets} WHERE ${pkColumna}=?`).run(...valores, id);
     return true;
 }
 
