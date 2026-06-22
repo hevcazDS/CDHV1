@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from '@mantine/form';
 import {
-  Card, Title, Group, ActionIcon, Table, Badge, Switch,
+  Card, Title, Group, ActionIcon, Table, Badge, Switch, Tabs, SimpleGrid,
   TextInput, NumberInput, PasswordInput, Select, Textarea, Button,
 } from '@mantine/core';
 import { api } from '../api';
@@ -16,9 +16,19 @@ const CATEGORIAS_FILTRO = [
   { valor: 'queja_l2',  etiqueta: 'Queja — nivel 2 (pedir humano)' },
 ];
 
+const TABS = [
+  { key: 'general', label: '⚙️ General' },
+  { key: 'sucursales', label: '🏬 Sucursales' },
+  { key: 'inventario', label: '📊 Inventario' },
+  { key: 'catalogo', label: '🧸 Catálogo' },
+  { key: 'usuarios', label: '👤 Usuarios' },
+  { key: 'filtros', label: '🚫 Filtros' },
+];
+
 export default function Prime() {
   const txt = useTextoEmoji();
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState('general');
   const [costoDefault, setCostoDefault] = useState('');
   const [idPedido, setIdPedido] = useState('');
   const [costoPedido, setCostoPedido] = useState('');
@@ -255,272 +265,293 @@ export default function Prime() {
     <div>
       <div className="page-title">Prime</div>
       <div className="page-sub">Configuración avanzada — visible solo para el rol prime</div>
-      {msg && <div className="card" style={{ marginBottom: 20 }}>{msg}</div>}
 
-      <Card withBorder radius="md" p="lg" mb={20} maw={420}>
-        <Title order={4} mb={4}>Nombre del negocio</Title>
-        <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-          Se muestra en el panel (sidebar). Útil si se revende este sistema a otra juguetería.
-        </p>
-        <TextInput maxLength={80} value={nombreNegocio} onChange={e => setNombreNegocio(e.target.value)} mb="sm" />
-        <Button onClick={guardarNegocio}>Guardar</Button>
-      </Card>
+      <Tabs value={tab} onChange={setTab} mb="md">
+        <Tabs.List>
+          {TABS.map(t => <Tabs.Tab key={t.key} value={t.key}>{txt(t.label)}</Tabs.Tab>)}
+        </Tabs.List>
+      </Tabs>
 
-      <Card withBorder radius="md" p="lg" mb={20} maw={420}>
-        <Title order={4} mb={4}>Costo de envío default</Title>
-        <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-          Se aplica a pedidos nuevos. No requiere un pedido específico.
-        </p>
-        <NumberInput min={0} value={costoDefault === '' ? '' : Number(costoDefault)} onChange={v => setCostoDefault(v === '' ? '' : String(v))} mb="sm" />
-        <Button onClick={guardarDefault}>Guardar</Button>
-      </Card>
+      {tab === 'general' && (
+        <div>
+          {msg && <div className="card" style={{ marginBottom: 16 }}>{msg}</div>}
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+            <Card withBorder radius="md" p="lg">
+              <Title order={4} mb={4}>Nombre del negocio</Title>
+              <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+                Se muestra en el panel (sidebar). Útil si se revende este sistema a otra juguetería.
+              </p>
+              <TextInput maxLength={80} value={nombreNegocio} onChange={e => setNombreNegocio(e.target.value)} mb="sm" />
+              <Button onClick={guardarNegocio}>Guardar</Button>
+            </Card>
 
-      <Card withBorder radius="md" p="lg" mb={20} maw={420}>
-        <Title order={4} mb={4}>Días de entrega Estafeta</Title>
-        <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-          Días hábiles que se suman para estimar la fecha de entrega. Sube este número en
-          fechas como navidad si los pedidos se van a retrasar más de lo normal.
-        </p>
-        <NumberInput min={1} max={30} value={diasEntrega === '' ? '' : Number(diasEntrega)} onChange={v => setDiasEntrega(v === '' ? '' : String(v))} mb="sm" />
-        <Button onClick={guardarDiasEntrega}>Guardar</Button>
-      </Card>
+            <Card withBorder radius="md" p="lg">
+              <Title order={4} mb={4}>Costo de envío default</Title>
+              <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+                Se aplica a pedidos nuevos. No requiere un pedido específico.
+              </p>
+              <NumberInput min={0} value={costoDefault === '' ? '' : Number(costoDefault)} onChange={v => setCostoDefault(v === '' ? '' : String(v))} mb="sm" />
+              <Button onClick={guardarDefault}>Guardar</Button>
+            </Card>
 
-      <Card withBorder radius="md" p="lg" mb={20} maw={480}>
-        <Title order={4} mb={4}>Reconexión automática de WhatsApp</Title>
-        <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-          Por defecto, si WhatsApp se desconecta el bot se queda detenido hasta que alguien lo
-          reinicie manualmente desde el widget de estatus. Activa esto si prefieres que el bot
-          intente reconectarse solo (en el mismo proceso) cuando no haya nadie pendiente de él —
-          a cambio de un riesgo pequeño de quedar con un Chrome zombie si la desconexión fue por
-          un perfil corrupto.
-        </p>
-        {msgReconexion && <div className="login-error" style={{ marginBottom: 12 }}>{msgReconexion}</div>}
-        <Group gap="sm">
-          <Switch checked={reconexionAuto} onChange={toggleReconexionAuto} color="blue" />
-          <Badge color={reconexionAuto ? 'teal' : 'red'} variant="light">{txt(reconexionAuto ? '✅ Activa' : '⛔ Inactiva')}</Badge>
-        </Group>
-      </Card>
+            <Card withBorder radius="md" p="lg">
+              <Title order={4} mb={4}>Días de entrega Estafeta</Title>
+              <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+                Días hábiles que se suman para estimar la fecha de entrega. Sube este número en
+                fechas como navidad si los pedidos se van a retrasar más de lo normal.
+              </p>
+              <NumberInput min={1} max={30} value={diasEntrega === '' ? '' : Number(diasEntrega)} onChange={v => setDiasEntrega(v === '' ? '' : String(v))} mb="sm" />
+              <Button onClick={guardarDiasEntrega}>Guardar</Button>
+            </Card>
 
-      <Card withBorder radius="md" p="lg" maw={420}>
-        <Title order={4} mb={4}>Corregir un pedido puntual (opcional)</Title>
-        <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-          Solo si Estafeta cotizó distinto a la simulación para un pedido ya creado.
-        </p>
-        <NumberInput label="ID de pedido" value={idPedido === '' ? '' : Number(idPedido)} onChange={v => setIdPedido(v === '' ? '' : String(v))} mb="sm" />
-        <NumberInput label="Costo de envío" min={0} value={costoPedido === '' ? '' : Number(costoPedido)} onChange={v => setCostoPedido(v === '' ? '' : String(v))} mb="sm" />
-        <Button disabled={!idPedido} onClick={guardarPedido}>Actualizar pedido</Button>
-      </Card>
+            <Card withBorder radius="md" p="lg">
+              <Title order={4} mb={4}>Reconexión automática de WhatsApp</Title>
+              <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+                Si WhatsApp se desconecta, por defecto el bot se queda detenido hasta que alguien lo
+                reinicie a mano. Activa esto si prefieres que intente reconectarse solo, a cambio de
+                un riesgo pequeño de quedar con un Chrome zombie si la desconexión fue por un perfil
+                corrupto.
+              </p>
+              {msgReconexion && <div className="login-error" style={{ marginBottom: 12 }}>{msgReconexion}</div>}
+              <Group gap="sm">
+                <Switch checked={reconexionAuto} onChange={toggleReconexionAuto} color="blue" />
+                <Badge color={reconexionAuto ? 'teal' : 'red'} variant="light">{txt(reconexionAuto ? '✅ Activa' : '⛔ Inactiva')}</Badge>
+              </Group>
+            </Card>
 
-      <Card withBorder radius="md" p="lg" mt={20} maw={720}>
-        <Title order={4} mb={4}>Lista negra y frases de queja</Title>
-        <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-          Las palabras marcadas "código fuente" son fijas y no se pueden borrar ni desactivar —
-          ya las aplica el bot siempre. Agrega aquí palabras nuevas para enriquecerlas;
-          el bot las toma en cuenta automáticamente (refresco cada 60s).
-        </p>
-        {msgFiltro && <div className="login-error" style={{ marginBottom: 12 }}>{msgFiltro}</div>}
+            <Card withBorder radius="md" p="lg">
+              <Title order={4} mb={4}>Corregir un pedido puntual (opcional)</Title>
+              <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+                Solo si Estafeta cotizó distinto a la simulación para un pedido ya creado.
+              </p>
+              <NumberInput label="ID de pedido" value={idPedido === '' ? '' : Number(idPedido)} onChange={v => setIdPedido(v === '' ? '' : String(v))} mb="sm" />
+              <NumberInput label="Costo de envío" min={0} value={costoPedido === '' ? '' : Number(costoPedido)} onChange={v => setCostoPedido(v === '' ? '' : String(v))} mb="sm" />
+              <Button disabled={!idPedido} onClick={guardarPedido}>Actualizar pedido</Button>
+            </Card>
+          </SimpleGrid>
+        </div>
+      )}
 
-        <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
-          <Select
-            data={CATEGORIAS_FILTRO.map(c => ({ value: c.valor, label: c.etiqueta }))}
-            value={nuevaCategoria}
-            onChange={v => v && setNuevaCategoria(v)}
-            allowDeselect={false}
-            style={{ minWidth: 260 }}
-          />
-          <TextInput
-            placeholder="palabra o frase"
-            value={nuevaPalabra}
-            onChange={e => setNuevaPalabra(e.target.value)}
-            style={{ flex: 1, minWidth: 200 }}
-          />
-          {nuevaCategoria === 'risk' && (
-            <NumberInput min={1} max={10} value={Number(nuevosPuntos)} onChange={v => setNuevosPuntos(String(v))} title="Puntos de riesgo" style={{ width: 90 }} />
-          )}
-          <Button disabled={!nuevaPalabra.trim()} onClick={agregarPalabra}>Agregar</Button>
-        </Group>
-
-        <div className="table-wrap">
-          <Table highlightOnHover verticalSpacing="xs">
-            <thead>
-              <tr>
-                <th>Categoría</th>
-                <th>Palabra / frase</th>
-                <th>Puntos</th>
-                <th>Origen</th>
-                <th>Activa</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {palabras.length === 0 && <tr><td colSpan={6} className="empty">Sin palabras</td></tr>}
-              {palabras.map((p, i) => (
-                <tr key={p.id ?? `base-${i}`}>
-                  <td>{p.categoria}</td>
-                  <td>{p.palabra}</td>
-                  <td>{p.puntos ?? ''}</td>
-                  <td>{p.origen === 'codigo_fuente' ? 'código fuente' : 'agregado'}</td>
-                  <td><Badge color={p.activo ? 'teal' : 'red'} variant="light">{p.activo ? 'sí' : 'no'}</Badge></td>
-                  <td>
-                    {p.origen === 'dashboard' && (
+      {tab === 'sucursales' && (
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb={4}>Sucursales</Title>
+          <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+            Registro de tiendas/bodegas. Desactiva en vez de borrar si ya tiene movimientos de inventario.
+          </p>
+          {msgSucursales && <div className="login-error" style={{ marginBottom: 12 }}>{msgSucursales}</div>}
+          <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
+            <TextInput placeholder="Nombre" {...sucursalForm.getInputProps('nombre')} style={{ flex: 1, minWidth: 160 }} />
+            <TextInput placeholder="Código (opcional)" {...sucursalForm.getInputProps('codigo')} style={{ width: 140 }} />
+            <TextInput placeholder="Dirección (opcional)" {...sucursalForm.getInputProps('direccion')} style={{ flex: 1, minWidth: 200 }} />
+            <Button disabled={!sucursalForm.values.nombre.trim()} onClick={crearSucursal}>Agregar</Button>
+          </Group>
+          <div className="table-wrap">
+            <Table highlightOnHover verticalSpacing="xs">
+              <thead><tr><th>Nombre</th><th>Código</th><th>Dirección</th><th>Activa</th><th></th></tr></thead>
+              <tbody>
+                {sucursales.length === 0 && <tr><td colSpan={5} className="empty">Sin sucursales</td></tr>}
+                {sucursales.map(s => (
+                  <tr key={s.id}>
+                    <td>{s.nombre}</td>
+                    <td>{s.codigo || ''}</td>
+                    <td>{s.direccion || ''}</td>
+                    <td><Badge color={s.activa ? 'teal' : 'red'} variant="light">{s.activa ? 'sí' : 'no'}</Badge></td>
+                    <td>
                       <Group gap={4} wrap="nowrap">
-                        <ActionIcon variant="default" title={p.activo ? 'Desactivar' : 'Activar'} onClick={() => togglePalabra(p.id, !p.activo)}>
-                          {p.activo ? '⏸️' : '▶️'}
+                        <ActionIcon variant="default" title={s.activa ? 'Desactivar' : 'Activar'} onClick={() => toggleSucursal(s.id, !s.activa)}>
+                          {s.activa ? '⏸️' : '▶️'}
                         </ActionIcon>
-                        <ActionIcon variant="default" color="red" title="Borrar" onClick={() => eliminarPalabra(p.id)}>🗑️</ActionIcon>
+                        <ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarSucursal(s.id)}>🗑️</ActionIcon>
                       </Group>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </div>
-      </Card>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        </Card>
+      )}
 
-      <Card withBorder radius="md" p="lg" mt={20} maw={720}>
-        <Title order={4} mb={4}>Sucursales</Title>
-        <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-          Registro de tiendas/bodegas. Desactiva en vez de borrar si ya tiene movimientos de inventario.
-        </p>
-        {msgSucursales && <div className="login-error" style={{ marginBottom: 12 }}>{msgSucursales}</div>}
-        <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
-          <TextInput placeholder="Nombre" {...sucursalForm.getInputProps('nombre')} style={{ flex: 1, minWidth: 160 }} />
-          <TextInput placeholder="Código (opcional)" {...sucursalForm.getInputProps('codigo')} style={{ width: 140 }} />
-          <TextInput placeholder="Dirección (opcional)" {...sucursalForm.getInputProps('direccion')} style={{ flex: 1, minWidth: 200 }} />
-          <Button disabled={!sucursalForm.values.nombre.trim()} onClick={crearSucursal}>Agregar</Button>
-        </Group>
-        <div className="table-wrap">
-          <Table highlightOnHover verticalSpacing="xs">
-            <thead><tr><th>Nombre</th><th>Código</th><th>Dirección</th><th>Activa</th><th></th></tr></thead>
-            <tbody>
-              {sucursales.length === 0 && <tr><td colSpan={5} className="empty">Sin sucursales</td></tr>}
-              {sucursales.map(s => (
-                <tr key={s.id}>
-                  <td>{s.nombre}</td>
-                  <td>{s.codigo || ''}</td>
-                  <td>{s.direccion || ''}</td>
-                  <td><Badge color={s.activa ? 'teal' : 'red'} variant="light">{s.activa ? 'sí' : 'no'}</Badge></td>
-                  <td>
-                    <Group gap={4} wrap="nowrap">
-                      <ActionIcon variant="default" title={s.activa ? 'Desactivar' : 'Activar'} onClick={() => toggleSucursal(s.id, !s.activa)}>
-                        {s.activa ? '⏸️' : '▶️'}
-                      </ActionIcon>
-                      <ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarSucursal(s.id)}>🗑️</ActionIcon>
-                    </Group>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </div>
-      </Card>
+      {tab === 'inventario' && (
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb={4}>Stock mínimo por sucursal</Title>
+          <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+            Umbral que dispara la alerta automática al asesor cuando el stock de un producto
+            en una sucursal cae a este nivel o menos. En 0, la alerta queda desactivada para esa fila.
+          </p>
+          {msgInventario && <div className="login-error" style={{ marginBottom: 12 }}>{msgInventario}</div>}
+          <TextInput
+            placeholder="Buscar producto..."
+            value={buscarInventario}
+            onChange={e => setBuscarInventario(e.target.value)}
+            mb="md"
+          />
+          <div className="table-wrap">
+            <Table highlightOnHover verticalSpacing="xs">
+              <thead><tr><th>Producto</th><th>Sucursal</th><th>Stock</th><th>Stock mínimo</th><th></th></tr></thead>
+              <tbody>
+                {inventarios.length === 0 && <tr><td colSpan={5} className="empty">Sin resultados</td></tr>}
+                {inventarios.map(i => (
+                  <tr key={i.id}>
+                    <td>{i.producto}</td>
+                    <td>{i.sucursal}</td>
+                    <td>{i.stock}</td>
+                    <td>
+                      <NumberInput
+                        min={0}
+                        size="xs"
+                        style={{ width: 90 }}
+                        value={Number(editandoMinimo[i.id] ?? i.stock_minimo)}
+                        onChange={v => setEditandoMinimo(prev => ({ ...prev, [i.id]: v }))}
+                      />
+                    </td>
+                    <td><Button size="xs" variant="default" onClick={() => guardarStockMinimo(i.id)}>Guardar</Button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        </Card>
+      )}
 
-      <Card withBorder radius="md" p="lg" mt={20} maw={720}>
-        <Title order={4} mb={4}>Stock mínimo por sucursal</Title>
-        <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-          Umbral que dispara la alerta automática al asesor cuando el stock de un producto
-          en una sucursal cae a este nivel o menos. En 0, la alerta queda desactivada para esa fila.
-        </p>
-        {msgInventario && <div className="login-error" style={{ marginBottom: 12 }}>{msgInventario}</div>}
-        <TextInput
-          placeholder="Buscar producto..."
-          value={buscarInventario}
-          onChange={e => setBuscarInventario(e.target.value)}
-          mb="md"
-        />
-        <div className="table-wrap">
-          <Table highlightOnHover verticalSpacing="xs">
-            <thead><tr><th>Producto</th><th>Sucursal</th><th>Stock</th><th>Stock mínimo</th><th></th></tr></thead>
-            <tbody>
-              {inventarios.length === 0 && <tr><td colSpan={5} className="empty">Sin resultados</td></tr>}
-              {inventarios.map(i => (
-                <tr key={i.id}>
-                  <td>{i.producto}</td>
-                  <td>{i.sucursal}</td>
-                  <td>{i.stock}</td>
-                  <td>
-                    <NumberInput
-                      min={0}
-                      size="xs"
-                      style={{ width: 90 }}
-                      value={Number(editandoMinimo[i.id] ?? i.stock_minimo)}
-                      onChange={v => setEditandoMinimo(prev => ({ ...prev, [i.id]: v }))}
-                    />
-                  </td>
-                  <td><Button size="xs" variant="default" onClick={() => guardarStockMinimo(i.id)}>Guardar</Button></td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </div>
-      </Card>
+      {tab === 'catalogo' && (
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb={4}>Alta de producto</Title>
+          <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+            Agrega un producto puntual al catálogo (la carga masiva sigue siendo aparte).
+          </p>
+          {msgProducto && <div style={{ marginBottom: 12 }}>{msgProducto}</div>}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+            <TextInput placeholder="Nombre *" {...productoForm.getInputProps('name')} />
+            <TextInput type="number" min={0} step="0.01" placeholder="Precio *" {...productoForm.getInputProps('price')} />
+            <TextInput placeholder="Categoría" {...productoForm.getInputProps('cat')} />
+            <TextInput placeholder="Género" {...productoForm.getInputProps('genero')} />
+            <TextInput placeholder="Edad recomendada" {...productoForm.getInputProps('edad_recomendada')} />
+            <TextInput type="number" min={0} placeholder="Edad mínima" {...productoForm.getInputProps('edad_min')} />
+            <TextInput placeholder="Tags (separados por coma)" {...productoForm.getInputProps('tags')} style={{ gridColumn: '1 / -1' }} />
+            <TextInput placeholder="URL de imagen" {...productoForm.getInputProps('url_imagen')} style={{ gridColumn: '1 / -1' }} />
+            <Textarea placeholder="Descripción SEO" {...productoForm.getInputProps('seo_description')} style={{ gridColumn: '1 / -1' }} />
+            <TextInput type="number" min={0} placeholder="Stock tienda" {...productoForm.getInputProps('stock_tienda')} />
+            <TextInput type="number" min={0} placeholder="Stock CEDIS" {...productoForm.getInputProps('stock_cedis')} />
+            <TextInput type="number" min={0} placeholder="Stock San Luis Potosí" {...productoForm.getInputProps('stock_san_luis_potosi')} />
+          </div>
+          <Button onClick={crearProducto}>Crear producto</Button>
+        </Card>
+      )}
 
-      <Card withBorder radius="md" p="lg" mt={20} maw={720}>
-        <Title order={4} mb={4}>Alta de producto</Title>
-        <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-          Agrega un producto puntual al catálogo (la carga masiva sigue siendo aparte).
-        </p>
-        {msgProducto && <div style={{ marginBottom: 12 }}>{msgProducto}</div>}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-          <TextInput placeholder="Nombre *" {...productoForm.getInputProps('name')} />
-          <TextInput type="number" min={0} step="0.01" placeholder="Precio *" {...productoForm.getInputProps('price')} />
-          <TextInput placeholder="Categoría" {...productoForm.getInputProps('cat')} />
-          <TextInput placeholder="Género" {...productoForm.getInputProps('genero')} />
-          <TextInput placeholder="Edad recomendada" {...productoForm.getInputProps('edad_recomendada')} />
-          <TextInput type="number" min={0} placeholder="Edad mínima" {...productoForm.getInputProps('edad_min')} />
-          <TextInput placeholder="Tags (separados por coma)" {...productoForm.getInputProps('tags')} style={{ gridColumn: '1 / -1' }} />
-          <TextInput placeholder="URL de imagen" {...productoForm.getInputProps('url_imagen')} style={{ gridColumn: '1 / -1' }} />
-          <Textarea placeholder="Descripción SEO" {...productoForm.getInputProps('seo_description')} style={{ gridColumn: '1 / -1' }} />
-          <TextInput type="number" min={0} placeholder="Stock tienda" {...productoForm.getInputProps('stock_tienda')} />
-          <TextInput type="number" min={0} placeholder="Stock CEDIS" {...productoForm.getInputProps('stock_cedis')} />
-          <TextInput type="number" min={0} placeholder="Stock San Luis Potosí" {...productoForm.getInputProps('stock_san_luis_potosi')} />
-        </div>
-        <Button onClick={crearProducto}>Crear producto</Button>
-      </Card>
+      {tab === 'usuarios' && (
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb={4}>Usuarios del dashboard</Title>
+          <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+            Crea cuentas con rol admin (operación) o prime (acceso total). No puedes borrar tu propia
+            cuenta ni dejar el sistema sin ningún usuario prime.
+          </p>
+          {msgUsuarios && <div className="login-error" style={{ marginBottom: 12 }}>{msgUsuarios}</div>}
+          <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
+            <TextInput placeholder="Usuario" {...usuarioForm.getInputProps('username')} style={{ minWidth: 160 }} />
+            <PasswordInput placeholder="Password (mín. 8)" {...usuarioForm.getInputProps('password')} style={{ minWidth: 160 }} />
+            <Select data={[{ value: 'admin', label: 'admin' }, { value: 'prime', label: 'prime' }]}
+              allowDeselect={false} {...usuarioForm.getInputProps('rol')} />
+            <Button disabled={!usuarioForm.values.username.trim() || !usuarioForm.values.password} onClick={crearUsuario}>
+              Crear usuario
+            </Button>
+          </Group>
+          <div className="table-wrap">
+            <Table highlightOnHover verticalSpacing="xs">
+              <thead><tr><th>Usuario</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
+              <tbody>
+                {usuarios.length === 0 && <tr><td colSpan={4} className="empty">Sin usuarios</td></tr>}
+                {usuarios.map(u => (
+                  <tr key={u.id}>
+                    <td>{u.username}</td>
+                    <td>
+                      <Select
+                        size="xs"
+                        data={[{ value: 'admin', label: 'admin' }, { value: 'prime', label: 'prime' }]}
+                        value={u.rol}
+                        onChange={v => v && cambiarRolUsuario(u.id, v)}
+                        allowDeselect={false}
+                        comboboxProps={{ withinPortal: true }}
+                      />
+                    </td>
+                    <td>{u.creado_en}</td>
+                    <td><ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarUsuario(u.id)}>🗑️</ActionIcon></td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        </Card>
+      )}
 
-      <Card withBorder radius="md" p="lg" mt={20} maw={720}>
-        <Title order={4} mb={4}>Usuarios del dashboard</Title>
-        <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-          Crea cuentas con rol admin (operación) o prime (acceso total). No puedes borrar tu propia
-          cuenta ni dejar el sistema sin ningún usuario prime.
-        </p>
-        {msgUsuarios && <div className="login-error" style={{ marginBottom: 12 }}>{msgUsuarios}</div>}
-        <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
-          <TextInput placeholder="Usuario" {...usuarioForm.getInputProps('username')} style={{ minWidth: 160 }} />
-          <PasswordInput placeholder="Password (mín. 8)" {...usuarioForm.getInputProps('password')} style={{ minWidth: 160 }} />
-          <Select data={[{ value: 'admin', label: 'admin' }, { value: 'prime', label: 'prime' }]}
-            allowDeselect={false} {...usuarioForm.getInputProps('rol')} />
-          <Button disabled={!usuarioForm.values.username.trim() || !usuarioForm.values.password} onClick={crearUsuario}>
-            Crear usuario
-          </Button>
-        </Group>
-        <div className="table-wrap">
-          <Table highlightOnHover verticalSpacing="xs">
-            <thead><tr><th>Usuario</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
-            <tbody>
-              {usuarios.length === 0 && <tr><td colSpan={4} className="empty">Sin usuarios</td></tr>}
-              {usuarios.map(u => (
-                <tr key={u.id}>
-                  <td>{u.username}</td>
-                  <td>
-                    <Select
-                      size="xs"
-                      data={[{ value: 'admin', label: 'admin' }, { value: 'prime', label: 'prime' }]}
-                      value={u.rol}
-                      onChange={v => v && cambiarRolUsuario(u.id, v)}
-                      allowDeselect={false}
-                      comboboxProps={{ withinPortal: true }}
-                    />
-                  </td>
-                  <td>{u.creado_en}</td>
-                  <td><ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarUsuario(u.id)}>🗑️</ActionIcon></td>
+      {tab === 'filtros' && (
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb={4}>Lista negra y frases de queja</Title>
+          <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+            Las palabras marcadas "código fuente" son fijas y no se pueden borrar ni desactivar —
+            ya las aplica el bot siempre. Agrega aquí palabras nuevas para enriquecerlas;
+            el bot las toma en cuenta automáticamente (refresco cada 60s).
+          </p>
+          {msgFiltro && <div className="login-error" style={{ marginBottom: 12 }}>{msgFiltro}</div>}
+
+          <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
+            <Select
+              data={CATEGORIAS_FILTRO.map(c => ({ value: c.valor, label: c.etiqueta }))}
+              value={nuevaCategoria}
+              onChange={v => v && setNuevaCategoria(v)}
+              allowDeselect={false}
+              style={{ minWidth: 260 }}
+            />
+            <TextInput
+              placeholder="palabra o frase"
+              value={nuevaPalabra}
+              onChange={e => setNuevaPalabra(e.target.value)}
+              style={{ flex: 1, minWidth: 200 }}
+            />
+            {nuevaCategoria === 'risk' && (
+              <NumberInput min={1} max={10} value={Number(nuevosPuntos)} onChange={v => setNuevosPuntos(String(v))} title="Puntos de riesgo" style={{ width: 90 }} />
+            )}
+            <Button disabled={!nuevaPalabra.trim()} onClick={agregarPalabra}>Agregar</Button>
+          </Group>
+
+          <div className="table-wrap">
+            <Table highlightOnHover verticalSpacing="xs">
+              <thead>
+                <tr>
+                  <th>Categoría</th>
+                  <th>Palabra / frase</th>
+                  <th>Puntos</th>
+                  <th>Origen</th>
+                  <th>Activa</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </Table>
-        </div>
-      </Card>
+              </thead>
+              <tbody>
+                {palabras.length === 0 && <tr><td colSpan={6} className="empty">Sin palabras</td></tr>}
+                {palabras.map((p, i) => (
+                  <tr key={p.id ?? `base-${i}`}>
+                    <td>{p.categoria}</td>
+                    <td>{p.palabra}</td>
+                    <td>{p.puntos ?? ''}</td>
+                    <td>{p.origen === 'codigo_fuente' ? 'código fuente' : 'agregado'}</td>
+                    <td><Badge color={p.activo ? 'teal' : 'red'} variant="light">{p.activo ? 'sí' : 'no'}</Badge></td>
+                    <td>
+                      {p.origen === 'dashboard' && (
+                        <Group gap={4} wrap="nowrap">
+                          <ActionIcon variant="default" title={p.activo ? 'Desactivar' : 'Activar'} onClick={() => togglePalabra(p.id, !p.activo)}>
+                            {p.activo ? '⏸️' : '▶️'}
+                          </ActionIcon>
+                          <ActionIcon variant="default" color="red" title="Borrar" onClick={() => eliminarPalabra(p.id)}>🗑️</ActionIcon>
+                        </Group>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
