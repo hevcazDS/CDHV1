@@ -1,11 +1,20 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Table, Select, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
 import { fdate } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import { useTextoEmoji } from '../context/EmojiContext';
+
+const FILTRO_OPTS = [
+  { value: '', label: 'Todas' },
+  { value: 'solicitada', label: 'Solicitadas' },
+  { value: 'aprobada', label: 'Aprobadas' },
+  { value: 'rechazada', label: 'Rechazadas' },
+  { value: 'resuelta', label: 'Resueltas' },
+];
 
 const ESTATUS = ['solicitada', 'aprobada', 'rechazada', 'resuelta'];
 
@@ -43,22 +52,16 @@ export default function Devoluciones() {
       <div className="page-sub">Solicitudes de devolución de clientes</div>
       {error && <div className="login-error">No se pudieron cargar las devoluciones: {error.message}</div>}
 
-      <div className="card">
-        <div className="card-header">
-          <h3>{txt('↩️ Devoluciones')}</h3>
-          <div className="actions">
-            <select value={filtro} onChange={e => setFiltro(e.target.value)}>
-              <option value="">Todas</option>
-              <option value="solicitada">Solicitadas</option>
-              <option value="aprobada">Aprobadas</option>
-              <option value="rechazada">Rechazadas</option>
-              <option value="resuelta">Resueltas</option>
-            </select>
-            <button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button>
-          </div>
-        </div>
+      <Card withBorder radius="md" p="lg">
+        <Group justify="space-between" mb="md">
+          <Title order={4}>{txt('↩️ Devoluciones')}</Title>
+          <Group gap="xs">
+            <Select size="xs" w={140} data={FILTRO_OPTS} value={filtro} onChange={v => setFiltro(v ?? '')} comboboxProps={{ withinPortal: true }} />
+            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+          </Group>
+        </Group>
         <div className="table-wrap">
-          <table>
+          <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Pedido</th><th>Cliente</th><th>Motivo</th><th>Estatus</th><th>Fecha</th><th>Cambiar estatus</th></tr></thead>
             <tbody>
               {rows === undefined && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
@@ -71,25 +74,23 @@ export default function Devoluciones() {
                   <td><Badge value={r.estatus} map="devolucion" /></td>
                   <td className="text-muted" style={{ fontSize: 11 }}>{fdate(r.creada_en)}</td>
                   <td>
-                    <select value={r.estatus} onChange={e => cambiarEstatus(r.id, e.target.value)}>
-                      {ESTATUS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <Select size="xs" data={ESTATUS} value={r.estatus} onChange={v => v && cambiarEstatus(r.id, v)} comboboxProps={{ withinPortal: true }} />
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
-      </div>
+      </Card>
 
       {rechazo && (
         <Modal title="Motivo de rechazo" onClose={() => setRechazo(null)}
           actions={<>
-            <button className="btn btn-secondary" onClick={() => setRechazo(null)}>Cancelar</button>
-            <button className="btn btn-primary" onClick={confirmarRechazo}>Aceptar</button>
+            <Button variant="default" onClick={() => setRechazo(null)}>Cancelar</Button>
+            <Button onClick={confirmarRechazo}>Aceptar</Button>
           </>}>
           <p className="page-sub" style={{ margin: '0 0 12px' }}>Explica brevemente por qué se rechaza (se le enviará al cliente)</p>
-          <input autoFocus placeholder="Ej: producto fuera de garantía" value={notas} onChange={e => setNotas(e.target.value)} style={{ width: '100%' }} />
+          <TextInput autoFocus placeholder="Ej: producto fuera de garantía" value={notas} onChange={e => setNotas(e.target.value)} />
         </Modal>
       )}
     </div>

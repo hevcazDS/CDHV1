@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Table, TextInput } from '@mantine/core';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -23,21 +24,16 @@ export default function Clientes() {
       <div className="page-sub">Clientes registrados vía WhatsApp</div>
       {error && <div className="login-error">No se pudieron cargar los clientes: {error.message}</div>}
 
-      <div className="card">
-        <div className="card-header">
-          <h3>{txt('👥 Clientes')}</h3>
-          <div className="actions">
-            <input
-              placeholder="Buscar..."
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              style={{ width: 200 }}
-            />
-            <button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button>
-          </div>
-        </div>
+      <Card withBorder radius="md" p="lg">
+        <Group justify="space-between" mb="md">
+          <Title order={4}>{txt('👥 Clientes')}</Title>
+          <Group gap="xs">
+            <TextInput size="xs" placeholder="Buscar..." value={q} onChange={e => setQ(e.target.value)} w={200} />
+            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+          </Group>
+        </Group>
         <div className="table-wrap">
-          <table>
+          <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Nombre</th><th>Teléfono</th><th>Canal</th><th>Cód. referido</th><th>Tags</th><th>Registro</th></tr></thead>
             <tbody>
               {rows === undefined && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
@@ -53,9 +49,9 @@ export default function Clientes() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Table, Select, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
 import { fmt, fdate } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -68,16 +69,16 @@ export default function Pedidos() {
       <div className="page-sub">Pedidos recientes (últimos 100)</div>
       {error && <div className="login-error">No se pudieron cargar los pedidos: {error.message}</div>}
 
-      <div className="card">
-        <div className="card-header">
-          <h3>{txt('📦 Pedidos recientes')}</h3>
-          <div className="actions">
-            <button className="btn btn-secondary btn-sm" onClick={exportarCSV}>{txt('⬇️ CSV')}</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button>
-          </div>
-        </div>
+      <Card withBorder radius="md" p="lg">
+        <Group justify="space-between" mb="md">
+          <Title order={4}>{txt('📦 Pedidos recientes')}</Title>
+          <Group gap="xs">
+            <Button variant="default" size="xs" onClick={exportarCSV}>{txt('⬇️ CSV')}</Button>
+            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+          </Group>
+        </Group>
         <div className="table-wrap">
-          <table>
+          <Table highlightOnHover verticalSpacing="xs">
             <thead>
               <tr><th>Folio</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Estatus</th><th>Guía</th><th>Entrega est.</th><th></th></tr>
             </thead>
@@ -91,28 +92,28 @@ export default function Pedidos() {
                   <td><strong>${fmt(r.total)}</strong></td>
                   <td><Badge value={r.pago_estatus} map="pago" /></td>
                   <td>
-                    <select value={r.estatus} onChange={e => cambiarEstatus(r.id_pedido, e.target.value)}>
-                      {ESTATUS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <Select size="xs" data={ESTATUS} value={r.estatus} onChange={v => v && cambiarEstatus(r.id_pedido, v)} comboboxProps={{ withinPortal: true }} />
                   </td>
                   <td style={{ fontSize: 11 }}>{r.numero_guia ? <code>{r.numero_guia}</code> : '-'}</td>
                   <td className="text-muted" style={{ fontSize: 11 }}>{r.fecha_entrega_est || '-'}</td>
                   <td>
-                    {r.pago_estatus === 'generado' && r.id_link_pago && (
-                      <button className="btn btn-success btn-sm" title="Confirmar pago recibido" onClick={() => setPagoModal(r.id_link_pago)}>✅</button>
-                    )}
-                    <button className="btn btn-secondary btn-sm" title="Ver ticket" onClick={() => abrirTicket(r.id_pedido)}>🧾</button>
+                    <Group gap={4} wrap="nowrap">
+                      {r.pago_estatus === 'generado' && r.id_link_pago && (
+                        <ActionIcon variant="light" color="teal" title="Confirmar pago recibido" onClick={() => setPagoModal(r.id_link_pago)}>✅</ActionIcon>
+                      )}
+                      <ActionIcon variant="default" title="Ver ticket" onClick={() => abrirTicket(r.id_pedido)}>🧾</ActionIcon>
+                    </Group>
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
-      </div>
+      </Card>
 
       {ticket && (
         <Modal title={`Ticket — ${ticket.pedido.folio || '#' + ticket.pedido.id_pedido}`} onClose={() => setTicket(null)}
-          actions={<button className="btn btn-primary" onClick={() => setTicket(null)}>Cerrar</button>}>
+          actions={<Button onClick={() => setTicket(null)}>Cerrar</Button>}>
           <div style={{ fontSize: 12, marginBottom: 8 }}><strong>Cliente:</strong> {ticket.pedido.cliente || '-'}</div>
           {(ticket.items || []).length
             ? ticket.items.map((it, i) => (
@@ -133,11 +134,11 @@ export default function Pedidos() {
       {pagoModal && (
         <Modal title="Confirmar pago recibido" onClose={() => { setPagoModal(null); setReferencia(''); }}
           actions={<>
-            <button className="btn btn-secondary" onClick={() => { setPagoModal(null); setReferencia(''); }}>Cancelar</button>
-            <button className="btn btn-primary" onClick={confirmarPago}>Confirmar</button>
+            <Button variant="default" onClick={() => { setPagoModal(null); setReferencia(''); }}>Cancelar</Button>
+            <Button onClick={confirmarPago}>Confirmar</Button>
           </>}>
           <p className="page-sub" style={{ margin: '0 0 12px' }}>Captura la referencia del pago (efectivo, transferencia, etc.)</p>
-          <input autoFocus placeholder="Ej: TRANSF-00123" value={referencia} onChange={e => setReferencia(e.target.value)} style={{ width: '100%' }} />
+          <TextInput autoFocus placeholder="Ej: TRANSF-00123" value={referencia} onChange={e => setReferencia(e.target.value)} />
         </Modal>
       )}
     </div>

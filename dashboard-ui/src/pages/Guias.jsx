@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Table, Select, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
 import Badge from '../components/Badge';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -45,13 +46,13 @@ export default function Guias() {
       {error && <div className="login-error">No se pudieron cargar las guías: {error.message}</div>}
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.6fr 1fr', alignItems: 'start' }}>
-        <div className="card">
-          <div className="card-header">
-            <h3>{txt('🚚 Guías activas')}</h3>
-            <div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button></div>
-          </div>
+        <Card withBorder radius="md" p="lg">
+          <Group justify="space-between" mb="md">
+            <Title order={4}>{txt('🚚 Guías activas')}</Title>
+            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+          </Group>
           <div className="table-wrap">
-            <table>
+            <Table highlightOnHover verticalSpacing="xs">
               <thead><tr><th>Guía</th><th>Cliente</th><th>Destino</th><th>Estatus</th><th>Entrega est.</th><th></th></tr></thead>
               <tbody>
                 {rows === undefined && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
@@ -63,33 +64,22 @@ export default function Guias() {
                     <td className="text-muted">{r.dest_ciudad || r.ciudad_envio || '-'}</td>
                     <td><Badge value={r.estatus} map="guia" /></td>
                     <td className="text-muted">{r.fecha_entrega_est || '-'}</td>
-                    <td><button className="btn btn-secondary btn-sm" onClick={() => editarRapido(r.numero_guia)}>✏️</button></td>
+                    <td><ActionIcon variant="default" onClick={() => editarRapido(r.numero_guia)}>✏️</ActionIcon></td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
-        </div>
+        </Card>
 
-        <div className="card">
-          <div className="card-header"><h3>{txt('✏️ Actualizar guía')}</h3></div>
-          <div className="login-field">
-            <label>Número de guía</label>
-            <input placeholder="HVCZ-000001" value={numero} onChange={e => setNumero(e.target.value)} />
-          </div>
-          <div className="login-field">
-            <label>Nuevo estatus</label>
-            <select value={estatus} onChange={e => setEstatus(e.target.value)} style={{ width: '100%' }}>
-              {ESTATUS_GUIA.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="login-field">
-            <label>Descripción (opcional)</label>
-            <input placeholder="Ej: En ruta de entrega" value={descripcion} onChange={e => setDescripcion(e.target.value)} />
-          </div>
-          <button className="btn btn-primary" onClick={actualizar}>Actualizar guía</button>
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb="md">{txt('✏️ Actualizar guía')}</Title>
+          <TextInput label="Número de guía" placeholder="HVCZ-000001" value={numero} onChange={e => setNumero(e.target.value)} mb="sm" />
+          <Select label="Nuevo estatus" data={ESTATUS_GUIA} value={estatus} onChange={v => setEstatus(v ?? estatus)} comboboxProps={{ withinPortal: true }} mb="sm" />
+          <TextInput label="Descripción (opcional)" placeholder="Ej: En ruta de entrega" value={descripcion} onChange={e => setDescripcion(e.target.value)} mb="sm" />
+          <Button onClick={actualizar}>Actualizar guía</Button>
           {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{txt(msg.texto)}</div>}
-        </div>
+        </Card>
       </div>
     </div>
   );
