@@ -3,7 +3,7 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, BarChart, Bar,
 } from 'recharts';
-import { SegmentedControl } from '@mantine/core';
+import { SegmentedControl, Card, Group, Title, ActionIcon, Button, Text } from '@mantine/core';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../api';
 import { fmt } from '../lib/format';
@@ -71,37 +71,37 @@ export default function Metricas() {
       <div className="page-sub">Pedidos, conversión y reportes</div>
 
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 16 }}>
-        <div className="card kpi-card">
-          <span className="kpi-label">Pedidos hoy</span>
-          <span className="kpi-value">{d?.pedidos?.hoy?.n ?? '-'}</span>
+        <Card withBorder radius="md" p="lg" className="kpi-card">
+          <Text size="sm" c="dimmed">Pedidos hoy</Text>
+          <Text size="26px" fw={700}>{d?.pedidos?.hoy?.n ?? '-'}</Text>
           {d?.pedidos?.hoy?.t > 0 && <span style={{ fontSize: 12, color: 'var(--green)' }}>${fmt(d.pedidos.hoy.t)}</span>}
-        </div>
-        <div className="card kpi-card">
-          <span className="kpi-label">Esta semana</span>
-          <span className="kpi-value">{d?.pedidos?.semana?.n ?? '-'}</span>
+        </Card>
+        <Card withBorder radius="md" p="lg" className="kpi-card">
+          <Text size="sm" c="dimmed">Esta semana</Text>
+          <Text size="26px" fw={700}>{d?.pedidos?.semana?.n ?? '-'}</Text>
           {d?.pedidos?.semana?.t > 0 && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>${fmt(d.pedidos.semana.t)}</span>}
-        </div>
-        <div className="card kpi-card">
-          <span className="kpi-label">Este mes</span>
-          <span className="kpi-value">{d?.pedidos?.mes?.n ?? '-'}</span>
+        </Card>
+        <Card withBorder radius="md" p="lg" className="kpi-card">
+          <Text size="sm" c="dimmed">Este mes</Text>
+          <Text size="26px" fw={700}>{d?.pedidos?.mes?.n ?? '-'}</Text>
           {d?.pedidos?.mes?.t > 0 && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>${fmt(d.pedidos.mes.t)}</span>}
-        </div>
-        <div className="card kpi-card">
-          <span className="kpi-label">Pagos pendientes</span>
-          <span className="kpi-value">{d?.pagos?.pendientes?.n ?? '-'}</span>
+        </Card>
+        <Card withBorder radius="md" p="lg" className="kpi-card">
+          <Text size="sm" c="dimmed">Pagos pendientes</Text>
+          <Text size="26px" fw={700}>{d?.pagos?.pendientes?.n ?? '-'}</Text>
           {d?.pagos?.pendientes?.t > 0 && <span style={{ fontSize: 12, color: 'var(--yellow)' }}>${fmt(d.pagos.pendientes.t)}</span>}
-        </div>
+        </Card>
       </div>
 
       <div className="kpi-grid" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <div className="card-header">
-            <h3><Emoji>📈 </Emoji>Pedidos últimos 7 días {conv && <span className="badge badge-azul">Conversión: {conv.tasa_conversion}</span>}</h3>
-            <div className="actions">
+        <Card withBorder radius="md" p="lg">
+          <Group justify="space-between" mb="md" wrap="wrap">
+            <Title order={4}><Emoji>📈 </Emoji>Pedidos últimos 7 días {conv && <span className="badge badge-azul">Conversión: {conv.tasa_conversion}</span>}</Title>
+            <Group gap="xs">
               <SegmentedControl size="xs" value={chartTipo} onChange={cambiarChartTipo} data={ESTILOS_CHART} />
-              <button className="btn btn-secondary btn-sm" onClick={cargar}>🔄</button>
-            </div>
-          </div>
+              <ActionIcon variant="default" onClick={cargar}>🔄</ActionIcon>
+            </Group>
+          </Group>
           {dias.length === 0
             ? <div className="empty">Sin pedidos esta semana</div>
             : (
@@ -151,9 +151,9 @@ export default function Metricas() {
                 )}
               </ResponsiveContainer>
             )}
-        </div>
-        <div className="card">
-          <div className="card-header"><h3>{txt('📋 Por estatus')}</h3></div>
+        </Card>
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb="md">{txt('📋 Por estatus')}</Title>
           {porEstatus.length === 0 && <div className="empty">Sin pedidos</div>}
           {porEstatus.map((e, i) => {
             const pct = totalEstatus ? Math.round((e.n / totalEstatus) * 100) : 0;
@@ -167,11 +167,11 @@ export default function Metricas() {
               </div>
             );
           })}
-        </div>
+        </Card>
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header"><h3>{txt('🎭 Pedidos por tono del bot')}</h3></div>
+      <Card withBorder radius="md" p="lg" mb={16}>
+        <Title order={4} mb="md">{txt('🎭 Pedidos por tono del bot')}</Title>
         {(!conv?.por_tono || conv.por_tono.length === 0) && <div className="empty">Sin pedidos todavía</div>}
         {conv?.por_tono?.length > 0 && (() => {
           const totalTono = conv.por_tono.reduce((s, t) => s + (t.pedidos || 0), 0);
@@ -190,11 +190,11 @@ export default function Metricas() {
             );
           });
         })()}
-      </div>
+      </Card>
 
       <div className="kpi-grid" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <div className="card-header"><h3>{txt('🎯 Conversión por campaña')}</h3></div>
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb="md">{txt('🎯 Conversión por campaña')}</Title>
           {campanas.length === 0 && <div className="empty">Sin datos todavía — corre la migración 0020 si ya hiciste envíos masivos/automáticos.</div>}
           {campanas.length > 0 && (
             <ResponsiveContainer width="100%" height={Math.max(campanas.length * 40, 120)}>
@@ -208,9 +208,9 @@ export default function Metricas() {
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
-        <div className="card">
-          <div className="card-header"><h3>{txt('💬 Por qué no compraron')}</h3></div>
+        </Card>
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb="md">{txt('💬 Por qué no compraron')}</Title>
           {motivos.length === 0 && <div className="empty">Sin datos todavía — se llena cuando los clientes responden al mensaje de carrito abandonado.</div>}
           {motivos.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -236,19 +236,19 @@ export default function Metricas() {
               </div>
             </div>
           )}
-        </div>
+        </Card>
       </div>
 
-      <div className="card">
-        <div className="card-header"><h3>{txt('📤 Reporte al supervisor')}</h3></div>
+      <Card withBorder radius="md" p="lg">
+        <Title order={4} mb="md">{txt('📤 Reporte al supervisor')}</Title>
         <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 12 }}>Resumen con pedidos, ingresos, clientes y alertas del día.</p>
-        <div style={{ display: 'flex', gap: 7, marginBottom: 10 }}>
-          <button className="btn btn-primary" style={{ flex: 1 }} disabled={reporteMutation.isPending} onClick={() => reporteMutation.mutate('whatsapp')}>{txt('📱 WhatsApp')}</button>
-          <button className="btn btn-secondary" style={{ flex: 1 }} disabled={reporteMutation.isPending} onClick={() => reporteMutation.mutate('email')}>{txt('📧 Email')}</button>
-        </div>
+        <Group gap={7} mb={10} wrap="nowrap">
+          <Button style={{ flex: 1 }} disabled={reporteMutation.isPending} onClick={() => reporteMutation.mutate('whatsapp')}>{txt('📱 WhatsApp')}</Button>
+          <Button variant="default" style={{ flex: 1 }} disabled={reporteMutation.isPending} onClick={() => reporteMutation.mutate('email')}>{txt('📧 Email')}</Button>
+        </Group>
         {preview && <pre style={{ background: 'var(--panel-2)', borderRadius: 7, padding: 10, fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 250, overflowY: 'auto' }}>{preview}</pre>}
         {reporteMsg && <div className={reporteMsg.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(reporteMsg.texto)}</div>}
-      </div>
+      </Card>
     </div>
   );
 }

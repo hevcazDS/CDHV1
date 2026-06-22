@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { useQuery } from '@tanstack/react-query';
+import { Card, Group, Title, ActionIcon, Table, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
 import { fmt, fdate, soloTelefono } from '../lib/format';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
@@ -51,16 +52,13 @@ export default function Puntos() {
       {error && <div className="login-error">No se pudieron cargar los tickets reclamados: {error.message}</div>}
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1.4fr', alignItems: 'start' }}>
-        <div className="card">
-          <div className="card-header"><h3>{txt('🔍 Generador de QR')}</h3></div>
-          <div className="login-field">
-            <label>Código del ticket</label>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input placeholder="TK-XXXXXXXX" style={{ fontFamily: 'monospace', flex: 1 }} value={codigo} onChange={e => setCodigo(e.target.value)} />
-              <button className="btn btn-secondary btn-sm" onClick={ticketAleatorio} title="Ticket aleatorio">🎲</button>
-            </div>
-          </div>
-          <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => generar()}>Generar QR</button>
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb="md">{txt('🔍 Generador de QR')}</Title>
+          <Group gap={6} align="flex-end" mb="sm">
+            <TextInput label="Código del ticket" placeholder="TK-XXXXXXXX" style={{ fontFamily: 'monospace', flex: 1 }} value={codigo} onChange={e => setCodigo(e.target.value)} />
+            <ActionIcon variant="default" onClick={ticketAleatorio} title="Ticket aleatorio">🎲</ActionIcon>
+          </Group>
+          <Button fullWidth onClick={() => generar()}>Generar QR</Button>
           {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginTop: 14 }}>{txt(msg.texto)}</div>}
           <div style={{ marginTop: 14, minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
             {!ticket && <span className="text-muted" style={{ fontSize: 13 }}>El QR aparecerá aquí</span>}
@@ -78,15 +76,15 @@ export default function Puntos() {
               </>
             )}
           </div>
-        </div>
+        </Card>
 
-        <div className="card">
-          <div className="card-header">
-            <h3>{txt('📋 Tickets reclamados')}</h3>
-            <div className="actions"><button className="btn btn-secondary btn-sm" onClick={() => refetch()}>🔄</button></div>
-          </div>
+        <Card withBorder radius="md" p="lg">
+          <Group justify="space-between" mb="md">
+            <Title order={4}>{txt('📋 Tickets reclamados')}</Title>
+            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+          </Group>
           <div className="table-wrap">
-            <table>
+            <Table highlightOnHover verticalSpacing="xs">
               <thead><tr><th>Código</th><th>Total</th><th>Puntos</th><th>Teléfono</th><th>Reclamado</th></tr></thead>
               <tbody>
                 {usados === undefined && <tr><td colSpan={5} className="empty">Cargando...</td></tr>}
@@ -101,9 +99,9 @@ export default function Puntos() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

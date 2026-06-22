@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, Title, ActionIcon, TextInput } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
@@ -63,12 +64,9 @@ export default function Sustitutos() {
       <div className="page-sub">Productos sustitutos sugeridos cuando hay quiebre de stock</div>
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
-        <div className="card">
-          <div className="card-header"><h3>{txt('🔍 Buscar producto')}</h3></div>
-          <div className="login-field">
-            <label>Nombre</label>
-            <input placeholder="Ej: Hot Wheels" value={q} onChange={e => setQ(e.target.value)} />
-          </div>
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb="md">{txt('🔍 Buscar producto')}</Title>
+          <TextInput label="Nombre" placeholder="Ej: Hot Wheels" value={q} onChange={e => setQ(e.target.value)} mb="sm" />
           {q.trim().length < 2 && <div className="empty">Escribe para buscar...</div>}
           {resultados?.length === 0 && <div className="empty">Sin resultados</div>}
           {resultados?.map(r => (
@@ -77,10 +75,10 @@ export default function Sustitutos() {
               <strong>{r.name}</strong><br /><span className="text-muted">${fmt(r.price)}</span>
             </div>
           ))}
-        </div>
+        </Card>
 
-        <div className="card">
-          <div className="card-header"><h3>{txt('🔄 Productos relacionados')}</h3></div>
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb="md">{txt('🔄 Productos relacionados')}</Title>
           {!base && <div className="empty">Selecciona un producto</div>}
           {base && (
             <>
@@ -91,11 +89,11 @@ export default function Sustitutos() {
                 {relacionados?.map(r => (
                   <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
                     <div><strong>{r.name}</strong><br /><span className="text-muted">${fmt(r.price)} · Score {r.score || 0}</span></div>
-                    <button className="btn btn-danger btn-sm" onClick={() => eliminar(r.id)}>✕</button>
+                    <ActionIcon variant="light" color="red" size="sm" onClick={() => eliminar(r.id)}>✕</ActionIcon>
                   </div>
                 ))}
               </div>
-              <input placeholder="Buscar producto a vincular..." value={qVincular} onChange={e => setQVincular(e.target.value)} style={{ marginTop: 8, width: '100%' }} />
+              <TextInput placeholder="Buscar producto a vincular..." value={qVincular} onChange={e => setQVincular(e.target.value)} mt="sm" />
               {resultadosVincular?.map(r => (
                 <div key={r.id} onClick={() => vincularMutation.mutate(r.id)} style={{ padding: '5px 9px', cursor: 'pointer', fontSize: 12, borderRadius: 4 }}>
                   <Emoji>➕ </Emoji>{r.name} - ${fmt(r.price)}
@@ -103,7 +101,7 @@ export default function Sustitutos() {
               ))}
             </>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );
