@@ -88,8 +88,8 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
             try {
                 const datos = validar(JSON.parse(body || '{}'), SucursalSchema, res, p);
                 if (!datos) return;
-                const { nombre, codigo, direccion } = datos;
-                const r = db.prepare('INSERT INTO sucursales (nombre, codigo, direccion) VALUES (?, ?, ?)').run(nombre, codigo || null, direccion || null);
+                const { nombre, codigo, direccion, codigo_postal } = datos;
+                const r = db.prepare('INSERT INTO sucursales (nombre, codigo, direccion, codigo_postal) VALUES (?, ?, ?, ?)').run(nombre, codigo || null, direccion || null, codigo_postal || null);
                 log.info('[prime] sucursal creada: ' + nombre);
                 return json(res, { ok: true, id: r.lastInsertRowid });
             } catch (e) {
@@ -179,12 +179,13 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // ── Productos — alta y edición (solo prime; la carga masiva del catálogo
     // sigue siendo aparte, esto es para agregar/corregir productos puntuales).
     // Al crear, además de las 3 columnas fijas que usa bot/flows/_shared.js
-    // para buscar/recomendar, se siembra una fila en `inventarios` por cada
-    // sucursal activa (red de 11 sucursales reales) con el stock inicial que
-    // se haya capturado en stock_sucursales -- sin esto, un producto nuevo
-    // queda invisible para services/stockService.js (red nacional) y
-    // services/stockWatcher.js (alerta de stock mínimo) en las otras 11
-    // sucursales, aunque sí se pueda comprar en tienda/CEDIS/SLP. ───────────
+    // para buscar/recomendar, se siembra UNA fila en `inventarios` -- solo
+    // para la sucursal de facturación default (configuracion.
+    // sucursal_facturacion_default, Prime > General) con `stock_inicial`.
+    // Antes se sembraban las 11 sucursales activas; se simplificó porque la
+    // deducción real de stock en una venta multi-sucursal no depende de
+    // esto (ya usa pedido_detalle.sucursal_origen, ver
+    // dashboard/routes/comunicacionPedidos.js). ───────────────────────────
     if (p === '/api/prime/productos' && req.method === 'POST') {
         const ses = requireSession(req, res, ['prime']);
         if (!ses) return;
@@ -192,6 +193,11 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
             try {
                 const d = validar(JSON.parse(body || '{}'), ProductoSchema, res, p);
                 if (!d) return;
+                const _sucDefRow = db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default' LIMIT 1").get();
+                const sucursalDefault = _sucDefRow ? db.prepare('SELECT nombre FROM sucursales WHERE id=?').get(Number(_sucDefRow.valor)) : null;
+                if (!sucursalDefault) {
+                    return json(res, { ok: false, error: 'Configura la sucursal de facturación default en Prime > General antes de dar de alta productos' }, 400);
+                }
                 const edadRecomendada = calcularEdadRecomendada(d.edad_min, d.edad_max);
                 const crear = db.transaction((datos) => {
                     const r = db.prepare(`
@@ -223,17 +229,13 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
                     // antes de sembrar el inventario real -- si no, quedarían dos filas por
                     // sucursal (la huérfana "revivida" + la nueva) sin forma de distinguirlas.
                     db.prepare('DELETE FROM inventarios WHERE id_producto = ?').run(idProducto);
-                    const sucursales = db.prepare('SELECT nombre FROM sucursales WHERE activa = 1').all();
-                    const insertInv = db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock, stock_minimo) VALUES (?, ?, ?, 0)');
-                    const insertMov = db.prepare(`
+                    const stock = datos.stock_inicial || 0;
+                    db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock, stock_minimo) VALUES (?, ?, ?, 0)')
+                        .run(idProducto, sucursalDefault.nombre, stock);
+                    db.prepare(`
                         INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo, creado_por)
                         VALUES (?, ?, 'alta', NULL, ?, 'Alta de producto', ?)
-                    `);
-                    for (const s of sucursales) {
-                        const stock = (datos.stock_sucursales && datos.stock_sucursales[s.nombre]) || 0;
-                        insertInv.run(idProducto, s.nombre, stock);
-                        insertMov.run(idProducto, s.nombre, stock, ses.username);
-                    }
+                    `).run(idProducto, sucursalDefault.nombre, stock, ses.username);
                     return idProducto;
                 });
                 const id = crear(d);
@@ -354,10 +356,15 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // ── Usuarios del dashboard — alta/edición/baja, solo prime. No se puede
     // borrar la propia cuenta ni dejar al sistema sin ningún usuario 'prime'
     // (se quedaría sin nadie que pueda volver a entrar aquí). ──────────────
+    // Las cuentas 'prime' no aparecen aquí a propósito -- el operador no
+    // debe poder tocar (ni ver) cuentas prime desde esta lista de gestión
+    // de usuarios "normales". Las protecciones de no-autoborrado/no-dejar-
+    // sin-prime en primeUsuariosPuntos.js se mantienen igual por si alguien
+    // intenta apuntarle por id directo a la API.
     if (p === '/api/prime/usuarios' && req.method === 'GET') {
         if (!requireSession(req, res, ['prime'])) return;
         try {
-            return json(res, db.prepare('SELECT id, username, rol, creado_en FROM usuarios ORDER BY id').all());
+            return json(res, db.prepare("SELECT id, username, nombre, rol, creado_en FROM usuarios WHERE rol != 'prime' ORDER BY id").all());
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
     }
 

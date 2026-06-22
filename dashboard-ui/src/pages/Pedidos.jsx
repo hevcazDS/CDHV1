@@ -16,6 +16,9 @@ export default function Pedidos() {
   const [ticket, setTicket] = useState(null);
   const [pagoModal, setPagoModal] = useState(null);
   const [referencia, setReferencia] = useState('');
+  const [razonSocial, setRazonSocial] = useState('');
+  const [rfc, setRfc] = useState('');
+  const [msgFacturacion, setMsgFacturacion] = useState('');
 
   const { data: rows, error, refetch } = useQuery({
     queryKey: ['pedidos'],
@@ -33,8 +36,24 @@ export default function Pedidos() {
   };
 
   const abrirTicket = async (idPedido) => {
-    try { setTicket(await api.get(`/api/pedidos/${idPedido}/ticket`)); }
+    try {
+      const t = await api.get(`/api/pedidos/${idPedido}/ticket`);
+      setTicket(t);
+      setRazonSocial(t.pedido.razon_social || '');
+      setRfc(t.pedido.rfc || '');
+      setMsgFacturacion('');
+    }
     catch (e) { handleApiError(e, 'No se pudo cargar el ticket'); }
+  };
+
+  const guardarFacturacionMutation = useMutation({
+    mutationFn: ({ id, razon_social, rfc: rfcVal }) => api.put(`/api/pedidos/${id}`, { razon_social, rfc: rfcVal }),
+    onSuccess: () => { setMsgFacturacion('Guardado.'); queryClient.invalidateQueries({ queryKey: ['pedidos'] }); },
+    onError: (e) => setMsgFacturacion(e.message),
+  });
+  const guardarFacturacion = () => {
+    setMsgFacturacion('');
+    guardarFacturacionMutation.mutate({ id: ticket.pedido.id_pedido, razon_social: razonSocial || null, rfc: rfc || null });
   };
 
   const confirmarPagoMutation = useMutation({
@@ -114,11 +133,18 @@ export default function Pedidos() {
       {ticket && (
         <Modal title={`Ticket — ${ticket.pedido.folio || '#' + ticket.pedido.id_pedido}`} onClose={() => setTicket(null)}
           actions={<Button onClick={() => setTicket(null)}>Cerrar</Button>}>
-          <div style={{ fontSize: 12, marginBottom: 8 }}><strong>Cliente:</strong> {ticket.pedido.cliente || '-'}</div>
+          <div style={{ fontSize: 12, marginBottom: 4 }}><strong>Cliente:</strong> {ticket.pedido.cliente || '-'}</div>
+          <div style={{ fontSize: 12, marginBottom: 4 }}><strong>Fecha de compra:</strong> {fdate(ticket.pedido.creado_en)}</div>
+          {ticket.pedido.ciudad_envio && (
+            <div style={{ fontSize: 12, marginBottom: 8 }}><strong>Ciudad:</strong> {ticket.pedido.ciudad_envio}{ticket.pedido.cp ? ` (CP ${ticket.pedido.cp})` : ''}</div>
+          )}
           {(ticket.items || []).length
             ? ticket.items.map((it, i) => (
                 <div className="modal-row" key={i}>
-                  <span>{it.name || `Producto #${it.id_producto}`} x{it.cantidad}</span>
+                  <span>
+                    {it.name || `Producto #${it.id_producto}`} x{it.cantidad}
+                    {it.sucursal_origen && <span className="text-muted" style={{ fontSize: 11 }}> — {it.sucursal_origen}</span>}
+                  </span>
                   <span>${fmt(it.subtotal_linea)}</span>
                 </div>
               ))
@@ -128,6 +154,14 @@ export default function Pedidos() {
           {ticket.pago?.referencia_pago && (
             <div className="text-muted" style={{ marginTop: 6 }}>Referencia de pago: {ticket.pago.referencia_pago}</div>
           )}
+
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 8, textTransform: 'uppercase' }}>Datos de facturación (opcional)</div>
+            {msgFacturacion && <div className={msgFacturacion === 'Guardado.' ? 'card' : 'login-error'} style={{ marginBottom: 8, fontSize: 12 }}>{msgFacturacion}</div>}
+            <TextInput placeholder="Razón social" value={razonSocial} onChange={e => setRazonSocial(e.target.value)} mb="sm" size="xs" />
+            <TextInput placeholder="RFC" value={rfc} onChange={e => setRfc(e.target.value)} mb="sm" size="xs" />
+            <Button size="xs" disabled={guardarFacturacionMutation.isPending} onClick={guardarFacturacion}>Guardar</Button>
+          </div>
         </Modal>
       )}
 

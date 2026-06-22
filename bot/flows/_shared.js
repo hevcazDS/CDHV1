@@ -13,9 +13,9 @@ const db              = require('../db_connection');
 const { registrarErrorDB } = require('../dbErrorLog');
 const stockService    = require('../../services/stockService');
 // Sistema de tonos (A/B/C/D) y módulos activables desde el dashboard
-const { t, moduloActivo } = (() => {
+const { t, moduloActivo, getValor } = (() => {
     try { return require('./_config'); }
-    catch(_) { return { t: () => '', moduloActivo: () => true }; }
+    catch(_) { return { t: () => '', moduloActivo: () => true, getValor: (_c, fb) => fb }; }
 })();
 
 // ═══════════════════════════════════════════════════════
@@ -388,12 +388,32 @@ function aplicarCupon(codigo, carrito, idProducto) {
 
     if (!promo) return { ok: false, error: 'Código no válido o expirado' };
 
-    // Si el cupón es de producto específico, verificar que esté en el carrito
+    // Alcance del cupón: producto único, categoría, marca o rango de edad
+    // (Fase 2 — antes solo soportaba id_producto). Sin ninguno de los cuatro
+    // aplica a todo el inventario. Basta con que UN item del carrito caiga
+    // en el alcance para que el cupón sea válido (igual criterio que el
+    // chequeo de id_producto que ya existía).
     if (promo.id_producto) {
         const tieneProducto = carrito.some(i => i.id === promo.id_producto);
         if (!tieneProducto) {
             const prod = db.prepare('SELECT name FROM productos WHERE id=?').get(promo.id_producto);
             return { ok: false, error: 'Este cupón aplica solo para *' + (prod?.name || 'un producto específico') + '*' };
+        }
+    } else if (promo.id_categoria || promo.brand || promo.edad_min != null || promo.edad_max != null) {
+        const idsCarrito = carrito.map(i => i.id);
+        if (!idsCarrito.length) return { ok: false, error: 'Tu carrito está vacío' };
+        let sql = 'SELECT COUNT(*) AS n FROM productos WHERE id IN (' + idsCarrito.map(() => '?').join(',') + ')';
+        const params = [...idsCarrito];
+        if (promo.id_categoria) { sql += ' AND id_categoria=?'; params.push(promo.id_categoria); }
+        if (promo.brand) { sql += ' AND brand=?'; params.push(promo.brand); }
+        if (promo.edad_min != null || promo.edad_max != null) {
+            sql += ' AND edad_min <= ? AND edad_max >= ?';
+            params.push(promo.edad_max ?? 99, promo.edad_min ?? 0);
+        }
+        const { n } = db.prepare(sql).get(...params);
+        if (!n) {
+            const alcance = promo.id_categoria ? 'esta categoría' : promo.brand ? ('la marca ' + promo.brand) : 'este rango de edad';
+            return { ok: false, error: 'Este cupón aplica solo para productos de ' + alcance + ' — ninguno de tu carrito califica.' };
         }
     }
 
@@ -941,7 +961,7 @@ function registrarEscalada(userId, idPedido, motivo, telefono, tipo, caso) {
             `INSERT INTO cola_notificaciones (tipo, destinatario, asunto, cuerpo, id_pedido, estatus) VALUES ('dashboard','asesor','Cliente esperando atención',?,?,'pendiente')`
         ).run(cuerpo, idPedido || null);
         // Notificacion WhatsApp al asesor
-        const _asesorTel = process.env.ASESOR_WHATSAPP;
+        const _asesorTel = getValor('operador_telefono', process.env.ASESOR_WHATSAPP);
         if (_asesorTel) {
             const _hh = (new Date().getUTCHours() - 6 + 24) % 24;
             const _msgA = '\u26a0\ufe0f *Cliente esperando atencion*\n\nTel: ' + telefono + '\nMotivo: ' + (motivo || 'Sin especificar') + '\nHorario: ' + (_hh >= 11 && _hh < 20 ? 'En horario' : 'Fuera de horario') + '\n\nResponde directamente a *' + telefono + '*';
@@ -1019,6 +1039,7 @@ module.exports = {
     _MessageMedia,
     t,
     moduloActivo,
+    getValor,
     mostrarCarrito,
     buscarDireccionGuardada,
     iniciarCapturaDireccion,

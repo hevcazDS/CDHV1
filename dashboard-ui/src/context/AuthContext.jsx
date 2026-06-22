@@ -30,8 +30,8 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('dashboard:unauthorized', onUnauthorized);
   }, []);
 
-  const login = async (username, password) => {
-    const data = await api.post('/api/login', { username, password });
+  const login = async (username, password, recordar = false) => {
+    const data = await api.post('/api/login', { username, password, recordar });
     setUser({ username: data.username, rol: data.rol });
   };
 

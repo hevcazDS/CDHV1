@@ -47,8 +47,9 @@ function enviarReporte(destino) {
     const reporte = generarReporte();
 
     if (destino === 'whatsapp') {
-        const supervisor = process.env.ASESOR_WHATSAPP;
-        if (!supervisor) return { ok: false, status: 400, error: 'ASESOR_WHATSAPP no configurado en .env' };
+        const _cfgRow = (() => { try { return db.prepare("SELECT valor FROM configuracion WHERE clave='operador_telefono' LIMIT 1").get(); } catch(_) { return null; } })();
+        const supervisor = (_cfgRow && _cfgRow.valor) ? _cfgRow.valor : process.env.ASESOR_WHATSAPP;
+        if (!supervisor) return { ok: false, status: 400, error: 'Falta configurar el teléfono del operador (Prime > General) o ASESOR_WHATSAPP en .env' };
         db.prepare("INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES ('whatsapp',?,'Reporte diario',?,'pendiente')").run(supervisor, reporte);
         return { ok: true, status: 200, msg: 'Reporte encolado para WhatsApp', preview: reporte };
     }

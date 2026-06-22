@@ -5,7 +5,7 @@
 // lo que este rango referenciaba como variable de módulo en el archivo
 // original (ver dashboard/server.js para la construcción de ctx).
 module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
-    const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
+    const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, ConfigContactoSchema, ConfigEmailBotSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
     if (p === '/api/tono' && req.method === 'GET') {
         try {
             const r = db.prepare("SELECT valor FROM configuracion WHERE clave='tono_bot' LIMIT 1").get();
@@ -155,6 +155,121 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
                 db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('nombre_negocio', ?, datetime('now','localtime'))").run(nombre_negocio);
                 log.info('[prime] nombre_negocio actualizado: ' + nombre_negocio);
                 return json(res, { ok: true, nombre_negocio });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
+    // GET/PUT /api/prime/sucursal-facturacion-default — qué sucursal de la
+    // tabla `sucursales` se usa como default de facturación: Prime > General
+    // la elige una vez (Select); Fase 3 la usa en dos lugares -- el modal
+    // "Ver ticket" puede mostrarla como referencia, y el alta de producto
+    // (primeCatalogo.js) la usa para sembrar `inventarios` en una sola
+    // sucursal en vez de las 11 (ver migrations/0005_sucursales_seed.sql).
+    if (p === '/api/prime/sucursal-facturacion-default' && req.method === 'GET') {
+        if (!requireSession(req, res)) return;
+        const r = db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default' LIMIT 1").get();
+        return json(res, { id_sucursal: r ? Number(r.valor) : null });
+    }
+    if (p === '/api/prime/sucursal-facturacion-default' && req.method === 'PUT') {
+        if (!requireSession(req, res, ['prime'])) return;
+        return readBody(req, body => {
+            try {
+                const { id_sucursal } = JSON.parse(body || '{}');
+                const id = Number(id_sucursal);
+                if (!Number.isInteger(id) || id <= 0) return json(res, { ok:false, error:'id_sucursal inválido' }, 400);
+                const suc = db.prepare('SELECT id FROM sucursales WHERE id=?').get(id);
+                if (!suc) return json(res, { ok:false, error:'Esa sucursal no existe' }, 404);
+                db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('sucursal_facturacion_default', ?, datetime('now','localtime'))").run(String(id));
+                log.info('[prime] sucursal_facturacion_default actualizada: ' + id);
+                return json(res, { ok:true, id_sucursal: id });
+            } catch(e) { return json(res, { ok:false, error:e.message }, 500); }
+        });
+    }
+
+    // GET/PUT /api/prime/tope-descuento — tope de % de descuento que puede
+    // crear un usuario admin en Ofertas/Cupones (validado server-side en
+    // marketing.js's POST /api/promociones, no solo deshabilitando el input
+    // en la UI). 0 o nunca configurado por debajo = sin tope. El GET es
+    // público (cualquier sesión) para que Promociones.jsx pueda mostrar el
+    // límite vigente al armar el formulario; solo prime puede cambiarlo.
+    if (p === '/api/prime/tope-descuento' && req.method === 'GET') {
+        if (!requireSession(req, res)) return;
+        const r = db.prepare("SELECT valor FROM configuracion WHERE clave='tope_descuento_pct' LIMIT 1").get();
+        return json(res, { tope_descuento_pct: r ? Number(r.valor) : 30 });
+    }
+    if (p === '/api/prime/tope-descuento' && req.method === 'PUT') {
+        if (!requireSession(req, res, ['prime'])) return;
+        return readBody(req, body => {
+            try {
+                const { tope_descuento_pct } = JSON.parse(body || '{}');
+                const tope = Number(tope_descuento_pct);
+                if (!Number.isFinite(tope) || tope < 0 || tope > 100) return json(res, { ok:false, error:'tope_descuento_pct inválido (0-100, 0 = sin tope)' }, 400);
+                db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('tope_descuento_pct', ?, datetime('now','localtime'))").run(String(tope));
+                log.info('[prime] tope_descuento_pct actualizado: ' + tope);
+                return json(res, { ok:true, tope_descuento_pct: tope });
+            } catch(e) { return json(res, { ok:false, error:e.message }, 500); }
+        });
+    }
+
+    // GET/PUT /api/prime/config-contacto — teléfono del operador (antes solo
+    // ASESOR_WHATSAPP en .env), contacto de soporte (url/teléfono/correo) y
+    // destino(s) de correo de los backups automáticos. Todo vía `bot/flows/
+    // _config.js`'s getValor()/cache de 60s en el lado del bot — el dashboard
+    // solo escribe la fila en `configuracion`.
+    const CLAVES_CONTACTO = ['operador_telefono', 'soporte_url', 'soporte_telefono', 'soporte_correo', 'email_backup_destino'];
+    if (p === '/api/prime/config-contacto' && req.method === 'GET') {
+        if (!requireSession(req, res, ['prime'])) return;
+        try {
+            const out = {};
+            for (const clave of CLAVES_CONTACTO) {
+                const r = db.prepare('SELECT valor FROM configuracion WHERE clave=? LIMIT 1').get(clave);
+                out[clave] = r ? r.valor : '';
+            }
+            return json(res, out);
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    }
+    if (p === '/api/prime/config-contacto' && req.method === 'PUT') {
+        if (!requireSession(req, res, ['prime'])) return;
+        return readBody(req, body => {
+            try {
+                const datos = validar(JSON.parse(body || '{}'), ConfigContactoSchema, res, p);
+                if (!datos) return;
+                for (const clave of CLAVES_CONTACTO) {
+                    if (datos[clave] === undefined) continue;
+                    db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES (?, ?, datetime('now','localtime'))").run(clave, datos[clave] || '');
+                }
+                log.info('[prime] config-contacto actualizada');
+                return json(res, { ok: true });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
+    // GET/PUT /api/prime/config-email-bot — correo + contraseña de aplicación
+    // que usa el propio bot para enviar (antes solo EMAIL_USER/EMAIL_PASS en
+    // .env, pensado para revender el panel a otra empresa sin tocar código).
+    // El GET NUNCA regresa la contraseña -- solo si ya hay una guardada.
+    if (p === '/api/prime/config-email-bot' && req.method === 'GET') {
+        if (!requireSession(req, res, ['prime'])) return;
+        try {
+            const usuario = db.prepare("SELECT valor FROM configuracion WHERE clave='bot_email_usuario' LIMIT 1").get();
+            const pass    = db.prepare("SELECT valor FROM configuracion WHERE clave='bot_email_password' LIMIT 1").get();
+            return json(res, { bot_email_usuario: usuario ? usuario.valor : '', bot_email_password_configurada: !!(pass && pass.valor) });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    }
+    if (p === '/api/prime/config-email-bot' && req.method === 'PUT') {
+        if (!requireSession(req, res, ['prime'])) return;
+        return readBody(req, body => {
+            try {
+                const datos = validar(JSON.parse(body || '{}'), ConfigEmailBotSchema, res, p);
+                if (!datos) return;
+                if (datos.bot_email_usuario !== undefined) {
+                    db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('bot_email_usuario', ?, datetime('now','localtime'))").run(datos.bot_email_usuario || '');
+                }
+                if (datos.bot_email_password) {
+                    db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('bot_email_password', ?, datetime('now','localtime'))").run(datos.bot_email_password);
+                }
+                log.info('[prime] config-email-bot actualizada');
+                return json(res, { ok: true });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });
     }

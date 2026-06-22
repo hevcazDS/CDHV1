@@ -13,7 +13,7 @@ const path  = require('path');
 const fs    = require('fs');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
-const { NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema, safeEqual } = require('../bot/validators');
+const { NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, ConfigContactoSchema, ConfigEmailBotSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema, safeEqual } = require('../bot/validators');
 require('dotenv').config({ quiet: true });
 const log = require('../bot/logger')('dashboard');
 const { registrarErrorDB } = require('../bot/dbErrorLog');
@@ -101,8 +101,12 @@ function rateLimit(req, res, max = 30, windowMs = 60000) {
     d.count++;
     _rlMap.set(ip, d);
     if (d.count > max) {
-        res.writeHead(429, { 'Content-Type': 'text/plain', 'Retry-After': '60' });
-        res.end('429 Too Many Requests');
+        // JSON en vez de texto plano: antes un 429 plano no se distinguía de
+        // un error de red en el frontend (api.js espera JSON) y el operador
+        // reportó 429 confusos durante uso normal -- con esto al menos el
+        // mensaje es legible y consistente con el resto de la API.
+        res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8', 'Retry-After': '60' });
+        res.end(JSON.stringify({ ok: false, error: 'Demasiadas solicitudes. Espera un minuto e intenta de nuevo.' }));
         return false;
     }
     return true;
@@ -150,7 +154,8 @@ const db = require('../bot/db_connection');
 const mensajeService = require('../services/mensajeService');
 const ventaPreviaService = require('../services/ventaPreviaService');
 const reporteService = require('../services/reporteService');
-const { searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio } = require('../bot/flows/_shared');
+const { searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, iniciarCapturaDireccion, S: SESION_S } = require('../bot/flows/_shared');
+const sessionManagerBot = require('../bot/sessionManager');
 const filtroPalabras = require('../bot/filtroPalabras');
 db.prepare("CREATE TABLE IF NOT EXISTS configuracion (clave TEXT PRIMARY KEY, valor TEXT NOT NULL DEFAULT '1', descripcion TEXT, actualizado_en TEXT DEFAULT (datetime('now','localtime')))").run();
 filtroPalabras.asegurarTabla(db);
@@ -245,6 +250,10 @@ function registrarCambioEstatusBot(estatus, motivo) {
 }
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h
+// "Recordar sesión" en el login: en vez de las 8h fijas de siempre, una
+// sesión de 30 días -- el checkbox lo pide explícitamente el operador, así
+// que es una decisión consciente por sesión, no un cambio del default global.
+const SESSION_TTL_MS_RECORDAR = 30 * 24 * 60 * 60 * 1000; // 30 días
 
 // Persistencia de sesiones — el Map en memoria sigue siendo la ruta caliente
 // (se consulta en cada request), pero se respalda en SQLite para que un
@@ -267,9 +276,9 @@ const _sesiones = new Map(); // token -> { username, rol, expira }
     } catch (e) { log.warn('No se pudieron cargar sesiones persistidas', e); }
 })();
 
-function crearSesion(username, rol) {
+function crearSesion(username, rol, ttlMs = SESSION_TTL_MS) {
     const token = crypto.randomBytes(32).toString('hex');
-    const expira = Date.now() + SESSION_TTL_MS;
+    const expira = Date.now() + ttlMs;
     _sesiones.set(token, { username, rol, expira });
     db.prepare('INSERT OR REPLACE INTO sesiones_dashboard (token, username, rol, expira) VALUES (?, ?, ?, ?)').run(token, username, rol, expira);
     return token;
@@ -366,7 +375,7 @@ function validar(parsed, schema, res, ruta) {
 // tabla sin entrada aquí no acepta ningún campo — agrégala al usar este
 // helper para un nuevo endpoint.
 const TABLAS_ACTUALIZABLES = {
-    sucursales: ['nombre', 'codigo', 'direccion', 'activa'],
+    sucursales: ['nombre', 'codigo', 'direccion', 'codigo_postal', 'activa'],
     productos: ['name', 'cat', 'price', 'sku', 'upc', 'brand', 'handle', 'description',
         'url_imagen', 'tags', 'seo_description', 'material', 'color', 'target_audience',
         'tipo_juguete', 'edad_recomendada', 'edad_min', 'edad_max', 'genero', 'id_categoria',
@@ -453,7 +462,7 @@ function construirAudienciaMasivo({ soloConPedido, excluirTags, soloTags, sinAct
 // el mismo fallthrough secuencial del  original — ningún módulo sabe si
 // "matcheó" salvo por no llamar a next().
 const ctx = {
-    db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, registrarErrorDB, SECURITY_HEADERS, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema,
+    db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, iniciarCapturaDireccion, SESION_S, sessionManagerBot, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, registrarErrorDB, SECURITY_HEADERS, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, ConfigContactoSchema, ConfigEmailBotSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema,
 };
 
 const ROUTE_MODULES = [
@@ -540,8 +549,14 @@ function handleRequest(req, res) {
         return res.end();
     }
 
-    // ── Rate limit: 60 req/min lectura, 30 POST/min (uso interno dashboard) ────────────
-    if (!rateLimit(req, res, req.method === 'POST' ? 30 : 120)) return;
+    // ── Rate limit por IP: 120 GET/min, 80 POST/min (uso interno dashboard) ──
+    // /api/login NO cuenta aquí -- ya tiene su propio candado por username
+    // (loginBloqueado, 5 intentos/15min) independiente de la IP, y antes
+    // compartía este mismo contador de 30 POST/min con el resto del panel,
+    // lo que producía 429 confusos con uso normal (varios toggles seguidos
+    // en Módulos, o alguien probando el candado de login a propósito).
+    const esLogin = u.pathname === '/api/login' && req.method === 'POST';
+    if (!esLogin && !rateLimit(req, res, req.method === 'POST' ? 80 : 120)) return;
 
     // /health no requiere auth — para monitoreo externo
     if (req.method === 'GET' && u.pathname === '/health') {

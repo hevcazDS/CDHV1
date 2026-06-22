@@ -22,11 +22,9 @@
   font-family: 'Inter', -apple-system, 'Segoe UI', system-ui, Roboto, sans-serif;
 }
 
-/* Tema claro — Mantine resuelve "auto" contra prefers-color-scheme y
-   refleja el resultado ('light' o 'dark') en este mismo atributo, así que
-   este bloque también cubre el modo "Auto" sin lógica adicional. Las 20
-   páginas siguen usando estas variables (no Mantine) para su CSS, por eso
-   el cambio de tema repinta todo el panel y no solo los componentes nuevos. */
+/* Tema claro. Las 20 páginas siguen usando estas variables (no Mantine)
+   para su CSS, por eso el cambio de tema repinta todo el panel y no solo
+   los componentes nuevos. */
 [data-mantine-color-scheme="light"] {
   --bg:        #f4f5f8;
   --bg-soft:   #ffffff;
@@ -43,6 +41,31 @@
   --yellow:    #b8860b;
   --red:       #d23652;
   --shadow:    0 8px 24px rgba(20, 20, 30, 0.08);
+}
+
+/* Tema "Confort" — tercera opción del selector de tema (ThemeSwitcher.jsx),
+   pedida explícitamente por el operador porque el oscuro de siempre (negro
+   casi puro + texto casi blanco) cansaba la vista en sesiones largas. No es
+   un tercer `colorScheme` de Mantine (solo soporta light/dark) -- es este
+   atributo aparte en <html>, aplicado SIEMPRE sobre la base oscura (grises
+   cálidos de bajo contraste en vez de negro puro, acento ámbar en vez de
+   azul saturado). */
+[data-confort="on"] {
+  --bg:        #2b2825;
+  --bg-soft:   #332f2b;
+  --panel:     #3a3531;
+  --panel-2:   #433d37;
+  --border:    #4d4640;
+  --text:      #d9d2c7;
+  --text-dim:  #ab9f90;
+  --text-mute: #7d7468;
+  --accent:    #d99c5a;
+  --accent-2:  #c98a6a;
+  --accent-soft: rgba(217, 156, 90, 0.14);
+  --green:     #8fb88a;
+  --yellow:    #c9a55c;
+  --red:       #c97c6e;
+  --shadow:    0 8px 24px rgba(0,0,0,0.25);
 }
 
 * { box-sizing: border-box; }

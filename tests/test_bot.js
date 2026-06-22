@@ -40,10 +40,15 @@ function _mockDB() {
                 return null;
             },
             run: (...args) => {
-                if (sql.includes("VALUES (?, 'MENU', '{}')")) {
-                    sessions.set(args[0], { id_usuario: args[0], paso_actual: 'MENU', data_json: '{}' });
+                // clearSession() pasa (id_usuario, version) -- el SQL trae
+                // 'MENU'/'{}' inline y solo bindea esos dos. updateSession()
+                // pasa los 4 (id_usuario, paso_actual, data_json, version).
+                // Ver bot/sessionManager.js -- migrations/
+                // 0010_sesiones_bot_version.sql agregó la columna version.
+                if (sql.includes("VALUES (?, 'MENU', '{}'")) {
+                    sessions.set(args[0], { id_usuario: args[0], paso_actual: 'MENU', data_json: '{}', version: args[1] });
                 } else if (sql.includes('INSERT OR REPLACE INTO sesiones_bot')) {
-                    sessions.set(args[0], { id_usuario: args[0], paso_actual: args[1], data_json: args[2] });
+                    sessions.set(args[0], { id_usuario: args[0], paso_actual: args[1], data_json: args[2], version: args[3] });
                 }
                 return { lastInsertRowid: 1 };
             },

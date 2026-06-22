@@ -91,10 +91,15 @@ CREATE TABLE IF NOT EXISTS bot_status_log (
 -- Sesión conversacional de cada usuario de WhatsApp (estado del flujo del
 -- bot). Ver bot/sessionManager.js — cache en memoria con TTL 30min respaldado
 -- por esta tabla.
+-- `version` (migrations/0010_sesiones_bot_version.sql) -- getSession() la usa
+-- para detectar escrituras cross-proceso (dashboard escribiendo directo a
+-- esta tabla, ver bot/sessionManager.js) sin esperar el TTL de 30 min del
+-- cache en memoria.
 CREATE TABLE IF NOT EXISTS sesiones_bot (
     id_usuario  TEXT PRIMARY KEY,
     paso_actual TEXT NOT NULL DEFAULT 'MENU',
-    data_json   TEXT NOT NULL DEFAULT '{}'
+    data_json   TEXT NOT NULL DEFAULT '{}',
+    version     INTEGER NOT NULL DEFAULT 0
 );
 
 -- Lista negra de contenido + frases de queja editables desde el dashboard
@@ -165,11 +170,23 @@ CREATE TABLE IF NOT EXISTS categorias (
     creada_en   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
--- Zonas de cobertura de envío (bot/flows/_shared.js consulta por estado).
+-- Zonas de cobertura de envío -- bot/flows/_shared.js's buscarCobertura()
+-- hace match por prefijo de código postal (cp.startsWith(primeros 2
+-- dígitos del CP del cliente)) para decidir si hay pickup en sucursal o
+-- solo envío a domicilio. Esta tabla estaba mucho más angosta aquí que en
+-- la base real (mismo patrón de drift que productos/categorias, ver
+-- advertencia general al inicio de este archivo) -- en producción `cp` es
+-- el PK real (no `id`, que existe pero siempre queda NULL) y además trae
+-- `capital`/`ciudad` (URL de Maps) y `tiene_pickup`. Columnas mirroreadas
+-- 1:1 desde PRAGMA table_info() de la base real (2026-06-22).
 CREATE TABLE IF NOT EXISTS cobertura (
-    id     INTEGER PRIMARY KEY AUTOINCREMENT,
-    estado TEXT NOT NULL,
-    activa INTEGER NOT NULL DEFAULT 1
+    cp           TEXT PRIMARY KEY,
+    estado       TEXT NOT NULL,
+    capital      TEXT NOT NULL,
+    ciudad       TEXT,
+    activa       INTEGER NOT NULL DEFAULT 1,
+    tiene_pickup INTEGER NOT NULL DEFAULT 0,
+    id           INTEGER
 );
 
 -- Puntos de recolección / sucursales para pickup (bot/flows/orderFlow.js).
@@ -334,6 +351,8 @@ CREATE TABLE IF NOT EXISTS pedidos (
     canal_creacion  TEXT NOT NULL DEFAULT 'bot',   -- migraciones_pendientes/0010
     email_notificado INTEGER DEFAULT 0,
     tono_bot        TEXT,                          -- migrations/0001_agregar_tono_bot.sql
+    razon_social    TEXT,                          -- migrations/0011_pedidos_facturacion.sql
+    rfc             TEXT,                          -- migrations/0011_pedidos_facturacion.sql
     creado_en       TEXT DEFAULT (datetime('now','localtime')),
     actualizado_en  TEXT
 );
@@ -669,18 +688,34 @@ CREATE TABLE IF NOT EXISTS metricas_bot (
 -- Promociones / cupones / lealtad
 -- ──────────────────────────────────────────────────────────────────────────
 
+-- id_categoria/descripcion ya existían en producción sin estar documentadas
+-- aquí (mismo patrón de drift que productos/categorias/cobertura, ver
+-- advertencia general al inicio de este archivo). brand/edad_min/edad_max/
+-- creado_por/motivo_baja/baja_por/baja_en vienen de migrations/
+-- 0009_promociones_alcance_auditoria.sql (Fase 2: alcance por marca/edad
+-- además de producto único o categoría, y trazabilidad de quién crea/tumba
+-- una oferta).
 CREATE TABLE IF NOT EXISTS promociones (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     codigo       TEXT UNIQUE,
-    tipo         TEXT NOT NULL CHECK(tipo IN ('porcentaje','monto')),
-    valor        REAL NOT NULL,
+    descripcion  TEXT,
+    tipo         TEXT NOT NULL CHECK(tipo IN ('porcentaje','monto')) DEFAULT 'porcentaje',
+    valor        REAL NOT NULL DEFAULT 0,
     id_producto  INTEGER REFERENCES productos(id),
+    id_categoria INTEGER REFERENCES categorias(id),
+    brand        TEXT,
+    edad_min     INTEGER,
+    edad_max     INTEGER,
+    activa       INTEGER NOT NULL DEFAULT 1,
     fecha_inicio TEXT,
     fecha_fin    TEXT,
-    usos_max     INTEGER,
+    usos_max     INTEGER DEFAULT 0,
     usos_actual  INTEGER NOT NULL DEFAULT 0,
-    activa       INTEGER NOT NULL DEFAULT 1,
-    creada_en    TEXT DEFAULT (datetime('now','localtime'))
+    creado_por   TEXT,
+    motivo_baja  TEXT,
+    baja_por     TEXT,
+    baja_en      TEXT,
+    creada_en    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS tickets_venta (
@@ -767,12 +802,15 @@ CREATE TABLE IF NOT EXISTS ventas_previas (
 -- para la red nacional simulada) ni `puntos_entrega` (lista pública de
 -- pickup) — es el catálogo interno que alimenta el ledger de movimientos.
 CREATE TABLE IF NOT EXISTS sucursales (
-    id        INTEGER PRIMARY KEY AUTOINCREMENT,
-    nombre    TEXT NOT NULL,
-    codigo    TEXT UNIQUE,
-    direccion TEXT,
-    activa    INTEGER NOT NULL DEFAULT 1,
-    creada_en TEXT DEFAULT (datetime('now','localtime'))
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre        TEXT NOT NULL,
+    codigo        TEXT UNIQUE,
+    direccion     TEXT,
+    activa        INTEGER NOT NULL DEFAULT 1,
+    creada_en     TEXT DEFAULT (datetime('now','localtime')),
+    -- Sin dato fuente para backfillear (ver migrations/0008) -- se captura
+    -- a mano desde el botón de editar sucursal en Prime.
+    codigo_postal TEXT
 );
 
 -- Ledger de movimientos de inventario: cada entrada/salida/ajuste queda

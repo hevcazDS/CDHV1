@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Table, Tabs, Button } from '@mantine/core';
 import { api } from '../api';
@@ -16,7 +17,9 @@ const TABS = [
 export default function ColaAtencion() {
   const txt = useTextoEmoji();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [tab, setTab] = useState('en_espera');
+  const chatear = (idCliente) => navigate(`/notificaciones?cliente=${idCliente}`);
 
   const { data: rows, error, refetch } = useQuery({
     queryKey: ['cola-atencion', tab],
@@ -63,6 +66,9 @@ export default function ColaAtencion() {
                   <td className="text-muted" style={{ fontSize: 11 }}>{fdate(r.creada_en)}</td>
                   <td>
                     <Group gap={6} wrap="nowrap">
+                      {r.id_cliente && (
+                        <Button variant="default" size="xs" onClick={() => chatear(r.id_cliente)}>{txt('💬 Chatear')}</Button>
+                      )}
                       {r.estatus === 'en_espera' && (
                         <Button variant="default" size="xs" onClick={() => marcar(r.id, 'atendida')}>{txt('🗣️ Atender')}</Button>
                       )}

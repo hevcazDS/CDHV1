@@ -1,9 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Tabs, Button, TextInput, Textarea, Select, Radio, Group } from '@mantine/core';
+import { Card, Tabs, Button, TextInput, Textarea, Select, Radio, Group, Switch, NumberInput } from '@mantine/core';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
+
+// Inserta texto en la posición del cursor (no al final) del <textarea> nativo
+// detrás de un Mantine Textarea -- Mantine reenvía el ref al elemento DOM real.
+function insertarEnCursor(ref, valorActual, setValor, textoInsertar) {
+  const el = ref.current;
+  if (!el) { setValor(valorActual + textoInsertar); return; }
+  const inicio = el.selectionStart ?? valorActual.length;
+  const fin = el.selectionEnd ?? valorActual.length;
+  const nuevo = valorActual.slice(0, inicio) + textoInsertar + valorActual.slice(fin);
+  setValor(nuevo);
+  requestAnimationFrame(() => {
+    el.focus();
+    const pos = inicio + textoInsertar.length;
+    el.setSelectionRange(pos, pos);
+  });
+}
 
 const PLANTILLAS_IND = {
   pedido_listo: 'Hola {nombre} 👋\n\nTe informamos que tu pedido está listo para enviarse. En breve recibirás tu guía de rastreo. ¡Gracias por tu compra! 🧸',
@@ -25,6 +42,7 @@ function capitalizar(nombre) {
 export default function Notificaciones() {
   const txt = useTextoEmoji();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState('individual');
 
   // Individual
@@ -32,6 +50,7 @@ export default function Notificaciones() {
   const [clienteSel, setClienteSel] = useState(null);
   const [msgInd, setMsgInd] = useState('');
   const [respInd, setRespInd] = useState(null);
+  const [msgReanudar, setMsgReanudar] = useState(null);
 
   // POS
   const [posQ, setPosQ] = useState('');
@@ -52,17 +71,74 @@ export default function Notificaciones() {
     queryFn: () => api.get('/api/clientes'),
   });
 
+  // Cupones activos -- para insertar el código en el mensaje sin tener que
+  // ir a copiarlo manualmente desde la página de Cupones.
+  const { data: cuponesActivos = [] } = useQuery({
+    queryKey: ['promociones', '1'],
+    queryFn: () => api.get('/api/promociones?activa=1'),
+  });
+  const [cuponSelInd, setCuponSelInd] = useState(null);
+  const [cuponSelMas, setCuponSelMas] = useState(null);
+  const refMsgInd = useRef(null);
+  const refMsgMasivo = useRef(null);
+  const insertarCuponInd = () => {
+    if (!cuponSelInd) return;
+    insertarEnCursor(refMsgInd, msgInd, setMsgInd, cuponSelInd);
+    setCuponSelInd(null);
+  };
+  const insertarCuponMasivo = () => {
+    if (!cuponSelMas) return;
+    insertarEnCursor(refMsgMasivo, msgMasivo, setMsgMasivo, cuponSelMas);
+    setCuponSelMas(null);
+  };
+
   // clienteSel?.id como parte de la queryKey es lo que resuelve el bug ya
   // documentado en la auditoría: antes, si se seleccionaba otro cliente
   // mientras la respuesta de mensajes del cliente anterior seguía en vuelo,
   // ese closure obsoleto podía pintar el hilo viejo encima del cliente nuevo.
   // Con queryKey distinta por cliente, TanStack Query nunca aplica una
   // respuesta vieja a la query actual.
+  // refetchInterval corto: convierte el hilo de "se actualiza si recargas la
+  // página" a chat en vivo de verdad -- pensado para cuando un asesor toma
+  // un caso desde Cola de Atención (botón Chatear) y necesita ver respuestas
+  // del cliente sin estar dándole F5.
   const { data: hilo } = useQuery({
     queryKey: ['mensajes-cliente', clienteSel?.id],
     queryFn: () => api.get(`/api/clientes/${clienteSel.id}/mensajes`),
     enabled: !!clienteSel,
+    refetchInterval: 5000,
   });
+
+  // ?cliente=<id> en la URL (llega desde el botón "💬 Chatear" de Cola de
+  // Atención) preselecciona ese cliente en cuanto carga la lista completa.
+  useEffect(() => {
+    const idParam = searchParams.get('cliente');
+    if (!idParam || !clientes.length) return;
+    const c = clientes.find(cl => String(cl.id) === idParam);
+    if (c) { setTab('individual'); setClienteSel(c); }
+    setSearchParams(prev => { prev.delete('cliente'); return prev; }, { replace: true });
+  }, [searchParams, clientes]);
+
+  // "Regresar al bot": el asesor humano termina su parte y reanuda el flujo
+  // automático justo en el paso que necesita confirmación de dirección o
+  // generación del link de pago, en vez de dejar al cliente colgado con un
+  // bot que sigue pensando que sigue ASESOR. Ver PUT /api/clientes/:id/
+  // reanudar-bot (dashboard/routes/atencionCliente.js) y migrations/
+  // 0010_sesiones_bot_version.sql (el bot detecta este cambio en su
+  // siguiente mensaje, no hasta 30 min después).
+  const reanudarBotMutation = useMutation({
+    mutationFn: (paso) => api.put(`/api/clientes/${clienteSel.id}/reanudar-bot`, { paso }),
+    onSuccess: (r) => {
+      if (r.ok) setMsgReanudar({ ok: true, texto: '✅ Conversación regresada al bot (' + r.paso + ')' });
+      else setMsgReanudar({ ok: false, texto: '❌ ' + r.error });
+    },
+    onError: (e) => setMsgReanudar({ ok: false, texto: '❌ ' + e.message }),
+  });
+  const reanudarBot = (paso) => {
+    if (!clienteSel) return;
+    setMsgReanudar(null);
+    reanudarBotMutation.mutate(paso);
+  };
 
   const { data: audiencia } = useQuery({
     queryKey: ['audiencia-masivo', audienciaTipo, limM],
@@ -138,6 +214,16 @@ export default function Notificaciones() {
 
   const usarPlantillaMasiva = (tipo) => setMsgMasivo(PLANTILLAS_MAS[tipo]);
 
+  // Cupón flash: solo tiene sentido con envío inmediato -- la ventana de
+  // validez arranca "desde el envío", y para un broadcast programado eso
+  // sería desde que se llama esta API (ahora), no desde que el cron lo
+  // dispare después. Por eso se oculta si cuando==='programar'.
+  const [cuponFlash, setCuponFlash] = useState(false);
+  const [flashCodigo, setFlashCodigo] = useState('');
+  const [flashValor, setFlashValor] = useState('');
+  const [flashMinutos, setFlashMinutos] = useState('10');
+  const [flashUsosMax, setFlashUsosMax] = useState('10');
+
   const toggleProgramar = (on) => {
     setCuando(on ? 'programar' : 'ahora');
     if (on && !fechaProg) {
@@ -159,7 +245,7 @@ export default function Notificaciones() {
     },
     onError: (e) => setRespMasivo({ ok: false, texto: '❌ ' + e.message }),
   });
-  const enviarMasivo = () => {
+  const enviarMasivo = async () => {
     if (!msgMasivo.trim()) { setRespMasivo({ ok: false, texto: 'Escribe el mensaje primero' }); return; }
     if (!audiencia?.length) { setRespMasivo({ ok: false, texto: 'Actualiza la audiencia primero' }); return; }
     let enviarEn = null;
@@ -168,12 +254,28 @@ export default function Notificaciones() {
       enviarEn = new Date(fechaProg).toISOString();
       if (new Date(enviarEn) <= new Date()) { setRespMasivo({ ok: false, texto: 'La hora ya pasó' }); return; }
     }
+    if (cuponFlash) {
+      if (!flashCodigo.trim() || !flashValor) { setRespMasivo({ ok: false, texto: 'Completa código y valor del cupón flash' }); return; }
+    }
     const confirmTxt = enviarEn
       ? `¿Programar para ${new Date(enviarEn).toLocaleString('es-MX')} a ${audiencia.length} clientes?`
       : `¿Enviar a ${audiencia.length} clientes ahora?`;
     if (!window.confirm(confirmTxt)) return;
+
+    let mensajeFinal = msgMasivo;
+    if (cuponFlash) {
+      try {
+        const r = await api.post('/api/promociones/flash', {
+          codigo: flashCodigo, tipo: 'porcentaje', valor: parseFloat(flashValor),
+          minutos_validez: parseInt(flashMinutos || 10), usos_max: parseInt(flashUsosMax || 10),
+        });
+        if (!r.ok) { setRespMasivo({ ok: false, texto: '❌ Cupón flash: ' + r.error }); return; }
+        if (!mensajeFinal.includes(r.codigo)) mensajeFinal += `\n\nUsa el código ${r.codigo} — válido solo por ${flashMinutos} minutos.`;
+      } catch (e) { setRespMasivo({ ok: false, texto: '❌ Cupón flash: ' + e.message }); return; }
+    }
+
     enviarMasivoMutation.mutate({
-      mensaje: msgMasivo, limite: limM, enviarEn,
+      mensaje: mensajeFinal, limite: limM, enviarEn,
       soloConPedido: audienciaTipo === 'conPedido',
       soloTags: audienciaTipo === 'recurrentes' ? ['cliente_recurrente'] : [],
       sinActividad: audienciaTipo === 'sinActividad',
@@ -182,8 +284,8 @@ export default function Notificaciones() {
 
   return (
     <div>
-      <div className="page-title">Notificaciones</div>
-      <div className="page-sub">Mensajes individuales, venta previa y campañas masivas</div>
+      <div className="page-title">Operación diaria</div>
+      <div className="page-sub">Chat en vivo, venta previa y campañas masivas</div>
 
       <Tabs value={tab} onChange={setTab} mb="md">
         <Tabs.List>
@@ -262,6 +364,21 @@ export default function Notificaciones() {
               </div>
             )}
 
+            {clienteSel && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>↩️ Regresar al bot</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  <Button variant="light" size="xs" disabled={reanudarBotMutation.isPending} onClick={() => reanudarBot('confirmar_direccion')}>
+                    {txt('📮 Pedir confirmación de dirección')}
+                  </Button>
+                  <Button variant="light" size="xs" disabled={reanudarBotMutation.isPending} onClick={() => reanudarBot('generar_pago')}>
+                    {txt('💳 Generar/reenviar link de pago')}
+                  </Button>
+                </div>
+                {msgReanudar && <div className={msgReanudar.ok ? 'card' : 'login-error'} style={{ marginTop: 8, fontSize: 12 }}>{txt(msgReanudar.texto)}</div>}
+              </div>
+            )}
+
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Plantillas</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -271,7 +388,17 @@ export default function Notificaciones() {
                 <Button variant="default" size="xs" onClick={() => usarPlantilla('seguimiento')}>{txt('👋 Seguimiento')}</Button>
               </div>
             </div>
-            <Textarea label="Mensaje" value={msgInd} onChange={e => setMsgInd(e.target.value)} placeholder="Escribe o elige una plantilla..." minRows={4} mb="sm" />
+            <Textarea ref={refMsgInd} label="Mensaje" value={msgInd} onChange={e => setMsgInd(e.target.value)} placeholder="Escribe o elige una plantilla..." minRows={4} mb="sm" />
+            {cuponesActivos.length > 0 && (
+              <Group gap={6} mb="sm" wrap="nowrap">
+                <Select
+                  placeholder="Insertar código de cupón..." size="xs" style={{ flex: 1 }}
+                  data={cuponesActivos.map(c => ({ value: c.codigo, label: `${c.codigo} (${c.tipo === 'porcentaje' ? c.valor + '%' : '$' + c.valor})` }))}
+                  value={cuponSelInd} onChange={setCuponSelInd} comboboxProps={{ withinPortal: true }} searchable
+                />
+                <Button variant="default" size="xs" disabled={!cuponSelInd} onClick={insertarCuponInd}>Insertar</Button>
+              </Group>
+            )}
             <Button fullWidth disabled={enviarIndMutation.isPending} onClick={enviarIndividual}>{txt('📤 Enviar por WhatsApp')}</Button>
             {respInd && <div className={respInd.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respInd.texto)}</div>}
 
@@ -349,9 +476,20 @@ export default function Notificaciones() {
               </div>
             </div>
             <Textarea
+              ref={refMsgMasivo}
               label={<>Mensaje <span style={{ fontWeight: 400, color: 'var(--text-mute)' }}>- usa {'{nombre}'}</span></>}
               value={msgMasivo} onChange={e => setMsgMasivo(e.target.value)} placeholder="Hola {nombre}..." minRows={5} mb="sm"
             />
+            {cuponesActivos.length > 0 && (
+              <Group gap={6} mb="sm" wrap="nowrap">
+                <Select
+                  placeholder="Insertar código de cupón..." size="xs" style={{ flex: 1 }}
+                  data={cuponesActivos.map(c => ({ value: c.codigo, label: `${c.codigo} (${c.tipo === 'porcentaje' ? c.valor + '%' : '$' + c.valor})` }))}
+                  value={cuponSelMas} onChange={setCuponSelMas} comboboxProps={{ withinPortal: true }} searchable
+                />
+                <Button variant="default" size="xs" disabled={!cuponSelMas} onClick={insertarCuponMasivo}>Insertar</Button>
+              </Group>
+            )}
             <div style={{ padding: '8px 12px', background: 'var(--panel-2)', borderRadius: 6, fontSize: 12, color: 'var(--yellow)', marginBottom: 10 }}>
               {txt('⚠️ Excluidos: troll, blacklist, queja, devolucion')}
             </div>
@@ -367,6 +505,32 @@ export default function Notificaciones() {
                 <TextInput type="datetime-local" value={fechaProg} onChange={e => setFechaProg(e.target.value)} size="xs" mt={8} />
               )}
             </div>
+
+            {cuando === 'ahora' && (
+              <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 10 }}>
+                <Group justify="space-between" mb={cuponFlash ? 8 : 0}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', textTransform: 'uppercase' }}>{txt('⚡ Cupón flash')}</div>
+                  <Switch checked={cuponFlash} onChange={e => setCuponFlash(e.currentTarget.checked)} size="sm" />
+                </Group>
+                {cuponFlash && (
+                  <>
+                    <p className="page-sub" style={{ margin: '0 0 8px', fontSize: 12 }}>
+                      Se activa justo al enviar este broadcast: válido por los minutos indicados desde
+                      ahora, hasta el máximo de redenciones (tope global, no por cliente).
+                    </p>
+                    <Group grow mb={8}>
+                      <TextInput placeholder="Código (ej: FLASH10)" size="xs" value={flashCodigo} onChange={e => setFlashCodigo(e.target.value)} />
+                      <NumberInput placeholder="% descuento" size="xs" min={1} max={100} value={flashValor === '' ? '' : Number(flashValor)} onChange={v => setFlashValor(v === '' ? '' : String(v))} />
+                    </Group>
+                    <Group grow>
+                      <NumberInput label="Minutos de validez" size="xs" min={1} max={1440} value={Number(flashMinutos)} onChange={v => setFlashMinutos(String(v ?? 10))} />
+                      <NumberInput label="Máx. redenciones" size="xs" min={1} value={Number(flashUsosMax)} onChange={v => setFlashUsosMax(String(v ?? 10))} />
+                    </Group>
+                  </>
+                )}
+              </div>
+            )}
+
             <Button fullWidth disabled={enviarMasivoMutation.isPending} onClick={enviarMasivo}>
               <Emoji>📣 </Emoji>Enviar a {audiencia?.length || 0} clientes
             </Button>

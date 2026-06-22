@@ -15,10 +15,25 @@ import '@fontsource/inter/latin-400.css';
 import '@fontsource/inter/latin-500.css';
 import '@fontsource/inter/latin-600.css';
 import '@fontsource/inter/latin-700.css';
+// Dos fuentes "corporativas" adicionales (selector en Prime > General,
+// FontSwitcher.jsx) -- mismo criterio que Inter arriba: self-hosteadas via
+// @fontsource, nunca Google Fonts CDN, para no abrir la CSP.
+import '@fontsource/ibm-plex-sans/latin-400.css';
+import '@fontsource/ibm-plex-sans/latin-600.css';
+import '@fontsource/ibm-plex-sans/latin-700.css';
+import '@fontsource/source-sans-3/latin-400.css';
+import '@fontsource/source-sans-3/latin-600.css';
+import '@fontsource/source-sans-3/latin-700.css';
 import { AuthProvider } from './context/AuthContext';
 import { EmojiProvider } from './context/EmojiContext';
 import App from './App';
 import './styles.css';
+import { cargarPreferenciasFuente } from './lib/fontPrefs';
+
+// Aplica la fuente/tamaño guardados (Prime > General) antes de montar React,
+// igual criterio que el tema: preferencia de navegador, no algo que dependa
+// del backend para no parpadear con el valor por default en cada carga.
+cargarPreferenciasFuente();
 
 // staleTime > 0 evita refetch automático al cambiar de pestaña del navegador
 // en cada acción del operador — el dashboard ya refresca explícitamente tras
@@ -42,12 +57,15 @@ const mantineTheme = {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {/* defaultColorScheme="auto" + el ThemeSwitcher en Layout cubren los
-        tres modos (claro/oscuro/auto); Mantine refleja el resultado en
-        data-mantine-color-scheme sobre <html>, que styles.css usa para
-        repintar TODO el panel (no solo los componentes Mantine) sin tener
-        que migrar las 20 páginas de una sola vez. */}
-    <MantineProvider defaultColorScheme="auto" theme={mantineTheme}>
+    {/* defaultColorScheme="dark" -- "Auto" se quitó (el operador lo pidió:
+        no servía para nada en una sola ventana de Electron sin variación de
+        sistema). ThemeSwitcher (en Layout) cubre los tres modos reales:
+        claro/oscuro/confort -- "confort" es oscuro + el atributo aparte
+        data-confort en <html> (ver ThemeSwitcher.jsx y styles.css). Mantine
+        refleja claro/oscuro en data-mantine-color-scheme sobre <html>, que
+        styles.css usa para repintar TODO el panel (no solo los componentes
+        Mantine) sin tener que migrar las 20 páginas de una sola vez. */}
+    <MantineProvider defaultColorScheme="dark" theme={mantineTheme}>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>

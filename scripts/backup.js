@@ -19,12 +19,26 @@ const DB_PATH   = process.env.DB_PATH  || path.join(__dirname, 'jugueteria.db');
 const IMG_DIR   = path.join(__dirname, 'imagenes_clientes');
 const SMTP_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
 const SMTP_PORT = parseInt(process.env.EMAIL_PORT || '587');
-const SMTP_USER = process.env.EMAIL_USER || '';
-const SMTP_PASS = process.env.EMAIL_PASS || '';
 
-// DESTINO: siempre a hevcazsolutions@gmail.com (mismo que EMAIL_USER)
-// Si quieres otro destino, agrega BACKUP_DEST=otro@gmail.com en .env
-const DEST_MAIL = process.env.BACKUP_DEST || process.env.EMAIL_USER || '';
+// bot_email_usuario/password y el correo destino de backups se leen de la
+// tabla `configuracion` (prime los puede cambiar desde el dashboard, Prime >
+// General) en cada corrida -- no una sola vez al cargar el script. Si nunca
+// se han escrito esas claves cae a las env vars de siempre.
+function _cfg(clave, fallback) {
+    try {
+        const db = require('../bot/db_connection');
+        const r = db.prepare('SELECT valor FROM configuracion WHERE clave=? LIMIT 1').get(clave);
+        return (r && r.valor) ? r.valor : fallback;
+    } catch (_) { return fallback; }
+}
+
+const SMTP_USER = _cfg('bot_email_usuario', process.env.EMAIL_USER || '');
+const SMTP_PASS = _cfg('bot_email_password', process.env.EMAIL_PASS || '');
+
+// DESTINO: por default el mismo correo del bot (SMTP_USER). Sobreescribible
+// desde Prime > General (email_backup_destino, admite varios separados por
+// coma) o, si nunca se configuró ahí, con BACKUP_DEST en .env.
+const DEST_MAIL = _cfg('email_backup_destino', process.env.BACKUP_DEST || SMTP_USER || '');
 const FROM_MAIL = 'Backup Julio Cepeda <' + SMTP_USER + '>';
 const MAX_IMG_BYTES = 15 * 1024 * 1024; // 15MB maximo por correo de imagenes
 
@@ -92,18 +106,19 @@ async function comprimirImagenesNuevas() {
 // ── Enviar email con adjuntos via SMTP STARTTLS ────────────────────
 function enviarBackup(adjuntos, asunto) {
     if (!SMTP_USER || !SMTP_PASS) {
-        console.error('[backup] Sin credenciales SMTP en .env (EMAIL_USER / EMAIL_PASS)');
+        console.error('[backup] Sin credenciales SMTP — configura bot_email_usuario/password en Prime > General o EMAIL_USER/EMAIL_PASS en .env');
         return Promise.resolve(false);
     }
     if (!DEST_MAIL) {
-        console.error('[backup] Sin destinatario — agrega EMAIL_USER o BACKUP_DEST en .env');
+        console.error('[backup] Sin destinatario — agrega email_backup_destino en Prime > General o BACKUP_DEST en .env');
         return Promise.resolve(false);
     }
+    const destList = DEST_MAIL.split(',').map(d => d.trim()).filter(Boolean);
 
     const boundary = '----BackupBnd' + crypto.randomBytes(8).toString('hex');
     let body = [
         'From: ' + FROM_MAIL,
-        'To: ' + DEST_MAIL,
+        'To: ' + destList.join(', '),
         'Subject: ' + asunto,
         'MIME-Version: 1.0',
         'Content-Type: multipart/mixed; boundary="' + boundary + '"',
@@ -132,6 +147,7 @@ function enviarBackup(adjuntos, asunto) {
         const sock = net.createConnection(SMTP_PORT, SMTP_HOST);
         let tlsSock = null;
         let step = 0;
+        let rcptPendientes = 0;
 
         function send(s) { (tlsSock || sock).write(s + '\r\n'); }
 
@@ -149,12 +165,19 @@ function enviarBackup(adjuntos, asunto) {
             else if (step === 4 && code === 334) { send(Buffer.from(SMTP_USER).toString('base64')); step = 5; }
             else if (step === 5 && code === 334) { send(Buffer.from(SMTP_PASS).toString('base64')); step = 6; }
             else if (step === 6 && code === 235) { send('MAIL FROM:<' + SMTP_USER + '>'); step = 7; }
-            else if (step === 7 && code === 250) { send('RCPT TO:<' + DEST_MAIL + '>'); step = 8; }
-            else if (step === 8 && code === 250) { send('DATA'); step = 9; }
+            else if (step === 7 && code === 250) {
+                rcptPendientes = destList.length;
+                for (const dest of destList) send('RCPT TO:<' + dest + '>');
+                step = 8;
+            }
+            else if (step === 8 && code === 250) {
+                rcptPendientes--;
+                if (rcptPendientes <= 0) { send('DATA'); step = 9; }
+            }
             else if (step === 9 && code === 354) { send(body + '\r\n.'); step = 10; }
             else if (step === 10 && code === 250) {
                 send('QUIT');
-                console.log('[backup] Correo enviado a: ' + DEST_MAIL);
+                console.log('[backup] Correo enviado a: ' + destList.join(', '));
                 resolve(true);
                 (tlsSock || sock).destroy();
             }

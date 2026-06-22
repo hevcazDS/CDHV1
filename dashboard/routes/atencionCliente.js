@@ -5,7 +5,7 @@
 // lo que este rango referenciaba como variable de módulo en el archivo
 // original (ver dashboard/server.js para la construcción de ctx).
 module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
-    const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
+    const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, iniciarCapturaDireccion, SESION_S, sessionManagerBot, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
     if (p === '/api/cola_atencion' && req.method === 'GET') {
         const _u = new URL('http://x' + req.url);
         const estatusF = (_u.searchParams.get('estatus') || 'en_espera').trim();
@@ -50,6 +50,68 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
         const idCli = parseInt(p.split('/')[3]);
         const rows = db.prepare('SELECT m.rol, m.contenido, m.enviado_en FROM mensajes m JOIN conversaciones cv ON cv.id=m.id_conversacion WHERE cv.id_cliente=? ORDER BY m.enviado_en DESC LIMIT 15').all(idCli);
         return json(res, rows.reverse());
+    }
+
+    // PUT /api/clientes/:id/reanudar-bot — "regresar la conversación al bot"
+    // desde el chat de Operación diaria (antes Notificaciones): un asesor
+    // humano toma un caso escalado y, en vez de dejar la sesión en ASESOR
+    // para siempre, la regresa al flujo automático justo en el paso que
+    // necesita. Escribe sesiones_bot directo (mismo patrón ya usado por
+    // marketing.js's /api/beta/limpiar) -- el bot lo recoge en el siguiente
+    // mensaje del cliente gracias al chequeo de `version` de getSession()
+    // (migrations/0010_sesiones_bot_version.sql), no hasta 30 min después.
+    // Body: { paso: 'confirmar_direccion' | 'generar_pago' }
+    if (req.method === 'PUT' && p.match(/^\/api\/clientes\/\d+\/reanudar-bot$/)) {
+        const idCli = parseInt(p.split('/')[3]);
+        return readBody(req, body => {
+            try {
+                const { paso } = JSON.parse(body || '{}');
+                if (!['confirmar_direccion', 'generar_pago'].includes(paso)) {
+                    return json(res, { ok:false, error:'paso debe ser confirmar_direccion o generar_pago' }, 400);
+                }
+                const cliente = db.prepare('SELECT id, nombre, telefono FROM clientes WHERE id=?').get(idCli);
+                if (!cliente || !cliente.telefono) return json(res, { ok:false, error:'Cliente no encontrado o sin teléfono' }, 404);
+                const idUsuario = cliente.telefono; // ya es el JID completo (@c.us/@lid), ver construirAudienciaMasivo
+
+                if (paso === 'confirmar_direccion') {
+                    // iniciarCapturaDireccion ya decide ASK_NOMBRE vs CONFIRM_DIR_GUARDADA
+                    // (si hay dirección previa) y graba la sesión -- mismo código que
+                    // usa el bot en vivo, no una reimplementación aparte.
+                    const mensaje = iniciarCapturaDireccion(idUsuario, idUsuario, {});
+                    db.prepare("INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES ('whatsapp',?,'Reanudar — confirmar dirección',?,'pendiente')")
+                        .run(idUsuario, mensaje);
+                    return json(res, { ok:true, paso: 'confirmar_direccion', mensaje });
+                }
+
+                // generar_pago: busca el link de pago más reciente del cliente
+                // (vía su pedido más reciente) -- si ya expiró lo extiende otras
+                // 48h reusando la misma url_link en vez de generar una nueva
+                // (mismo criterio que PUT /api/pagos/:id/extender).
+                const link = db.prepare(`
+                    SELECT lp.* FROM links_pago lp
+                    JOIN pedidos p ON p.id_pedido = lp.id_pedido
+                    WHERE p.id_cliente = ? AND lp.estatus IN ('generado','cancelado')
+                    ORDER BY lp.id DESC LIMIT 1
+                `).get(idCli);
+                if (!link) return json(res, { ok:false, error:'Este cliente no tiene ningún link de pago pendiente que reenviar' }, 404);
+                const expirado = new Date(link.fecha_expiracion) < new Date();
+                if (expirado || link.estatus === 'cancelado') {
+                    const nuevaExpira = new Date(Date.now() + 48*3600*1000).toISOString().replace('T',' ').substring(0,19);
+                    db.prepare("UPDATE links_pago SET estatus='generado', fecha_expiracion=? WHERE id=?").run(nuevaExpira, link.id);
+                }
+                const mensaje = `💳 Aquí tienes de nuevo tu link de pago:\n${link.url_link}\n\nVálido por 48 horas.`;
+                db.prepare("INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES ('whatsapp',?,'Reanudar — link de pago',?,'pendiente')")
+                    .run(idUsuario, mensaje);
+                // Sin paso dedicado de "esperando pago" en el enum S del bot (la
+                // confirmación de pago la hace un asesor desde el dashboard, no
+                // el bot al leer la respuesta del cliente) -- MENU es el estado
+                // "de vuelta a la normalidad" correcto aquí. updateSession() ya
+                // sube `version` (ver bot/sessionManager.js), no hace falta SQL
+                // a mano para eso.
+                sessionManagerBot.updateSession(idUsuario, SESION_S.MENU, {});
+                return json(res, { ok:true, paso: 'generar_pago', mensaje });
+            } catch (e) { return json(res, { ok:false, error:e.message }, 500); }
+        });
     }
 
     // GET /api/buscar?q=texto — buscador global (pedidos + clientes + guías)

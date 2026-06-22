@@ -54,6 +54,7 @@ const {
     _MessageMedia,
     t,
     moduloActivo,
+    getValor,
     mostrarCarrito,
 } = shared;
 
@@ -275,7 +276,7 @@ async function handle(ctx) {
                 ).run('DEVOLUCI\u00d3N ' + (data.folio||'SIN FOLIO') + ' | ' + _resumen);
             } catch(e){ log.debug('No se pudo registrar cola_atencion de devoluci\u00f3n: ' + e.message); }
 
-            const _at = process.env.ASESOR_WHATSAPP;
+            const _at = getValor('operador_telefono', process.env.ASESOR_WHATSAPP);
             if (_at) {
                 try {
                     db.prepare('INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES (\'whatsapp\',?,?,?,\'pendiente\')').run(

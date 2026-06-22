@@ -5,11 +5,17 @@ const log = require('./logger')('sessionManager');
 const mensajeService = (() => { try { return require('../services/mensajeService'); } catch(_) { return { marcarOutcome: () => {} }; } })();
 
 // ── Crear tabla si no existe ───────────────────────────────────────────────
+// `version` requiere haber corrido `node scripts/migrate.js`
+// (migrations/0010_sesiones_bot_version.sql) en instalaciones que ya tenían
+// esta tabla -- CREATE TABLE IF NOT EXISTS no agrega columnas a una tabla
+// que ya existe. Ver CLAUDE.md: las migraciones son la fuente de verdad
+// para cambios de esquema, no un ALTER TABLE inline más en este archivo.
 db.exec(`
     CREATE TABLE IF NOT EXISTS sesiones_bot (
         id_usuario  TEXT PRIMARY KEY,
         paso_actual TEXT NOT NULL DEFAULT 'MENU',
-        data_json   TEXT NOT NULL DEFAULT '{}'
+        data_json   TEXT NOT NULL DEFAULT '{}',
+        version     INTEGER NOT NULL DEFAULT 0
     )
 `);
 
@@ -104,14 +110,28 @@ setInterval(() => {
 function getSession(userId) {
     const now = Date.now();
 
-    // 1. Buscar en cache
+    // 1. Buscar en cache -- pero antes de confiar en él, un SELECT barato
+    // (PK, prácticamente gratis) de solo `version` detecta si algo afuera de
+    // este proceso (el dashboard, ej. /api/clientes/:id/reanudar-bot o
+    // marketing.js's /api/beta/limpiar) escribió esta fila directo en SQLite
+    // desde la última vez que se cacheó. Sin esto, ese cambio se ignoraba
+    // hasta los 30 min de TTL del cache (bug real, ver migrations/
+    // 0010_sesiones_bot_version.sql).
     if (_cache.has(userId)) {
         const ses = _cache.get(userId);
         if (ses.updatedAt < now - TTL_MS) {
             _cache.delete(userId);
         } else {
-            ses.updatedAt = now;
-            return { paso_actual: ses.paso_actual, data: ses.data };
+            let staleCache = false;
+            try {
+                const v = db.prepare('SELECT version FROM sesiones_bot WHERE id_usuario=?').get(userId);
+                staleCache = !!v && v.version !== ses.version;
+            } catch (e) { log.debug('No se pudo verificar version de sesion: ' + e.message, { userId }); }
+            if (!staleCache) {
+                ses.updatedAt = now;
+                return { paso_actual: ses.paso_actual, data: ses.data };
+            }
+            _cache.delete(userId); // cae a recargar desde SQLite abajo
         }
     }
 
@@ -121,7 +141,7 @@ function getSession(userId) {
         if (!row) return { paso_actual: 'MENU', data: {} };
         let data = {};
         try { data = JSON.parse(row.data_json); } catch (e) { log.debug('data_json corrupto en sesiones_bot: ' + e.message, { userId }); }
-        _cache.set(userId, { paso_actual: row.paso_actual, data, updatedAt: now });
+        _cache.set(userId, { paso_actual: row.paso_actual, data, version: row.version, updatedAt: now });
         return { paso_actual: row.paso_actual, data };
     } catch (err) {
         log.error('getSession error: ' + err.message, { userId });
@@ -131,20 +151,25 @@ function getSession(userId) {
 
 function updateSession(userId, step, data = {}) {
     const now = Date.now();
-    _cache.set(userId, { paso_actual: step, data, updatedAt: now });
+    // `version` es simplemente Date.now() del proceso que escribe -- no
+    // necesita ser un contador atómico de SQL (no se usa para concurrencia,
+    // solo para que OTRO proceso detecte "esto cambió después de lo que
+    // tengo cacheado"). Evita un round-trip extra de lectura antes de escribir.
+    _cache.set(userId, { paso_actual: step, data, version: now, updatedAt: now });
     try {
-        db.prepare('INSERT OR REPLACE INTO sesiones_bot (id_usuario, paso_actual, data_json) VALUES (?, ?, ?)')
-          .run(userId, step, JSON.stringify(data));
+        db.prepare('INSERT OR REPLACE INTO sesiones_bot (id_usuario, paso_actual, data_json, version) VALUES (?, ?, ?, ?)')
+          .run(userId, step, JSON.stringify(data), now);
     } catch (err) {
         log.error('updateSession error: ' + err.message, { userId });
     }
 }
 
 function clearSession(userId) {
-    _cache.delete(userId);
+    const now = Date.now();
+    _cache.set(userId, { paso_actual: 'MENU', data: {}, version: now, updatedAt: now });
     try {
-        db.prepare("INSERT OR REPLACE INTO sesiones_bot (id_usuario, paso_actual, data_json) VALUES (?, 'MENU', '{}')")
-          .run(userId);
+        db.prepare("INSERT OR REPLACE INTO sesiones_bot (id_usuario, paso_actual, data_json, version) VALUES (?, 'MENU', '{}', ?)")
+          .run(userId, now);
     } catch (err) {
         log.error('clearSession error: ' + err.message, { userId });
     }

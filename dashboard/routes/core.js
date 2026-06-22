@@ -5,12 +5,12 @@
 // lo que este rango referenciaba como variable de módulo en el archivo
 // original (ver dashboard/server.js para la construcción de ctx).
 module.exports = function coreRoutes(req, res, p, u, ctx, next) {
-    const { db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
+    const { db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
     // POST /api/login {username, password} — reemplaza el pop-up de Basic Auth
     if (p === '/api/login' && req.method === 'POST') {
         return readBody(req, body => {
             try {
-                const { username, password } = JSON.parse(body || '{}');
+                const { username, password, recordar } = JSON.parse(body || '{}');
                 const uname = String(username || '');
                 if (loginBloqueado(uname)) {
                     return json(res, { ok: false, error: 'Cuenta bloqueada temporalmente por demasiados intentos fallidos. Intenta de nuevo en unos minutos.' }, 429);
@@ -21,8 +21,9 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
                     return json(res, { ok: false, error: 'Usuario o contraseña incorrectos' }, 401);
                 }
                 limpiarIntentosLogin(uname);
-                const token = crearSesion(u2.username, u2.rol);
-                res.setHeader('Set-Cookie', `jc_session=${token}; HttpOnly; SameSite=Lax${COOKIE_SECURE_FLAG}; Max-Age=${SESSION_TTL_MS / 1000}; Path=/`);
+                const ttlMs = recordar ? SESSION_TTL_MS_RECORDAR : SESSION_TTL_MS;
+                const token = crearSesion(u2.username, u2.rol, ttlMs);
+                res.setHeader('Set-Cookie', `jc_session=${token}; HttpOnly; SameSite=Lax${COOKIE_SECURE_FLAG}; Max-Age=${ttlMs / 1000}; Path=/`);
                 return json(res, { ok: true, username: u2.username, rol: u2.rol });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });

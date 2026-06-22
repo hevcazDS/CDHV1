@@ -17,6 +17,10 @@ const GRUPOS = [
     { to: '/pedidos', label: 'Pedidos', icon: '📦' },
     { to: '/devoluciones', label: 'Devoluciones', icon: '↩️' },
     { to: '/cola', label: 'Cola de atención', icon: '🗨️' },
+    // Antes vivía en "Marketing" (era solo broadcast) -- ahora es el centro
+    // de chat en vivo con clientes escalados (ver Notificaciones.jsx), así
+    // que pasa a este grupo junto con el resto de la operación diaria.
+    { to: '/notificaciones', label: 'Operación diaria', icon: '💬' },
   ]},
   { titulo: 'Envíos y logística', enlaces: [
     { to: '/guias', label: 'Guías Estafeta', icon: '🚚' },
@@ -31,8 +35,7 @@ const GRUPOS = [
   ]},
   { titulo: 'Marketing', enlaces: [
     { to: '/ofertas', label: 'Ofertas', icon: '🏷️' },
-    { to: '/promociones', label: 'Promociones', icon: '🎟️' },
-    { to: '/notificaciones', label: 'Notificaciones', icon: '📢' },
+    { to: '/cupones', label: 'Cupones', icon: '🎟️' },
   ]},
   { titulo: 'Catálogo y datos', enlaces: [
     { to: '/sustitutos', label: 'Relacionados', icon: '🔄' },
@@ -42,7 +45,7 @@ const GRUPOS = [
   ]},
   { titulo: 'Sistema', enlaces: [
     { to: '/modulos', label: 'Módulos', icon: '⚙️' },
-    { to: '/beta', label: 'Beta / Pruebas', icon: '🧪' },
+    { to: '/beta', label: 'Beta / Pruebas', icon: '🧪', rolRequerido: 'prime' },
     { to: '/prime', label: 'Prime', icon: '⭐', rolRequerido: 'prime' },
   ]},
 ];

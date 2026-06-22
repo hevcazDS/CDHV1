@@ -149,12 +149,20 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
         });
     }
 
-    // PUT /api/pedidos/:id — cambiar estatus de un pedido
+    // PUT /api/pedidos/:id — cambiar estatus de un pedido, o (Fase 3,
+    // facturación) actualizar razon_social/rfc sin tocar el estatus -- el
+    // modal "Ver ticket" de Pedidos.jsx manda solo esos dos campos.
     if (req.method === 'PUT' && p.startsWith('/api/pedidos/')) {
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
-                const { estatus } = JSON.parse(body);
+                const datos = JSON.parse(body);
+                if (datos.estatus === undefined && (datos.razon_social !== undefined || datos.rfc !== undefined)) {
+                    db.prepare("UPDATE pedidos SET razon_social=?, rfc=?, actualizado_en=datetime('now','localtime') WHERE id_pedido=?")
+                        .run(datos.razon_social || null, datos.rfc || null, id);
+                    return json(res, { ok:true, razon_social: datos.razon_social || null, rfc: datos.rfc || null });
+                }
+                const { estatus } = datos;
                 const validos = ['pendiente','confirmado','preparando','enviado','entregado','cancelado'];
                 if (!validos.includes(estatus)) return json(res, { ok:false, error:'Estatus inválido' }, 400);
                 db.prepare("UPDATE pedidos SET estatus=?, actualizado_en=datetime('now','localtime') WHERE id_pedido=?").run(estatus, id);

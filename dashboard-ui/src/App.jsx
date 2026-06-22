@@ -13,7 +13,7 @@ import ColaAtencion from './pages/ColaAtencion';
 import ListaEspera from './pages/ListaEspera';
 import Preventas from './pages/Preventas';
 import Ofertas from './pages/Ofertas';
-import Promociones from './pages/Promociones';
+import Cupones from './pages/Cupones';
 import Sustitutos from './pages/Sustitutos';
 import Puntos from './pages/Puntos';
 import Ranking from './pages/Ranking';
@@ -60,14 +60,14 @@ export default function App() {
         <Route path="/lista-espera" element={<ListaEspera />} />
         <Route path="/preventas" element={<Preventas />} />
         <Route path="/ofertas" element={<Ofertas />} />
-        <Route path="/promociones" element={<Promociones />} />
+        <Route path="/cupones" element={<Cupones />} />
         <Route path="/sustitutos" element={<Sustitutos />} />
         <Route path="/puntos" element={<Puntos />} />
         <Route path="/ranking" element={<Ranking />} />
         <Route path="/modulos" element={<Modulos />} />
         <Route path="/busquedas" element={<Busquedas />} />
         <Route path="/cola-envios" element={<ColaEnvios />} />
-        <Route path="/beta" element={<Beta />} />
+        {user.rol === 'prime' && <Route path="/beta" element={<Beta />} />}
         <Route path="/metricas" element={<Metricas />} />
         <Route path="/notificaciones" element={<Notificaciones />} />
         <Route path="/etiquetas" element={<Etiquetas />} />

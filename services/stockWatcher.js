@@ -16,6 +16,16 @@ function _flagActivo(clave) {
     } catch(_) { return true; }
 }
 
+// Lee un valor de texto de `configuracion` (no flag on/off) -- usado para
+// ajustes que prime puede sobreescribir desde el dashboard sin tocar .env,
+// como el teléfono del operador (antes solo ASESOR_WHATSAPP).
+function _valorConfig(clave, fallback) {
+    try {
+        const r = db.prepare('SELECT valor FROM configuracion WHERE clave=? LIMIT 1').get(clave);
+        return (r && r.valor) ? r.valor : fallback;
+    } catch(_) { return fallback; }
+}
+
 // Inserta en cola_notificaciones con un tag de `campana` para poder medir
 // conversión real por campaña (ver /api/metricas/campanas) — si la columna
 // todavía no existe en producción, cae al INSERT sin ella y el envío de
@@ -325,7 +335,7 @@ function checkOfertasPorVencer() {
 
 // ── 7. Alerta stock mínimo ───────────────────────────────────────
 function checkStockMinimo() {
-    const asesorTel = process.env.ASESOR_WHATSAPP;
+    const asesorTel = _valorConfig('operador_telefono', process.env.ASESOR_WHATSAPP);
     if (!asesorTel) return 0;
     const criticos = db.prepare(`
         SELECT p.name, i.sucursal, i.stock, i.stock_minimo
@@ -394,7 +404,7 @@ function checkSeguimiento48h() {
 // vuelve a avisar (marcado URGENTE) y sube la prioridad — una sola vez por
 // caso (reescalada_en se marca al re-avisar, así no se repite cada ciclo).
 function checkQuejasSinRespuesta() {
-    const asesorTel = process.env.ASESOR_WHATSAPP;
+    const asesorTel = _valorConfig('operador_telefono', process.env.ASESOR_WHATSAPP);
     if (!asesorTel) return 0;
 
     const pendientes = db.prepare(`

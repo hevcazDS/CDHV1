@@ -37,6 +37,17 @@ function _refresh() {
 function getTono() { _refresh(); return _cache.tono; }
 function invalidarCache() { _cache.ts = 0; }
 
+// Lectura genérica de cualquier clave de `configuracion`, con el mismo cache
+// de 60s que tono/módulos -- usada para ajustes que antes solo vivían en
+// .env (operador_telefono, bot_email_usuario, etc.) y ahora prime puede
+// sobreescribir desde el dashboard sin reiniciar el bot. `fallback` es lo
+// que se devuelve si la clave nunca se ha escrito (normalmente la env var).
+function getValor(clave, fallback = null) {
+    _refresh();
+    const v = _cache.modulos[clave];
+    return (v !== undefined && v !== '') ? v : fallback;
+}
+
 // Flags que arrancan apagados si nunca se han tocado en `configuracion`:
 // puntos (módulo opcional), las dos integraciones de API real (deben
 // quedarse en modo simulado/demo hasta que el usuario prime las encienda),
@@ -145,4 +156,4 @@ function t(clave, vars = {}) {
     return txt;
 }
 
-module.exports = { t, getTono, moduloActivo, invalidarCache, FRASES, TONOS_VALIDOS };
+module.exports = { t, getTono, moduloActivo, getValor, invalidarCache, FRASES, TONOS_VALIDOS };

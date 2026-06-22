@@ -132,6 +132,26 @@ const NegocioSchema = z.object({
     nombre_negocio: z.string().min(1, 'nombre_negocio requerido').max(80),
 });
 
+// Teléfono del operador (antes solo ASESOR_WHATSAPP en .env), contacto de
+// soporte (url/teléfono/correo) y destino(s) de correo de los backups
+// automáticos (scripts/backup.js) — todo editable solo por prime, sin
+// reiniciar ningún proceso (mismo patrón de cache de 60s que tono_bot).
+const ConfigContactoSchema = z.object({
+    operador_telefono:    z.string().max(30).optional().nullable(),
+    soporte_url:          z.string().max(300).optional().nullable(),
+    soporte_telefono:     z.string().max(30).optional().nullable(),
+    soporte_correo:       z.string().max(120).optional().nullable(),
+    email_backup_destino: z.string().max(300).optional().nullable(),
+});
+
+// Correo + contraseña de aplicación que usa el propio bot para enviar (antes
+// solo EMAIL_USER/EMAIL_PASS en .env) — separado de ConfigContactoSchema
+// porque la contraseña nunca se debe regresar en un GET, solo escribirse.
+const ConfigEmailBotSchema = z.object({
+    bot_email_usuario:  z.string().max(120).optional().nullable(),
+    bot_email_password: z.string().max(200).optional().nullable(),
+});
+
 // Palabra/frase agregada por el usuario prime a la lista negra o detector de
 // quejas — enriquece el filtro base que vive en bot/filtroPalabras.js.
 const PalabraFiltroSchema = z.object({
@@ -149,15 +169,17 @@ const InventarioMinimoSchema = z.object({
 
 // Sucursal (tienda/bodega) — registro maestro, solo lo gestiona prime.
 const SucursalSchema = z.object({
-    nombre:    z.string().min(1, 'nombre requerido').max(80),
-    codigo:    z.string().max(20).optional().nullable(),
-    direccion: z.string().max(200).optional().nullable(),
+    nombre:        z.string().min(1, 'nombre requerido').max(80),
+    codigo:        z.string().max(20).optional().nullable(),
+    direccion:     z.string().max(200).optional().nullable(),
+    codigo_postal: z.string().max(10).optional().nullable(),
 });
 const SucursalUpdateSchema = z.object({
-    nombre:    z.string().min(1).max(80).optional(),
-    codigo:    z.string().max(20).optional().nullable(),
-    direccion: z.string().max(200).optional().nullable(),
-    activa:    z.boolean().optional(),
+    nombre:        z.string().min(1).max(80).optional(),
+    codigo:        z.string().max(20).optional().nullable(),
+    direccion:     z.string().max(200).optional().nullable(),
+    codigo_postal: z.string().max(10).optional().nullable(),
+    activa:        z.boolean().optional(),
 });
 
 // Alta/edición de productos — solo prime crea catálogo nuevo o ajusta el
@@ -203,7 +225,11 @@ const ProductoBaseSchema = z.object({
     stock_monterrey:       z.number().int().min(0).default(0),
     stock_cdmx_centro:     z.number().int().min(0).default(0),
     stock_base:            z.number().int().min(0).optional().nullable(),
-    stock_sucursales:      z.record(z.string(), z.number().int().min(0)).optional(),
+    // Reemplaza al viejo stock_sucursales (mapa por las 11 sucursales) --
+    // ahora el alta solo siembra `inventarios` en la sucursal de
+    // facturación default (configuracion.sucursal_facturacion_default),
+    // un solo número en vez de un mapa completo.
+    stock_inicial:         z.number().int().min(0).optional(),
 });
 const _edadCoherente = (d) => d.edad_max == null || d.edad_min == null || d.edad_max >= d.edad_min;
 const _edadCoherenteOpts = { message: 'edad_max no puede ser menor que edad_min', path: ['edad_max'] };
@@ -260,6 +286,8 @@ module.exports = {
     CuponRedimirSchema:   { safeParse: (d) => safe(CuponRedimirSchema, d) },
     VentaPreviaSchema:  { safeParse: (d) => safe(VentaPreviaSchema, d) },
     NegocioSchema:      { safeParse: (d) => safe(NegocioSchema, d) },
+    ConfigContactoSchema: { safeParse: (d) => safe(ConfigContactoSchema, d) },
+    ConfigEmailBotSchema: { safeParse: (d) => safe(ConfigEmailBotSchema, d) },
     PalabraFiltroSchema: { safeParse: (d) => safe(PalabraFiltroSchema, d) },
     InventarioMinimoSchema: { safeParse: (d) => safe(InventarioMinimoSchema, d) },
     SucursalSchema:       { safeParse: (d) => safe(SucursalSchema, d) },

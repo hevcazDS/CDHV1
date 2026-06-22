@@ -31,11 +31,28 @@ const log    = require('../bot/logger')('emailService');
 require('dotenv').config({ quiet: true });
 
 // ── Config ────────────────────────────────────────────────────────────────
+// SMTP_USER/PASS se leen de `configuracion` (bot_email_usuario/password) en
+// cada envío, no una sola vez al cargar el módulo -- así prime puede cambiar
+// el correo+contraseña de aplicación del bot desde el dashboard (Prime >
+// General) sin reiniciar el proceso, igual que tono_bot/módulos. Si nunca se
+// han escrito esas claves, cae a las env vars de siempre (instalaciones que
+// solo usan .env siguen funcionando igual).
 const SMTP_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
 const SMTP_PORT = parseInt(process.env.EMAIL_PORT || '587');
-const SMTP_USER = process.env.EMAIL_USER || '';
-const SMTP_PASS = process.env.EMAIL_PASS || '';
-const FROM_ADDR = process.env.EMAIL_FROM || `Julio Cepeda Jugueterías <${SMTP_USER}>`;
+
+function _cfg(clave, fallback) {
+    try {
+        const r = db.prepare('SELECT valor FROM configuracion WHERE clave=? LIMIT 1').get(clave);
+        return (r && r.valor) ? r.valor : fallback;
+    } catch (_) { return fallback; }
+}
+
+function _smtpUser() { return _cfg('bot_email_usuario', process.env.EMAIL_USER || ''); }
+function _smtpPass() { return _cfg('bot_email_password', process.env.EMAIL_PASS || ''); }
+function _fromAddr() {
+    const user = _smtpUser();
+    return process.env.EMAIL_FROM || `Julio Cepeda Jugueterías <${user}>`;
+}
 
 // Destinatarios fijos de notificaciones de pedido
 const DEST_CEDIS    = process.env.EMAIL_CEDIS    || '';
@@ -43,7 +60,7 @@ const DEST_PERSONAL = process.env.EMAIL_PERSONAL || '';
 const DEST_EXTRA    = process.env.EMAIL_EXTRA    || '';
 
 function isConfigured() {
-    return !!(SMTP_USER && SMTP_PASS);
+    return !!(_smtpUser() && _smtpPass());
 }
 
 // ── SMTP client básico (STARTTLS) ─────────────────────────────────────────
@@ -315,8 +332,8 @@ async function notificarPedido(pedidoData) {
     try {
         const result = await _smtpSend({
             host: SMTP_HOST, port: SMTP_PORT,
-            user: SMTP_USER, pass: SMTP_PASS,
-            from: FROM_ADDR,
+            user: _smtpUser(), pass: _smtpPass(),
+            from: _fromAddr(),
             to: destinatarios,
             subject: asunto,
             html,
@@ -368,8 +385,8 @@ async function reintentarPendientes() {
             const dests = JSON.parse(email.destinatarios);
             await _smtpSend({
                 host: SMTP_HOST, port: SMTP_PORT,
-                user: SMTP_USER, pass: SMTP_PASS,
-                from: FROM_ADDR, to: dests,
+                user: _smtpUser(), pass: _smtpPass(),
+                from: _fromAddr(), to: dests,
                 subject: email.asunto, html: email.html_body,
             });
             db.prepare("UPDATE cola_emails SET estatus='enviado', enviado_en=datetime('now','localtime') WHERE id=?").run(email.id);

@@ -6,6 +6,23 @@
 // original (ver dashboard/server.js para la construcción de ctx).
 module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
+    // GET /api/categorias y /api/marcas — lookups de solo lectura para el
+    // selector de "Alcance" de Ofertas/Cupones (Producto único / Categoría /
+    // Marca / Rango de edad / Todo el inventario). A diferencia de
+    // /api/prime/categorias (prime-only, usado para Alta de producto), crear
+    // un cupón no es una acción exclusiva de prime -- cualquier sesión
+    // logueada que ya pasó requireSession() global puede leer estos lookups.
+    if (p === '/api/categorias' && req.method === 'GET') {
+        try {
+            return json(res, db.prepare('SELECT id, nombre FROM categorias WHERE activa = 1 ORDER BY nombre').all());
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    }
+    if (p === '/api/marcas' && req.method === 'GET') {
+        try {
+            return json(res, db.prepare("SELECT DISTINCT brand FROM productos WHERE brand IS NOT NULL AND TRIM(brand) != '' ORDER BY brand").all().map(r => r.brand));
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    }
+
     if (p === '/api/cola/historial' && req.method === 'GET') {
         const rows = db.prepare(`
             SELECT id, destinatario, asunto, estatus, intentos, creada_en, enviar_despues_de
@@ -33,6 +50,7 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
     // POST /api/beta/limpiar
     // Código: variable de entorno BETA_RESET_CODE (ej: godzillatomacafedenoche)
     if (p === '/api/beta/limpiar' && req.method === 'POST') {
+        if (!requireSession(req, res, ['prime'])) return;
         return readBody(req, body => {
             try {
                 const { codigo, telefono } = JSON.parse(body);
@@ -161,24 +179,49 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
         return json(res, { busquedas_total: 0, pedidos_total: pedidos, clientes_total: clientes, tasa_conversion: tasa+'%', top_busquedas: topBusquedas, por_tono: porTono, conversion_por_tono: conversionPorTono });
     }
 
-    // GET /api/ofertas — ofertas activas con precio original y oferta
+    // GET /api/ofertas — ofertas activas, una fila por PRODUCTO afectado
+    // (antes solo soportaba id_producto fijo -- una oferta por categoría/
+    // marca/rango de edad/todo el inventario antes simplemente no
+    // aparecía aquí porque el JOIN exigía id_producto). El alcance de cada
+    // promoción se resuelve en el momento de leer, no al crearla, para que
+    // productos nuevos que entren a la categoría/marca queden cubiertos sin
+    // tener que re-guardar el cupón.
     if (p === '/api/ofertas' && req.method === 'GET') {
         const hoy = new Date().toISOString().slice(0, 10);
-        const rows = db.prepare(`
-            SELECT pr.id, pr.codigo, pr.tipo, pr.valor, pr.fecha_fin,
-                   pr.usos_actual, pr.usos_max,
-                   p.name AS nombre, p.price AS precio_original,
-                   ROUND(CASE WHEN pr.tipo = 'monto'
-                              THEN MAX(p.price - pr.valor, 0)
-                              ELSE p.price * (1 - pr.valor/100.0)
-                         END, 2) AS precio_oferta
-            FROM promociones pr
-            LEFT JOIN productos p ON p.id = pr.id_producto
-            WHERE pr.activa = 1
-              AND (pr.fecha_fin IS NULL OR pr.fecha_fin >= ?)
-            ORDER BY pr.valor DESC LIMIT 100
+        const promos = db.prepare(`
+            SELECT * FROM promociones
+            WHERE activa = 1 AND (fecha_fin IS NULL OR fecha_fin >= ?)
         `).all(hoy);
-        return json(res, rows);
+
+        const out = [];
+        for (const pr of promos) {
+            let productos;
+            if (pr.id_producto) {
+                productos = db.prepare('SELECT id, name, price FROM productos WHERE id=? AND activo=1').all(pr.id_producto);
+            } else if (pr.id_categoria) {
+                productos = db.prepare('SELECT id, name, price FROM productos WHERE id_categoria=? AND activo=1 LIMIT 200').all(pr.id_categoria);
+            } else if (pr.brand) {
+                productos = db.prepare('SELECT id, name, price FROM productos WHERE brand=? AND activo=1 LIMIT 200').all(pr.brand);
+            } else if (pr.edad_min != null || pr.edad_max != null) {
+                const min = pr.edad_min ?? 0, max = pr.edad_max ?? 99;
+                productos = db.prepare('SELECT id, name, price FROM productos WHERE activo=1 AND edad_min <= ? AND edad_max >= ? LIMIT 200').all(max, min);
+            } else {
+                productos = db.prepare('SELECT id, name, price FROM productos WHERE activo=1 LIMIT 200').all();
+            }
+            for (const prod of productos) {
+                const precioOferta = pr.tipo === 'monto'
+                    ? Math.max(prod.price - pr.valor, 0)
+                    : prod.price * (1 - pr.valor / 100.0);
+                out.push({
+                    id: pr.id, codigo: pr.codigo, tipo: pr.tipo, valor: pr.valor, fecha_fin: pr.fecha_fin,
+                    usos_actual: pr.usos_actual, usos_max: pr.usos_max,
+                    id_producto: prod.id, nombre: prod.name, precio_original: prod.price,
+                    precio_oferta: Math.round(precioOferta * 100) / 100,
+                });
+            }
+        }
+        out.sort((a, b) => b.valor - a.valor);
+        return json(res, out.slice(0, 200));
     }
 
     // GET /api/cupon/validar?codigo=X — valida cualquier código de `promociones`
@@ -235,37 +278,71 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
     }
 
     // GET /api/promociones — admin completo (a diferencia de /api/ofertas,
-    // que solo muestra las que tienen producto y están vigentes hoy).
+    // que solo muestra las que tienen producto y están vigentes hoy). Agrega
+    // `alcance` calculado (en vez de una fila por producto como /api/ofertas
+    // -- esta es la vista de gestión, no la de catálogo) para que la tabla
+    // de Promociones.jsx pueda mostrar "Categoría: Bebés" en vez de solo el
+    // id crudo.
     if (p === '/api/promociones' && req.method === 'GET') {
         const _u = new URL('http://x' + req.url);
         const soloActivas = _u.searchParams.get('activa');
         let sql = `
-            SELECT pr.*, p.name AS nombre_producto
+            SELECT pr.*, p.name AS nombre_producto, c.nombre AS nombre_categoria
             FROM promociones pr
             LEFT JOIN productos p ON p.id = pr.id_producto
+            LEFT JOIN categorias c ON c.id = pr.id_categoria
         `;
         const params = [];
         if (soloActivas !== null) { sql += ' WHERE pr.activa = ?'; params.push(soloActivas === '1' ? 1 : 0); }
         sql += ' ORDER BY pr.creada_en DESC LIMIT 300';
-        return json(res, db.prepare(sql).all(...params));
+        const rows = db.prepare(sql).all(...params).map(r => {
+            let alcance;
+            if (r.id_producto) alcance = 'Producto: ' + (r.nombre_producto || r.id_producto);
+            else if (r.id_categoria) alcance = 'Categoría: ' + (r.nombre_categoria || r.id_categoria);
+            else if (r.brand) alcance = 'Marca: ' + r.brand;
+            else if (r.edad_min != null || r.edad_max != null) alcance = 'Edad: ' + (r.edad_min ?? 0) + ' a ' + (r.edad_max ?? 99);
+            else alcance = 'Todo el inventario';
+            return { ...r, alcance };
+        });
+        return json(res, rows);
     }
 
     // POST /api/promociones — crear un cupón manual desde el dashboard
-    // Body: { codigo, descripcion?, tipo:'porcentaje'|'monto', valor, id_producto?, id_categoria?, fecha_inicio?, fecha_fin?, usos_max? }
+    // Body: { codigo, descripcion?, tipo:'porcentaje', valor, id_producto?
+    //         | id_categoria? | brand? | edad_min?/edad_max?  (alcance,
+    //         mutuamente excluyentes -- ninguno = todo el inventario),
+    //         fecha_fin (obligatoria), usos_max? }
     if (p === '/api/promociones' && req.method === 'POST') {
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body);
-                if (!d.codigo || !['porcentaje','monto'].includes(d.tipo) || !d.valor) {
-                    return json(res, { ok:false, error:'Faltan codigo, tipo (porcentaje|monto) o valor' }, 400);
+                // tipo:'monto' ya no se acepta en altas nuevas -- permitía dejar
+                // el precio en $0.00 si el valor superaba el precio del producto
+                // (sin tope porcentual posible). Las filas viejas con 'monto' se
+                // siguen leyendo/mostrando normal, solo no se pueden crear más.
+                if (!d.codigo || d.tipo !== 'porcentaje' || !d.valor) {
+                    return json(res, { ok:false, error:'Faltan codigo o valor, o tipo no es "porcentaje" (el descuento de monto fijo ya no está disponible)' }, 400);
+                }
+                if (!d.fecha_fin) {
+                    return json(res, { ok:false, error:'fecha_fin es obligatoria — toda oferta nueva debe tener vencimiento' }, 400);
+                }
+                const sesion = obtenerSesion(req);
+                if (sesion && sesion.rol !== 'prime') {
+                    const _topeRow = db.prepare("SELECT valor FROM configuracion WHERE clave='tope_descuento_pct' LIMIT 1").get();
+                    const tope = _topeRow ? Number(_topeRow.valor) : 30;
+                    if (tope > 0 && Number(d.valor) > tope) {
+                        return json(res, { ok:false, error:`El descuento máximo permitido es ${tope}%. Solo el usuario prime puede crear descuentos mayores.` }, 403);
+                    }
                 }
                 const info = db.prepare(`
                     INSERT INTO promociones (codigo, descripcion, tipo, valor, id_producto, id_categoria,
+                                              brand, edad_min, edad_max, creado_por,
                                               activa, fecha_inicio, fecha_fin, usos_max, usos_actual, creada_en)
-                    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 0, datetime('now','localtime'))
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 0, datetime('now','localtime'))
                 `).run(
                     String(d.codigo).trim().toUpperCase(), d.descripcion || null, d.tipo, Number(d.valor),
                     d.id_producto || null, d.id_categoria || null,
+                    d.brand || null, d.edad_min ?? null, d.edad_max ?? null, sesion ? sesion.username : null,
                     d.fecha_inicio || null, d.fecha_fin || null, d.usos_max || 0
                 );
                 return json(res, { ok:true, id: info.lastInsertRowid });
@@ -273,14 +350,69 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // POST /api/promociones/flash — cupón "flash" ligado al disparo de un
+    // envío masivo desde Notificaciones: en vez de fecha_inicio/fecha_fin
+    // fijas, el operador captura "minutos de validez desde ahora" + tope de
+    // redenciones. Se activa en el instante en que se llama este endpoint
+    // (pensado para llamarse justo antes de disparar el broadcast en
+    // Notificaciones > Masivo). usos_max sigue siendo un tope GLOBAL
+    // compartido por código (igual que /api/cupon/redimir ya hace para
+    // cupones normales) -- no por cliente.
+    if (p === '/api/promociones/flash' && req.method === 'POST') {
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body);
+                const minutos = Number(d.minutos_validez);
+                if (!d.codigo || d.tipo !== 'porcentaje' || !d.valor || !Number.isFinite(minutos) || minutos <= 0) {
+                    return json(res, { ok:false, error:'Faltan codigo, valor o minutos_validez (debe ser > 0)' }, 400);
+                }
+                const usosMax = Number(d.usos_max) || 0;
+                if (usosMax < 1) {
+                    return json(res, { ok:false, error:'Un cupón flash debe tener un máximo de redenciones (usos_max >= 1)' }, 400);
+                }
+                const sesion = obtenerSesion(req);
+                if (sesion && sesion.rol !== 'prime') {
+                    const _topeRow = db.prepare("SELECT valor FROM configuracion WHERE clave='tope_descuento_pct' LIMIT 1").get();
+                    const tope = _topeRow ? Number(_topeRow.valor) : 30;
+                    if (tope > 0 && Number(d.valor) > tope) {
+                        return json(res, { ok:false, error:`El descuento máximo permitido es ${tope}%. Solo el usuario prime puede crear descuentos mayores.` }, 403);
+                    }
+                }
+                const ahora = new Date();
+                const fin = new Date(ahora.getTime() + minutos * 60000);
+                const fmtSqlite = (dt) => dt.toISOString().slice(0, 19).replace('T', ' ');
+                const info = db.prepare(`
+                    INSERT INTO promociones (codigo, descripcion, tipo, valor, id_producto, id_categoria,
+                                              brand, edad_min, edad_max, creado_por,
+                                              activa, fecha_inicio, fecha_fin, usos_max, usos_actual, creada_en)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 0, datetime('now','localtime'))
+                `).run(
+                    String(d.codigo).trim().toUpperCase(), d.descripcion || ('Cupón flash — vence en ' + minutos + ' min'), d.tipo, Number(d.valor),
+                    d.id_producto || null, d.id_categoria || null,
+                    d.brand || null, d.edad_min ?? null, d.edad_max ?? null, sesion ? sesion.username : null,
+                    fmtSqlite(ahora), fmtSqlite(fin), usosMax
+                );
+                return json(res, { ok:true, id: info.lastInsertRowid, codigo: String(d.codigo).trim().toUpperCase(), fecha_fin: fmtSqlite(fin) });
+            } catch(e) { return json(res, { ok:false, error:e.message }, 500); }
+        });
+    }
+
     // PUT /api/promociones/:id — activar/desactivar un cupón
-    // Body: { activa: true|false }
+    // Body: { activa: true|false, motivo_baja? } — motivo_baja solo se
+    // graba al DESACTIVAR (junto con quién y cuándo); al reactivar se
+    // limpian los tres campos de baja, ya que ya no aplican.
     if (req.method === 'PUT' && p.match(/^\/api\/promociones\/\d+$/)) {
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
-                const { activa } = JSON.parse(body);
-                db.prepare('UPDATE promociones SET activa=? WHERE id=?').run(activa ? 1 : 0, id);
+                const { activa, motivo_baja } = JSON.parse(body);
+                if (activa) {
+                    db.prepare("UPDATE promociones SET activa=1, motivo_baja=NULL, baja_por=NULL, baja_en=NULL WHERE id=?").run(id);
+                } else {
+                    const sesion = obtenerSesion(req);
+                    db.prepare("UPDATE promociones SET activa=0, motivo_baja=?, baja_por=?, baja_en=datetime('now','localtime') WHERE id=?")
+                        .run(motivo_baja || null, sesion ? sesion.username : null, id);
+                }
                 return json(res, { ok:true, id, activa: !!activa });
             } catch(e) { return json(res, { ok:false, error:e.message }, 500); }
         });

@@ -4,11 +4,12 @@ import { useForm } from '@mantine/form';
 import {
   Card, Title, Group, ActionIcon, Table, Badge, Switch, Tabs, SimpleGrid,
   TextInput, NumberInput, PasswordInput, Select, Textarea, Button,
-  Fieldset, Pagination,
+  Fieldset, Pagination, SegmentedControl,
 } from '@mantine/core';
 import { api } from '../api';
 import Modal from '../components/Modal';
 import { useTextoEmoji } from '../context/EmojiContext';
+import { guardarPreferenciasFuente } from '../lib/fontPrefs';
 
 const CATEGORIAS_FILTRO = [
   { valor: 'bw_word',   etiqueta: 'Lista negra — palabra corta (match exacto)' },
@@ -60,14 +61,47 @@ export default function Prime() {
   const [reconexionAuto, setReconexionAuto] = useState(false);
   const [msgReconexion, setMsgReconexion] = useState('');
 
+  // ── Contacto: teléfono del operador, soporte, destino de backups ────────
+  const contactoForm = useForm({ initialValues: {
+    operador_telefono: '', soporte_url: '', soporte_telefono: '', soporte_correo: '', email_backup_destino: '',
+  } });
+  const [msgContacto, setMsgContacto] = useState('');
+
+  // ── Correo + contraseña de aplicación del propio bot ────────────────────
+  const [botEmailUsuario, setBotEmailUsuario] = useState('');
+  const [botEmailPassword, setBotEmailPassword] = useState('');
+  const [botEmailPassConfigurada, setBotEmailPassConfigurada] = useState(false);
+  const [msgEmailBot, setMsgEmailBot] = useState('');
+
+  // ── Tope de descuento para usuarios admin en Ofertas/Cupones ────────────
+  const [topeDescuento, setTopeDescuento] = useState('');
+  const [msgTope, setMsgTope] = useState('');
+
+  // ── Sucursal de facturación default (Fase 3: tickets + alta simplificada) ─
+  const [sucursalFacturacion, setSucursalFacturacion] = useState('');
+  const [msgSucursalFacturacion, setMsgSucursalFacturacion] = useState('');
+
+  // ── Fuente y tamaño (preferencia de navegador, ver lib/fontPrefs.js) ─────
+  const [fuentePrefs, setFuentePrefs] = useState(() => {
+    const familia = localStorage.getItem('jc-fuente-familia') || 'inter';
+    const tamano = localStorage.getItem('jc-fuente-tamano') || 'normal';
+    return { familia, tamano };
+  });
+  const guardarFuente = () => {
+    guardarPreferenciasFuente(fuentePrefs.familia, fuentePrefs.tamano);
+  };
+
   const [nuevaCategoria, setNuevaCategoria] = useState('bw_word');
   const [nuevaPalabra, setNuevaPalabra] = useState('');
   const [nuevosPuntos, setNuevosPuntos] = useState('1');
   const [msgFiltro, setMsgFiltro] = useState('');
 
   // ── Sucursales ──────────────────────────────────────────────────────────
-  const sucursalForm = useForm({ initialValues: { nombre: '', codigo: '', direccion: '' } });
+  const sucursalForm = useForm({ initialValues: { nombre: '', codigo: '', direccion: '', codigo_postal: '' } });
   const [msgSucursales, setMsgSucursales] = useState('');
+  const [sucursalEditando, setSucursalEditando] = useState(null);
+  const editarSucursalForm = useForm({ initialValues: { nombre: '', codigo: '', direccion: '', codigo_postal: '' } });
+  const [msgEditarSucursal, setMsgEditarSucursal] = useState('');
 
   // ── Alta de productos — todas las columnas reales de `productos` (ver
   // db/schema.sql) expuestas de una vez, no por etapas. ──────────────────
@@ -84,11 +118,14 @@ export default function Prime() {
   const [msgProducto, setMsgProducto] = useState('');
   const [mostrarNuevaCategoria, setMostrarNuevaCategoria] = useState(false);
   const [categoriaNuevaNombre, setCategoriaNuevaNombre] = useState('');
-  // Stock inicial por sucursal real (red de 11, ver migrations/0005) -- se
-  // siembra en `inventarios` al crear el producto, aparte de las columnas
-  // fijas (stock_tienda/cedis/san_luis_potosi/...) que están directamente en
-  // `productos`. Las claves son el `nombre` exacto de cada sucursal.
-  const [stockPorSucursal, setStockPorSucursal] = useState({});
+  // Stock inicial -- antes se sembraba en TODAS las sucursales activas (red
+  // de 11, ver migrations/0005); el operador pidió simplificarlo a un solo
+  // número, sembrado solo en la sucursal de facturación default (ver
+  // sucursalFacturacion más abajo y /api/prime/sucursal-facturacion-default)
+  // ya que la deducción real de stock en una venta multi-sucursal ya
+  // funciona sola vía pedido_detalle.sucursal_origen -- no depende de que
+  // todas las sucursales tengan una fila desde el alta.
+  const [stockInicial, setStockInicial] = useState('0');
 
   // ── Catálogo: ver/buscar/editar productos existentes (antes solo había
   // alta, sin forma de revisar los 600 que ya existen) ─────────────────────
@@ -103,6 +140,9 @@ export default function Prime() {
   // ── Usuarios del dashboard ──────────────────────────────────────────────
   const usuarioForm = useForm({ initialValues: { username: '', password: '', rol: 'admin' } });
   const [msgUsuarios, setMsgUsuarios] = useState('');
+  const [usuarioEditando, setUsuarioEditando] = useState(null);
+  const editarUsuarioForm = useForm({ initialValues: { nombre: '', password: '' } });
+  const [msgEditarUsuario, setMsgEditarUsuario] = useState('');
 
   // ── Stock por producto+sucursal (tabla `inventarios`, ahora con filtro
   // por sucursal real y paginación -- antes mostraba hasta 300 filas de
@@ -186,7 +226,55 @@ export default function Prime() {
     api.get('/api/prime/estafeta-dias-entrega').then(d => setDiasEntrega(String(d.dias_entrega)));
     api.get('/api/negocio').then(d => setNombreNegocio(d.nombre_negocio));
     api.get('/api/prime/config').then(d => setReconexionAuto(!!d.reconexion_auto_activo)).catch(() => {});
+    api.get('/api/prime/config-contacto').then(d => contactoForm.setValues({
+      operador_telefono: d.operador_telefono || '', soporte_url: d.soporte_url || '',
+      soporte_telefono: d.soporte_telefono || '', soporte_correo: d.soporte_correo || '',
+      email_backup_destino: d.email_backup_destino || '',
+    })).catch(() => {});
+    api.get('/api/prime/config-email-bot').then(d => {
+      setBotEmailUsuario(d.bot_email_usuario || '');
+      setBotEmailPassConfigurada(!!d.bot_email_password_configurada);
+    }).catch(() => {});
+    api.get('/api/prime/tope-descuento').then(d => setTopeDescuento(String(d.tope_descuento_pct))).catch(() => {});
+    api.get('/api/prime/sucursal-facturacion-default').then(d => setSucursalFacturacion(d.id_sucursal ? String(d.id_sucursal) : '')).catch(() => {});
   }, []);
+
+  const guardarTopeDescuento = async () => {
+    setMsgTope('');
+    try {
+      const d = await api.put('/api/prime/tope-descuento', { tope_descuento_pct: Number(topeDescuento) });
+      setMsgTope(d.tope_descuento_pct > 0 ? `Tope actualizado a ${d.tope_descuento_pct}%` : 'Sin tope — cualquier usuario admin puede crear descuentos sin límite');
+    } catch (e) { setMsgTope(e.message); }
+  };
+
+  const guardarSucursalFacturacion = async () => {
+    setMsgSucursalFacturacion('');
+    if (!sucursalFacturacion) { setMsgSucursalFacturacion('Elige una sucursal'); return; }
+    try {
+      await api.put('/api/prime/sucursal-facturacion-default', { id_sucursal: Number(sucursalFacturacion) });
+      setMsgSucursalFacturacion('Guardado.');
+    } catch (e) { setMsgSucursalFacturacion(e.message); }
+  };
+
+  const guardarContacto = async () => {
+    setMsgContacto('');
+    try {
+      await api.put('/api/prime/config-contacto', contactoForm.values);
+      setMsgContacto('Guardado.');
+    } catch (e) { setMsgContacto(e.message); }
+  };
+
+  const guardarEmailBot = async () => {
+    setMsgEmailBot('');
+    try {
+      const datos = { bot_email_usuario: botEmailUsuario };
+      if (botEmailPassword) datos.bot_email_password = botEmailPassword;
+      const d = await api.put('/api/prime/config-email-bot', datos);
+      setBotEmailPassword('');
+      if (datos.bot_email_password) setBotEmailPassConfigurada(true);
+      setMsgEmailBot('Guardado.');
+    } catch (e) { setMsgEmailBot(e.message); }
+  };
 
   const toggleReconexionAuto = async () => {
     setMsgReconexion('');
@@ -202,6 +290,7 @@ export default function Prime() {
       nombre: values.nombre,
       codigo: values.codigo || undefined,
       direccion: values.direccion || undefined,
+      codigo_postal: values.codigo_postal || undefined,
     }),
     onSuccess: () => {
       sucursalForm.reset();
@@ -217,6 +306,34 @@ export default function Prime() {
     onError: (e) => setMsgSucursales(e.message),
   });
   const toggleSucursal = (id, activa) => toggleSucursalMutation.mutate({ id, activa });
+
+  const editarSucursalMutation = useMutation({
+    mutationFn: ({ id, datos }) => api.put(`/api/prime/sucursales/${id}`, datos),
+    onSuccess: () => {
+      setSucursalEditando(null);
+      queryClient.invalidateQueries({ queryKey: ['prime-sucursales'] });
+    },
+    onError: (e) => setMsgEditarSucursal(e.message),
+  });
+  const abrirEdicionSucursal = (s) => {
+    setMsgEditarSucursal('');
+    editarSucursalForm.setValues({
+      nombre: s.nombre || '', codigo: s.codigo || '', direccion: s.direccion || '', codigo_postal: s.codigo_postal || '',
+    });
+    setSucursalEditando(s);
+  };
+  const guardarEdicionSucursal = () => {
+    setMsgEditarSucursal('');
+    const v = editarSucursalForm.values;
+    if (!v.nombre.trim()) { setMsgEditarSucursal('El nombre es obligatorio.'); return; }
+    editarSucursalMutation.mutate({
+      id: sucursalEditando.id,
+      datos: {
+        nombre: v.nombre, codigo: v.codigo || undefined, direccion: v.direccion || undefined,
+        codigo_postal: v.codigo_postal || undefined,
+      },
+    });
+  };
 
   const borrarSucursalMutation = useMutation({
     mutationFn: (id) => api.del(`/api/prime/sucursales/${id}`),
@@ -396,12 +513,12 @@ export default function Prime() {
   const crearProductoMutation = useMutation({
     mutationFn: (v) => api.post('/api/prime/productos', {
       ...armarDatosProducto(v),
-      stock_sucursales: Object.fromEntries(Object.entries(stockPorSucursal).map(([k, val]) => [k, Number(val) || 0])),
+      stock_inicial: Number(stockInicial) || 0,
     }),
     onSuccess: (_, v) => {
       setMsgProducto(`Producto "${v.name}" creado.`);
       productoForm.reset();
-      setStockPorSucursal({});
+      setStockInicial('0');
       queryClient.invalidateQueries({ queryKey: ['prime-productos-lista'] });
       queryClient.invalidateQueries({ queryKey: ['prime-inventarios'] });
       queryClient.invalidateQueries({ queryKey: ['prime-inventario-movimientos'] });
@@ -477,6 +594,32 @@ export default function Prime() {
     onError: (e) => setMsgUsuarios(e.message),
   });
   const borrarUsuario = (id) => borrarUsuarioMutation.mutate(id);
+
+  const editarUsuarioMutation = useMutation({
+    mutationFn: ({ id, datos }) => api.put(`/api/prime/usuarios/${id}`, datos),
+    onSuccess: () => {
+      setUsuarioEditando(null);
+      queryClient.invalidateQueries({ queryKey: ['prime-usuarios'] });
+    },
+    onError: (e) => setMsgEditarUsuario(e.message),
+  });
+  const abrirEdicionUsuario = (u) => {
+    setMsgEditarUsuario('');
+    editarUsuarioForm.setValues({ nombre: u.nombre || '', password: '' });
+    setUsuarioEditando(u);
+  };
+  const guardarEdicionUsuario = () => {
+    setMsgEditarUsuario('');
+    const v = editarUsuarioForm.values;
+    const datos = {};
+    if (v.nombre.trim()) datos.nombre = v.nombre.trim();
+    if (v.password) {
+      if (v.password.length < 8) { setMsgEditarUsuario('La nueva contraseña debe tener al menos 8 caracteres.'); return; }
+      datos.password = v.password;
+    }
+    if (!Object.keys(datos).length) { setMsgEditarUsuario('Nada que actualizar.'); return; }
+    editarUsuarioMutation.mutate({ id: usuarioEditando.id, datos });
+  };
 
   const agregarPalabraMutation = useMutation({
     mutationFn: () => api.post('/api/prime/palabras-filtro', {
@@ -620,6 +763,102 @@ export default function Prime() {
               <NumberInput label="Costo de envío" min={0} value={costoPedido === '' ? '' : Number(costoPedido)} onChange={v => setCostoPedido(v === '' ? '' : String(v))} mb="sm" />
               <Button disabled={!idPedido} onClick={guardarPedido}>Actualizar pedido</Button>
             </Card>
+
+            <Card withBorder radius="md" p="lg">
+              <Title order={4} mb={4}>Contacto y backups</Title>
+              <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+                Teléfono del operador (antes solo en .env), contacto de soporte mostrado al cliente,
+                y a qué correo(s) llegan los backups automáticos. Separa varios correos con coma.
+              </p>
+              {msgContacto && <div className="login-error" style={{ marginBottom: 12 }}>{msgContacto}</div>}
+              <TextInput label="Teléfono del operador (WhatsApp)" placeholder="521XXXXXXXXXX" {...contactoForm.getInputProps('operador_telefono')} mb="sm" />
+              <Fieldset legend="Contacto de soporte" mb="sm">
+                <TextInput label="URL" placeholder="https://..." {...contactoForm.getInputProps('soporte_url')} mb="sm" />
+                <Group grow>
+                  <TextInput label="Teléfono" {...contactoForm.getInputProps('soporte_telefono')} />
+                  <TextInput label="Correo" {...contactoForm.getInputProps('soporte_correo')} />
+                </Group>
+              </Fieldset>
+              <TextInput label="Correo(s) destino de backups" placeholder="correo1@dominio.com, correo2@dominio.com" {...contactoForm.getInputProps('email_backup_destino')} mb="sm" />
+              <Button onClick={guardarContacto}>Guardar</Button>
+            </Card>
+
+            <Card withBorder radius="md" p="lg">
+              <Title order={4} mb={4}>Correo del bot</Title>
+              <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+                Cuenta y contraseña de aplicación que el propio bot usa para enviar correos
+                (notificaciones de pedido, backups). Útil para revender el sistema a otra empresa sin
+                tocar código ni el .env del servidor. La contraseña nunca se muestra una vez guardada.
+              </p>
+              {msgEmailBot && <div className="login-error" style={{ marginBottom: 12 }}>{msgEmailBot}</div>}
+              <TextInput label="Correo" placeholder="bot@gmail.com" value={botEmailUsuario} onChange={e => setBotEmailUsuario(e.target.value)} mb="sm" />
+              <PasswordInput
+                label={'Contraseña de aplicación' + (botEmailPassConfigurada ? ' (ya configurada — dejar vacío para no cambiar)' : '')}
+                value={botEmailPassword} onChange={e => setBotEmailPassword(e.target.value)} mb="sm"
+              />
+              <Button onClick={guardarEmailBot}>Guardar</Button>
+            </Card>
+
+            <Card withBorder radius="md" p="lg">
+              <Title order={4} mb={4}>Sucursal de facturación default</Title>
+              <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+                Sucursal que se usa al dar de alta un producto nuevo (siembra el stock inicial ahí en
+                vez de en las 11 sucursales) y como referencia en los tickets de venta.
+              </p>
+              {msgSucursalFacturacion && <div className="login-error" style={{ marginBottom: 12 }}>{msgSucursalFacturacion}</div>}
+              <Select
+                data={sucursales.map(s => ({ value: String(s.id), label: s.nombre }))}
+                value={sucursalFacturacion} onChange={v => setSucursalFacturacion(v || '')}
+                placeholder="Elige una sucursal" comboboxProps={{ withinPortal: true }} mb="sm"
+              />
+              <Button onClick={guardarSucursalFacturacion}>Guardar</Button>
+            </Card>
+
+            <Card withBorder radius="md" p="lg">
+              <Title order={4} mb={4}>Tope de descuento en Ofertas/Cupones</Title>
+              <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+                Límite de % de descuento que un usuario admin puede crear en Ofertas/Cupones (Fase 2).
+                0 = sin tope. Solo prime puede ver/cambiar esto, y solo prime puede crear descuentos
+                por encima del tope.
+              </p>
+              {msgTope && <div className="login-error" style={{ marginBottom: 12 }}>{msgTope}</div>}
+              <NumberInput min={0} max={100} value={topeDescuento === '' ? '' : Number(topeDescuento)} onChange={v => setTopeDescuento(v === '' ? '' : String(v))} mb="sm" />
+              <Button onClick={guardarTopeDescuento}>Guardar</Button>
+            </Card>
+
+            <Card withBorder radius="md" p="lg">
+              <Title order={4} mb={4}>Fuente y tamaño</Title>
+              <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+                Preferencia de este navegador (no se comparte entre operadores). Cambia esto si el
+                texto se ve muy grande o se sale de las burbujas de chat.
+              </p>
+              <Select
+                label="Familia"
+                data={[
+                  { value: 'inter', label: 'Inter (actual)' },
+                  { value: 'ibmplex', label: 'IBM Plex Sans' },
+                  { value: 'sourcesans', label: 'Source Sans 3' },
+                ]}
+                value={fuentePrefs.familia}
+                onChange={v => v && setFuentePrefs(p => ({ ...p, familia: v }))}
+                allowDeselect={false}
+                mb="sm"
+              />
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--text-dim)' }}>Tamaño</label>
+                <SegmentedControl
+                  fullWidth
+                  data={[
+                    { value: 'pequeno', label: 'Pequeño' },
+                    { value: 'normal', label: 'Normal' },
+                    { value: 'grande', label: 'Grande' },
+                  ]}
+                  value={fuentePrefs.tamano}
+                  onChange={v => setFuentePrefs(p => ({ ...p, tamano: v }))}
+                />
+              </div>
+              <Button onClick={guardarFuente}>Aplicar</Button>
+            </Card>
           </SimpleGrid>
         </div>
       )}
@@ -635,21 +874,24 @@ export default function Prime() {
             <TextInput placeholder="Nombre" {...sucursalForm.getInputProps('nombre')} style={{ flex: 1, minWidth: 160 }} />
             <TextInput placeholder="Código (opcional)" {...sucursalForm.getInputProps('codigo')} style={{ width: 140 }} />
             <TextInput placeholder="Dirección (opcional)" {...sucursalForm.getInputProps('direccion')} style={{ flex: 1, minWidth: 200 }} />
+            <TextInput placeholder="C.P. (opcional)" {...sucursalForm.getInputProps('codigo_postal')} style={{ width: 110 }} />
             <Button disabled={!sucursalForm.values.nombre.trim()} onClick={crearSucursal}>Agregar</Button>
           </Group>
           <div className="table-wrap">
             <Table highlightOnHover verticalSpacing="xs">
-              <thead><tr><th>Nombre</th><th>Código</th><th>Dirección</th><th>Activa</th><th></th></tr></thead>
+              <thead><tr><th>Nombre</th><th>Código</th><th>Dirección</th><th>C.P.</th><th>Activa</th><th></th></tr></thead>
               <tbody>
-                {sucursales.length === 0 && <tr><td colSpan={5} className="empty">Sin sucursales</td></tr>}
+                {sucursales.length === 0 && <tr><td colSpan={6} className="empty">Sin sucursales</td></tr>}
                 {sucursales.map(s => (
                   <tr key={s.id}>
                     <td>{s.nombre}</td>
                     <td>{s.codigo || ''}</td>
                     <td>{s.direccion || ''}</td>
+                    <td>{s.codigo_postal || ''}</td>
                     <td><Badge color={s.activa ? 'teal' : 'red'} variant="light">{s.activa ? 'sí' : 'no'}</Badge></td>
                     <td>
                       <Group gap={4} wrap="nowrap">
+                        <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionSucursal(s)}>✏️</ActionIcon>
                         <ActionIcon variant="default" title={s.activa ? 'Desactivar' : 'Activar'} onClick={() => toggleSucursal(s.id, !s.activa)}>
                           {s.activa ? '⏸️' : '▶️'}
                         </ActionIcon>
@@ -661,6 +903,22 @@ export default function Prime() {
               </tbody>
             </Table>
           </div>
+
+          {sucursalEditando && (
+            <Modal title={`Editar — ${sucursalEditando.nombre}`} onClose={() => setSucursalEditando(null)}
+              actions={<>
+                <Button variant="default" onClick={() => setSucursalEditando(null)}>Cancelar</Button>
+                <Button onClick={guardarEdicionSucursal}>Guardar</Button>
+              </>}>
+              {msgEditarSucursal && <div className="login-error" style={{ marginBottom: 12 }}>{msgEditarSucursal}</div>}
+              <TextInput label="Nombre" {...editarSucursalForm.getInputProps('nombre')} mb="sm" />
+              <Group grow mb="sm">
+                <TextInput label="Código" {...editarSucursalForm.getInputProps('codigo')} />
+                <TextInput label="Código postal" {...editarSucursalForm.getInputProps('codigo_postal')} />
+              </Group>
+              <TextInput label="Dirección" {...editarSucursalForm.getInputProps('direccion')} />
+            </Modal>
+          )}
         </Card>
       )}
 
@@ -784,26 +1042,18 @@ export default function Prime() {
 
             {renderCamposProducto(productoForm, mostrarNuevaCategoria, setMostrarNuevaCategoria, categoriaNuevaNombre, setCategoriaNuevaNombre)}
 
-            <Fieldset legend="Stock inicial por sucursal (red de 11, tabla inventarios)" mb="md">
+            <Fieldset legend="Stock inicial (tabla inventarios)" mb="md">
               <p className="page-sub" style={{ margin: '0 0 12px' }}>
-                Solo aplica al crear: siembra una fila en `inventarios` por cada sucursal activa, para
-                que el producto sea visible en la red nacional (services/stockService.js) desde el día 1.
+                Solo aplica al crear: siembra una fila en `inventarios` para la sucursal de facturación
+                default ({sucursales.find(s => String(s.id) === sucursalFacturacion)?.nombre || 'sin configurar — ve a Prime > General'}),
+                para que el producto sea visible desde el día 1. La venta multi-sucursal ya funciona
+                sola después (pedido_detalle.sucursal_origen), no depende de esta siembra inicial.
               </p>
-              {sucursales.length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
-                  {sucursales.filter(s => s.activa).map(s => (
-                    <NumberInput
-                      key={s.id}
-                      label={s.nombre}
-                      min={0}
-                      value={Number(stockPorSucursal[s.nombre] || 0)}
-                      onChange={v => setStockPorSucursal(prev => ({ ...prev, [s.nombre]: v }))}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="page-sub" style={{ margin: 0 }}>No hay sucursales activas registradas.</p>
-              )}
+              <NumberInput
+                label="Stock inicial" min={0} style={{ maxWidth: 200 }}
+                value={Number(stockInicial)}
+                onChange={v => setStockInicial(String(v ?? 0))}
+              />
             </Fieldset>
 
             <Button onClick={crearProducto}>Crear producto</Button>
@@ -881,12 +1131,13 @@ export default function Prime() {
           </Group>
           <div className="table-wrap">
             <Table highlightOnHover verticalSpacing="xs">
-              <thead><tr><th>Usuario</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
+              <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
               <tbody>
-                {usuarios.length === 0 && <tr><td colSpan={4} className="empty">Sin usuarios</td></tr>}
+                {usuarios.length === 0 && <tr><td colSpan={5} className="empty">Sin usuarios</td></tr>}
                 {usuarios.map(u => (
                   <tr key={u.id}>
                     <td>{u.username}</td>
+                    <td>{u.nombre || '—'}</td>
                     <td>
                       <Select
                         size="xs"
@@ -898,12 +1149,29 @@ export default function Prime() {
                       />
                     </td>
                     <td>{u.creado_en}</td>
-                    <td><ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarUsuario(u.id)}>🗑️</ActionIcon></td>
+                    <td>
+                      <Group gap={4} wrap="nowrap">
+                        <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionUsuario(u)}>✏️</ActionIcon>
+                        <ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarUsuario(u.id)}>🗑️</ActionIcon>
+                      </Group>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </Table>
           </div>
+
+          {usuarioEditando && (
+            <Modal title={`Editar — ${usuarioEditando.username}`} onClose={() => setUsuarioEditando(null)}
+              actions={<>
+                <Button variant="default" onClick={() => setUsuarioEditando(null)}>Cancelar</Button>
+                <Button onClick={guardarEdicionUsuario}>Guardar</Button>
+              </>}>
+              {msgEditarUsuario && <div className="login-error" style={{ marginBottom: 12 }}>{msgEditarUsuario}</div>}
+              <TextInput label="Nombre" {...editarUsuarioForm.getInputProps('nombre')} mb="sm" />
+              <PasswordInput label="Nueva contraseña (dejar vacío para no cambiar)" {...editarUsuarioForm.getInputProps('password')} />
+            </Modal>
+          )}
         </Card>
       )}
 
