@@ -7,6 +7,7 @@ import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
 import ThemeSwitcher from './ThemeSwitcher';
 import NotificationBell from './NotificationBell';
+import SoporteWidget from './SoporteWidget';
 
 // Antes era una sola lista plana de 20 enlaces — para un solo operador
 // humano eso ya era carga cognitiva alta (hallazgo del comité de diseño/UX).
@@ -148,6 +149,7 @@ export default function Layout() {
       <AppShell.Main className="content">
         <Outlet />
       </AppShell.Main>
+      <SoporteWidget />
     </AppShell>
   );
 }

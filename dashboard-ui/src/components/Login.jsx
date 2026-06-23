@@ -1,8 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../api';
 
 export default function Login() {
   const { login } = useAuth();
+  const [negocio, setNegocio] = useState('');
+  useEffect(() => {
+    api.get('/api/onboarding/estado').then(d => d?.nombre_negocio && setNegocio(d.nombre_negocio)).catch(() => {});
+  }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [verPassword, setVerPassword] = useState(false);
@@ -26,7 +31,7 @@ export default function Login() {
   return (
     <div className="login-screen">
       <form className="login-card" onSubmit={submit}>
-        <div className="login-logo">Julio Cepeda</div>
+        <div className="login-logo">{negocio || 'Panel de operaciones'}</div>
         <div className="login-sub">Panel de operaciones — inicia sesión para continuar</div>
         {error && <div className="login-error">{error}</div>}
         <div className="login-field">

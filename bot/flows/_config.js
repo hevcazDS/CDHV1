@@ -11,6 +11,7 @@
 // ═══════════════════════════════════════════════════════════════
 'use strict';
 const db = require('../db_connection');
+const { getGiro, GIRO_DEFAULT } = require('./_giros');
 
 const TONOS_VALIDOS = ['A', 'B', 'C', 'D'];
 const TTL_MS = 60_000;
@@ -64,36 +65,41 @@ function moduloActivo(clave) {
 }
 
 // ── Diccionario de frases por tono ────────────────────────────
-// Placeholders: {nombre} {ciudad} {flete} {carrito} {horario} {n}
+// Placeholders dinámicos inyectados automáticamente por t(): {negocio}
+// (nombre comercial), {negocio_corto} (versión casual), {item}/{items}
+// (vocabulario del giro, ej. "juguete"/"juguetes") y {emoji} (emoji del
+// giro). Más los que pasa cada llamada: {nombre} {ciudad} {flete}
+// {carrito} {horario} {n} {producto} {folio}.
+// Un giro (ver _giros.js) puede REEMPLAZAR cualquiera de estas frases.
 const FRASES = {
     saludo_nuevo: {
-        A: 'Bienvenido a *Julio Cepeda Jugueterías*. Es un gusto atenderle.',
-        B: '¡Hola! Soy el bot de *Julio Cepeda*. ¿Qué necesitas?',
-        C: '🧸 ¡Hola! Bienvenido a *Julio Cepeda Jugueterías* 🎉',
-        D: '🧸 ¡Hola! Soy *Julio Cepeda*. +600 juguetes, varios con entrega hoy. ¿Qué buscas?',
+        A: 'Bienvenido a *{negocio}*. Es un gusto atenderle.',
+        B: '¡Hola! Soy el bot de *{negocio_corto}*. ¿Qué necesitas?',
+        C: '{emoji} ¡Hola! Bienvenido a *{negocio}* 🎉',
+        D: '{emoji} ¡Hola! Soy *{negocio_corto}*. +600 {items}, varios con entrega hoy. ¿Qué buscas?',
     },
     saludo_recurrente: {
         A: 'Bienvenido nuevamente{nombre}. Es un placer atenderle otra vez.',
         B: '¡Hola de nuevo{nombre}! ¿Qué buscas hoy?',
-        C: '🧸 ¡Bienvenido de vuelta{nombre}! Qué gusto verte de nuevo en *Julio Cepeda Jugueterías* 🎉',
-        D: '{nombre}¡qué bueno verte de nuevo! 🧸 ¿Repetimos la experiencia o buscamos algo nuevo?',
+        C: '{emoji} ¡Bienvenido de vuelta{nombre}! Qué gusto verte de nuevo en *{negocio}* 🎉',
+        D: '{nombre}¡qué bueno verte de nuevo! {emoji} ¿Repetimos la experiencia o buscamos algo nuevo?',
     },
     menu_opciones: {
-        A: '¿En qué podemos servirle el día de hoy?\n\n1️⃣  Buscar un producto\n2️⃣  Recibir una recomendación\n3️⃣  Rastrear su pedido\n4️⃣  Hablar con un asesor\n5️⃣  Su código de referido',
-        B: '1️⃣  Buscar juguete\n2️⃣  Ayúdame a elegir\n3️⃣  Rastrear pedido\n4️⃣  Asesor\n5️⃣  Mi código de referido',
-        C: 'Soy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido',
+        A: '¿En qué podemos servirle el día de hoy?\n\n1️⃣  Buscar un {item}\n2️⃣  Recibir una recomendación\n3️⃣  Rastrear su pedido\n4️⃣  Hablar con un asesor\n5️⃣  Su código de referido',
+        B: '1️⃣  Buscar {item}\n2️⃣  Ayúdame a elegir\n3️⃣  Rastrear pedido\n4️⃣  Asesor\n5️⃣  Mi código de referido',
+        C: 'Soy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué {item} busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido',
         D: '¿Qué hacemos?\n\n1️⃣  🔍 Ya sé qué busco\n2️⃣  🎯 Recomiéndame algo (3 preguntas, 30 segundos)\n3️⃣  📦 ¿Dónde va mi pedido?\n4️⃣  👤 Hablar con una persona\n5️⃣  🎁 Mi código de referido',
     },
     buscar_inicio: {
-        A: '🔍 Indíquenos el nombre o descripción del producto. También puede enviar una fotografía 📸 o el enlace del artículo 🔗',
+        A: '🔍 Indíquenos el nombre o descripción del {item}. También puede enviar una fotografía 📸 o el enlace del artículo 🔗',
         B: '🔍 Dime qué buscas. Acepto nombre, foto 📸 o link 🔗',
-        C: '🔍 ¿Qué juguete buscas? Puedes:\n\n· Escribir el nombre o descripción\n· Enviar una *foto* del juguete 📸\n· Pegar el *link* de donde lo viste 🔗\n\n_Ej: "carro de control remoto"_',
+        C: '🔍 ¿Qué {item} buscas? Puedes:\n\n· Escribir el nombre o descripción\n· Enviar una *foto* del {item} 📸\n· Pegar el *link* de donde lo viste 🔗\n\n_Ej: "carro de control remoto"_',
         D: 'Dispara 🎯 Nombre, foto 📸 o link 🔗 — lo que tengas. Yo lo encuentro en el catálogo.',
     },
     wizard_q1: {
-        A: 'Con gusto le ayudamos a elegir. 🎁\n\n*Pregunta 1 de 3* — ¿Para quién es el juguete?\n\n1️⃣  👶 Bebé (0–2 años)\n2️⃣  🧒 Niño/a (3–8 años)\n3️⃣  🧑 Preadolescente (9–12)\n4️⃣  🎓 Adolescente / Adulto',
+        A: 'Con gusto le ayudamos a elegir. 🎁\n\n*Pregunta 1 de 3* — ¿Para quién es el {item}?\n\n1️⃣  👶 Bebé (0–2 años)\n2️⃣  🧒 Niño/a (3–8 años)\n3️⃣  🧑 Preadolescente (9–12)\n4️⃣  🎓 Adolescente / Adulto',
         B: 'Va. 3 preguntas y te doy opciones.\n\n¿Para quién es?\n\n1️⃣  👶 Bebé (0–2)\n2️⃣  🧒 Niño/a (3–8)\n3️⃣  🧑 De 9–12\n4️⃣  🎓 Adolescente / adulto',
-        C: '🧙 ¡Te ayudo a encontrar el regalo perfecto! 🎁\n\n*Pregunta 1 de 3* — ¿Para quién es el juguete?\n\n1️⃣  👶 Bebé (0–2 años)\n2️⃣  🧒 Niño/a (3–8 años)\n3️⃣  🧑 Preadolescente (9–12)\n4️⃣  🎓 Adolescente / Adulto',
+        C: '🧙 ¡Te ayudo a encontrar el regalo perfecto! 🎁\n\n*Pregunta 1 de 3* — ¿Para quién es el {item}?\n\n1️⃣  👶 Bebé (0–2 años)\n2️⃣  🧒 Niño/a (3–8 años)\n3️⃣  🧑 Preadolescente (9–12)\n4️⃣  🎓 Adolescente / Adulto',
         D: '🎯 3 preguntas rápidas.\n\n*1/3* ¿Para quién es?\n\n1️⃣ 👶 Bebé (0–2)\n2️⃣ 🧒 Niño/a (3–8)\n3️⃣ 🧑 9–12\n4️⃣ 🎓 Adolescente/adulto',
     },
     asesor_notificado: {
@@ -117,43 +123,71 @@ const FRASES = {
     cancelado: {
         A: '❌ Su pedido ha sido cancelado. Quedamos a sus órdenes cuando guste retomarlo. Escriba *hola* para volver.',
         B: '❌ Cancelado. Aquí ando si cambias de opinión — escribe *hola*.',
-        C: '❌ Pedido cancelado. Escribe *hola* cuando quieras volver. 🧸',
+        C: '❌ Pedido cancelado. Escribe *hola* cuando quieras volver. {emoji}',
         D: 'Cancelado, sin dramas ✌️ Tu carrito te espera si regresas — escribe *hola* cuando quieras.',
     },
     error_generico: {
         A: '⚠️ Ha ocurrido un error en el sistema. Le pedimos escribir *hola* para reiniciar la conversación.',
         B: '⚠️ Algo falló. Escribe *hola* y reiniciamos.',
-        C: '⚠️ ¡Ups! Algo salió mal. Escribe *hola* para reiniciar la conversación. 🧸',
+        C: '⚠️ ¡Ups! Algo salió mal. Escribe *hola* para reiniciar la conversación. {emoji}',
         D: '⚡ Se cruzaron los cables. Escribe *hola* y seguimos.',
     },
     texto_libre: {
-        A: 'Buen día. Soy el asistente virtual de *Julio Cepeda Jugueterías*. ¿En qué producto podemos ayudarle? 🧸',
-        B: 'Hola, soy el bot de *Julio Cepeda*. ¿Qué juguete buscas? 🧸',
-        C: 'Hola, soy el asistente de *Julio Cepeda Jugueterías*. ¿En qué juguete puedo ayudarte hoy? 🧸',
-        D: '¡Hola! 🧸 Aquí *Julio Cepeda* — dime qué buscas (nombre, foto o link) y lo encuentro en segundos.',
+        A: 'Buen día. Soy el asistente virtual de *{negocio}*. ¿En qué podemos ayudarle? {emoji}',
+        B: 'Hola, soy el bot de *{negocio_corto}*. ¿Qué {item} buscas? {emoji}',
+        C: 'Hola, soy el asistente de *{negocio}*. ¿En qué {item} puedo ayudarte hoy? {emoji}',
+        D: '¡Hola! {emoji} Aquí *{negocio_corto}* — dime qué buscas (nombre, foto o link) y lo encuentro en segundos.',
     },
     lista_espera_oferta: {
         A: '🔍 Por el momento este artículo se encuentra agotado, pero recibiremos más unidades pronto. Si lo desea, le notificamos por WhatsApp en cuanto esté disponible:\n\n1️⃣  🔔 Notificarme cuando llegue\n2️⃣  🔍 Ver alternativas disponibles\n3️⃣  🏠 Volver al menú',
         B: '🔍 Está agotado ahorita, pero viene más. ¿Te aviso cuando llegue o vemos otra opción?\n\n1️⃣  🔔 Avísame\n2️⃣  🔍 Ver alternativas\n3️⃣  🏠 Menú',
-        C: '🔍 ¡Este juguete está volando pero muy pronto tendremos más piezas! ¿Te avisamos por WhatsApp en cuanto aterrice en la tienda?\n\n1️⃣  🔔 Avísame cuando llegue\n2️⃣  🔍 ¡Cero estrés! Te ayudo a encontrar algo mejor hoy mismo\n3️⃣  🏠 Volver al menú principal',
+        C: '🔍 ¡Este {item} está volando pero muy pronto tendremos más piezas! ¿Te avisamos por WhatsApp en cuanto aterrice en la tienda?\n\n1️⃣  🔔 Avísame cuando llegue\n2️⃣  🔍 ¡Cero estrés! Te ayudo a encontrar algo mejor hoy mismo\n3️⃣  🏠 Volver al menú principal',
         D: '📈 Agotado ahora, pero viene más en camino.\n\n1️⃣ 🔔 Avísame cuando llegue\n2️⃣ 🎯 Ver algo igual de bueno hoy\n3️⃣ 🏠 Menú',
     },
     gracias_cierre: {
-        A: '🎉 Agradecemos su compra en *Julio Cepeda Jugueterías*.\n\n📋 Folio: *{folio}*\n\nLe avisaremos por este medio al confirmar su pago. 📲',
+        A: '🎉 Agradecemos su compra en *{negocio}*.\n\n📋 Folio: *{folio}*\n\nLe avisaremos por este medio al confirmar su pago. 📲',
         B: '🎉 ¡Gracias por tu compra!\n\n📋 Folio: *{folio}*\n\nTe aviso cuando se confirme el pago. 📲',
-        C: '🎉 *¡Gracias por tu compra en Julio Cepeda Jugueterías!*\n\n📋 Folio: *{folio}*\n\nTe avisamos por aquí cuando confirmemos tu pago. 📲\n\n¡Hasta pronto! 🧸',
+        C: '🎉 *¡Gracias por tu compra en {negocio}!*\n\n📋 Folio: *{folio}*\n\nTe avisamos por aquí cuando confirmemos tu pago. 📲\n\n¡Hasta pronto! {emoji}',
         D: '🎉 ¡Listo! Pedido *{folio}* en marcha.\n\nTe aviso por aquí al confirmar tu pago. 📲',
     },
 };
 
+// Variables de negocio/giro inyectadas en CADA frase, leídas de la config
+// (cacheada 60s) y del preset de giro (ver _giros.js). Defaults pensados
+// para que, sin config (o con la de Julio Cepeda), el texto salga idéntico
+// al histórico: negocio completo, "juguete"/"juguetes", emoji 🧸.
+function _varsNegocio() {
+    _refresh();
+    const negocio = (_cache.modulos.nombre_negocio && _cache.modulos.nombre_negocio.trim())
+        ? _cache.modulos.nombre_negocio : 'Julio Cepeda Jugueterías';
+    const negocioCorto = (_cache.modulos.nombre_negocio_corto && _cache.modulos.nombre_negocio_corto.trim())
+        ? _cache.modulos.nombre_negocio_corto : negocio;
+    const giro = getGiro(_cache.modulos.giro || GIRO_DEFAULT);
+    return {
+        negocio,
+        negocio_corto: negocioCorto,
+        item:  giro.vocab.item,
+        items: giro.vocab.items,
+        emoji: giro.vocab.emoji,
+    };
+}
+
 function t(clave, vars = {}) {
+    _refresh();
+    const tono = getTono();
+    // Un giro puede reemplazar una frase completa; si no, se usa la base.
+    const giro    = getGiro(_cache.modulos.giro || GIRO_DEFAULT);
+    const overrides = (giro.frases && giro.frases[clave]) || null;
     const set = FRASES[clave];
-    if (!set) return '';
-    let txt = set[getTono()] || set.C || '';
-    for (const k of Object.keys(vars)) {
-        txt = txt.split('{' + k + '}').join(vars[k] == null ? '' : String(vars[k]));
+    if (!set && !overrides) return '';
+    let txt = (overrides && (overrides[tono] || overrides.C)) ||
+              (set && (set[tono] || set.C)) || '';
+    // Auto-vars de negocio/giro primero; las pasadas por el llamador ganan.
+    const todas = { ..._varsNegocio(), ...vars };
+    for (const k of Object.keys(todas)) {
+        txt = txt.split('{' + k + '}').join(todas[k] == null ? '' : String(todas[k]));
     }
     return txt;
 }
 
-module.exports = { t, getTono, moduloActivo, getValor, invalidarCache, FRASES, TONOS_VALIDOS };
+module.exports = { t, getTono, moduloActivo, getValor, invalidarCache, FRASES, TONOS_VALIDOS, _varsNegocio };

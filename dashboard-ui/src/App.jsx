@@ -1,8 +1,11 @@
+import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useWhatsAppQR } from './hooks/useWhatsAppQR';
+import { api } from './api';
 import WhatsAppQR from './components/WhatsAppQR';
 import Login from './components/Login';
+import Onboarding from './components/Onboarding';
 import Layout from './components/Layout';
 import Inicio from './pages/Inicio';
 import Pedidos from './pages/Pedidos';
@@ -37,7 +40,16 @@ export default function App() {
   // aviso dentro de Inicio.jsx, sin sacarlo de donde esté trabajando.
   const { qr, qrListo } = useWhatsAppQR();
 
-  if (cargando || !qrListo) return null;
+  // Estado de onboarding: una instancia recién clonada (negocio_configurado
+  // ausente) muestra el alta desde cero ANTES del login. La de Julio Cepeda
+  // ya quedó configurada por la migración 0014, así que esto es transparente.
+  const [onb, setOnb] = useState(undefined);
+  useEffect(() => {
+    api.get('/api/onboarding/estado').then(setOnb).catch(() => setOnb({ configurado: true }));
+  }, []);
+
+  if (cargando || !qrListo || onb === undefined) return null;
+  if (!user && !onb.configurado) return <Onboarding estado={onb} />;
   if (!user && qr) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>

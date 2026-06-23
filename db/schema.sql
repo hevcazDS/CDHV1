@@ -357,6 +357,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
     razon_social    TEXT,                          -- migrations/0011_pedidos_facturacion.sql
     rfc             TEXT,                          -- migrations/0011_pedidos_facturacion.sql
     puntos_acreditados INTEGER NOT NULL DEFAULT 0,  -- migrations/0013_pedidos_puntos_acreditados.sql
+    metodo_pago     TEXT,                          -- migrations/0014_negocio_giro_metodo_pago.sql
     creado_en       TEXT DEFAULT (datetime('now','localtime')),
     actualizado_en  TEXT
 );
@@ -456,6 +457,25 @@ CREATE TABLE IF NOT EXISTS guias_estafeta (
     es_simulada         INTEGER NOT NULL DEFAULT 1,
     creada_en           TEXT DEFAULT (datetime('now','localtime'))
 );
+
+-- Catálogo de métodos de pago (migrations/0014). Existía en producción pero
+-- no estaba en este schema.sql (drift). requiere_link=1 → genera link de pago
+-- (paypal/mercadopago); 0 → efectivo/transferencia/oxxo (sin pasarela).
+-- `configuracion` (JSON) guarda datos como la CLABE para transferencia.
+CREATE TABLE IF NOT EXISTS metodos_pago (
+    id            INTEGER PRIMARY KEY,
+    nombre        TEXT,
+    activo        INTEGER NOT NULL DEFAULT 1,
+    requiere_link INTEGER NOT NULL DEFAULT 0,
+    configuracion TEXT
+);
+INSERT OR IGNORE INTO metodos_pago (id, nombre, activo, requiere_link) VALUES
+    (1, 'efectivo',      1, 0),
+    (2, 'transferencia', 1, 0),
+    (3, 'tarjeta',       1, 0),
+    (4, 'paypal',        1, 1),
+    (5, 'mercadopago',   1, 1),
+    (6, 'oxxo',          1, 0);
 
 CREATE TABLE IF NOT EXISTS links_pago (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,

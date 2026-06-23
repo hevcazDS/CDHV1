@@ -467,6 +467,7 @@ const ctx = {
 
 const ROUTE_MODULES = [
     require('./routes/core'),
+    require('./routes/negocioOnboarding'),
     require('./routes/comunicacionPedidos'),
     require('./routes/atencionCliente'),
     require('./routes/catalogoCola'),
@@ -576,7 +577,12 @@ function handleRequest(req, res) {
         // como única opción al abrir Electron por primera vez, sin forma de
         // llegar nunca al QR. Mismo criterio de confianza que /health y los
         // estáticos: nadie sin acceso a esta máquina puede pegarle.
-        || (u.pathname === '/api/bot/qr' && req.method === 'GET');
+        || (u.pathname === '/api/bot/qr' && req.method === 'GET')
+        // Onboarding de primer arranque: una instancia recién clonada no tiene
+        // sesión todavía. Se auto-bloquea por negocio_configurado dentro del
+        // handler (POST responde 409 una vez configurado).
+        || (u.pathname === '/api/onboarding/estado' && req.method === 'GET')
+        || (u.pathname === '/api/onboarding' && req.method === 'POST');
 
     if (esRutaApi && !esRutaPublica) {
         if (!requireSession(req, res)) return;
