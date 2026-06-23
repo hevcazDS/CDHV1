@@ -255,6 +255,7 @@ CREATE TABLE IF NOT EXISTS productos (
     name                    TEXT NOT NULL,
     cat                     TEXT NOT NULL DEFAULT '',
     price                   REAL NOT NULL DEFAULT 0,
+    costo                   REAL,                       -- migrations/0016 (costo de adquisición, para margen)
     url_imagen              TEXT,
     description             TEXT,
     seo_description         TEXT,

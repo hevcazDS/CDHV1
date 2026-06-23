@@ -202,15 +202,15 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
                 const crear = db.transaction((datos) => {
                     const r = db.prepare(`
                         INSERT INTO productos (
-                            name, cat, price, sku, upc, brand, handle, description, url_imagen,
+                            name, cat, price, costo, sku, upc, brand, handle, description, url_imagen,
                             tags, seo_description, material, color, target_audience, tipo_juguete,
                             edad_recomendada, edad_min, edad_max, genero, id_categoria,
                             peso_kg, alto_cm, ancho_cm, largo_cm,
                             stock_tienda, stock_cedis, stock_san_luis_potosi, stock_exhibicion,
                             stock_queretaro, stock_monterrey, stock_cdmx_centro, stock_base, creado_por, creado_en
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
                     `).run(
-                        datos.name, datos.cat || '', datos.price, datos.sku || null, datos.upc || null,
+                        datos.name, datos.cat || '', datos.price, datos.costo ?? null, datos.sku || null, datos.upc || null,
                         datos.brand || null, datos.handle || null, datos.description || null, datos.url_imagen || null,
                         datos.tags || null, datos.seo_description || null, datos.material || null, datos.color || null,
                         datos.target_audience || null, datos.tipo_juguete || null,
@@ -319,6 +319,54 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
                     VALUES (?, ?, 'ajuste_minimo', ?, ?, 'Ajuste de stock mínimo', ?)
                 `).run(fila.id_producto, fila.sucursal, fila.stock_minimo, datos.stock_minimo, ses.username);
                 return json(res, { ok: true, id, stock_minimo: datos.stock_minimo });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
+    // ── Entrada de mercancía (Bloque 2B) — recibir stock de un proveedor:
+    // suma al inventario de una sucursal, opcionalmente actualiza el costo del
+    // producto, y deja rastro en inventario_movimientos (tipo='entrada').
+    // Body: { id_producto, sucursal, cantidad, costo?, proveedor? }
+    if (p === '/api/prime/entrada-mercancia' && req.method === 'POST') {
+        const ses = requireSession(req, res, ['prime']);
+        if (!ses) return;
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const idProducto = parseInt(d.id_producto, 10);
+                const sucursal = String(d.sucursal || '').trim();
+                const cantidad = parseInt(d.cantidad, 10);
+                if (!idProducto || !sucursal || !(cantidad > 0)) {
+                    return json(res, { ok: false, error: 'id_producto, sucursal y cantidad (>0) son obligatorios' }, 400);
+                }
+                const prod = db.prepare('SELECT id, name FROM productos WHERE id=?').get(idProducto);
+                if (!prod) return json(res, { ok: false, error: 'Producto no encontrado' }, 404);
+                const pk = pkInventarios(db);
+                const costoNum = (d.costo !== undefined && d.costo !== null && d.costo !== '') ? Number(d.costo) : null;
+                const proveedor = String(d.proveedor || '').trim();
+
+                const tx = db.transaction(() => {
+                    const fila = db.prepare('SELECT * FROM inventarios WHERE id_producto=? AND sucursal=?').get(idProducto, sucursal);
+                    const anterior = fila ? (fila.stock || 0) : 0;
+                    const nueva = anterior + cantidad;
+                    if (fila) {
+                        db.prepare(`UPDATE inventarios SET stock=? WHERE ${pk}=?`).run(nueva, fila[pk]);
+                    } else {
+                        db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock, stock_minimo) VALUES (?, ?, ?, 0)').run(idProducto, sucursal, nueva);
+                    }
+                    if (costoNum !== null && costoNum >= 0) {
+                        db.prepare('UPDATE productos SET costo=? WHERE id=?').run(costoNum, idProducto);
+                    }
+                    const motivo = 'Entrada de mercancía' + (proveedor ? ' — Proveedor: ' + proveedor : '');
+                    db.prepare(`
+                        INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo, creado_por)
+                        VALUES (?, ?, 'entrada', ?, ?, ?, ?)
+                    `).run(idProducto, sucursal, anterior, nueva, motivo, ses.username);
+                    return { anterior, nueva };
+                });
+                const r = tx();
+                log.info('[prime] entrada de mercancía: ' + prod.name + ' +' + cantidad + ' (' + sucursal + ')');
+                return json(res, { ok: true, id_producto: idProducto, sucursal, stock_anterior: r.anterior, stock_nuevo: r.nueva });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });
     }

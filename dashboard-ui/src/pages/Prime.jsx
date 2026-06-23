@@ -106,7 +106,7 @@ export default function Prime() {
   // ── Alta de productos — todas las columnas reales de `productos` (ver
   // db/schema.sql) expuestas de una vez, no por etapas. ──────────────────
   const PRODUCTO_VACIO = {
-    name: '', price: '', sku: '', upc: '', brand: '', handle: '',
+    name: '', price: '', costo: '', sku: '', upc: '', brand: '', handle: '',
     cat: '', id_categoria: null,
     genero: '', tipo_juguete: '', edad_min: 0, edad_max: 99,
     peso_kg: '', alto_cm: '', ancho_cm: '', largo_cm: '',
@@ -348,6 +348,7 @@ export default function Prime() {
   const armarDatosProducto = (v) => ({
     name: v.name,
     price: Number(v.price),
+    costo: (v.costo === '' || v.costo == null) ? undefined : Number(v.costo),
     sku: v.sku || undefined,
     upc: v.upc || undefined,
     brand: v.brand || undefined,
@@ -456,6 +457,15 @@ export default function Prime() {
           <TextInput label="Precio" type="number" min={0} step="0.01" placeholder="Precio *" {...form.getInputProps('price')} />
           {renderSelectCategoria(form, mostrarNuevaCat, setMostrarNuevaCat, nombreNuevaCat, setNombreNuevaCat)}
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginTop: 8, alignItems: 'center' }}>
+          <TextInput label="Costo" type="number" min={0} step="0.01" placeholder="Costo (opcional)" {...form.getInputProps('costo')} />
+          {(() => {
+            const pr = Number(form.values.price), co = Number(form.values.costo);
+            if (!(pr > 0) || !(co >= 0) || form.values.costo === '') return <div style={{ fontSize: 12, color: 'var(--text-mute)' }}>Captura el costo para ver tu margen.</div>;
+            const margen = pr - co; const pct = pr > 0 ? (margen / pr * 100) : 0;
+            return <div style={{ fontSize: 13 }}>Margen: <strong style={{ color: margen >= 0 ? 'var(--green)' : 'var(--red)' }}>${margen.toFixed(2)} ({pct.toFixed(0)}%)</strong></div>;
+          })()}
+        </div>
       </Fieldset>
 
       <Fieldset legend="Clasificación" mb="md">
@@ -510,6 +520,39 @@ export default function Prime() {
     </>
   );
 
+  // ── Entrada de mercancía (Bloque 2B) ──────────────────────────────────
+  const [entradaProd, setEntradaProd] = useState(null); // producto al que se recibe stock
+  const [entradaSucursal, setEntradaSucursal] = useState('');
+  const [entradaCantidad, setEntradaCantidad] = useState('');
+  const [entradaCosto, setEntradaCosto] = useState('');
+  const [entradaProveedor, setEntradaProveedor] = useState('');
+  const [msgEntrada, setMsgEntrada] = useState('');
+  const abrirEntrada = (p) => {
+    setEntradaProd(p); setMsgEntrada('');
+    setEntradaSucursal(''); setEntradaCantidad('');
+    setEntradaCosto(p.costo == null ? '' : String(p.costo)); setEntradaProveedor('');
+  };
+  const entradaMutation = useMutation({
+    mutationFn: () => api.post('/api/prime/entrada-mercancia', {
+      id_producto: entradaProd.id, sucursal: entradaSucursal, cantidad: Number(entradaCantidad),
+      costo: entradaCosto === '' ? undefined : Number(entradaCosto),
+      proveedor: entradaProveedor || undefined,
+    }),
+    onSuccess: (d) => {
+      setMsgEntrada(`Stock actualizado: ${d.stock_anterior} → ${d.stock_nuevo} en ${d.sucursal}.`);
+      queryClient.invalidateQueries({ queryKey: ['prime-productos-lista'] });
+      queryClient.invalidateQueries({ queryKey: ['prime-inventarios'] });
+      queryClient.invalidateQueries({ queryKey: ['prime-inventario-movimientos'] });
+    },
+    onError: (e) => setMsgEntrada(e.message),
+  });
+  const guardarEntrada = () => {
+    setMsgEntrada('');
+    if (!entradaSucursal) { setMsgEntrada('Elige la sucursal.'); return; }
+    if (!(Number(entradaCantidad) > 0)) { setMsgEntrada('La cantidad debe ser mayor a 0.'); return; }
+    entradaMutation.mutate();
+  };
+
   const crearProductoMutation = useMutation({
     mutationFn: (v) => api.post('/api/prime/productos', {
       ...armarDatosProducto(v),
@@ -548,7 +591,7 @@ export default function Prime() {
     setMsgEditarProducto('');
     setCategoriaNuevaNombreEditar('');
     editarForm.setValues({
-      name: p.name || '', price: String(p.price ?? 0),
+      name: p.name || '', price: String(p.price ?? 0), costo: p.costo == null ? '' : String(p.costo),
       sku: p.sku || '', upc: p.upc || '', brand: p.brand || '', handle: p.handle || '',
       cat: p.cat || '', id_categoria: p.id_categoria ?? null,
       genero: p.genero || '', tipo_juguete: p.tipo_juguete || '',
@@ -1072,23 +1115,33 @@ export default function Prime() {
             />
             <div className="table-wrap">
               <Table highlightOnHover verticalSpacing="xs">
-                <thead><tr><th>SKU</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Precio</th><th>Edad</th><th>Tienda</th><th>CEDIS</th><th>SLP</th><th></th></tr></thead>
+                <thead><tr><th>SKU</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Precio</th><th>Costo</th><th>Margen</th><th>Tienda</th><th>CEDIS</th><th></th></tr></thead>
                 <tbody>
                   {productosLista.length === 0 && <tr><td colSpan={10} className="empty">Sin resultados</td></tr>}
-                  {productosLista.map(p => (
+                  {productosLista.map(p => {
+                    const margen = (p.costo != null && p.price != null) ? (p.price - p.costo) : null;
+                    const pct = (margen != null && p.price > 0) ? (margen / p.price * 100) : null;
+                    return (
                     <tr key={p.id}>
                       <td>{p.sku || '-'}</td>
                       <td>{p.name}</td>
                       <td>{p.categoria_nombre || p.cat || '-'}</td>
                       <td>{p.brand || '-'}</td>
                       <td>${p.price}</td>
-                      <td>{p.edad_recomendada || '-'}</td>
+                      <td>{p.costo == null ? '-' : `$${p.costo}`}</td>
+                      <td style={{ color: margen == null ? 'var(--text-mute)' : margen >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                        {margen == null ? '-' : `$${margen.toFixed(2)} (${pct.toFixed(0)}%)`}
+                      </td>
                       <td>{p.stock_tienda}</td>
                       <td>{p.stock_cedis}</td>
-                      <td>{p.stock_san_luis_potosi}</td>
-                      <td><ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionProducto(p)}>✏️</ActionIcon></td>
+                      <td>
+                        <Group gap={4} wrap="nowrap">
+                          <ActionIcon variant="light" color="teal" title="Recibir mercancía (entrada de stock)" onClick={() => abrirEntrada(p)}>📥</ActionIcon>
+                          <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionProducto(p)}>✏️</ActionIcon>
+                        </Group>
+                      </td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </Table>
             </div>
@@ -1107,6 +1160,24 @@ export default function Prime() {
               </>}>
               {msgEditarProducto && <div className="login-error" style={{ marginBottom: 12 }}>{msgEditarProducto}</div>}
               {renderCamposProducto(editarForm, mostrarNuevaCategoriaEditar, setMostrarNuevaCategoriaEditar, categoriaNuevaNombreEditar, setCategoriaNuevaNombreEditar)}
+            </Modal>
+          )}
+
+          {entradaProd && (
+            <Modal title={`📥 Recibir mercancía — ${entradaProd.name}`} onClose={() => setEntradaProd(null)}
+              actions={<>
+                <Button variant="default" onClick={() => setEntradaProd(null)}>Cerrar</Button>
+                <Button onClick={guardarEntrada} disabled={entradaMutation.isPending}>Registrar entrada</Button>
+              </>}>
+              {msgEntrada && <div className={msgEntrada.startsWith('Stock actualizado') ? 'card' : 'login-error'} style={{ marginBottom: 12, fontSize: 13 }}>{msgEntrada}</div>}
+              <Select label="Sucursal" placeholder="¿A qué sucursal entra?" mb="sm"
+                data={sucursales.filter(s => s.activa).map(s => ({ value: s.nombre, label: s.nombre }))}
+                value={entradaSucursal} onChange={v => setEntradaSucursal(v || '')} searchable />
+              <NumberInput label="Cantidad recibida" min={1} mb="sm" value={entradaCantidad} onChange={setEntradaCantidad} />
+              <TextInput label="Costo unitario (opcional, actualiza el costo del producto)" type="number" min={0} step="0.01"
+                value={entradaCosto} onChange={e => setEntradaCosto(e.target.value)} mb="sm" />
+              <TextInput label="Proveedor (opcional)" value={entradaProveedor} onChange={e => setEntradaProveedor(e.target.value)} />
+              <p className="page-sub" style={{ fontSize: 11, marginTop: 10 }}>Suma al stock de esa sucursal y queda registrado en el historial de movimientos.</p>
             </Modal>
           )}
         </div>

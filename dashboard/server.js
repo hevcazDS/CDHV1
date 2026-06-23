@@ -376,7 +376,7 @@ function validar(parsed, schema, res, ruta) {
 // helper para un nuevo endpoint.
 const TABLAS_ACTUALIZABLES = {
     sucursales: ['nombre', 'codigo', 'direccion', 'codigo_postal', 'activa'],
-    productos: ['name', 'cat', 'price', 'sku', 'upc', 'brand', 'handle', 'description',
+    productos: ['name', 'cat', 'price', 'costo', 'sku', 'upc', 'brand', 'handle', 'description',
         'url_imagen', 'tags', 'seo_description', 'material', 'color', 'target_audience',
         'tipo_juguete', 'edad_recomendada', 'edad_min', 'edad_max', 'genero', 'id_categoria',
         'peso_kg', 'alto_cm', 'ancho_cm', 'largo_cm', 'stock_tienda', 'stock_cedis',

@@ -197,6 +197,7 @@ const ProductoBaseSchema = z.object({
     name:                  z.string().min(1, 'name requerido').max(200),
     cat:                   z.string().max(80).optional().nullable(),
     price:                 z.number().min(0),
+    costo:                 z.number().min(0).optional().nullable(),
     sku:                   z.string().max(60).optional().nullable(),
     upc:                   z.string().max(60).optional().nullable(),
     brand:                 z.string().max(100).optional().nullable(),
