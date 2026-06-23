@@ -102,6 +102,39 @@ const GIROS = {
 // comportamiento histórico de la instancia de Julio Cepeda intacto.
 const GIRO_DEFAULT = 'jugueteria';
 
+// ── Menú adaptativo por giro ────────────────────────────────────
+// Cada giro puede mostrar MENOS opciones de las 5 canónicas
+// (['buscar','wizard','rastrear','asesor','referidos']). Solo se listan
+// aquí los giros que difieren del menú completo; los demás (jugueteria,
+// restaurante) usan las 5 y su texto sale de FRASES.menu_opciones (t()),
+// así Julio Cepeda queda byte-idéntico.
+//
+// El asistente "ayúdame a elegir" (wizard) es un cuestionario de regalo
+// por edad/género pensado para juguetería; no aplica a una tienda que se
+// vende por nombre de producto (ropa, abarrotes, ferretería) ni a un
+// negocio de servicios (barbería, uñas), así que esos giros lo omiten.
+// restaurante SÍ lo conserva (ahí es "¿qué me recomiendas?").
+const _MENU_SIN_WIZARD = ['buscar', 'rastrear', 'asesor', 'referidos'];
+const MENU_GIRO = {
+    retail:        _MENU_SIN_WIZARD,
+    abarrotes:     _MENU_SIN_WIZARD,
+    carniceria:    _MENU_SIN_WIZARD,
+    ferreteria:    _MENU_SIN_WIZARD,
+    servicios:     _MENU_SIN_WIZARD,
+    mantenimiento: _MENU_SIN_WIZARD,
+    barberia:      _MENU_SIN_WIZARD,
+    tatuajes:      _MENU_SIN_WIZARD,
+    estetica:      _MENU_SIN_WIZARD,
+    unas:          _MENU_SIN_WIZARD,
+    custom:        _MENU_SIN_WIZARD,
+};
+
+// Devuelve el orden de opciones del giro, o null si usa el menú completo
+// (5 opciones, comportamiento histórico).
+function menuDeGiro(clave) {
+    return MENU_GIRO[clave] || null;
+}
+
 function getGiro(clave) {
     return GIROS[clave] || GIROS[GIRO_DEFAULT];
 }
@@ -111,4 +144,4 @@ function listaGiros() {
     return Object.keys(GIROS).map(clave => ({ clave, label: GIROS[clave].label }));
 }
 
-module.exports = { GIROS, GIRO_DEFAULT, getGiro, listaGiros };
+module.exports = { GIROS, GIRO_DEFAULT, getGiro, listaGiros, menuDeGiro, MENU_GIRO };

@@ -33,6 +33,7 @@ const {
     grabarPedidoPickupUnificado,
     formatProducts,
     menuPrincipal,
+    resolverOpcionMenu,
     tagCliente,
     quitarTag,
     registrarEscalada,
@@ -97,11 +98,15 @@ async function handle(ctx) {
     const { userId, session, message, client, raw, action, step, data, tel } = ctx;
 
     if (step === S.MENU) {
-        if (['1','buscar'].includes(action)) {
+        // Menú adaptativo por giro: el número tecleado se resuelve contra el
+        // orden REAL de opciones del giro activo (ver _shared.resolverOpcionMenu).
+        // Para jugueteria/restaurante el mapeo es idéntico al histórico (5 fijas).
+        const _opt = resolverOpcionMenu(action);
+        if (_opt === 'buscar') {
             sessionManager.updateSession(userId, S.SEARCHING, { carrito: data.carrito || [] });
             return t('buscar_inicio') || `🔍 ¿Qué juguete buscas? Puedes:\n\n· Escribir el nombre o descripción\n· Enviar una *foto* del juguete 📸\n· Pegar el *link* de donde lo viste 🔗\n\n_Ej: "patines para niña" · foto de la caja · link de Amazon o Shopify_`;
         }
-        if (['2','wizard','ayuda'].includes(action)) {
+        if (_opt === 'wizard') {
             sessionManager.updateSession(userId, S.WIZARD_Q1, { carrito: data.carrito || [] });
             return t('wizard_q1') || `🧙 ¡Te ayudo a encontrar el regalo perfecto! 🎁\n\n*Pregunta 1 de 3* — ¿Para quién es el juguete?\n\n1️⃣  👶 Bebé (0–2 años)\n2️⃣  🧒 Niño/a (3–8 años)\n3️⃣  🧑 Preadolescente (9–12)\n4️⃣  🎓 Adolescente / Adulto`;
         }
@@ -118,7 +123,7 @@ async function handle(ctx) {
                 '5️⃣  Otro motivo'
             );
         }
-        if (['3','rastrear','pedido','mis pedidos','historial'].includes(action)) {
+        if (_opt === 'rastrear') {
             // Mostrar historial si el cliente ya tiene pedidos
             try {
                 const _peds = db.prepare(`
@@ -145,12 +150,12 @@ async function handle(ctx) {
             sessionManager.updateSession(userId, S.ASESOR, { modo:'rastreo' });
             return '📦 Escribe tu *número de pedido* (ej. HEV-PED-000001):';
         }
-        if (['4','asesor'].includes(action)) {
+        if (_opt === 'asesor') {
             sessionManager.updateSession(userId, S.ASESOR, { modo:'asesor' });
             registrarEscalada(userId, null, 'Solicitud directa desde menú', tel);
             return (t('asesor_notificado', { horario: HORARIO_ASESOR }) || ('👤 Hemos notificado a nuestro equipo de ventas.\n\n⏰ Horario de atención: *' + HORARIO_ASESOR + '*')) + '\n\n' + msgHorarioAsesor();
         }
-        if (['5','referido','referidos','codigo de referido','código de referido','mi codigo','mi código'].includes(action)) {
+        if (_opt === 'referidos') {
             if (!referidosService || !referidosService.referidosActivo()) {
                 return '🎁 Esta función no está disponible por el momento.\n\n' + menuPrincipal(tel);
             }

@@ -55,10 +55,9 @@ function getValor(clave, fallback = null) {
 // y la reconexión automática de WhatsApp en el mismo proceso (por defecto
 // el bot se queda detenido tras un 'disconnected' en vez de reintentar solo
 // — ver bot/index.js y bot/reconexionAutomatica.js).
-// Flags que arrancan apagados. Nota: los métodos de entrega pickup/paqueteria
-// arrancan ENCENDIDOS (no están aquí) para no cambiar instalaciones existentes;
-// solo el repartidor arranca apagado.
-const _DEFAULT_OFF = new Set(['puntos_activo', 'pago_real_activo', 'estafeta_real_activo', 'reconexion_auto_activo', 'pago_multimetodo_activo', 'entrega_repartidor_activo', 'pos_activo', 'facturacion_activo', 'llm_activo']);
+// Flags que arrancan apagados. Fuente única en bot/flows/modulosDefaults.js
+// (compartida con el dashboard para que ambos coincidan — ver ese archivo).
+const _DEFAULT_OFF = new Set(require('./modulosDefaults').DEFAULT_OFF);
 
 function moduloActivo(clave) {
     _refresh();

@@ -33,9 +33,10 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         try {
             const r = db.prepare('SELECT valor FROM configuracion WHERE clave=? LIMIT 1').get(clave);
             // Por defecto activo, excepto los flags que arrancan apagados
-            // hasta activarse explícitamente (mismo criterio que _DEFAULT_OFF
-            // en bot/flows/_config.js — deben coincidir con lo que hace el bot).
-            const DEFAULT_OFF = ['puntos_activo', 'pago_multimetodo_activo', 'entrega_repartidor_activo', 'pos_activo', 'facturacion_activo'];
+            // hasta activarse explícitamente. Fuente única compartida con el
+            // bot (bot/flows/modulosDefaults.js) para que ambos coincidan —
+            // antes esta lista estaba duplicada aquí y se desincronizó.
+            const { DEFAULT_OFF } = require('../../bot/flows/modulosDefaults');
             const defecto = !DEFAULT_OFF.includes(clave);
             return json(res, { clave, activo: r ? r.valor !== '0' : defecto });
         } catch(_) { return json(res, { clave, activo: true }); }
