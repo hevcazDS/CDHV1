@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Loader, Center } from '@mantine/core';
 import { useAuth } from './context/AuthContext';
 import { useWhatsAppQR } from './hooks/useWhatsAppQR';
 import { api } from './api';
@@ -8,27 +9,32 @@ import WhatsAppQR from './components/WhatsAppQR';
 import Login from './components/Login';
 import Onboarding from './components/Onboarding';
 import Layout from './components/Layout';
-import Inicio from './pages/Inicio';
-import Pedidos from './pages/Pedidos';
-import Devoluciones from './pages/Devoluciones';
-import Clientes from './pages/Clientes';
-import Guias from './pages/Guias';
-import ColaAtencion from './pages/ColaAtencion';
-import ListaEspera from './pages/ListaEspera';
-import Preventas from './pages/Preventas';
-import Ofertas from './pages/Ofertas';
-import Cupones from './pages/Cupones';
-import Sustitutos from './pages/Sustitutos';
-import Ranking from './pages/Ranking';
-import Modulos from './pages/Modulos';
-import Busquedas from './pages/Busquedas';
-import ColaEnvios from './pages/ColaEnvios';
-import Beta from './pages/Beta';
-import Metricas from './pages/Metricas';
-import Notificaciones from './pages/Notificaciones';
-import Etiquetas from './pages/Etiquetas';
-import Mostrador from './pages/Mostrador';
-import Prime from './pages/Prime';
+
+// Páginas en carga diferida (code-splitting): cada una se descarga como su
+// propio chunk al navegar, en vez de meterlas todas en el bundle inicial
+// (antes ~1.1 MB en un solo archivo). El shell (Login/Onboarding/Layout)
+// sigue siendo eager porque se necesita de inmediato.
+const Inicio = lazy(() => import('./pages/Inicio'));
+const Pedidos = lazy(() => import('./pages/Pedidos'));
+const Devoluciones = lazy(() => import('./pages/Devoluciones'));
+const Clientes = lazy(() => import('./pages/Clientes'));
+const Guias = lazy(() => import('./pages/Guias'));
+const ColaAtencion = lazy(() => import('./pages/ColaAtencion'));
+const ListaEspera = lazy(() => import('./pages/ListaEspera'));
+const Preventas = lazy(() => import('./pages/Preventas'));
+const Ofertas = lazy(() => import('./pages/Ofertas'));
+const Cupones = lazy(() => import('./pages/Cupones'));
+const Sustitutos = lazy(() => import('./pages/Sustitutos'));
+const Ranking = lazy(() => import('./pages/Ranking'));
+const Modulos = lazy(() => import('./pages/Modulos'));
+const Busquedas = lazy(() => import('./pages/Busquedas'));
+const ColaEnvios = lazy(() => import('./pages/ColaEnvios'));
+const Beta = lazy(() => import('./pages/Beta'));
+const Metricas = lazy(() => import('./pages/Metricas'));
+const Notificaciones = lazy(() => import('./pages/Notificaciones'));
+const Etiquetas = lazy(() => import('./pages/Etiquetas'));
+const Mostrador = lazy(() => import('./pages/Mostrador'));
+const Prime = lazy(() => import('./pages/Prime'));
 
 export default function App() {
   const { user, cargando } = useAuth();
@@ -62,6 +68,7 @@ export default function App() {
   if (!user) return <Login />;
 
   return (
+    <Suspense fallback={<Center style={{ minHeight: '60vh' }}><Loader /></Center>}>
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Inicio />} />
@@ -88,5 +95,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+    </Suspense>
   );
 }

@@ -102,6 +102,10 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
             guias_total: db.prepare("SELECT COUNT(*) c FROM guias_estafeta").get()?.c || 0,
             pagos_pendientes: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='generado'").get()?.c || 0,
             pagos_pagados: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='pagado'").get()?.c || 0,
+            // Ventas cobradas hoy ($): suma de links de pago marcados pagados
+            // con fecha de pago de hoy. KPI central para la operación diaria.
+            ventas_hoy: db.prepare("SELECT COALESCE(SUM(monto),0) s FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=date('now','localtime')").get()?.s || 0,
+            pedidos_pagados_hoy: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=date('now','localtime')").get()?.c || 0,
             cola_atencion: db.prepare("SELECT COUNT(*) c FROM cola_atencion WHERE estatus='en_espera'").get()?.c || 0,
             // cola_notificaciones (WhatsApp) ya tiene su propia página dedicada
             // (ColaEnvios.jsx); cola_emails nunca tuvo ninguna — un correo de
