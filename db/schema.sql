@@ -482,6 +482,19 @@ CREATE TABLE IF NOT EXISTS metodos_pago (
     requiere_link INTEGER NOT NULL DEFAULT 0,
     configuracion TEXT
 );
+-- Corte de caja del POS de mostrador (migrations/0018_cortes_caja.sql)
+CREATE TABLE IF NOT EXISTS cortes_caja (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha            TEXT NOT NULL,
+    usuario          TEXT,
+    total_sistema    REAL NOT NULL DEFAULT 0,
+    efectivo_sistema REAL NOT NULL DEFAULT 0,
+    efectivo_contado REAL,
+    diferencia       REAL,
+    detalle_json     TEXT,
+    creado_en        TEXT DEFAULT (datetime('now','localtime'))
+);
+
 INSERT OR IGNORE INTO metodos_pago (id, nombre, activo, requiere_link) VALUES
     (1, 'efectivo',      1, 0),
     (2, 'transferencia', 1, 0),

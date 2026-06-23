@@ -27,6 +27,7 @@ import Beta from './pages/Beta';
 import Metricas from './pages/Metricas';
 import Notificaciones from './pages/Notificaciones';
 import Etiquetas from './pages/Etiquetas';
+import Mostrador from './pages/Mostrador';
 import Prime from './pages/Prime';
 
 export default function App() {
@@ -82,6 +83,7 @@ export default function App() {
         <Route path="/metricas" element={<Metricas />} />
         <Route path="/notificaciones" element={<Notificaciones />} />
         <Route path="/etiquetas" element={<Etiquetas />} />
+        <Route path="/mostrador" element={<Mostrador />} />
         {tieneRango(user.rol, 'gerente') && <Route path="/prime" element={<Prime />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

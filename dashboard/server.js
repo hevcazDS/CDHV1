@@ -483,6 +483,7 @@ const ctx = {
 const ROUTE_MODULES = [
     require('./routes/core'),
     require('./routes/negocioOnboarding'),
+    require('./routes/pos'),
     require('./routes/comunicacionPedidos'),
     require('./routes/atencionCliente'),
     require('./routes/catalogoCola'),

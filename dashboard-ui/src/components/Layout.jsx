@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AppShell, Accordion } from '@mantine/core';
 import { useAuth } from '../context/AuthContext';
@@ -16,6 +17,7 @@ import { tieneRango } from '../lib/roles';
 const GRUPOS = [
   { titulo: 'Operación diaria', enlaces: [
     { to: '/', label: 'Inicio', icon: '🏠' },
+    { to: '/mostrador', label: 'Mostrador', icon: '🧾', moduloRequerido: 'pos_activo' },
     { to: '/pedidos', label: 'Pedidos', icon: '📦' },
     { to: '/devoluciones', label: 'Devoluciones', icon: '↩️' },
     { to: '/cola', label: 'Cola de atención', icon: '🗨️' },
@@ -69,10 +71,20 @@ const ACCORDION_STYLES = {
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  // Módulos opcionales que ocultan un enlace si están apagados (ej. POS).
+  const { data: posActivo } = useQuery({
+    queryKey: ['modulo', 'pos_activo'],
+    queryFn: () => api.get('/api/modulo/pos_activo').then(r => !!r.activo).catch(() => false),
+  });
+  const modulosActivos = { pos_activo: posActivo };
   // Filtro por RANGO (no match exacto): un enlace con rolRequerido='gerente'
-  // lo ven gerente y prime; uno con 'prime' solo prime.
+  // lo ven gerente y prime; uno con 'prime' solo prime. Además, un enlace con
+  // moduloRequerido solo aparece si ese módulo está activo.
   const grupos = GRUPOS
-    .map(g => ({ ...g, enlaces: g.enlaces.filter(e => !e.rolRequerido || tieneRango(user?.rol, e.rolRequerido)) }))
+    .map(g => ({ ...g, enlaces: g.enlaces.filter(e =>
+      (!e.rolRequerido || tieneRango(user?.rol, e.rolRequerido)) &&
+      (!e.moduloRequerido || modulosActivos[e.moduloRequerido])
+    ) }))
     .filter(g => g.enlaces.length > 0);
   // Nombre del negocio editable desde Prime (revendible a otra juguetería) —
   // 'Julio Cepeda' es solo el placeholder mientras carga /api/negocio.
