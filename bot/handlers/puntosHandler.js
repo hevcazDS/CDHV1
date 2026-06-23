@@ -2,21 +2,22 @@
 // Módulo separado: se puede modificar sin tocar actionHandler.js
 // El bot lo llama con handle() — si retorna null, el flujo continúa normal
 // Si el sistema está desactivado, retorna null siempre (invisible para el cliente)
+// Ya no intercepta códigos de ticket físico (TK-XXXXXXXX) — los puntos se
+// acreditan automáticamente por compra o por referido (ver
+// puntosService.otorgarPuntosPorCompra y referidosService.js); este módulo
+// solo atiende la consulta de saldo "mis puntos".
 'use strict';
 
-const db = require('../db_connection');
 const log = require('../logger')('puntosHandler');
+const puntosService = require('./puntosService');
 
-// Verificar si el sistema de puntos está activo en configuracion
+// Único punto de verdad del flag — antes este archivo tenía su propia copia
+// con el default invertido (activo si nunca se tocaba la clave) mientras
+// que el dashboard (GET /api/modulo/:clave) y puntosService.js ya trataban
+// 'puntos_activo' como inactivo por defecto. Delegar aquí elimina ese
+// conflicto.
 function puntosActivo() {
-    try {
-        const cfg = db.prepare(
-            "SELECT valor FROM configuracion WHERE clave='puntos_activo' LIMIT 1"
-        ).get();
-        return !cfg || cfg.valor !== '0';
-    } catch(_) {
-        return false; // si la tabla no existe, el sistema está inactivo
-    }
+    return puntosService.puntosActivo();
 }
 
 // Función principal — retorna string si manejó el mensaje, null si no
@@ -26,50 +27,15 @@ function handle(raw, userId, tel, sessionManager, menuPrincipal) {
 
     const rawTrim = (raw || '').trim();
 
-    // ── Registrar ticket TK-XXXXXXXX ──────────────────────────────
-    if (/^TK-[A-Z0-9]{8}$/i.test(rawTrim)) {
-        try {
-            const puntosService = require('./puntosService');
-            const res = puntosService.reclamarTicket(rawTrim, userId);
-            if (!res.ok) return '❌ ' + res.error;
-
-            let msg =
-                '⭐ *¡Puntos registrados!*\n\n' +
-                '+' + res.puntosSumados + ' puntos sumados\n' +
-                '📊 Saldo disponible: *' + res.puntosDisp + ' puntos*\n';
-
-            if (res.cuponesNuevos.length) {
-                msg +=
-                    '\n\n🎉 *¡Ganaste ' +
-                    res.cuponesNuevos.length +
-                    ' cupón' + (res.cuponesNuevos.length > 1 ? 'es' : '') +
-                    ' de 10% de descuento!*\n\n';
-                for (const cup of res.cuponesNuevos) {
-                    msg += '🏷️ Código: *' + cup.cupon + '*\n';
-                    msg += '⏰ Válido hasta: ' + cup.expira + '\n';
-                }
-                msg += '\n_Aplícalo en tu próxima compra. No acumulable ni válido con otras ofertas._';
-            } else {
-                msg += '🎯 Te faltan *' + res.faltanParaSig +
-                    ' puntos* para tu cupón de 10% de descuento.';
-            }
-            return msg;
-        } catch(e) {
-            log.error('Error al reclamar ticket', e);
-            return '⚠️ Ocurrió un error al registrar tus puntos. Intenta de nuevo.';
-        }
-    }
-
     // ── Consultar saldo de puntos ──────────────────────────────────
     if (/mis puntos|cuantos puntos|saldo puntos|puntos tengo|cu[aá]ntos puntos/i.test(rawTrim)) {
         try {
-            const puntosService = require('./puntosService');
             const saldo = puntosService.consultarSaldo(userId);
 
             if (!saldo || saldo.disponibles === 0) {
                 return (
                     '⭐ Aún no tienes puntos acumulados.\n\n' +
-                    'Escanea el QR de tu próximo ticket de compra en tienda para empezar. 🎁'
+                    'Gana puntos automáticamente con cada compra, o invita a un amigo con tu código de referido. 🎁'
                 );
             }
 

@@ -254,6 +254,7 @@ async function handle(ctx) {
                     `🏪 *Pedido Pick Up*\n` +
                     `📋 Folio: *${pedidoPickup.folio}*\n` +
                     `${formatParticion(data.carritoPickup,'pickup')}\n` +
+                    (pedidoPickup.descuentoReferido > 0 ? `🎁 Descuento de bienvenida (referido) -10%: -$${pedidoPickup.descuentoReferido.toFixed(2)} MXN\n` : '') +
                     `💰 Total: *$${Number(pedidoPickup.total).toFixed(2)} MXN*\n` +
                     `🔐 Código de retiro: \`${pedidoPickup.codigo}\`\n` +
                     `💳 Pagar aquí:\n${pedidoPickup.linkUrl}\n\n`
@@ -267,6 +268,7 @@ async function handle(ctx) {
                     `${formatParticion(data.carritoEnvio,'envio')}\n` +
                     `📍 ${data.calle}, ${data.colonia}, ${data.ciudad}\n` +
                     `📦 Flete: ${pedidoEnvio.costoEnv===0?'*¡GRATIS!*':`*$${pedidoEnvio.costoEnv} MXN*`}\n` +
+                    (pedidoEnvio.descuentoReferido > 0 ? `🎁 Descuento de bienvenida (referido) -10%: -$${pedidoEnvio.descuentoReferido.toFixed(2)} MXN\n` : '') +
                     `💰 Total: *$${Number(pedidoEnvio.total).toFixed(2)} MXN*\n` +
                     `💳 Pagar aquí:\n${pedidoEnvio.linkUrl}\n\n`
                 );
@@ -352,10 +354,12 @@ async function handle(ctx) {
             const notaEspera = diasMax
                 ? `\n⏳ Los artículos de almacén estarán en sucursal en aprox. *${diasMax} días hábiles*. Te avisaremos.\n`
                 : '';
+            const _descRefPickup = resultado.descuentoReferido || 0;
             return (
                 `✅ *¡Listo, pedido confirmado!* 🎉\n\n` +
                 `📋 Folio: *${resultado.folio}*\n\n` +
                 `${formatCarrito(data.carrito || [])}\n` +
+                (_descRefPickup > 0 ? `🎁 Descuento de bienvenida (referido) -10%: -$${_descRefPickup.toFixed(2)} MXN\n💵 *Total final: $${resultado.total.toFixed(2)} MXN*\n` : '') +
                 notaEspera + `\n` +
                 `🔐 Código de retiro: \`${resultado.codigo}\`\n` +
                 `_(Preséntalo en caja al llegar)_\n\n` +

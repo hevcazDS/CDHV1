@@ -5,7 +5,7 @@ import { handleApiError } from '../lib/apiError';
 import { useTextoEmoji, EMOJIS_ACTIVO_QUERY_KEY } from '../context/EmojiContext';
 
 const MODULOS = [
-  { key: 'puntos_activo', titulo: '⭐ Puntos de Lealtad', desc: 'Clientes acumulan puntos con tickets QR' },
+  { key: 'puntos_activo', titulo: '⭐ Puntos de Lealtad', desc: 'Clientes acumulan puntos automáticamente por compra o por referido' },
   { key: 'ofertas_activo', titulo: '🏷️ Ofertas y Descuentos', desc: 'Bot muestra ofertas activas' },
   { key: 'upselling_activo', titulo: '💡 Upselling en carrito', desc: 'Sugerencias de productos complementarios' },
   { key: 'lista_espera_activo', titulo: '🔔 Lista de espera', desc: 'Notifica cuando llega stock esperado' },

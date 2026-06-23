@@ -15,12 +15,13 @@ db.exec(`
 CREATE TABLE clientes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telefono TEXT, nombre TEXT,
-    codigo_referido TEXT, referido_por_id INTEGER
+    codigo_referido TEXT, referido_por_id INTEGER,
+    descuento_referido_usado INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE configuracion (clave TEXT PRIMARY KEY, valor TEXT, actualizado_en TEXT);
 CREATE TABLE pedidos (
     id_pedido INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_cliente INTEGER, estatus TEXT
+    id_cliente INTEGER, estatus TEXT, total REAL
 );
 CREATE TABLE referidos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,17 +31,33 @@ CREATE TABLE referidos (
 );
 CREATE TABLE puntos_cliente (
     id_cliente INTEGER PRIMARY KEY, telefono TEXT,
-    puntos_ganados INTEGER DEFAULT 0, ultimo_movimiento TEXT
+    puntos_ganados INTEGER DEFAULT 0, puntos_canjeados INTEGER DEFAULT 0, ultimo_movimiento TEXT
 );
 CREATE TABLE movimientos_puntos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_cliente INTEGER, telefono TEXT, tipo TEXT, puntos INTEGER, concepto TEXT
+    id_cliente INTEGER, telefono TEXT, tipo TEXT, puntos INTEGER, concepto TEXT,
+    creado_en TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE TABLE cola_notificaciones (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tipo TEXT, destinatario TEXT, asunto TEXT, cuerpo TEXT, estatus TEXT
 );
+CREATE TABLE promociones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo TEXT, tipo TEXT, valor REAL, id_producto INTEGER, activa INTEGER DEFAULT 1,
+    fecha_inicio TEXT, fecha_fin TEXT, usos_max INTEGER DEFAULT 0, usos_actual INTEGER DEFAULT 0
+);
+CREATE TABLE regalos_lealtad (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente INTEGER, telefono TEXT, codigo_cupon TEXT, valor REAL,
+    puntos_usados INTEGER, expira_en TEXT, estatus TEXT DEFAULT 'activo'
+);
 `);
+
+// El bono de puntos al referente depende de que el módulo de puntos esté
+// activo (ver referidosService.js: puntosService.puntosActivo() antes de
+// acreditar) -- igual que en producción, hay que encenderlo desde Módulos.
+db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('puntos_activo','1')").run();
 
 const _origLoad = Module._load.bind(Module);
 Module._load = function (req, parent, isMain) {
@@ -56,8 +73,8 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ✅ ' + m); } else { fail
 function nuevoCliente(tel, nombre) {
     return db.prepare('INSERT INTO clientes (telefono, nombre) VALUES (?,?)').run(tel, nombre).lastInsertRowid;
 }
-function confirmarPrimeraCompra(idCliente) {
-    return db.prepare("INSERT INTO pedidos (id_cliente, estatus) VALUES (?, 'confirmado')").run(idCliente).lastInsertRowid;
+function confirmarPrimeraCompra(idCliente, total = 500) {
+    return db.prepare("INSERT INTO pedidos (id_cliente, estatus, total) VALUES (?, 'confirmado', ?)").run(idCliente, total).lastInsertRowid;
 }
 
 console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\n');
@@ -66,7 +83,7 @@ console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\
 {
     const idReferente = nuevoCliente('521000000001', 'Ana');
     const codigo = referidosService.asegurarCodigoReferido(idReferente);
-    ok(/^REF-[A-Z0-9]{8}$/.test(codigo), 'asegurarCodigoReferido genera formato REF-XXXXXXXX');
+    ok(/^[A-Z0-9]{5}$/.test(codigo), 'asegurarCodigoReferido genera formato de 5 caracteres sin prefijo');
 
     const idNuevo = nuevoCliente('521000000002', 'Beto');
     const res = referidosService.procesarReferidoSiAplica(idNuevo, '521000000002', 'hola, me invitó ' + codigo);
@@ -95,7 +112,7 @@ console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\
     const idReferido = nuevoCliente('521000000011', 'Eric');
     referidosService.procesarReferidoSiAplica(idReferido, '521000000011', 'me invitó ' + codigoRef);
 
-    confirmarPrimeraCompra(idReferido);
+    confirmarPrimeraCompra(idReferido, 500);
     const res = referidosService.otorgarPuntosPorPrimeraCompra(idReferido);
     ok(res && res.ok && res.otorgoPuntosReferente === true, 'otorgarPuntosPorPrimeraCompra acredita al referente');
 
@@ -111,6 +128,8 @@ console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\
 
     const notifReferente = db.prepare("SELECT * FROM cola_notificaciones WHERE destinatario='521000000010'").get();
     ok(!!notifReferente && /puntos sumados/i.test(notifReferente.cuerpo), 'el referente recibe notificación de puntos ganados');
+    ok(/saldo total: \*100 puntos\*/i.test(notifReferente.cuerpo), 'la notificación al referente incluye su saldo total de puntos');
+    ok(/mis puntos/i.test(notifReferente.cuerpo) && !/cup[oó]n/i.test(notifReferente.cuerpo), 'con solo 100 puntos no se le ofrece todavía ningún cupón');
 }
 
 // ── 3. Idempotencia: compras siguientes no vuelven a disparar nada ────────
@@ -120,9 +139,9 @@ console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\
     const idReferido = nuevoCliente('521000000021', 'Gus');
     referidosService.procesarReferidoSiAplica(idReferido, '521000000021', 'me invitó ' + codigoRef);
 
-    confirmarPrimeraCompra(idReferido); // compra #1 — dispara
+    confirmarPrimeraCompra(idReferido, 300); // compra #1 — dispara
     referidosService.otorgarPuntosPorPrimeraCompra(idReferido);
-    confirmarPrimeraCompra(idReferido); // compra #2 — NO debe disparar nada más
+    confirmarPrimeraCompra(idReferido, 300); // compra #2 — NO debe disparar nada más
     const res2 = referidosService.otorgarPuntosPorPrimeraCompra(idReferido);
     ok(res2 === null, 'una segunda compra finalizada no vuelve a disparar el flujo (nFinalizados!==1)');
 
@@ -168,6 +187,29 @@ console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\
     ok(resCompra === null, 'con el apagador en 0, otorgarPuntosPorPrimeraCompra no hace nada');
 
     db.prepare("DELETE FROM configuracion WHERE clave='referidos_activo'").run();
+}
+
+// ── 6. Descuento automático de bienvenida (10%) para el cliente referido ──
+{
+    const idReferente = nuevoCliente('521000000070', 'Laura');
+    const codigoRef = referidosService.asegurarCodigoReferido(idReferente);
+    const idReferido = nuevoCliente('521000000071', 'Mario');
+    referidosService.procesarReferidoSiAplica(idReferido, '521000000071', 'me invitó ' + codigoRef);
+
+    const carrito = [{ id: 1, price: 200, cantidad: 2 }]; // subtotal 400
+    const res = referidosService.calcularDescuentoReferido('521000000071', carrito);
+    ok(res.aplica && res.descuento === 40, 'calcularDescuentoReferido calcula 10% sobre el subtotal del carrito');
+
+    referidosService.marcarDescuentoReferidoUsado(res.idCliente);
+    const res2 = referidosService.calcularDescuentoReferido('521000000071', carrito);
+    ok(res2.aplica === false, 'el descuento de bienvenida es de un solo uso por cliente');
+
+    const idReferido2 = nuevoCliente('521000000072', 'Nora');
+    referidosService.procesarReferidoSiAplica(idReferido2, '521000000072', 'me invitó ' + codigoRef);
+    db.prepare('INSERT INTO promociones (id_producto, activa) VALUES (5, 1)').run();
+    const carritoOferta = [{ id: 5, price: 100, cantidad: 1 }];
+    const res3 = referidosService.calcularDescuentoReferido('521000000072', carritoOferta);
+    ok(res3.aplica === false && res3.motivo === 'oferta_activa', 'no aplica el descuento si el carrito ya tiene un artículo en oferta activa');
 }
 
 console.log('\nResultado: ' + pass + ' pass, ' + fail + ' fail\n');

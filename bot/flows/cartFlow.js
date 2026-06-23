@@ -145,14 +145,16 @@ async function handle(ctx) {
             if ((_eprevPeds?.n||0) >= 1) tagCliente(tel, 'cliente_recurrente');
             sessionManager.clearSession(userId);
 
-            const _descuentoCupon = data.descuentoCupon || 0;
-            const _totalFinal = (resultado.costoEnv || 0) + totalCarrito(data.carrito || []) - _descuentoCupon;
+            const _descuentoCupon    = resultado.descuentoCupon || 0;
+            const _descuentoReferido = resultado.descuentoReferido || 0;
 
             return (
                 `✅ *¡Pedido confirmado!* 🎉\n\n` +
                 `📋 *Folio:* ${resultado.folio}\n\n` +
                 `${formatCarrito(data.carrito || [], resultado.costoEnv)}` +
-                (_descuentoCupon > 0 ? `\n🏷️ Cupón *${data.cupon}*: -$${_descuentoCupon.toFixed(2)} MXN\n💵 *Total final: $${_totalFinal.toFixed(2)} MXN*` : '') + `\n\n` +
+                (_descuentoCupon > 0 ? `\n🏷️ Cupón *${data.cupon}*: -$${_descuentoCupon.toFixed(2)} MXN` : '') +
+                (_descuentoReferido > 0 ? `\n🎁 Descuento de bienvenida (referido) -10%: -$${_descuentoReferido.toFixed(2)} MXN` : '') +
+                (_descuentoCupon > 0 || _descuentoReferido > 0 ? `\n💵 *Total final: $${resultado.total.toFixed(2)} MXN*` : '') + `\n\n` +
                 `🚚 Enviamos a: ${data.calle}, ${data.colonia}, ${data.ciudad}\n` +
                 (resultado.guia
                     ? `📦 Guía: *${resultado.guia.numeroGuia}*\n` +

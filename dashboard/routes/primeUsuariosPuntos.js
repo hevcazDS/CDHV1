@@ -74,37 +74,6 @@ module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
     }
 
-    // GET /api/puntos/ticket/:codigo — datos de un ticket específico
-    if (p.startsWith('/api/puntos/ticket/') && req.method === 'GET') {
-        const codigo = decodeURIComponent(p.split('/').pop()).toUpperCase();
-        if (codigo === 'RANDOM') {
-            // Ticket aleatorio disponible (no reclamado, no expirado)
-            const t = db.prepare(`
-                SELECT * FROM tickets_venta
-                WHERE codigo_qr LIKE 'TK-%'
-                  AND puntos_reclamados = 0
-                  AND datetime(expira_reclamo_en) > datetime('now','localtime')
-                ORDER BY RANDOM() LIMIT 1
-            `).get();
-            return json(res, t || {});
-        }
-        const t = db.prepare(`SELECT * FROM tickets_venta WHERE codigo_qr=? LIMIT 1`).get(codigo);
-        // Agregar número del bot para el QR
-        const telefonoBot = (process.env.ASESOR_WHATSAPP || '').replace(/[^0-9]/g, '');
-        return json(res, t ? { ...t, telefono_bot: telefonoBot } : {});
-    }
-
-    // GET /api/puntos/usados — últimos 20 tickets reclamados
-    if (p === '/api/puntos/usados' && req.method === 'GET') {
-        const rows = db.prepare(`
-            SELECT codigo_qr, total, puntos_otorgados, telefono_cliente, reclamado_en
-            FROM tickets_venta
-            WHERE puntos_reclamados = 1
-            ORDER BY reclamado_en DESC LIMIT 20
-        `).all();
-        return json(res, rows);
-    }
-
     // GET /api/puntos/config — ver estado del sistema de lealtad
     if (p === '/api/puntos/config' && req.method === 'GET') {
         let activo = true;
@@ -153,20 +122,6 @@ module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
             const saldo = puntosService.consultarSaldo(tel);
             return json(res, saldo || { disponibles: 0, puntos: 0 });
         } catch(e) { return json(res, { error: e.message }, 500); }
-    }
-
-    // POST /api/puntos/preparar — asignar código QR a un ticket al cerrar venta
-    // Body: { id_ticket, total, telefono_cliente }
-    if (p === '/api/puntos/preparar' && req.method === 'POST') {
-        return readBody(req, body => {
-            try {
-                const { id_ticket, total, telefono_cliente } = JSON.parse(body);
-                if (!id_ticket || !total) return json(res, { ok: false, error: 'Faltan id_ticket y total' }, 400);
-                const puntosService = require('../bot/handlers/puntosService');
-                const r = puntosService.prepararTicket(id_ticket, total, telefono_cliente);
-                return json(res, r);
-            } catch(e) { return json(res, { ok: false, error: e.message }, 500); }
-        });
     }
 
     return next();

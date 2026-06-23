@@ -79,10 +79,10 @@ const FRASES = {
         D: '{nombre}¡qué bueno verte de nuevo! 🧸 ¿Repetimos la experiencia o buscamos algo nuevo?',
     },
     menu_opciones: {
-        A: '¿En qué podemos servirle el día de hoy?\n\n1️⃣  Buscar un producto\n2️⃣  Recibir una recomendación\n3️⃣  Rastrear su pedido\n4️⃣  Hablar con un asesor',
-        B: '1️⃣  Buscar juguete\n2️⃣  Ayúdame a elegir\n3️⃣  Rastrear pedido\n4️⃣  Asesor',
-        C: 'Soy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor',
-        D: '¿Qué hacemos?\n\n1️⃣  🔍 Ya sé qué busco\n2️⃣  🎯 Recomiéndame algo (3 preguntas, 30 segundos)\n3️⃣  📦 ¿Dónde va mi pedido?\n4️⃣  👤 Hablar con una persona',
+        A: '¿En qué podemos servirle el día de hoy?\n\n1️⃣  Buscar un producto\n2️⃣  Recibir una recomendación\n3️⃣  Rastrear su pedido\n4️⃣  Hablar con un asesor\n5️⃣  Su código de referido',
+        B: '1️⃣  Buscar juguete\n2️⃣  Ayúdame a elegir\n3️⃣  Rastrear pedido\n4️⃣  Asesor\n5️⃣  Mi código de referido',
+        C: 'Soy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido',
+        D: '¿Qué hacemos?\n\n1️⃣  🔍 Ya sé qué busco\n2️⃣  🎯 Recomiéndame algo (3 preguntas, 30 segundos)\n3️⃣  📦 ¿Dónde va mi pedido?\n4️⃣  👤 Hablar con una persona\n5️⃣  🎁 Mi código de referido',
     },
     buscar_inicio: {
         A: '🔍 Indíquenos el nombre o descripción del producto. También puede enviar una fotografía 📸 o el enlace del artículo 🔗',

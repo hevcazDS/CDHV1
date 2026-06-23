@@ -223,10 +223,13 @@ CREATE TABLE IF NOT EXISTS clientes (
     tipo_pref         TEXT,
     presupuesto_pref  TEXT,
     lead_score        INTEGER DEFAULT 0,
-    -- programa de referidos: código propio del cliente (formato REF-XXXXXXXX,
-    -- ver bot/handlers/referidosService.js) y quién lo refirió, si aplica.
+    -- programa de referidos: código propio del cliente (5 caracteres
+    -- alfanuméricos sin prefijo, ver bot/handlers/referidosService.js),
+    -- quién lo refirió (si aplica), y si ya usó su 10% de bienvenida como
+    -- referido (un solo uso, ver migrations/0012_referidos_descuento_usado.sql).
     codigo_referido   TEXT,
-    referido_por_id   INTEGER REFERENCES clientes(id)
+    referido_por_id   INTEGER REFERENCES clientes(id),
+    descuento_referido_usado INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_codigo_referido ON clientes(codigo_referido);
@@ -353,6 +356,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
     tono_bot        TEXT,                          -- migrations/0001_agregar_tono_bot.sql
     razon_social    TEXT,                          -- migrations/0011_pedidos_facturacion.sql
     rfc             TEXT,                          -- migrations/0011_pedidos_facturacion.sql
+    puntos_acreditados INTEGER NOT NULL DEFAULT 0,  -- migrations/0013_pedidos_puntos_acreditados.sql
     creado_en       TEXT DEFAULT (datetime('now','localtime')),
     actualizado_en  TEXT
 );

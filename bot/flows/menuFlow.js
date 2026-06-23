@@ -3,6 +3,7 @@
 // y NO tumba el resto del bot. Frases con sistema de tonos via t().
 'use strict';
 const shared = require('./_shared');
+const referidosService = (() => { try { return require('../handlers/referidosService'); } catch(_) { return null; } })();
 const {
     enHorario,
     msgHorarioAsesor,
@@ -89,7 +90,7 @@ function buscarUpsellMsg(prod, totalAct) {
     } catch (_) { return ''; }
 }
 
-const STEPS = [S.MENU, S.SEARCHING, S.WIZARD_Q1, S.WIZARD_Q2, S.WIZARD_Q3, S.VIEW_PRODUCT, S.ADD_MORE];
+const STEPS = [S.MENU, S.SEARCHING, S.WIZARD_Q1, S.WIZARD_Q2, S.WIZARD_Q3, S.VIEW_PRODUCT, S.ADD_MORE, S.REFERIDOS];
 
 async function handle(ctx) {
     const { userId, session, message, client, raw, action, step, data, tel } = ctx;
@@ -147,6 +148,22 @@ async function handle(ctx) {
             sessionManager.updateSession(userId, S.ASESOR, { modo:'asesor' });
             registrarEscalada(userId, null, 'Solicitud directa desde menú', tel);
             return (t('asesor_notificado', { horario: HORARIO_ASESOR }) || ('👤 Hemos notificado a nuestro equipo de ventas.\n\n⏰ Horario de atención: *' + HORARIO_ASESOR + '*')) + '\n\n' + msgHorarioAsesor();
+        }
+        if (['5','referido','referidos','codigo de referido','código de referido','mi codigo','mi código'].includes(action)) {
+            if (!referidosService || !referidosService.referidosActivo()) {
+                return '🎁 Esta función no está disponible por el momento.\n\n' + menuPrincipal(tel);
+            }
+            const cli = db.prepare('SELECT id FROM clientes WHERE telefono=?').get(tel);
+            if (!cli) {
+                return '🎁 Realiza tu primera compra para obtener tu código de referido.\n\n' + menuPrincipal(tel);
+            }
+            const codigo = referidosService.asegurarCodigoReferido(cli.id);
+            sessionManager.updateSession(userId, S.REFERIDOS, { carrito: data.carrito || [] });
+            return codigo
+                ? ('🎁 *Tu código de referido:* `' + codigo + '`\n\n' +
+                   'Compártelo con un amigo. Cuando te mencione en su primer mensaje y haga su primera compra, ganas *' + referidosService.PUNTOS_REFERIDO + ' puntos* (máx ' + referidosService.MAX_REFERIDOS_SEMANA + ' referidos/semana) y él/ella obtiene *' + referidosService.PCT_DESCUENTO_REFERIDO + '% de descuento* en su primera compra. 🎉\n\n' +
+                   '1️⃣  🔁 Compartir otra vez\n2️⃣  📜 Términos y condiciones\n3️⃣  🏠 Volver al menú')
+                : '⚠️ No pude generar tu código en este momento, intenta de nuevo.';
         }
         // Detección de consulta de ofertas / descuentos
         if (/oferta|descuento|promo|rebaja|barato|econom|sale|más bara|lo más bara|qué tienen de oferta|tienen algo de oferta|tienen descuento/i.test(raw)) {
@@ -581,6 +598,28 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
             );
         }
         return `Responde con 1 _(agregar otro)_ o 2 _(finalizar)_.`;
+    }
+
+    // ── REFERIDOS ─────────────────────────────────────────
+    if (step === S.REFERIDOS) {
+        if (action === '1' || action.includes('compartir')) {
+            const cli = db.prepare('SELECT id FROM clientes WHERE telefono=?').get(tel);
+            const codigo = cli && referidosService ? referidosService.asegurarCodigoReferido(cli.id) : null;
+            return codigo
+                ? ('🎁 Tu código de referido es: `' + codigo + '`\n\nCompártelo con un amigo para que ambos ganen. 🎉\n\n' +
+                   '1️⃣  🔁 Compartir otra vez\n2️⃣  📜 Términos y condiciones\n3️⃣  🏠 Volver al menú')
+                : '⚠️ No pude generar tu código, intenta de nuevo.';
+        }
+        if (action === '2' || action.includes('termino') || action.includes('condicion')) {
+            const terminos = referidosService ? referidosService.TERMINOS_REFERIDOS : '';
+            return (terminos || '📜 Términos y condiciones no disponibles por el momento.') +
+                '\n\n1️⃣  🔁 Compartir otra vez\n2️⃣  📜 Términos y condiciones\n3️⃣  🏠 Volver al menú';
+        }
+        if (action === '3' || action.includes('menu') || action.includes('menú') || action.includes('volver')) {
+            sessionManager.updateSession(userId, S.MENU, { carrito: data.carrito || [] });
+            return menuPrincipal(tel);
+        }
+        return 'Responde con 1, 2 o 3.';
     }
 
     // ── ASESOR ────────────────────────────────────────────

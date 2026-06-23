@@ -30,7 +30,6 @@ const GRUPOS = [
   ]},
   { titulo: 'Clientes y fidelidad', enlaces: [
     { to: '/clientes', label: 'Clientes', icon: '👥' },
-    { to: '/puntos', label: 'Puntos QR', icon: '🔍' },
     { to: '/ranking', label: 'Ranking', icon: '🏆' },
   ]},
   { titulo: 'Marketing', enlaces: [

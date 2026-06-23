@@ -217,6 +217,10 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                         db.prepare("INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES ('whatsapp',?,'Actualización pedido',?,'pendiente')")
                           .run(ped.telefono, 'Hola ' + (ped.cliente||'') + ' 👋\n\nRecibimos tu pago ✅. Tu pedido ha sido *confirmado* y lo estamos preparando.');
                     }
+                    // Único disparador de puntos por compra — ya no depende de escanear
+                    // ningún ticket físico, aplica a cualquier pedido pagado/confirmado.
+                    try { require('../bot/handlers/puntosService').otorgarPuntosPorCompra(ped.id_pedido); }
+                    catch (e) { log.debug('No se pudo procesar otorgamiento de puntos por compra: ' + e.message); }
                     // Único disparador del programa de referidos: primera compra finalizada.
                     try { require('../bot/handlers/referidosService').otorgarPuntosPorPrimeraCompra(ped.id_cliente); }
                     catch (e) { log.debug('No se pudo procesar otorgamiento de puntos por referido: ' + e.message); }

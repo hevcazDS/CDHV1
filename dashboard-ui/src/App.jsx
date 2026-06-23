@@ -15,7 +15,6 @@ import Preventas from './pages/Preventas';
 import Ofertas from './pages/Ofertas';
 import Cupones from './pages/Cupones';
 import Sustitutos from './pages/Sustitutos';
-import Puntos from './pages/Puntos';
 import Ranking from './pages/Ranking';
 import Modulos from './pages/Modulos';
 import Busquedas from './pages/Busquedas';
@@ -62,7 +61,6 @@ export default function App() {
         <Route path="/ofertas" element={<Ofertas />} />
         <Route path="/cupones" element={<Cupones />} />
         <Route path="/sustitutos" element={<Sustitutos />} />
-        <Route path="/puntos" element={<Puntos />} />
         <Route path="/ranking" element={<Ranking />} />
         <Route path="/modulos" element={<Modulos />} />
         <Route path="/busquedas" element={<Busquedas />} />
