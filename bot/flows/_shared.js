@@ -792,10 +792,20 @@ function grabarPedidoEnvio(data, telefono) {
     );
     db.prepare('UPDATE pedidos SET subtotal=?, descuento=?, total=? WHERE id_pedido=?').run(subtotal, descuento, total, pedidoRowid);
     if (data.cp) { try { db.prepare('UPDATE pedidos SET cp=? WHERE id_pedido=?').run(data.cp, pedidoRowid); } catch(e) { log.debug('No se pudo guardar CP en pedido: ' + e.message); } }
+    // Método de entrega a domicilio: paquetería (con guía Estafeta) o
+    // repartidor propio (entrega local, SIN guía). Default 'paqueteria' deja
+    // a Julio Cepeda igual que siempre.
+    const _metodoEntrega = data.metodoEntrega === 'repartidor' ? 'repartidor' : 'paqueteria';
+    try { db.prepare('UPDATE pedidos SET metodo_entrega=? WHERE id_pedido=?').run(_metodoEntrega, pedidoRowid); } catch(e) { log.debug('No se pudo guardar metodo_entrega: ' + e.message); }
     const linkUrl = insertarLinkPago(pedidoRowid, total, folio);
 
-    // Crear guía simulada de Estafeta
+    // Crear guía simulada de Estafeta — solo para paquetería. El repartidor
+    // propio es entrega local, no genera guía.
     let guiaData = null;
+    if (_metodoEntrega === 'repartidor') {
+        mensajeService.marcarOutcome(db, telefono, 'venta');
+        return { folio, total, linkUrl, costoEnv, subtotal, guia: null, descuentoCupon, descuentoReferido, metodoEntrega: 'repartidor' };
+    }
     try {
         const idEnvioRow = db.prepare(
             'INSERT INTO envios (id_pedido, id_paqueteria, costo_envio, estatus) VALUES (?,1,?,?)'

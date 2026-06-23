@@ -69,6 +69,35 @@ export default function Pedidos() {
     confirmarPagoMutation.mutate();
   };
 
+  // ── Repartidor (Bloque 2) — solo si el módulo está activo ──────────────
+  const { data: repartidorActivo } = useQuery({
+    queryKey: ['modulo', 'entrega_repartidor_activo'],
+    queryFn: () => api.get('/api/modulo/entrega_repartidor_activo').then(r => !!r.activo).catch(() => false),
+  });
+  const { data: repartidores } = useQuery({
+    queryKey: ['repartidores'],
+    queryFn: () => api.get('/api/repartidores').catch(() => []),
+    enabled: !!repartidorActivo,
+  });
+  const [repModal, setRepModal] = useState(null); // pedido en gestión
+  const [repNombre, setRepNombre] = useState('');
+  const [repTel, setRepTel] = useState('');
+  const repMutation = useMutation({
+    mutationFn: ({ id, body }) => api.post(`/api/pedidos/${id}/repartidor`, body),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); queryClient.invalidateQueries({ queryKey: ['repartidores'] }); },
+    onError: (e) => handleApiError(e),
+  });
+  const abrirRepartidor = (r) => { setRepModal(r); setRepNombre(r.repartidor_nombre || ''); setRepTel(r.repartidor_telefono || ''); };
+  const asignarRepartidor = () => {
+    if (!repNombre.trim()) return;
+    repMutation.mutate({ id: repModal.id_pedido, body: { accion: 'asignar', nombre: repNombre.trim(), telefono: repTel.trim() } });
+    setRepModal({ ...repModal, repartidor_nombre: repNombre.trim(), repartidor_telefono: repTel.trim() });
+  };
+  const repAccion = (accion) => {
+    repMutation.mutate({ id: repModal.id_pedido, body: { accion } });
+    setRepModal(null);
+  };
+
   const exportarCSV = () => {
     if (!rows?.length) return;
     const filas = rows.map(r => [
@@ -120,6 +149,9 @@ export default function Pedidos() {
                       {r.pago_estatus === 'generado' && r.id_link_pago && (
                         <ActionIcon variant="light" color="teal" title="Confirmar pago recibido" onClick={() => setPagoModal(r.id_link_pago)}>✅</ActionIcon>
                       )}
+                      {repartidorActivo && (
+                        <ActionIcon variant="light" color="orange" title={r.repartidor_nombre ? `Repartidor: ${r.repartidor_nombre}` : 'Asignar repartidor'} onClick={() => abrirRepartidor(r)}>🛵</ActionIcon>
+                      )}
                       <ActionIcon variant="default" title="Ver ticket" onClick={() => abrirTicket(r.id_pedido)}>🧾</ActionIcon>
                     </Group>
                   </td>
@@ -162,6 +194,27 @@ export default function Pedidos() {
             <TextInput placeholder="RFC" value={rfc} onChange={e => setRfc(e.target.value)} mb="sm" size="xs" />
             <Button size="xs" disabled={guardarFacturacionMutation.isPending} onClick={guardarFacturacion}>Guardar</Button>
           </div>
+        </Modal>
+      )}
+
+      {repModal && (
+        <Modal title={`🛵 Repartidor — ${repModal.folio || '#' + repModal.id_pedido}`} onClose={() => setRepModal(null)}
+          actions={<Button variant="default" onClick={() => setRepModal(null)}>Cerrar</Button>}>
+          <p className="page-sub" style={{ margin: '0 0 12px' }}>Asigna al repartidor y avisa al cliente desde el WhatsApp del negocio.</p>
+          <TextInput label="Nombre del repartidor" placeholder="Ej. Juan" value={repNombre} onChange={e => setRepNombre(e.target.value)}
+            list="repartidores-frec" mb="sm" size="xs" />
+          <datalist id="repartidores-frec">
+            {(repartidores || []).map(rp => <option key={rp.id} value={rp.nombre} />)}
+          </datalist>
+          <TextInput label="Teléfono (opcional)" placeholder="Para referencia del negocio" value={repTel} onChange={e => setRepTel(e.target.value)} mb="sm" size="xs" />
+          <Group gap="xs" mt="xs">
+            <Button size="xs" variant="default" disabled={!repNombre.trim() || repMutation.isPending} onClick={asignarRepartidor}>Guardar repartidor</Button>
+          </Group>
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+            <Button size="xs" color="orange" disabled={repMutation.isPending} onClick={() => repAccion('en_camino')}>🛵 En camino</Button>
+            <Button size="xs" color="teal" disabled={repMutation.isPending} onClick={() => repAccion('entregado')}>✅ Entregado</Button>
+          </div>
+          <p className="text-muted" style={{ fontSize: 11, marginTop: 10 }}>El cliente recibe el aviso por el WhatsApp del negocio (no hace falta otro número).</p>
         </Modal>
       )}
 

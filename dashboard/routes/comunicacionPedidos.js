@@ -149,6 +149,65 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // ── Repartidor propio (Bloque 2) ──────────────────────────────────────
+    // El repartidor NO es un usuario ni tiene WhatsApp: es un dato del pedido.
+    // El aviso al cliente lo manda el ÚNICO WhatsApp del negocio (el bot, vía
+    // cola_notificaciones) cuando el operador cambia el estado aquí.
+    if (p === '/api/repartidores' && req.method === 'GET') {
+        return json(res, db.prepare('SELECT id, nombre, telefono, activo FROM repartidores WHERE activo=1 ORDER BY nombre').all());
+    }
+    if (p === '/api/repartidores' && req.method === 'POST') {
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const nombre = String(d.nombre || '').trim();
+                if (!nombre) return json(res, { ok:false, error:'Falta el nombre' }, 400);
+                const r = db.prepare('INSERT INTO repartidores (nombre, telefono) VALUES (?, ?)').run(nombre, String(d.telefono||'').trim() || null);
+                return json(res, { ok:true, id: r.lastInsertRowid, nombre });
+            } catch(e) { return json(res, { ok:false, error:e.message }, 500); }
+        });
+    }
+
+    // POST /api/pedidos/:id/repartidor — asignar / marcar en camino / entregado
+    // Body: { accion: 'asignar'|'en_camino'|'entregado', nombre?, telefono? }
+    if (req.method === 'POST' && /^\/api\/pedidos\/\d+\/repartidor$/.test(p)) {
+        const id = parseInt(p.split('/')[3]);
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const accion = String(d.accion || '').trim();
+                const ped = db.prepare('SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR c.nombre=p.cliente WHERE p.id_pedido=? LIMIT 1').get(id);
+                if (!ped) return json(res, { ok:false, error:'Pedido no encontrado' }, 404);
+
+                const avisar = (cuerpo) => {
+                    if (!ped.telefono) return;
+                    db.prepare("INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES ('whatsapp',?,'Tu pedido',?,'pendiente')")
+                      .run(ped.telefono, 'Hola ' + (ped.cliente||'') + ' 👋\n\n' + cuerpo);
+                };
+
+                if (accion === 'asignar') {
+                    const nombre = String(d.nombre || '').trim();
+                    if (!nombre) return json(res, { ok:false, error:'Falta el nombre del repartidor' }, 400);
+                    db.prepare("UPDATE pedidos SET metodo_entrega='repartidor', repartidor_nombre=?, repartidor_telefono=?, actualizado_en=datetime('now','localtime') WHERE id_pedido=?")
+                      .run(nombre, String(d.telefono||'').trim() || null, id);
+                    return json(res, { ok:true, repartidor_nombre: nombre });
+                }
+                if (accion === 'en_camino') {
+                    const nombre = ped.repartidor_nombre || String(d.nombre || '').trim();
+                    db.prepare("UPDATE pedidos SET estatus='enviado', actualizado_en=datetime('now','localtime') WHERE id_pedido=?").run(id);
+                    avisar('🛵 Tu pedido *' + (ped.folio||'') + '* va en camino con nuestro repartidor' + (nombre ? ' *' + nombre + '*' : '') + '. ¡Pronto llega!');
+                    return json(res, { ok:true, estatus:'enviado' });
+                }
+                if (accion === 'entregado') {
+                    db.prepare("UPDATE pedidos SET estatus='entregado', actualizado_en=datetime('now','localtime') WHERE id_pedido=?").run(id);
+                    avisar('✅ Tu pedido *' + (ped.folio||'') + '* fue entregado. ¡Gracias por tu compra! 🎉');
+                    return json(res, { ok:true, estatus:'entregado' });
+                }
+                return json(res, { ok:false, error:'Acción inválida' }, 400);
+            } catch(e) { return json(res, { ok:false, error:e.message }, 500); }
+        });
+    }
+
     // PUT /api/pedidos/:id — cambiar estatus de un pedido, o (Fase 3,
     // facturación) actualizar razon_social/rfc sin tocar el estatus -- el
     // modal "Ver ticket" de Pedidos.jsx manda solo esos dos campos.

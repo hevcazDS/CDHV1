@@ -358,8 +358,20 @@ CREATE TABLE IF NOT EXISTS pedidos (
     rfc             TEXT,                          -- migrations/0011_pedidos_facturacion.sql
     puntos_acreditados INTEGER NOT NULL DEFAULT 0,  -- migrations/0013_pedidos_puntos_acreditados.sql
     metodo_pago     TEXT,                          -- migrations/0014_negocio_giro_metodo_pago.sql
+    metodo_entrega  TEXT,                          -- migrations/0015 ('pickup'|'paqueteria'|'repartidor')
+    repartidor_nombre   TEXT,                      -- migrations/0015 (dato del pedido, NO un usuario)
+    repartidor_telefono TEXT,                      -- migrations/0015
     creado_en       TEXT DEFAULT (datetime('now','localtime')),
     actualizado_en  TEXT
+);
+
+-- Repartidores frecuentes para reusar al asignar (no son cuentas de acceso).
+CREATE TABLE IF NOT EXISTS repartidores (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre    TEXT NOT NULL,
+    telefono  TEXT,
+    activo    INTEGER NOT NULL DEFAULT 1,
+    creado_en TEXT DEFAULT (datetime('now','localtime'))
 );
 
 -- migrations/0002_indices_estabilidad.sql

@@ -57,6 +57,9 @@ const MODULOS = [
   { key: 'vision_activo', titulo: '📸 Búsqueda por imagen', desc: 'Vision API para búsqueda con fotos' },
   { key: 'referidos_activo', titulo: '🤝 Programa de referidos', desc: 'Código de referido y puntos en la primera compra' },
   { key: 'pago_multimetodo_activo', titulo: '💳 Pago multi-método', desc: 'El bot ofrece efectivo/contra entrega, transferencia y link (no solo link)' },
+  { key: 'entrega_pickup_activo', titulo: '🏪 Recoger en sucursal', desc: 'El bot ofrece pickup en tienda' },
+  { key: 'entrega_paqueteria_activo', titulo: '📦 Envío por paquetería', desc: 'El bot ofrece envío a domicilio por paquetería (Estafeta)' },
+  { key: 'entrega_repartidor_activo', titulo: '🛵 Repartidor propio', desc: 'Entrega local con tu repartidor; el negocio avisa "va en camino"' },
   { key: 'emojis_dashboard_activo', titulo: '🙂 Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
 ];
 

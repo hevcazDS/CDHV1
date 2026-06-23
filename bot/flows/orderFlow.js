@@ -80,17 +80,34 @@ async function handle(ctx) {
         const subtotal = totalCarrito(carrito);
         const cob      = buscarCobertura(cpNum);
 
-        // ── Sin cobertura local → solo envío ──────────────────────────────────
+        // ── Métodos de entrega activos (módulos, Bloque 2). Defaults dejan a
+        // Julio Cepeda igual: pickup ON, paquetería ON, repartidor OFF. ──
+        const _delPickup = moduloActivo('entrega_pickup_activo');
+        const _delPaq    = moduloActivo('entrega_paqueteria_activo');
+        const _delRep    = moduloActivo('entrega_repartidor_activo');
+        // Método de entrega a domicilio efectivo (paquetería tiene prioridad si
+        // ambos están activos). null = el negocio no entrega a domicilio.
+        const _metodoDom = _delPaq ? 'paqueteria' : (_delRep ? 'repartidor' : null);
+
+        // ── Sin cobertura local → solo envío a domicilio ──────────────────────
         if (!cob) {
+            if (!_metodoDom) {
+                // No hay envío a domicilio configurado y sin cobertura local → asesor.
+                registrarEscalada(userId, null, 'Sin método de entrega para su zona', tel);
+                sessionManager.updateSession(userId, S.ASESOR, { ...data, modo:'sin_entrega' });
+                return '😔 Por ahora no tenemos entrega para tu zona. Un asesor te ayuda. 👤\n🟢 _Conectando..._';
+            }
             const costoEnvSC = calcularFlete(subtotal);
             sessionManager.updateSession(userId, S.DELIVERY, {
                 ...data, cp:cpNum, estado_cob:'', ciudad_cob:'', stockLocal:0,
-                idPunto:null, soloEnvio:true, sinCobertura:true, costoEnvFijo:costoEnvSC, carrito
+                idPunto:null, soloEnvio:true, sinCobertura:true, costoEnvFijo:costoEnvSC, carrito,
+                metodoEntrega:_metodoDom
             });
+            const _domTxt = _metodoDom === 'repartidor' ? 'entrega con repartidor' : 'envío a domicilio';
             return (
-                `📦 Por el momento solo contamos con *envío a domicilio* para tu zona.\n\n` +
+                `📦 Por el momento solo contamos con *${_domTxt}* para tu zona.\n\n` +
                 `${formatCarrito(carrito, costoEnvSC)}\n\n` +
-                `1️⃣  🚚 Continuar con envío a domicilio\n` +
+                `1️⃣  🚚 Continuar con ${_domTxt}\n` +
                 `2️⃣  👤 Hablar con un asesor`
             );
         }
@@ -99,7 +116,19 @@ async function handle(ctx) {
         const punto  = db.prepare('SELECT * FROM puntos_entrega WHERE estado=? AND activo=1 LIMIT 1').get(cob.estado);
 
         // ── Clasificar carrito por disponibilidad en sucursal ─────────────────
-        const { pickup, envio, sinStock } = partirCarrito(carrito, cob.estado);
+        let { pickup, envio, sinStock } = partirCarrito(carrito, cob.estado);
+
+        // Si el negocio NO ofrece pickup, todo lo "recogible" pasa a entrega a
+        // domicilio (requiere que haya un método de domicilio activo).
+        if (!_delPickup && pickup.length) {
+            if (!_metodoDom) {
+                registrarEscalada(userId, null, 'Sin método de entrega activo (pickup off, sin domicilio)', tel);
+                sessionManager.updateSession(userId, S.ASESOR, { ...data, modo:'sin_entrega' });
+                return '😔 No hay un método de entrega disponible ahora mismo. Un asesor te ayuda. 👤';
+            }
+            envio  = [...pickup.map(i => ({ ...i, _diasEntrega: i._diasEntrega || 2 })), ...envio];
+            pickup = [];
+        }
 
         // Sin stock total → escalar
         if (sinStock.length) {
@@ -114,27 +143,36 @@ async function handle(ctx) {
 
         const baseData = {
             ...data, cp:cpNum, estado_cob:cob.estado, ciudad_cob:ciudad,
-            idPunto: punto ? punto.id : null, carrito
+            idPunto: punto ? punto.id : null, carrito, metodoEntrega:_metodoDom
         };
 
         // ── Carrito homogéneo (todo pickup O todo envío) → flujo normal ───────
         if (!pickup.length) {
-            // Todo requiere envío
+            // Todo requiere envío a domicilio
             const costoEnv = calcularFlete(subtotal);
             sessionManager.updateSession(userId, S.DELIVERY, { ...baseData, soloEnvio:true });
+            // La opción "recibir en sucursal" solo aplica si el negocio ofrece pickup.
             return (
                 `📦 Los productos de tu carrito se surten desde almacén central.\n\n` +
                 `${formatCarrito(carrito, costoEnv)}\n\n` +
                 `1️⃣  🚚 Envío a domicilio — ${costoEnv===0?'*¡GRATIS!*':`*$${costoEnv} MXN*`}\n` +
-                `2️⃣  🏪 Recibir todo en sucursal _(espera ~${Math.max(...envio.map(i=>i._diasEntrega))} días)_\n` +
+                (_delPickup ? `2️⃣  🏪 Recibir todo en sucursal _(espera ~${Math.max(...envio.map(i=>i._diasEntrega))} días)_\n` : '') +
                 `3️⃣  👤 Hablar con un asesor`
             );
         }
 
         if (!envio.length) {
-            // Todo disponible en tienda → opción pickup o envío normal
+            // Todo disponible en tienda. Si el negocio no entrega a domicilio
+            // (solo pickup), ofrecer únicamente recoger en sucursal.
             const costoEnv = calcularFlete(subtotal);
             sessionManager.updateSession(userId, S.DELIVERY, { ...baseData });
+            if (!_metodoDom) {
+                return (
+                    `✅ Hay disponibilidad en *${ciudad}*.\n\n${formatCarrito(carrito)}\n\n` +
+                    `1️⃣  🏪 Recoger en sucursal — _Sin costo, listo hoy_\n` +
+                    `2️⃣  👤 Hablar con un asesor`
+                );
+            }
             // Regla de negocio: "gratis" SOLO para envío/flete — pickup es "sin costo"
             const fleteTxt = costoEnv === 0 ? '*¡GRATIS!*' : `*$${costoEnv} MXN*`;
             const msgDisp = t('disponibilidad_local', { ciudad, flete: fleteTxt });
@@ -147,7 +185,26 @@ async function handle(ctx) {
             );
         }
 
-        // ── Carrito MIXTO → presentar los 3 escenarios ───────────────────────
+        // ── Carrito MIXTO ─────────────────────────────────────────────────────
+        // Si el negocio no entrega a domicilio (solo pickup), los artículos de
+        // almacén se reciben en sucursal tras la espera → un solo pedido pickup.
+        if (!_metodoDom) {
+            const diasMax = Math.max(...envio.map(i => i._diasEntrega || 5));
+            sessionManager.updateSession(userId, S.PICKUP_CONFIRM, {
+                ...baseData, metodo:'pickup_unificado',
+                carritoPickup: pickup, carritoEnvio: envio,
+                carrito: [...pickup, ...envio],
+            });
+            return (
+                `🏪 *Entrega en sucursal*\n\n` +
+                `Algunos artículos llegan de almacén en ~*${diasMax} días hábiles*; te avisamos cuando estén listos para recoger.\n\n` +
+                `${formatCarrito([...pickup, ...envio])}\n\n` +
+                `1️⃣  ✅ Confirmar y recoger en sucursal\n` +
+                `2️⃣  👤 Hablar con un asesor`
+            );
+        }
+
+        // Presentar los 3 escenarios (pickup + domicilio disponibles)
         const subtotalPickup  = totalCarrito(pickup);
         const subtotalEnvio   = totalCarrito(envio);
         const fleteEnvio      = calcularFlete(subtotalEnvio);       // flete solo por la parte de envío
