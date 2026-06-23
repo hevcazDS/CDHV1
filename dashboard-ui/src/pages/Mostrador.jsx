@@ -5,6 +5,7 @@ import { api } from '../api';
 import { fmt } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { tieneRango } from '../lib/roles';
+import { LEYENDA_FACTURACION } from '../lib/factura';
 import { useTextoEmoji } from '../context/EmojiContext';
 
 // Punto de venta de mostrador (Bloque 2B). Cajero (usuario+) cobra ventas
@@ -22,6 +23,8 @@ export default function Mostrador() {
   const [clienteTel, setClienteTel] = useState('');
   const [clienteNombre, setClienteNombre] = useState('');
   const [efectivo, setEfectivo] = useState('');
+  const [razonSocial, setRazonSocial] = useState('');
+  const [rfc, setRfc] = useState('');
   const [msg, setMsg] = useState(null);
   const [ticket, setTicket] = useState(null);
   const [cobrando, setCobrando] = useState(false);
@@ -56,9 +59,11 @@ export default function Mostrador() {
         metodo_pago: metodoPago,
         cliente: (clienteTel || clienteNombre) ? { telefono: clienteTel || undefined, nombre: clienteNombre || undefined } : undefined,
         efectivo_recibido: efectivo === '' ? undefined : Number(efectivo),
+        razon_social: razonSocial || undefined,
+        rfc: rfc || undefined,
       });
       setTicket(r);
-      setCarrito([]); setEfectivo(''); setClienteTel(''); setClienteNombre('');
+      setCarrito([]); setEfectivo(''); setClienteTel(''); setClienteNombre(''); setRazonSocial(''); setRfc('');
     } catch (e) { setMsg({ ok: false, t: e.message }); }
     finally { setCobrando(false); }
   };
@@ -118,6 +123,13 @@ export default function Mostrador() {
           )}
           <TextInput label="Teléfono del cliente (opcional, para puntos)" value={clienteTel} onChange={e => setClienteTel(e.target.value)} mb="xs" />
           <TextInput label="Nombre del cliente (opcional)" value={clienteNombre} onChange={e => setClienteNombre(e.target.value)} mb="sm" />
+          {config?.facturacion && (
+            <div style={{ border: '1px dashed var(--border)', borderRadius: 6, padding: 10, marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6 }}>📄 ¿Va a facturar? (opcional)</div>
+              <TextInput placeholder="Razón social" value={razonSocial} onChange={e => setRazonSocial(e.target.value)} mb="xs" size="xs" />
+              <TextInput placeholder="RFC" value={rfc} onChange={e => setRfc(e.target.value)} size="xs" />
+            </div>
+          )}
           <Button fullWidth size="md" disabled={!carrito.length || cobrando} onClick={cobrar}>
             {cobrando ? 'Cobrando…' : `Cobrar $${fmt(total)}`}
           </Button>
@@ -130,6 +142,15 @@ export default function Mostrador() {
               </div>
               <div style={{ marginTop: 6 }}>Total: <strong>${fmt(ticket.total)}</strong> ({ticket.metodo_pago})</div>
               {ticket.cambio !== null && <div>Cambio: <strong>${fmt(ticket.cambio)}</strong></div>}
+              {(ticket.razon_social || ticket.rfc) && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
+                  <div style={{ fontWeight: 600 }}>🧾 Comprobante para facturación</div>
+                  <div>Referencia: <strong>{ticket.folio}</strong></div>
+                  {ticket.razon_social && <div>Razón social: {ticket.razon_social}</div>}
+                  {ticket.rfc && <div>RFC: {ticket.rfc}</div>}
+                  <div style={{ marginTop: 4, color: 'var(--text-mute)', fontSize: 11 }}>{LEYENDA_FACTURACION}</div>
+                </div>
+              )}
             </div>
           )}
         </Card>

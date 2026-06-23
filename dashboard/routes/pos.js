@@ -34,7 +34,9 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
         if (!posActivo()) return json(res, { ok: false, error: 'El módulo de punto de venta está desactivado' }, 403);
         let metodos = [];
         try { metodos = db.prepare('SELECT nombre FROM metodos_pago WHERE activo=1 ORDER BY id').all().map(m => m.nombre); } catch (_) {}
-        return json(res, { sucursal: sucursalDefault(), metodos });
+        let facturacion = false;
+        try { const r = db.prepare("SELECT valor FROM configuracion WHERE clave='facturacion_activo' LIMIT 1").get(); facturacion = !!r && (r.valor === '1' || r.valor === 'true'); } catch (_) {}
+        return json(res, { sucursal: sucursalDefault(), metodos, facturacion });
     }
 
     // ── GET /api/pos/productos?q= — búsqueda ligera para el mostrador ──────
@@ -93,6 +95,10 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     );
                     db.prepare("UPDATE pedidos SET subtotal=?, total=?, metodo_pago=?, metodo_entrega='pickup', actualizado_en=datetime('now','localtime') WHERE id_pedido=?")
                       .run(subtotal, subtotal, metodoPago, pedidoRowid);
+                    // Datos fiscales opcionales (comprobante de facturación).
+                    const rs = String(d.razon_social || '').trim();
+                    const rfc = String(d.rfc || '').trim();
+                    if (rs || rfc) db.prepare('UPDATE pedidos SET razon_social=?, rfc=? WHERE id_pedido=?').run(rs || null, rfc || null, pedidoRowid);
                     // Pago ya cobrado en el mostrador → links_pago pagado.
                     const met = db.prepare('SELECT id FROM metodos_pago WHERE nombre=?').get(metodoPago);
                     db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
@@ -114,6 +120,8 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                 return json(res, {
                     ok: true, folio, id_pedido: resultado.pedidoRowid, total, metodo_pago: metodoPago,
                     sucursal, efectivo_recibido: efectivo, cambio,
+                    razon_social: String(d.razon_social || '').trim() || null,
+                    rfc: String(d.rfc || '').trim() || null,
                     items: carrito.map(i => ({ name: i.name, cantidad: i.cantidad, price: i.price, subtotal: i.price * i.cantidad })),
                 });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }

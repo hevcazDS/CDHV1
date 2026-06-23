@@ -7,6 +7,7 @@ import { handleApiError } from '../lib/apiError';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import { useTextoEmoji } from '../context/EmojiContext';
+import { LEYENDA_FACTURACION } from '../lib/factura';
 
 const ESTATUS = ['pendiente', 'confirmado', 'preparando', 'enviado', 'entregado', 'cancelado'];
 
@@ -23,6 +24,10 @@ export default function Pedidos() {
   const { data: rows, error, refetch } = useQuery({
     queryKey: ['pedidos'],
     queryFn: () => api.get('/api/pedidos'),
+  });
+  const { data: facturaActivo } = useQuery({
+    queryKey: ['modulo', 'facturacion_activo'],
+    queryFn: () => api.get('/api/modulo/facturacion_activo').then(r => !!r.activo).catch(() => false),
   });
 
   const cambiarEstatusMutation = useMutation({
@@ -187,13 +192,24 @@ export default function Pedidos() {
             <div className="text-muted" style={{ marginTop: 6 }}>Referencia de pago: {ticket.pago.referencia_pago}</div>
           )}
 
-          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 8, textTransform: 'uppercase' }}>Datos de facturación (opcional)</div>
-            {msgFacturacion && <div className={msgFacturacion === 'Guardado.' ? 'card' : 'login-error'} style={{ marginBottom: 8, fontSize: 12 }}>{msgFacturacion}</div>}
-            <TextInput placeholder="Razón social" value={razonSocial} onChange={e => setRazonSocial(e.target.value)} mb="sm" size="xs" />
-            <TextInput placeholder="RFC" value={rfc} onChange={e => setRfc(e.target.value)} mb="sm" size="xs" />
-            <Button size="xs" disabled={guardarFacturacionMutation.isPending} onClick={guardarFacturacion}>Guardar</Button>
-          </div>
+          {facturaActivo && (
+            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 8, textTransform: 'uppercase' }}>Datos de facturación (opcional)</div>
+              {msgFacturacion && <div className={msgFacturacion === 'Guardado.' ? 'card' : 'login-error'} style={{ marginBottom: 8, fontSize: 12 }}>{msgFacturacion}</div>}
+              <TextInput placeholder="Razón social" value={razonSocial} onChange={e => setRazonSocial(e.target.value)} mb="sm" size="xs" />
+              <TextInput placeholder="RFC" value={rfc} onChange={e => setRfc(e.target.value)} mb="sm" size="xs" />
+              <Button size="xs" disabled={guardarFacturacionMutation.isPending} onClick={guardarFacturacion}>Guardar</Button>
+              {(razonSocial.trim() || rfc.trim()) && (
+                <div style={{ marginTop: 12, padding: 10, border: '1px dashed var(--border)', borderRadius: 6, fontSize: 12 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>🧾 Comprobante para facturación</div>
+                  <div>Referencia: <strong>{ticket.pedido.folio || '#' + ticket.pedido.id_pedido}</strong></div>
+                  {razonSocial.trim() && <div>Razón social: {razonSocial}</div>}
+                  {rfc.trim() && <div>RFC: {rfc}</div>}
+                  <div style={{ marginTop: 6, color: 'var(--text-mute)' }}>{LEYENDA_FACTURACION}</div>
+                </div>
+              )}
+            </div>
+          )}
         </Modal>
       )}
 
