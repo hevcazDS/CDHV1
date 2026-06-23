@@ -56,9 +56,14 @@ const {
     mostrarCarrito,
     bloquePago,
     vocab,
+    debePreguntarMetodoPago,
+    pagoMetodosActivos,
+    menuPago,
+    instruccionPago,
+    registrarMetodoPago,
 } = shared;
 
-const STEPS = [S.SHOW_CART, S.CONFIRM_ORDER, S.OFERTAS, S.CUPON];
+const STEPS = [S.SHOW_CART, S.CONFIRM_ORDER, S.OFERTAS, S.CUPON, S.PAGO_METODO];
 
 async function handle(ctx) {
     const { userId, session, message, client, raw, action, step, data, tel } = ctx;
@@ -145,12 +150,11 @@ async function handle(ctx) {
             tagCliente(tel, 'pedido_pendiente');
             const _eprevPeds = db.prepare("SELECT COUNT(*) AS n FROM pedidos WHERE cliente=?").get(data.nombre||tel);
             if ((_eprevPeds?.n||0) >= 1) tagCliente(tel, 'cliente_recurrente');
-            sessionManager.clearSession(userId);
 
             const _descuentoCupon    = resultado.descuentoCupon || 0;
             const _descuentoReferido = resultado.descuentoReferido || 0;
 
-            return (
+            const _resumen = (
                 `✅ *¡Pedido confirmado!* 🎉\n\n` +
                 `📋 *Folio:* ${resultado.folio}\n\n` +
                 `${formatCarrito(data.carrito || [], resultado.costoEnv)}` +
@@ -161,10 +165,23 @@ async function handle(ctx) {
                 (resultado.guia
                     ? `📦 Guía: *${resultado.guia.numeroGuia}*\n` +
                       `📅 Entrega estimada: *${resultado.guia.fechaEntregaHuman}*\n\n`
-                    : '\n') +
-                bloquePago(resultado.linkUrl, `💳 *Paga aquí _(link válido 48 hrs)_:*\n${resultado.linkUrl}`) + `\n\n` +
-                `¡Gracias por tu compra! ${vocab().emoji} Escribe *hola* si necesitas algo más.`
+                    : '\n')
             );
+
+            // Pago multi-método modular: si el negocio lo activó y hay 2+ formas,
+            // el cliente ELIGE cómo pagar (efectivo/tarjeta a la entrega/etc.).
+            if (debePreguntarMetodoPago()) {
+                const _metodos = pagoMetodosActivos();
+                sessionManager.updateSession(userId, S.PAGO_METODO, {
+                    _pagoPedidos: [{ folio: resultado.folio, linkUrl: resultado.linkUrl }],
+                    _pagoMetodos: _metodos,
+                });
+                return _resumen + menuPago(_metodos);
+            }
+            sessionManager.clearSession(userId);
+            return _resumen +
+                bloquePago(resultado.linkUrl, `💳 *Paga aquí _(link válido 48 hrs)_:*\n${resultado.linkUrl}`) + `\n\n` +
+                `¡Gracias por tu compra! ${vocab().emoji} Escribe *hola* si necesitas algo más.`;
         }
         if (action === '2') {
             sessionManager.updateSession(userId, S.ASK_NOMBRE, { ...data });
@@ -327,6 +344,24 @@ async function handle(ctx) {
             '1️⃣  ✅ Confirmar y pagar\n2️⃣  ✏️ Corregir dirección\n4️⃣  ❌ Cancelar'
         );
     }
+    // ── PAGO_METODO — el cliente elige cómo pagar (modular) ───────────────
+    if (step === S.PAGO_METODO) {
+        const metodos = data._pagoMetodos || [];
+        const pedidos = data._pagoPedidos || [];
+        const idx = parseInt(action, 10) - 1;
+        if (isNaN(idx) || idx < 0 || idx >= metodos.length) {
+            return 'Por favor responde con el número de tu forma de pago.\n\n' + menuPago(metodos);
+        }
+        const elegido = metodos[idx];
+        registrarMetodoPago(pedidos, elegido.nombre);
+        sessionManager.clearSession(userId);
+        return (
+            '✅ *Forma de pago registrada.*\n\n' +
+            instruccionPago(elegido, pedidos) + '\n\n' +
+            `¡Gracias por tu compra! ${vocab().emoji} Escribe *hola* si necesitas algo más.`
+        );
+    }
+
     return undefined; // estado no manejado por este flow
 }
 

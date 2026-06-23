@@ -57,6 +57,9 @@ const {
     iniciarCapturaDireccion,
     bloquePago,
     vocab,
+    debePreguntarMetodoPago,
+    pagoMetodosActivos,
+    menuPago,
 } = shared;
 
 const STEPS = [S.ASK_CP, S.SPLIT_DELIVERY, S.SPLIT_CONFIRM, S.DELIVERY, S.PICKUP_CONFIRM];
@@ -304,7 +307,7 @@ async function handle(ctx) {
         if (['1','si','sí','confirmar','confirmo'].includes(action)) {
             const { pedidoPickup, pedidoEnvio } = grabarPedidoSplit(data, tel);
             tagCliente(tel, 'pedido_pendiente');
-            sessionManager.clearSession(userId);
+            const _multi = debePreguntarMetodoPago();
 
             let msg = `✅ *¡Pedidos confirmados!* 🎉\n\n`;
 
@@ -316,7 +319,7 @@ async function handle(ctx) {
                     (pedidoPickup.descuentoReferido > 0 ? `🎁 Descuento de bienvenida (referido) -10%: -$${pedidoPickup.descuentoReferido.toFixed(2)} MXN\n` : '') +
                     `💰 Total: *$${Number(pedidoPickup.total).toFixed(2)} MXN*\n` +
                     `🔐 Código de retiro: \`${pedidoPickup.codigo}\`\n` +
-                    bloquePago(pedidoPickup.linkUrl, `💳 Pagar aquí:\n${pedidoPickup.linkUrl}`) + `\n\n`
+                    (_multi ? '' : bloquePago(pedidoPickup.linkUrl, `💳 Pagar aquí:\n${pedidoPickup.linkUrl}`)) + `\n\n`
                 );
             }
 
@@ -329,12 +332,21 @@ async function handle(ctx) {
                     `📦 Flete: ${pedidoEnvio.costoEnv===0?'*¡GRATIS!*':`*$${pedidoEnvio.costoEnv} MXN*`}\n` +
                     (pedidoEnvio.descuentoReferido > 0 ? `🎁 Descuento de bienvenida (referido) -10%: -$${pedidoEnvio.descuentoReferido.toFixed(2)} MXN\n` : '') +
                     `💰 Total: *$${Number(pedidoEnvio.total).toFixed(2)} MXN*\n` +
-                    bloquePago(pedidoEnvio.linkUrl, `💳 Pagar aquí:\n${pedidoEnvio.linkUrl}`) + `\n\n`
+                    (_multi ? '' : bloquePago(pedidoEnvio.linkUrl, `💳 Pagar aquí:\n${pedidoEnvio.linkUrl}`)) + `\n\n`
                 );
             }
 
             const gran_total = (pedidoPickup?.total||0) + (pedidoEnvio?.total||0);
             msg += `━━━━━━━━━━━━━━━━━\n💵 *Gran total: $${gran_total.toFixed(2)} MXN*\n\n`;
+
+            // Pago multi-método: una sola elección para ambos pedidos.
+            if (_multi) {
+                const _metodos = pagoMetodosActivos();
+                const _peds = [pedidoPickup, pedidoEnvio].filter(Boolean).map(pd => ({ folio: pd.folio, linkUrl: pd.linkUrl }));
+                sessionManager.updateSession(userId, S.PAGO_METODO, { _pagoPedidos: _peds, _pagoMetodos: _metodos });
+                return msg + menuPago(_metodos);
+            }
+            sessionManager.clearSession(userId);
             msg += `¡Gracias por tu compra! ${vocab().emoji} Escribe *hola* si necesitas algo más.`;
             return msg;
         }
@@ -406,7 +418,6 @@ async function handle(ctx) {
             tagCliente(tel, 'pedido_pendiente');
             const _pprevPeds = db.prepare("SELECT COUNT(*) AS n FROM pedidos WHERE cliente=?").get(data.nombre||tel);
             if ((_pprevPeds?.n||0) >= 1) tagCliente(tel, 'cliente_recurrente');
-            sessionManager.clearSession(userId);
             const diasMax = data.carritoEnvio && data.carritoEnvio.length
                 ? Math.max(...data.carritoEnvio.map(i => i._diasEntrega || 5))
                 : null;
@@ -414,17 +425,27 @@ async function handle(ctx) {
                 ? `\n⏳ Los artículos de almacén estarán en sucursal en aprox. *${diasMax} días hábiles*. Te avisaremos.\n`
                 : '';
             const _descRefPickup = resultado.descuentoReferido || 0;
-            return (
+            const _resumenPickup = (
                 `✅ *¡Listo, pedido confirmado!* 🎉\n\n` +
                 `📋 Folio: *${resultado.folio}*\n\n` +
                 `${formatCarrito(data.carrito || [])}\n` +
                 (_descRefPickup > 0 ? `🎁 Descuento de bienvenida (referido) -10%: -$${_descRefPickup.toFixed(2)} MXN\n💵 *Total final: $${resultado.total.toFixed(2)} MXN*\n` : '') +
                 notaEspera + `\n` +
                 `🔐 Código de retiro: \`${resultado.codigo}\`\n` +
-                `_(Preséntalo en caja al llegar)_\n\n` +
-                bloquePago(resultado.linkUrl, `💳 Paga aquí _(link válido 48 hrs)_:\n${resultado.linkUrl}`) + `\n\n` +
-                `¡Gracias por tu compra! ${vocab().emoji} Escribe *hola* si necesitas algo más.`
+                `_(Preséntalo en caja al llegar)_\n\n`
             );
+            if (debePreguntarMetodoPago()) {
+                const _metodos = pagoMetodosActivos();
+                sessionManager.updateSession(userId, S.PAGO_METODO, {
+                    _pagoPedidos: [{ folio: resultado.folio, linkUrl: resultado.linkUrl }],
+                    _pagoMetodos: _metodos,
+                });
+                return _resumenPickup + menuPago(_metodos);
+            }
+            sessionManager.clearSession(userId);
+            return _resumenPickup +
+                bloquePago(resultado.linkUrl, `💳 Paga aquí _(link válido 48 hrs)_:\n${resultado.linkUrl}`) + `\n\n` +
+                `¡Gracias por tu compra! ${vocab().emoji} Escribe *hola* si necesitas algo más.`;
         }
         if (action === '2') {
             // Volver a las opciones si era carrito mixto
