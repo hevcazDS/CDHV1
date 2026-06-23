@@ -8,6 +8,7 @@ import BotStatusWidget from './BotStatusWidget';
 import ThemeSwitcher from './ThemeSwitcher';
 import NotificationBell from './NotificationBell';
 import SoporteWidget from './SoporteWidget';
+import { tieneRango } from '../lib/roles';
 
 // Antes era una sola lista plana de 20 enlaces — para un solo operador
 // humano eso ya era carga cognitiva alta (hallazgo del comité de diseño/UX).
@@ -24,29 +25,29 @@ const GRUPOS = [
     { to: '/notificaciones', label: 'Operación diaria', icon: '💬' },
   ]},
   { titulo: 'Envíos y logística', enlaces: [
-    { to: '/guias', label: 'Guías Estafeta', icon: '🚚' },
-    { to: '/cola-envios', label: 'Cola de envíos', icon: '📨' },
-    { to: '/lista-espera', label: 'Lista de Espera', icon: '🔔' },
-    { to: '/preventas', label: 'Preventas', icon: '📅' },
+    { to: '/guias', label: 'Guías Estafeta', icon: '🚚', rolRequerido: 'gerente' },
+    { to: '/cola-envios', label: 'Cola de envíos', icon: '📨', rolRequerido: 'gerente' },
+    { to: '/lista-espera', label: 'Lista de Espera', icon: '🔔', rolRequerido: 'gerente' },
+    { to: '/preventas', label: 'Preventas', icon: '📅', rolRequerido: 'gerente' },
   ]},
   { titulo: 'Clientes y fidelidad', enlaces: [
     { to: '/clientes', label: 'Clientes', icon: '👥' },
     { to: '/ranking', label: 'Ranking', icon: '🏆' },
   ]},
   { titulo: 'Marketing', enlaces: [
-    { to: '/ofertas', label: 'Ofertas', icon: '🏷️' },
-    { to: '/cupones', label: 'Cupones', icon: '🎟️' },
+    { to: '/ofertas', label: 'Ofertas', icon: '🏷️', rolRequerido: 'gerente' },
+    { to: '/cupones', label: 'Cupones', icon: '🎟️', rolRequerido: 'gerente' },
   ]},
   { titulo: 'Catálogo y datos', enlaces: [
-    { to: '/sustitutos', label: 'Relacionados', icon: '🔄' },
-    { to: '/busquedas', label: 'Búsquedas', icon: '🔍' },
-    { to: '/metricas', label: 'Métricas', icon: '📊' },
-    { to: '/etiquetas', label: 'Etiquetas', icon: '🏷️' },
+    { to: '/sustitutos', label: 'Relacionados', icon: '🔄', rolRequerido: 'gerente' },
+    { to: '/busquedas', label: 'Búsquedas', icon: '🔍', rolRequerido: 'gerente' },
+    { to: '/metricas', label: 'Métricas', icon: '📊', rolRequerido: 'gerente' },
+    { to: '/etiquetas', label: 'Etiquetas', icon: '🏷️', rolRequerido: 'gerente' },
   ]},
   { titulo: 'Sistema', enlaces: [
-    { to: '/modulos', label: 'Módulos', icon: '⚙️' },
+    { to: '/modulos', label: 'Módulos', icon: '⚙️', rolRequerido: 'gerente' },
+    { to: '/prime', label: 'Gestión / Prime', icon: '⭐', rolRequerido: 'gerente' },
     { to: '/beta', label: 'Beta / Pruebas', icon: '🧪', rolRequerido: 'prime' },
-    { to: '/prime', label: 'Prime', icon: '⭐', rolRequerido: 'prime' },
   ]},
 ];
 
@@ -68,8 +69,10 @@ const ACCORDION_STYLES = {
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  // Filtro por RANGO (no match exacto): un enlace con rolRequerido='gerente'
+  // lo ven gerente y prime; uno con 'prime' solo prime.
   const grupos = GRUPOS
-    .map(g => ({ ...g, enlaces: g.enlaces.filter(e => !e.rolRequerido || e.rolRequerido === user?.rol) }))
+    .map(g => ({ ...g, enlaces: g.enlaces.filter(e => !e.rolRequerido || tieneRango(user?.rol, e.rolRequerido)) }))
     .filter(g => g.enlaces.length > 0);
   // Nombre del negocio editable desde Prime (revendible a otra juguetería) —
   // 'Julio Cepeda' es solo el placeholder mientras carga /api/negocio.
@@ -118,7 +121,6 @@ export default function Layout() {
           <ThemeSwitcher />
           <NotificationBell />
           <BotStatusWidget />
-          <span className="hevcaz-badge-react">Hevcaz Solutions</span>
         </div>
       </AppShell.Header>
 

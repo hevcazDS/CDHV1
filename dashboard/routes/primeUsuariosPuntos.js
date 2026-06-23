@@ -84,9 +84,10 @@ module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
         return json(res, { puntos_activo: activo });
     }
 
-    // POST /api/puntos/config — habilitar o deshabilitar cualquier módulo
+    // POST /api/puntos/config — habilitar o deshabilitar cualquier módulo (gerente+)
     // Body: { activo: true | false } o { clave: 'nombre_modulo', activo: true | false }
     if (p === '/api/puntos/config' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return;
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body), ModuloConfigSchema, res, p);

@@ -168,7 +168,7 @@ db.prepare(`CREATE TABLE IF NOT EXISTS usuarios (
     nombre TEXT NOT NULL DEFAULT '',
     password_hash TEXT NOT NULL,
     salt TEXT NOT NULL,
-    rol TEXT NOT NULL CHECK(rol IN ('admin','prime')),
+    rol TEXT NOT NULL CHECK(rol IN ('usuario','gerente','prime')),
     creado_en TEXT DEFAULT (datetime('now','localtime'))
 )`).run();
 
@@ -228,7 +228,7 @@ function crearUsuarioSiNoExiste(username, password, rol, nombreOverride = null) 
 // antes del índice único de _asegurarColumnasUsuarios) haría que el INSERT
 // truene aquí, a nivel de módulo, y tirara el proceso en cada arranque.
 try {
-    crearUsuarioSiNoExiste(DASH_USER, DASH_PASS, 'admin', DASH_NOMBRE);
+    crearUsuarioSiNoExiste(DASH_USER, DASH_PASS, 'gerente', DASH_NOMBRE);
     if (USER_PRIME && USER_PRIME_PASSWORD) crearUsuarioSiNoExiste(USER_PRIME, USER_PRIME_PASSWORD, 'prime', USER_PRIME_NOMBRE);
 } catch (e) {
     log.error('No se pudo crear/verificar el usuario semilla', e);
@@ -306,9 +306,24 @@ setInterval(() => {
 }, 10 * 60_000).unref();
 
 // Reemplaza requireAuth/requireAuthPrime: una sola sesión, el rol decide qué rutas alcanza.
+// Jerarquía de roles (Bloque 2B): usuario < gerente < prime. `admin` es el
+// rol histórico — equivale a gerente (la migración 0017 lo convierte, pero se
+// mapea aquí también para no bloquear ningún login durante la transición).
+const RANGO_ROL = { usuario: 1, gerente: 2, admin: 2, prime: 3 };
+function rangoDe(rol) { return RANGO_ROL[rol] || 0; }
+
+// requireSession(req, res, rolesPermitidos?) — si se pasa rolesPermitidos, el
+// array indica el rol MÍNIMO: cualquier sesión de rango >= al menor de la lista
+// pasa (así ['prime'] sigue siendo solo prime, y ['gerente'] deja entrar a
+// gerente Y prime sin tener que enumerarlos).
 function requireSession(req, res, rolesPermitidos) {
     const s = obtenerSesion(req);
-    if (!s || (rolesPermitidos && !rolesPermitidos.includes(s.rol))) {
+    let autorizado = !!s;
+    if (s && rolesPermitidos && rolesPermitidos.length) {
+        const minRango = Math.min(...rolesPermitidos.map(rangoDe));
+        autorizado = rangoDe(s.rol) >= minRango;
+    }
+    if (!autorizado) {
         json(res, { ok: false, error: 'No autorizado' }, 401);
         return null;
     }

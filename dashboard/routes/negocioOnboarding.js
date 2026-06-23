@@ -62,14 +62,15 @@ module.exports = function negocioOnboardingRoutes(req, res, p, u, ctx, next) {
                     for (const id of ids) db.prepare('UPDATE metodos_pago SET activo=1 WHERE id=?').run(id);
                 }
 
-                // Crear el admin solo si ese username no existe ya (en un clon
-                // sin .env de credenciales, este es el primer usuario).
+                // Crear al dueño como PRIME (control total) solo si ese username
+                // no existe ya (en un clon sin .env de credenciales, este es el
+                // primer usuario y debe poder gestionar todo).
                 const existe = db.prepare('SELECT id FROM usuarios WHERE username=?').get(user);
                 if (!existe) {
                     const salt = crypto.randomBytes(16).toString('hex');
                     const email = user.toLowerCase() + '@local';
                     db.prepare('INSERT INTO usuarios (username, nombre, email, password_hash, id_rol, salt, rol) VALUES (?,?,?,?,?,?,?)')
-                      .run(user, user, email, hashPassword(pass, salt), 1, salt, 'admin');
+                      .run(user, user, email, hashPassword(pass, salt), 2, salt, 'prime');
                 }
 
                 setCfg('negocio_configurado', '1');
@@ -92,10 +93,11 @@ module.exports = function negocioOnboardingRoutes(req, res, p, u, ctx, next) {
 
     // ── Gestión de métodos de pago (ya detrás del gate global de sesión) ──
     if (p === '/api/metodos-pago' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         return json(res, db.prepare('SELECT id, nombre, activo, requiere_link, configuracion FROM metodos_pago ORDER BY id').all());
     }
     if (req.method === 'PUT' && /^\/api\/metodos-pago\/\d+$/.test(p)) {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         const id = parseInt(p.split('/').pop(), 10);
         return readBody(req, body => {
             try {

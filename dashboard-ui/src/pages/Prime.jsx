@@ -9,6 +9,7 @@ import {
 import { api } from '../api';
 import Modal from '../components/Modal';
 import { useTextoEmoji } from '../context/EmojiContext';
+import { useAuth } from '../context/AuthContext';
 import { guardarPreferenciasFuente } from '../lib/fontPrefs';
 
 const CATEGORIAS_FILTRO = [
@@ -37,19 +38,25 @@ const TIPO_JUGUETE_OPTIONS = [
 ];
 const CATEGORIA_NUEVA = '__nueva__';
 
+// soloPrime: integraciones, identidad del negocio y gestión de usuarios son
+// exclusivas de prime. El gerente ve sucursales/inventario/catálogo/filtros
+// (operación del catálogo), coherente con los permisos del backend.
 const TABS = [
-  { key: 'general', label: '⚙️ General' },
+  { key: 'general', label: '⚙️ General', soloPrime: true },
   { key: 'sucursales', label: '🏬 Sucursales' },
   { key: 'inventario', label: '📊 Inventario' },
   { key: 'catalogo', label: '🧸 Catálogo' },
-  { key: 'usuarios', label: '👤 Usuarios' },
+  { key: 'usuarios', label: '👤 Usuarios', soloPrime: true },
   { key: 'filtros', label: '🚫 Filtros' },
 ];
 
 export default function Prime() {
   const txt = useTextoEmoji();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState('general');
+  const esPrime = user?.rol === 'prime';
+  const tabsVisibles = TABS.filter(t => esPrime || !t.soloPrime);
+  const [tab, setTab] = useState(tabsVisibles[0]?.key || 'sucursales');
   const [costoDefault, setCostoDefault] = useState('');
   const [idPedido, setIdPedido] = useState('');
   const [costoPedido, setCostoPedido] = useState('');
@@ -138,7 +145,12 @@ export default function Prime() {
   const [msgEditarProducto, setMsgEditarProducto] = useState('');
 
   // ── Usuarios del dashboard ──────────────────────────────────────────────
-  const usuarioForm = useForm({ initialValues: { username: '', password: '', rol: 'admin' } });
+  const usuarioForm = useForm({ initialValues: { username: '', password: '', rol: 'gerente' } });
+  const ROLES_OPCIONES = [
+    { value: 'usuario', label: 'usuario (cajero: atención + POS + bot)' },
+    { value: 'gerente', label: 'gerente (operación: catálogo, inventario, módulos, ofertas)' },
+    { value: 'prime', label: 'prime (control total)' },
+  ];
   const [msgUsuarios, setMsgUsuarios] = useState('');
   const [usuarioEditando, setUsuarioEditando] = useState(null);
   const editarUsuarioForm = useForm({ initialValues: { nombre: '', password: '' } });
@@ -741,12 +753,12 @@ export default function Prime() {
 
   return (
     <div>
-      <div className="page-title">Prime</div>
-      <div className="page-sub">Configuración avanzada — visible solo para el rol prime</div>
+      <div className="page-title">{esPrime ? 'Prime' : 'Gestión'}</div>
+      <div className="page-sub">{esPrime ? 'Configuración avanzada — rol prime' : 'Sucursales, inventario y catálogo'}</div>
 
       <Tabs value={tab} onChange={setTab} mb="md">
         <Tabs.List>
-          {TABS.map(t => <Tabs.Tab key={t.key} value={t.key}>{txt(t.label)}</Tabs.Tab>)}
+          {tabsVisibles.map(t => <Tabs.Tab key={t.key} value={t.key}>{txt(t.label)}</Tabs.Tab>)}
         </Tabs.List>
       </Tabs>
 
@@ -1194,7 +1206,7 @@ export default function Prime() {
           <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
             <TextInput placeholder="Usuario" {...usuarioForm.getInputProps('username')} style={{ minWidth: 160 }} />
             <PasswordInput placeholder="Password (mín. 8)" {...usuarioForm.getInputProps('password')} style={{ minWidth: 160 }} />
-            <Select data={[{ value: 'admin', label: 'admin' }, { value: 'prime', label: 'prime' }]}
+            <Select data={ROLES_OPCIONES} style={{ minWidth: 220 }}
               allowDeselect={false} {...usuarioForm.getInputProps('rol')} />
             <Button disabled={!usuarioForm.values.username.trim() || !usuarioForm.values.password} onClick={crearUsuario}>
               Crear usuario
@@ -1212,7 +1224,7 @@ export default function Prime() {
                     <td>
                       <Select
                         size="xs"
-                        data={[{ value: 'admin', label: 'admin' }, { value: 'prime', label: 'prime' }]}
+                        data={[{ value: 'usuario', label: 'usuario' }, { value: 'gerente', label: 'gerente' }, { value: 'prime', label: 'prime' }]}
                         value={u.rol}
                         onChange={v => v && cambiarRolUsuario(u.id, v)}
                         allowDeselect={false}

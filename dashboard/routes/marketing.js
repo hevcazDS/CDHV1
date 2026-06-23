@@ -313,6 +313,7 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
     //         mutuamente excluyentes -- ninguno = todo el inventario),
     //         fecha_fin (obligatoria), usos_max? }
     if (p === '/api/promociones' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return;
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body);
@@ -359,6 +360,7 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
     // compartido por código (igual que /api/cupon/redimir ya hace para
     // cupones normales) -- no por cliente.
     if (p === '/api/promociones/flash' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return;
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body);
@@ -402,6 +404,7 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
     // graba al DESACTIVAR (junto con quién y cuándo); al reactivar se
     // limpian los tres campos de baja, ya que ya no aplican.
     if (req.method === 'PUT' && p.match(/^\/api\/promociones\/\d+$/)) {
+        if (!requireSession(req, res, ['gerente'])) return;
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {

@@ -35,7 +35,7 @@ function calcularEdadRecomendada(edadMin, edadMax) {
 module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
     if (p === '/api/prime/palabras-filtro' && req.method === 'POST') {
-        const ses = requireSession(req, res, ['prime']);
+        const ses = requireSession(req, res, ['gerente']);
         if (!ses) return;
         return readBody(req, body => {
             try {
@@ -53,7 +53,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // PUT /api/prime/palabras-filtro/:id — activar/desactivar una palabra
     // agregada desde el panel (las de código fuente no se pueden tocar).
     if (req.method === 'PUT' && p.match(/^\/api\/prime\/palabras-filtro\/\d+$/)) {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
@@ -66,7 +66,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
 
     // DELETE /api/prime/palabras-filtro/:id
     if (req.method === 'DELETE' && p.match(/^\/api\/prime\/palabras-filtro\/\d+$/)) {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         const id = parseInt(p.split('/').pop());
         try {
             const r = filtroPalabras.eliminarPalabra(db, id);
@@ -76,14 +76,14 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
 
     // ── Sucursales (registro de tiendas/bodegas) — solo prime ──────────────
     if (p === '/api/prime/sucursales' && req.method === 'GET') {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             return json(res, db.prepare('SELECT * FROM sucursales ORDER BY nombre').all());
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
     }
 
     if (p === '/api/prime/sucursales' && req.method === 'POST') {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body || '{}'), SucursalSchema, res, p);
@@ -100,7 +100,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     }
 
     if (req.method === 'PUT' && p.match(/^\/api\/prime\/sucursales\/\d+$/)) {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
@@ -117,7 +117,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     }
 
     if (req.method === 'DELETE' && p.match(/^\/api\/prime\/sucursales\/\d+$/)) {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         const id = parseInt(p.split('/').pop());
         try {
             db.prepare('DELETE FROM sucursales WHERE id=?').run(id);
@@ -132,14 +132,14 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // categoría nueva" del alta/edición de producto, en vez de texto libre
     // suelto en productos.cat. ──────────────────────────────────────────────
     if (p === '/api/prime/categorias' && req.method === 'GET') {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             return json(res, db.prepare('SELECT id, nombre, descripcion, activa FROM categorias WHERE activa = 1 ORDER BY nombre').all());
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
     }
 
     if (p === '/api/prime/categorias' && req.method === 'POST') {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body || '{}'), CategoriaSchema, res, p);
@@ -157,7 +157,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // Catálogo del Prime: antes solo había alta, sin forma de ver/editar los
     // productos que ya existen). ────────────────────────────────────────────
     if (p === '/api/prime/productos' && req.method === 'GET') {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const u2 = new URL(req.url, 'http://x');
             const q = (u2.searchParams.get('q') || '').trim();
@@ -187,7 +187,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // esto (ya usa pedido_detalle.sucursal_origen, ver
     // dashboard/routes/comunicacionPedidos.js). ───────────────────────────
     if (p === '/api/prime/productos' && req.method === 'POST') {
-        const ses = requireSession(req, res, ['prime']);
+        const ses = requireSession(req, res, ['gerente']);
         if (!ses) return;
         return readBody(req, body => {
             try {
@@ -246,7 +246,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     }
 
     if (req.method === 'PUT' && p.match(/^\/api\/prime\/productos\/\d+$/)) {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
@@ -276,7 +276,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // patrón estándar de un sistema de inventario real: elegir ubicación
     // primero, después buscar/paginar dentro de ella.
     if (p === '/api/prime/inventarios' && req.method === 'GET') {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const pk = pkInventarios(db);
             const u2 = new URL(req.url, 'http://x');
@@ -303,7 +303,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     }
 
     if (req.method === 'PUT' && p.match(/^\/api\/prime\/inventarios\/\d+$/)) {
-        const ses = requireSession(req, res, ['prime']);
+        const ses = requireSession(req, res, ['gerente']);
         if (!ses) return;
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
@@ -328,7 +328,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // producto, y deja rastro en inventario_movimientos (tipo='entrada').
     // Body: { id_producto, sucursal, cantidad, costo?, proveedor? }
     if (p === '/api/prime/entrada-mercancia' && req.method === 'POST') {
-        const ses = requireSession(req, res, ['prime']);
+        const ses = requireSession(req, res, ['gerente']);
         if (!ses) return;
         return readBody(req, body => {
             try {
@@ -375,7 +375,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // mínimo) — auditoría: quién/cuándo se dio de alta o se ajustó cada
     // producto+sucursal (ver migrations/0006_auditoria_productos_inventario.sql).
     if (p === '/api/prime/inventario-movimientos' && req.method === 'GET') {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const u2 = new URL(req.url, 'http://x');
             const q = (u2.searchParams.get('q') || '').trim();
@@ -410,7 +410,7 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // sin-prime en primeUsuariosPuntos.js se mantienen igual por si alguien
     // intenta apuntarle por id directo a la API.
     if (p === '/api/prime/usuarios' && req.method === 'GET') {
-        if (!requireSession(req, res, ['prime'])) return;
+        if (!requireSession(req, res, ['prime'])) return;  // gestión de usuarios = solo prime
         try {
             return json(res, db.prepare("SELECT id, username, nombre, rol, creado_en FROM usuarios WHERE rol != 'prime' ORDER BY id").all());
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }

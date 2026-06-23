@@ -246,11 +246,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
    real de que la tabla se viera "debajo" del sidebar en vez de a su lado. */
 .content { overflow: auto; }
 
-.hevcaz-badge-react {
-  font-size: 11px;
-  color: var(--text-mute);
-  letter-spacing: .03em;
-}
+/* (badge de Hevcaz Solutions removido del header — ahora vive solo en el
+   widget flotante de soporte, ver components/SoporteWidget.jsx) */
 
 /* ── Bot status widget ────────────────────────────────────────────── */
 .bot-status {

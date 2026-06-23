@@ -14,8 +14,9 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         } catch(_) { return json(res, { tono: 'C' }); }
     }
 
-    // POST /api/tono — cambiar tono del bot {tono:'A'|'B'|'C'|'D'}
+    // POST /api/tono — cambiar tono del bot {tono:'A'|'B'|'C'|'D'} (gerente+)
     if (p === '/api/tono' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return;
         return readBody(req, body => {
             try {
                 const tono = String((JSON.parse(body || '{}')).tono || '').toUpperCase();

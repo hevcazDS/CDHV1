@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useWhatsAppQR } from './hooks/useWhatsAppQR';
 import { api } from './api';
+import { tieneRango } from './lib/roles';
 import WhatsAppQR from './components/WhatsAppQR';
 import Login from './components/Login';
 import Onboarding from './components/Onboarding';
@@ -77,11 +78,11 @@ export default function App() {
         <Route path="/modulos" element={<Modulos />} />
         <Route path="/busquedas" element={<Busquedas />} />
         <Route path="/cola-envios" element={<ColaEnvios />} />
-        {user.rol === 'prime' && <Route path="/beta" element={<Beta />} />}
+        {tieneRango(user.rol, 'prime') && <Route path="/beta" element={<Beta />} />}
         <Route path="/metricas" element={<Metricas />} />
         <Route path="/notificaciones" element={<Notificaciones />} />
         <Route path="/etiquetas" element={<Etiquetas />} />
-        {user.rol === 'prime' && <Route path="/prime" element={<Prime />} />}
+        {tieneRango(user.rol, 'gerente') && <Route path="/prime" element={<Prime />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
