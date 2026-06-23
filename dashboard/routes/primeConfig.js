@@ -42,6 +42,17 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         } catch(_) { return json(res, { clave, activo: true }); }
     }
 
+    // POST /api/prime/exportar-llm — exporta el dataset conversacional y lo
+    // manda por correo (backup) para entrenar un LLM APARTE, fuera de
+    // producción. Solo prime. No entrena ni llama a ningún LLM aquí.
+    if (p === '/api/prime/exportar-llm' && req.method === 'POST') {
+        if (!requireSession(req, res, ['prime'])) return;
+        const datasetExport = require('../../services/datasetExport');
+        return datasetExport.exportarPorCorreo()
+            .then(r => json(res, r, r.ok ? 200 : 400))
+            .catch(e => { log.error('exportar-llm', e); return json(res, { ok: false, error: e.message }, 500); });
+    }
+
     // ── Rutas exclusivas del usuario prime — encender APIs reales ──────────
     // (pago_real_activo / estafeta_real_activo). Invisibles/inalcanzables
     // para el usuario común: requieren credenciales propias desde .env.
