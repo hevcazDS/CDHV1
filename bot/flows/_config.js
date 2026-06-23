@@ -58,7 +58,7 @@ function getValor(clave, fallback = null) {
 // Flags que arrancan apagados. Nota: los métodos de entrega pickup/paqueteria
 // arrancan ENCENDIDOS (no están aquí) para no cambiar instalaciones existentes;
 // solo el repartidor arranca apagado.
-const _DEFAULT_OFF = new Set(['puntos_activo', 'pago_real_activo', 'estafeta_real_activo', 'reconexion_auto_activo', 'pago_multimetodo_activo', 'entrega_repartidor_activo', 'pos_activo', 'facturacion_activo']);
+const _DEFAULT_OFF = new Set(['puntos_activo', 'pago_real_activo', 'estafeta_real_activo', 'reconexion_auto_activo', 'pago_multimetodo_activo', 'entrega_repartidor_activo', 'pos_activo', 'facturacion_activo', 'llm_activo']);
 
 function moduloActivo(clave) {
     _refresh();

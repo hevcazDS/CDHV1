@@ -19,12 +19,16 @@ const shared = require('./flows/_shared');
 const { safeEqual } = require('./validators');
 const ventaPreviaService = require('../services/ventaPreviaService');
 const abandonoHandler = require('./handlers/abandonoHandler');
+const giroFlows = require('./flows/giroFlows');
+const llmHandler = (() => { try { return require('./handlers/llmHandler'); } catch(_) { return { handle: async () => null }; } })();
 const {
     S, db, sessionManager, log,
     puntosHandler, menuPrincipal, mostrarCarrito, _RE_DEVOLUCION, t,
-    registrarEscalada,
+    registrarEscalada, getValor,
 } = shared;
 
+// Flujos UNIVERSALES (todos los giros). Los flujos específicos por giro se
+// agregan dinámicamente desde giroFlows.js (hueco de extensión, ver abajo).
 const FLOWS = [
     require('./flows/menuFlow'),
     require('./flows/cartFlow'),
@@ -141,10 +145,12 @@ async function handleAction(userId, session, message, client) {
 
     // ── MENU ────────────────────────────────────────────
 
-    // ── Despacho a flows ──────────────────────────────────────────
+    // ── Despacho a flows (universales + los del giro activo) ──────
     const isImage = !!(message.hasMedia && (message.type === 'image' || message.type === 'sticker'));
     const ctx = { userId, session, message, client, raw, action, step, data, tel, isImage };
-    for (const flow of FLOWS) {
+    const _giro = (() => { try { return getValor('giro', 'jugueteria'); } catch(_) { return 'jugueteria'; } })();
+    const _flowsActivos = [...FLOWS, ...giroFlows.flowsDeGiro(_giro)];
+    for (const flow of _flowsActivos) {
         if (!flow || !Array.isArray(flow.STEPS) || !flow.STEPS.includes(step)) continue;
         try {
             const r = await flow.handle(ctx);
@@ -157,8 +163,17 @@ async function handleAction(userId, session, message, client) {
         break;
     }
 
+    // ── Hook de LLM (hueco) — antes del fallback de reglas ─────────
+    // Si está activo y configurado, el LLM atiende el texto libre que las
+    // reglas no entendieron. Hoy devuelve null (passthrough). Ver llmHandler.js.
+    try {
+        const _llmResp = await llmHandler.handle(raw, ctx);
+        if (typeof _llmResp === 'string' && _llmResp) return _llmResp;
+    } catch (e) { log.debug('Hook LLM falló (se ignora): ' + e.message); }
+
     // ── Fallback — ningún estado manejó el mensaje ────────────────
-    // Evento "fallback" para analítica/ML — el bot no entendió el mensaje
+    // Evento "fallback" para analítica/ML — el bot no entendió el mensaje.
+    // Es justo el dataset de "lo que el LLM debería resolver" más adelante.
     try { const _dbFb = require('./db_connection'); _dbFb.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('fallback','whatsapp',?,?)").run((raw||'').slice(0,200), tel); } catch(e){ log.debug('No se pudo registrar evento fallback: ' + e.message); }
     sessionManager.clearSession(userId);
     return menuPrincipal(tel);

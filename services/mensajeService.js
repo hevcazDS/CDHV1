@@ -60,14 +60,23 @@ function obtenerOCrearConversacion(db, telefono, idCliente) {
 // flujo se queda una conversación (métricas de funnel/abandono). Nunca debe
 // tumbar el envío/recepción real de WhatsApp, por eso se traga cualquier
 // error de DB.
-function registrarMensaje(db, telefono, rol, contenido, pasoActual) {
+function registrarMensaje(db, telefono, rol, contenido, pasoActual, intencion) {
     if (!telefono || !contenido) return;
     try {
         const cli = db.prepare('SELECT id FROM clientes WHERE telefono=?').get(telefono);
         const idConv = obtenerOCrearConversacion(db, telefono, cli ? cli.id : null);
-        db.prepare(
-            `INSERT INTO mensajes (id_conversacion, rol, contenido, enviado_en) VALUES (?,?,?,datetime('now','localtime'))`
-        ).run(idConv, rol, contenido);
+        // paso_actual/intencion por mensaje = dataset para el LLM (ver
+        // migrations/0019). Tolerante: si la columna no existe (BD vieja sin
+        // migrar), cae al INSERT mínimo de siempre.
+        try {
+            db.prepare(
+                `INSERT INTO mensajes (id_conversacion, rol, contenido, paso_actual, intencion, enviado_en) VALUES (?,?,?,?,?,datetime('now','localtime'))`
+            ).run(idConv, rol, contenido, pasoActual || null, intencion || null);
+        } catch (_) {
+            db.prepare(
+                `INSERT INTO mensajes (id_conversacion, rol, contenido, enviado_en) VALUES (?,?,?,datetime('now','localtime'))`
+            ).run(idConv, rol, contenido);
+        }
         if (pasoActual) {
             db.prepare(`UPDATE conversaciones SET ultimo_paso=? WHERE id=?`).run(pasoActual, idConv);
         }

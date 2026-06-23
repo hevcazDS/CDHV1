@@ -602,6 +602,8 @@ CREATE TABLE IF NOT EXISTS mensajes (
     id_conversacion INTEGER NOT NULL REFERENCES conversaciones(id),
     rol             TEXT NOT NULL CHECK(rol IN ('cliente','bot','asesor')),
     contenido       TEXT NOT NULL,
+    paso_actual     TEXT,                          -- migrations/0019 (contexto de flujo)
+    intencion       TEXT,                          -- migrations/0019 (clasificada por el LLM)
     enviado_en      TEXT DEFAULT (datetime('now','localtime'))
 );
 
