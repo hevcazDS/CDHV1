@@ -616,6 +616,49 @@ function iniciarCapturaDireccion(userId, tel, dataBase) {
 }
 
 // ═══════════════════════════════════════════════════════
+//  INSTRUCCIONES DE PAGO (multi-método, gateado)
+// ═══════════════════════════════════════════════════════
+// Cuando pago_multimetodo_activo está OFF (default), el call site usa el texto
+// histórico de link y este helper no se invoca → Julio Cepeda no cambia.
+// Cuando está ON, arma el bloque con los métodos activos de `metodos_pago`:
+// los de requiere_link=1 muestran el link; transferencia muestra la CLABE
+// (guardada en metodos_pago.configuracion JSON); efectivo = contra entrega.
+function instruccionesPagoMulti(linkUrl) {
+    let metodos = [];
+    try { metodos = db.prepare('SELECT nombre, requiere_link, configuracion FROM metodos_pago WHERE activo=1 ORDER BY id').all(); }
+    catch (_) { metodos = []; }
+    if (!metodos.length) return '💳 *Paga aquí _(link válido 48 hrs)_:*\n' + linkUrl;
+
+    const cap = s => (s || '').charAt(0).toUpperCase() + (s || '').slice(1);
+    const lineas = ['💳 *Opciones de pago:*'];
+    let n = 1;
+    for (const m of metodos) {
+        if (m.requiere_link) {
+            lineas.push(`${n++}. ${cap(m.nombre)} — paga en línea _(link válido 48 hrs)_:\n${linkUrl}`);
+        } else if (m.nombre === 'transferencia') {
+            let clabe = '';
+            try { clabe = (JSON.parse(m.configuracion || '{}').clabe) || ''; } catch (_) {}
+            lineas.push(`${n++}. Transferencia${clabe ? ` a CLABE *${clabe}*` : ''} — envía tu comprobante por aquí.`);
+        } else if (m.nombre === 'efectivo') {
+            lineas.push(`${n++}. Efectivo — pago contra entrega / al recoger.`);
+        } else if (m.nombre === 'oxxo') {
+            lineas.push(`${n++}. Pago en OXXO — pídenos la referencia.`);
+        } else {
+            lineas.push(`${n++}. ${cap(m.nombre)}`);
+        }
+    }
+    return lineas.join('\n');
+}
+
+// Devuelve el bloque de pago correcto según el flag: histórico (solo link) o
+// multi-método. `etiqueta` permite respetar el texto exacto de cada call site
+// cuando el flag está OFF (Julio Cepeda no cambia ni una palabra).
+function bloquePago(linkUrl, etiquetaOff) {
+    if (moduloActivo('pago_multimetodo_activo')) return instruccionesPagoMulti(linkUrl);
+    return etiquetaOff;
+}
+
+// ═══════════════════════════════════════════════════════
 //  GRABADO DE PEDIDO — soporta carrito múltiple
 // ═══════════════════════════════════════════════════════
 function insertarLinkPago(pedidoRowid, monto, folio) {
@@ -1051,6 +1094,8 @@ module.exports = {
     formatCarrito,
     upsertCliente,
     insertarLinkPago,
+    instruccionesPagoMulti,
+    bloquePago,
     insertarPedidoConCarrito,
     grabarPedidoPickup,
     grabarPedidoEnvio,

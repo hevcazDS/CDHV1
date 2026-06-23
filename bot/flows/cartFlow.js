@@ -54,6 +54,7 @@ const {
     t,
     moduloActivo,
     mostrarCarrito,
+    bloquePago,
 } = shared;
 
 const STEPS = [S.SHOW_CART, S.CONFIRM_ORDER, S.OFERTAS, S.CUPON];
@@ -160,7 +161,7 @@ async function handle(ctx) {
                     ? `📦 Guía: *${resultado.guia.numeroGuia}*\n` +
                       `📅 Entrega estimada: *${resultado.guia.fechaEntregaHuman}*\n\n`
                     : '\n') +
-                `💳 *Paga aquí _(link válido 48 hrs)_:*\n${resultado.linkUrl}\n\n` +
+                bloquePago(resultado.linkUrl, `💳 *Paga aquí _(link válido 48 hrs)_:*\n${resultado.linkUrl}`) + `\n\n` +
                 `¡Gracias por tu compra! 🧸 Escribe *hola* si necesitas algo más.`
             );
         }

@@ -55,6 +55,7 @@ const {
     moduloActivo,
     mostrarCarrito,
     iniciarCapturaDireccion,
+    bloquePago,
 } = shared;
 
 const STEPS = [S.ASK_CP, S.SPLIT_DELIVERY, S.SPLIT_CONFIRM, S.DELIVERY, S.PICKUP_CONFIRM];
@@ -257,7 +258,7 @@ async function handle(ctx) {
                     (pedidoPickup.descuentoReferido > 0 ? `🎁 Descuento de bienvenida (referido) -10%: -$${pedidoPickup.descuentoReferido.toFixed(2)} MXN\n` : '') +
                     `💰 Total: *$${Number(pedidoPickup.total).toFixed(2)} MXN*\n` +
                     `🔐 Código de retiro: \`${pedidoPickup.codigo}\`\n` +
-                    `💳 Pagar aquí:\n${pedidoPickup.linkUrl}\n\n`
+                    bloquePago(pedidoPickup.linkUrl, `💳 Pagar aquí:\n${pedidoPickup.linkUrl}`) + `\n\n`
                 );
             }
 
@@ -270,7 +271,7 @@ async function handle(ctx) {
                     `📦 Flete: ${pedidoEnvio.costoEnv===0?'*¡GRATIS!*':`*$${pedidoEnvio.costoEnv} MXN*`}\n` +
                     (pedidoEnvio.descuentoReferido > 0 ? `🎁 Descuento de bienvenida (referido) -10%: -$${pedidoEnvio.descuentoReferido.toFixed(2)} MXN\n` : '') +
                     `💰 Total: *$${Number(pedidoEnvio.total).toFixed(2)} MXN*\n` +
-                    `💳 Pagar aquí:\n${pedidoEnvio.linkUrl}\n\n`
+                    bloquePago(pedidoEnvio.linkUrl, `💳 Pagar aquí:\n${pedidoEnvio.linkUrl}`) + `\n\n`
                 );
             }
 
@@ -363,7 +364,7 @@ async function handle(ctx) {
                 notaEspera + `\n` +
                 `🔐 Código de retiro: \`${resultado.codigo}\`\n` +
                 `_(Preséntalo en caja al llegar)_\n\n` +
-                `💳 Paga aquí _(link válido 48 hrs)_:\n${resultado.linkUrl}\n\n` +
+                bloquePago(resultado.linkUrl, `💳 Paga aquí _(link válido 48 hrs)_:\n${resultado.linkUrl}`) + `\n\n` +
                 `¡Gracias por tu compra! 🧸 Escribe *hola* si necesitas algo más.`
             );
         }

@@ -55,7 +55,7 @@ function getValor(clave, fallback = null) {
 // y la reconexión automática de WhatsApp en el mismo proceso (por defecto
 // el bot se queda detenido tras un 'disconnected' en vez de reintentar solo
 // — ver bot/index.js y bot/reconexionAutomatica.js).
-const _DEFAULT_OFF = new Set(['puntos_activo', 'pago_real_activo', 'estafeta_real_activo', 'reconexion_auto_activo']);
+const _DEFAULT_OFF = new Set(['puntos_activo', 'pago_real_activo', 'estafeta_real_activo', 'reconexion_auto_activo', 'pago_multimetodo_activo']);
 
 function moduloActivo(clave) {
     _refresh();

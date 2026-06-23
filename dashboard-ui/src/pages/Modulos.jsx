@@ -1,8 +1,52 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Switch } from '@mantine/core';
+import { Switch, TextInput } from '@mantine/core';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 import { useTextoEmoji, EMOJIS_ACTIVO_QUERY_KEY } from '../context/EmojiContext';
+
+// Gestión de métodos de pago: activar/desactivar cada uno y, para
+// transferencia, capturar la CLABE que el bot muestra al cliente cuando el
+// módulo "Pago multi-método" está activo.
+function MetodosPagoCard({ txt }) {
+  const qc = useQueryClient();
+  const { data: metodos } = useQuery({ queryKey: ['metodos-pago'], queryFn: () => api.get('/api/metodos-pago') });
+  const [clabe, setClabe] = useState(null); // null = aún no editado
+
+  const mut = useMutation({
+    mutationFn: ({ id, body }) => api.put(`/api/metodos-pago/${id}`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['metodos-pago'] }),
+    onError: (e) => handleApiError(e),
+  });
+
+  const clabeDe = (m) => {
+    if (clabe !== null) return clabe;
+    try { return JSON.parse(m.configuracion || '{}').clabe || ''; } catch { return ''; }
+  };
+
+  return (
+    <div className="card" style={{ marginTop: 14 }}>
+      <div className="card-header"><h3>{txt('💳 Métodos de pago')}</h3></div>
+      <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 14 }}>
+        Activa los que aceptas. El bot solo los ofrece al cliente si el módulo <strong>Pago multi-método</strong> está encendido.
+      </p>
+      {!metodos && <div className="empty">Cargando...</div>}
+      {metodos?.map(m => (
+        <div key={m.id} className="toggle-row">
+          <div className="info">
+            <h4 style={{ textTransform: 'capitalize' }}>{m.nombre}{m.requiere_link ? ' 🔗' : ''}</h4>
+            {m.nombre === 'transferencia' && m.activo
+              ? <TextInput size="xs" placeholder="CLABE a mostrar al cliente" style={{ marginTop: 4, maxWidth: 260 }}
+                  defaultValue={clabeDe(m)}
+                  onBlur={e => mut.mutate({ id: m.id, body: { configuracion: { clabe: e.target.value.replace(/\s/g, '') } } })} />
+              : <p>{m.requiere_link ? 'Genera link de pago' : 'Sin pasarela (efectivo/transferencia/OXXO)'}</p>}
+          </div>
+          <Switch checked={!!m.activo} onChange={e => mut.mutate({ id: m.id, body: { activo: e.target.checked } })} color="blue" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const MODULOS = [
   { key: 'puntos_activo', titulo: '⭐ Puntos de Lealtad', desc: 'Clientes acumulan puntos automáticamente por compra o por referido' },
@@ -12,6 +56,7 @@ const MODULOS = [
   { key: 'carritos_activo', titulo: '🛒 Carritos abandonados', desc: 'Mensaje automático 2h después' },
   { key: 'vision_activo', titulo: '📸 Búsqueda por imagen', desc: 'Vision API para búsqueda con fotos' },
   { key: 'referidos_activo', titulo: '🤝 Programa de referidos', desc: 'Código de referido y puntos en la primera compra' },
+  { key: 'pago_multimetodo_activo', titulo: '💳 Pago multi-método', desc: 'El bot ofrece efectivo/contra entrega, transferencia y link (no solo link)' },
   { key: 'emojis_dashboard_activo', titulo: '🙂 Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
 ];
 
@@ -95,6 +140,8 @@ export default function Modulos() {
           ))}
         </div>
       </div>
+
+      <MetodosPagoCard txt={txt} />
 
       <div className="card" style={{ marginTop: 14 }}>
         <div className="card-header"><h3>{txt('🎭 Modo de conversación del bot')}</h3></div>
