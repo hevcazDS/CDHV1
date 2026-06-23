@@ -190,4 +190,8 @@ function t(clave, vars = {}) {
     return txt;
 }
 
-module.exports = { t, getTono, moduloActivo, getValor, invalidarCache, FRASES, TONOS_VALIDOS, _varsNegocio };
+// Vocabulario del negocio/giro para usar en strings inline de los flows
+// (los que no pasan por t()): const V = vocab(); ... `${V.item}` `${V.emoji}`.
+function vocab() { return _varsNegocio(); }
+
+module.exports = { t, getTono, moduloActivo, getValor, invalidarCache, FRASES, TONOS_VALIDOS, _varsNegocio, vocab };

@@ -55,6 +55,7 @@ const {
     t,
     moduloActivo,
     mostrarCarrito,
+    vocab,
 } = shared;
 
 // Sugerencia de complementario por familia de producto — reusada al agregar
@@ -169,7 +170,7 @@ async function handle(ctx) {
         if (/oferta|descuento|promo|rebaja|barato|econom|sale|más bara|lo más bara|qué tienen de oferta|tienen algo de oferta|tienen descuento/i.test(raw)) {
             // Gate: módulo de ofertas desactivado desde el dashboard
             if (!moduloActivo('ofertas_activo')) {
-                return '🏷️ En este momento no tenemos ofertas activas.\n\n¡Pero tenemos más de 600 juguetes a excelentes precios! Escribe *1* para buscar.';
+                return '🏷️ En este momento no tenemos ofertas activas.\n\n¡Pero tenemos más de 600 ' + vocab().items + ' a excelentes precios! Escribe *1* para buscar.';
             }
             try {
                 const _hoy = new Date().toISOString().slice(0, 10);
@@ -207,7 +208,7 @@ async function handle(ctx) {
                     });
                     return '🏷️ *Ofertas disponibles ahora:*\n\n' + _lista + '\n\n¿Te interesa alguna? Elige el número para ver detalle.';
                 } else {
-                    return '🏷️ En este momento no tenemos ofertas activas.\n\n¡Pero tenemos más de 600 juguetes a excelentes precios! Escribe *hola* para ver el menú.';
+                    return '🏷️ En este momento no tenemos ofertas activas.\n\n¡Pero tenemos más de 600 ' + vocab().items + ' a excelentes precios! Escribe *hola* para ver el menú.';
                 }
             } catch(e) { /* continuar flujo normal si falla */ }
         }
@@ -236,7 +237,7 @@ async function handle(ctx) {
 
     // ── SEARCHING ───────────────────────────────────────
     if (step === S.SEARCHING) {
-        if (raw.length < 2) return `Por favor escribe el nombre o descripción del juguete.`;
+        if (raw.length < 2) return `Por favor escribe el nombre o descripción del ${vocab().item}.`;
 
         // Detectar si el mensaje es un link — extraer nombre limpio
         const _urlMatch = raw.match(/https?:\/\/[^\s]+/i);
@@ -288,7 +289,7 @@ async function handle(ctx) {
         if (_wordsLimpias.length === 0) {
             const _enEsp2 = db.prepare("SELECT COUNT(*) AS n FROM lista_espera WHERE notas LIKE ? AND estatus='activa'").get('%'+raw.slice(0,30)+'%')?.n || 0;
             sessionManager.updateSession(userId, S.LISTA_ESPERA, { ...data, _queryOriginal: raw, idProducto: null, _sinResultado: true });
-            const _lineas = ['\uD83D\uDD0D D\u00e9jame buscarlo en toda nuestra tienda...','','¡Este juguete está volando! pero estamos por recibir más. ¿Te gustaría recibir un aviso exclusivo por WhatsApp en cuanto nos llegue?','','1\uFE0F\u20E3  \uD83D\uDD14 Av\u00edsame cuando llegue','2\uFE0F\u20E3  \uD83D\uDD0D Ver alternativas ahora','3\uFE0F\u20E3  \uD83C\uDFE0 Volver al men\u00fa'];
+            const _lineas = ['\uD83D\uDD0D D\u00e9jame buscarlo en toda nuestra tienda...','','¡Este ' + vocab().item + ' está volando! pero estamos por recibir más. ¿Te gustaría recibir un aviso exclusivo por WhatsApp en cuanto nos llegue?','','1\uFE0F\u20E3  \uD83D\uDD14 Av\u00edsame cuando llegue','2\uFE0F\u20E3  \uD83D\uDD0D Ver alternativas ahora','3\uFE0F\u20E3  \uD83C\uDFE0 Volver al men\u00fa'];
             if (_enEsp2 > 0) _lineas.push('','_'+_enEsp2+' persona'+(_enEsp2>1?'s':'')+' tambi\u00e9n esperando._');
             return _lineas.join('\n');
         }
@@ -341,7 +342,7 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
         }
         return (t('lista_espera_oferta') ||
             ('\uD83D\uDD0D Déjame buscarlo en toda nuestra tienda...\n\n' +
-            '¡Este juguete está volando pero muy pronto tendremos más piezas! Déjanos avisarte por WhatsApp en cuanto aterrice en la tienda:\n\n' +
+            '¡Este ' + vocab().item + ' está volando pero muy pronto tendremos más piezas! Déjanos avisarte por WhatsApp en cuanto aterrice en la tienda:\n\n' +
             '1\uFE0F\u20E3  \uD83D\uDD14 Avísame cuando llegue\n' +
             '2\uFE0F\u20E3  \uD83D\uDD0D ¡Cero estrés! Te ayudo a encontrar algo mejor hoy mismo\n' +
             '3\uFE0F\u20E3  \uD83C\uDFE0 Volver al menú principal')) +
@@ -355,11 +356,11 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
         const edad = m[action];
         if (edad === 'bebe') {
             sessionManager.updateSession(userId, S.WIZARD_Q2, { ...data, edad, genero:'bebe' });
-            return `*Pregunta 2 de 3* — ¿Qué tipo de juguete? 🧠\n\n1️⃣  🎮 Entretenimiento / Diversión\n2️⃣  📚 Educativo / Aprendizaje\n3️⃣  🎨 Creativo / Manualidades\n4️⃣  🏆 Coleccionable / Especial`;
+            return `*Pregunta 2 de 3* — ¿Qué tipo de ${vocab().item}? 🧠\n\n1️⃣  🎮 Entretenimiento / Diversión\n2️⃣  📚 Educativo / Aprendizaje\n3️⃣  🎨 Creativo / Manualidades\n4️⃣  🏆 Coleccionable / Especial`;
         }
         if (edad === 'adulto') {
             sessionManager.updateSession(userId, S.WIZARD_Q2, { ...data, edad, genero:'adulto' });
-            return `*Pregunta 2 de 3* — ¿Qué tipo de juguete? 🧠\n\n1️⃣  🎮 Entretenimiento / Diversión\n2️⃣  📚 Educativo / Aprendizaje\n3️⃣  🎨 Creativo / Manualidades\n4️⃣  🏆 Coleccionable / Especial`;
+            return `*Pregunta 2 de 3* — ¿Qué tipo de ${vocab().item}? 🧠\n\n1️⃣  🎮 Entretenimiento / Diversión\n2️⃣  📚 Educativo / Aprendizaje\n3️⃣  🎨 Creativo / Manualidades\n4️⃣  🏆 Coleccionable / Especial`;
         }
         sessionManager.updateSession(userId, S.WIZARD_Q2, { ...data, edad });
         return `*Pregunta 2 de 3* — ¿Es para niño o niña? 🎀\n\n1️⃣  👦 Niño\n2️⃣  👧 Niña\n3️⃣  🤝 Sin preferencia`;
@@ -374,7 +375,7 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
         const mg = {'1':'nino','2':'nina','3':'unisex'};
         if (!mg[action]) return `Responde con 1, 2 o 3.`;
         sessionManager.updateSession(userId, S.WIZARD_Q3, { ...data, genero:mg[action] });
-        return `*Pregunta 3 de 3* — ¿Qué tipo de juguete? 🧠\n\n1️⃣  🎮 Entretenimiento / Diversión\n2️⃣  📚 Educativo / Aprendizaje\n3️⃣  🎨 Creativo / Manualidades\n4️⃣  🏆 Coleccionable / Especial`;
+        return `*Pregunta 3 de 3* — ¿Qué tipo de ${vocab().item}? 🧠\n\n1️⃣  🎮 Entretenimiento / Diversión\n2️⃣  📚 Educativo / Aprendizaje\n3️⃣  🎨 Creativo / Manualidades\n4️⃣  🏆 Coleccionable / Especial`;
     }
     if (step === S.WIZARD_Q3) {
         if (data.genero && !data.tipo) {
@@ -442,7 +443,7 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
 
                 return (
                     '\uD83D\uDD0D D\u00e9jame buscarlo en toda nuestra tienda...\n\n' +
-                    '\u00a1Este juguete est\u00e1 volando! pero estamos por recibir m\u00e1s. \u00bfTe gustar\u00eda recibir un aviso exclusivo por WhatsApp en cuanto nos llegue?\n\n' +
+                    '\u00a1Este ' + vocab().item + ' est\u00e1 volando! pero estamos por recibir m\u00e1s. \u00bfTe gustar\u00eda recibir un aviso exclusivo por WhatsApp en cuanto nos llegue?\n\n' +
                     '1\uFE0F\u20E3  \uD83D\uDD14 Av\u00edsame cuando llegue\n' +
                     (_sust.length ? '2\uFE0F\u20E3  \uD83D\uDD0D Ver opciones disponibles\n' : '') +
                     '3\uFE0F\u20E3  \uD83C\uDFE0 Volver al men\u00fa principal' +
@@ -546,7 +547,7 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
                     '✅ *' + prod.name + '* agregado al carrito 🛒\n\n' +
                     '🛒 Carrito: *' + nuevoCarrito.length + ' producto' + (nuevoCarrito.length > 1 ? 's distintos' : '') + '* — Total: *$' + totalAct.toFixed(2) + ' MXN*' +
                     _upsellMsg +
-                    '\n\n¿Qué otro juguete buscas?'
+                    '\n\n¿Qué otro ' + vocab().item + ' buscas?'
                 );
             } else {
                 // Agregar y proceder al pago
@@ -570,7 +571,7 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
         }
         if (action === '4') {
             sessionManager.updateSession(userId, S.SEARCHING, { ...data, viewing:undefined });
-            return `🔍 ¿Qué juguete buscas?`;
+            return `🔍 ¿Qué ${vocab().item} buscas?`;
         }
         if (action === '5' && carrito2.length > 0) {
             sessionManager.updateSession(userId, S.SHOW_CART, { ...data, viewing:undefined, _returnStep: S.VIEW_PRODUCT });
@@ -585,7 +586,7 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
     if (step === S.ADD_MORE) {
         if (action === '1' || action.includes('agregar') || action.includes('otro')) {
             sessionManager.updateSession(userId, S.SEARCHING, { carrito: data.carrito || [] });
-            return `🔍 ¿Qué otro juguete buscas?`;
+            return `🔍 ¿Qué otro ${vocab().item} buscas?`;
         }
         if (action === '2' || action.includes('final') || action.includes('listo') || action.includes('no')) {
             const ped = data.ultimoPedido || {};

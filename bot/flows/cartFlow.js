@@ -55,6 +55,7 @@ const {
     moduloActivo,
     mostrarCarrito,
     bloquePago,
+    vocab,
 } = shared;
 
 const STEPS = [S.SHOW_CART, S.CONFIRM_ORDER, S.OFERTAS, S.CUPON];
@@ -66,12 +67,12 @@ async function handle(ctx) {
         const carrito = data.carrito || [];
         if (!carrito.length) {
             sessionManager.updateSession(userId, S.SEARCHING, {});
-            return `Tu carrito está vacío. ¿Qué juguete buscas? 🔍`;
+            return `Tu carrito está vacío. ¿Qué ${vocab().item} buscas? 🔍`;
         }
 
         if (action === '1' || action.includes('seguir') || action.includes('buscar')) {
             sessionManager.updateSession(userId, S.SEARCHING, { ...data });
-            return `🔍 ¿Qué otro juguete buscas?`;
+            return `🔍 ¿Qué otro ${vocab().item} buscas?`;
         }
         if (action === '2' || action.includes('pagar') || action.includes('continuar')) {
             sessionManager.updateSession(userId, S.ASK_CP, { ...data });
@@ -79,7 +80,7 @@ async function handle(ctx) {
         }
         if (action === '3' || action.includes('vaciar') || action.includes('limpiar')) {
             sessionManager.updateSession(userId, S.SEARCHING, { ...data, carrito: [] });
-            return `🗑️ Carrito vaciado. ¿Qué juguete buscas? 🔍`;
+            return `🗑️ Carrito vaciado. ¿Qué ${vocab().item} buscas? 🔍`;
         }
 
         // Fix 2: eliminar producto individual — "quitar 1" o "eliminar 2"
@@ -92,7 +93,7 @@ async function handle(ctx) {
                 sessionManager.updateSession(userId, S.SHOW_CART, { ...data, carrito: _newCarrito });
                 if (!_newCarrito.length) {
                     sessionManager.updateSession(userId, S.SEARCHING, { ...data, carrito: [] });
-                    return `🗑️ *${_nombre}* eliminado. Tu carrito quedó vacío.\n¿Qué juguete buscas? 🔍`;
+                    return `🗑️ *${_nombre}* eliminado. Tu carrito quedó vacío.\n¿Qué ${vocab().item} buscas? 🔍`;
                 }
                 return `🗑️ *${_nombre}* eliminado del carrito.\n\n` + mostrarCarrito(_newCarrito);
             }
@@ -162,7 +163,7 @@ async function handle(ctx) {
                       `📅 Entrega estimada: *${resultado.guia.fechaEntregaHuman}*\n\n`
                     : '\n') +
                 bloquePago(resultado.linkUrl, `💳 *Paga aquí _(link válido 48 hrs)_:*\n${resultado.linkUrl}`) + `\n\n` +
-                `¡Gracias por tu compra! 🧸 Escribe *hola* si necesitas algo más.`
+                `¡Gracias por tu compra! ${vocab().emoji} Escribe *hola* si necesitas algo más.`
             );
         }
         if (action === '2') {

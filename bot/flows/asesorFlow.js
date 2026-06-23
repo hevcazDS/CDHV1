@@ -56,6 +56,7 @@ const {
     moduloActivo,
     getValor,
     mostrarCarrito,
+    vocab,
 } = shared;
 
 const STEPS = [S.ASESOR, S.LISTA_ESPERA, S.CSAT, S.DEVOLUCION];
@@ -114,7 +115,7 @@ async function handle(ctx) {
                 carrito: data.carrito || [],
                 _desdeListaEspera: true,
             });
-            return '*\u00bfPara qui\u00e9n es el juguete?*\n\n1\uFE0F\u20E3  \uD83D\uDC76 Beb\u00e9 (0\u20132 a\u00f1os)\n2\uFE0F\u20E3  \uD83E\uDDD2 Ni\u00f1o/a (3\u20138 a\u00f1os)\n3\uFE0F\u20E3  \uD83E\uDDD1 Preadolescente (9\u201312)\n4\uFE0F\u20E3  \uD83C\uDF93 Adolescente / Adulto';
+            return '*\u00bfPara qui\u00e9n es el ' + vocab().item + '?*\n\n1\uFE0F\u20E3  \uD83D\uDC76 Beb\u00e9 (0\u20132 a\u00f1os)\n2\uFE0F\u20E3  \uD83E\uDDD2 Ni\u00f1o/a (3\u20138 a\u00f1os)\n3\uFE0F\u20E3  \uD83E\uDDD1 Preadolescente (9\u201312)\n4\uFE0F\u20E3  \uD83C\uDF93 Adolescente / Adulto';
         }
 
         sessionManager.clearSession(userId);

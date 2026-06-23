@@ -56,6 +56,7 @@ const {
     mostrarCarrito,
     iniciarCapturaDireccion,
     bloquePago,
+    vocab,
 } = shared;
 
 const STEPS = [S.ASK_CP, S.SPLIT_DELIVERY, S.SPLIT_CONFIRM, S.DELIVERY, S.PICKUP_CONFIRM];
@@ -73,7 +74,7 @@ async function handle(ctx) {
 
         if (!carrito.length) {
             sessionManager.updateSession(userId, S.SEARCHING, {});
-            return `Parece que no hay productos en el carrito. ¿Qué juguete buscas?`;
+            return `Parece que no hay productos en el carrito. ¿Qué ${vocab().item} buscas?`;
         }
 
         const subtotal = totalCarrito(carrito);
@@ -277,7 +278,7 @@ async function handle(ctx) {
 
             const gran_total = (pedidoPickup?.total||0) + (pedidoEnvio?.total||0);
             msg += `━━━━━━━━━━━━━━━━━\n💵 *Gran total: $${gran_total.toFixed(2)} MXN*\n\n`;
-            msg += `¡Gracias por tu compra! 🧸 Escribe *hola* si necesitas algo más.`;
+            msg += `¡Gracias por tu compra! ${vocab().emoji} Escribe *hola* si necesitas algo más.`;
             return msg;
         }
 
@@ -365,7 +366,7 @@ async function handle(ctx) {
                 `🔐 Código de retiro: \`${resultado.codigo}\`\n` +
                 `_(Preséntalo en caja al llegar)_\n\n` +
                 bloquePago(resultado.linkUrl, `💳 Paga aquí _(link válido 48 hrs)_:\n${resultado.linkUrl}`) + `\n\n` +
-                `¡Gracias por tu compra! 🧸 Escribe *hola* si necesitas algo más.`
+                `¡Gracias por tu compra! ${vocab().emoji} Escribe *hola* si necesitas algo más.`
             );
         }
         if (action === '2') {

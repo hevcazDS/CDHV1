@@ -17,9 +17,9 @@ const db              = require('../db_connection');
 const { registrarErrorDB } = require('../dbErrorLog');
 const stockService    = require('../../services/stockService');
 // Sistema de tonos (A/B/C/D) y módulos activables desde el dashboard
-const { t, moduloActivo, getValor } = (() => {
+const { t, moduloActivo, getValor, vocab } = (() => {
     try { return require('./_config'); }
-    catch(_) { return { t: () => '', moduloActivo: () => true, getValor: (_c, fb) => fb }; }
+    catch(_) { return { t: () => '', moduloActivo: () => true, getValor: (_c, fb) => fb, vocab: () => ({ negocio: 'Julio Cepeda Jugueterías', negocio_corto: 'Julio Cepeda', item: 'juguete', items: 'juguetes', emoji: '🧸' }) }; }
 })();
 
 // ═══════════════════════════════════════════════════════
@@ -1125,6 +1125,7 @@ module.exports = {
     t,
     moduloActivo,
     getValor,
+    vocab,
     mostrarCarrito,
     buscarDireccionGuardada,
     iniciarCapturaDireccion,
