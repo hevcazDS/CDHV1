@@ -1,0 +1,141 @@
+// UsuariosTab.jsx — Tab "Usuarios" de Prime (soloPrime): alta/edición/borrado
+// de cuentas del dashboard y cambio de rol (usuario/gerente/prime).
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from '@mantine/form';
+import { Card, Title, Group, ActionIcon, Table, TextInput, PasswordInput, Select, Button } from '@mantine/core';
+import { api } from '../../api';
+import Modal from '../../components/Modal';
+
+const ROLES_OPCIONES = [
+  { value: 'usuario', label: 'usuario (cajero: atención + POS + bot)' },
+  { value: 'gerente', label: 'gerente (operación: catálogo, inventario, módulos, ofertas)' },
+  { value: 'prime', label: 'prime (control total)' },
+];
+
+export default function UsuariosTab() {
+  const queryClient = useQueryClient();
+  const usuarioForm = useForm({ initialValues: { username: '', password: '', rol: 'gerente' } });
+  const [msgUsuarios, setMsgUsuarios] = useState('');
+  const [usuarioEditando, setUsuarioEditando] = useState(null);
+  const editarUsuarioForm = useForm({ initialValues: { nombre: '', password: '' } });
+  const [msgEditarUsuario, setMsgEditarUsuario] = useState('');
+
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ['prime-usuarios'],
+    queryFn: () => api.get('/api/prime/usuarios'),
+  });
+
+  const crearUsuarioMutation = useMutation({
+    mutationFn: (values) => api.post('/api/prime/usuarios', values),
+    onSuccess: () => {
+      usuarioForm.reset();
+      queryClient.invalidateQueries({ queryKey: ['prime-usuarios'] });
+    },
+    onError: (e) => setMsgUsuarios(e.message),
+  });
+  const crearUsuario = () => { setMsgUsuarios(''); crearUsuarioMutation.mutate(usuarioForm.values); };
+
+  const cambiarRolUsuarioMutation = useMutation({
+    mutationFn: ({ id, rol }) => api.put(`/api/prime/usuarios/${id}`, { rol }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['prime-usuarios'] }),
+    onError: (e) => setMsgUsuarios(e.message),
+  });
+  const cambiarRolUsuario = (id, rol) => cambiarRolUsuarioMutation.mutate({ id, rol });
+
+  const borrarUsuarioMutation = useMutation({
+    mutationFn: (id) => api.del(`/api/prime/usuarios/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['prime-usuarios'] }),
+    onError: (e) => setMsgUsuarios(e.message),
+  });
+  const borrarUsuario = (id) => borrarUsuarioMutation.mutate(id);
+
+  const editarUsuarioMutation = useMutation({
+    mutationFn: ({ id, datos }) => api.put(`/api/prime/usuarios/${id}`, datos),
+    onSuccess: () => {
+      setUsuarioEditando(null);
+      queryClient.invalidateQueries({ queryKey: ['prime-usuarios'] });
+    },
+    onError: (e) => setMsgEditarUsuario(e.message),
+  });
+  const abrirEdicionUsuario = (u) => {
+    setMsgEditarUsuario('');
+    editarUsuarioForm.setValues({ nombre: u.nombre || '', password: '' });
+    setUsuarioEditando(u);
+  };
+  const guardarEdicionUsuario = () => {
+    setMsgEditarUsuario('');
+    const v = editarUsuarioForm.values;
+    const datos = {};
+    if (v.nombre.trim()) datos.nombre = v.nombre.trim();
+    if (v.password) {
+      if (v.password.length < 8) { setMsgEditarUsuario('La nueva contraseña debe tener al menos 8 caracteres.'); return; }
+      datos.password = v.password;
+    }
+    if (!Object.keys(datos).length) { setMsgEditarUsuario('Nada que actualizar.'); return; }
+    editarUsuarioMutation.mutate({ id: usuarioEditando.id, datos });
+  };
+
+  return (
+    <Card withBorder radius="md" p="lg">
+      <Title order={4} mb={4}>Usuarios del dashboard</Title>
+      <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+        Crea cuentas con rol admin (operación) o prime (acceso total). No puedes borrar tu propia
+        cuenta ni dejar el sistema sin ningún usuario prime.
+      </p>
+      {msgUsuarios && <div className="login-error" style={{ marginBottom: 12 }}>{msgUsuarios}</div>}
+      <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
+        <TextInput placeholder="Usuario" {...usuarioForm.getInputProps('username')} style={{ minWidth: 160 }} />
+        <PasswordInput placeholder="Password (mín. 8)" {...usuarioForm.getInputProps('password')} style={{ minWidth: 160 }} />
+        <Select data={ROLES_OPCIONES} style={{ minWidth: 220 }}
+          allowDeselect={false} {...usuarioForm.getInputProps('rol')} />
+        <Button disabled={!usuarioForm.values.username.trim() || !usuarioForm.values.password} onClick={crearUsuario}>
+          Crear usuario
+        </Button>
+      </Group>
+      <div className="table-wrap">
+        <Table highlightOnHover verticalSpacing="xs">
+          <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
+          <tbody>
+            {usuarios.length === 0 && <tr><td colSpan={5} className="empty">Sin usuarios</td></tr>}
+            {usuarios.map(u => (
+              <tr key={u.id}>
+                <td>{u.username}</td>
+                <td>{u.nombre || '—'}</td>
+                <td>
+                  <Select
+                    size="xs"
+                    data={[{ value: 'usuario', label: 'usuario' }, { value: 'gerente', label: 'gerente' }, { value: 'prime', label: 'prime' }]}
+                    value={u.rol}
+                    onChange={v => v && cambiarRolUsuario(u.id, v)}
+                    allowDeselect={false}
+                    comboboxProps={{ withinPortal: true }}
+                  />
+                </td>
+                <td>{u.creado_en}</td>
+                <td>
+                  <Group gap={4} wrap="nowrap">
+                    <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionUsuario(u)}>✏️</ActionIcon>
+                    <ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarUsuario(u.id)}>🗑️</ActionIcon>
+                  </Group>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </div>
+
+      {usuarioEditando && (
+        <Modal title={`Editar — ${usuarioEditando.username}`} onClose={() => setUsuarioEditando(null)}
+          actions={<>
+            <Button variant="default" onClick={() => setUsuarioEditando(null)}>Cancelar</Button>
+            <Button onClick={guardarEdicionUsuario}>Guardar</Button>
+          </>}>
+          {msgEditarUsuario && <div className="login-error" style={{ marginBottom: 12 }}>{msgEditarUsuario}</div>}
+          <TextInput label="Nombre" {...editarUsuarioForm.getInputProps('nombre')} mb="sm" />
+          <PasswordInput label="Nueva contraseña (dejar vacío para no cambiar)" {...editarUsuarioForm.getInputProps('password')} />
+        </Modal>
+      )}
+    </Card>
+  );
+}
