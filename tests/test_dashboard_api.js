@@ -26,8 +26,10 @@ const db = require('../bot/db_connection');
 db.exec(`
 CREATE TABLE pedidos (id_pedido INTEGER PRIMARY KEY AUTOINCREMENT, folio TEXT, cliente TEXT,
     estatus TEXT NOT NULL DEFAULT 'generado', ciudad_envio TEXT, email_notificado INTEGER DEFAULT 0,
+    metodo_entrega TEXT, metodo_pago TEXT, repartidor_nombre TEXT, repartidor_telefono TEXT,
     creado_en TEXT DEFAULT (datetime('now','localtime')));
-CREATE TABLE links_pago (id INTEGER PRIMARY KEY AUTOINCREMENT, id_pedido INTEGER, monto REAL, estatus TEXT, url_link TEXT);
+CREATE TABLE links_pago (id INTEGER PRIMARY KEY AUTOINCREMENT, id_pedido INTEGER, monto REAL, estatus TEXT, url_link TEXT,
+    pagado_en TEXT);
 CREATE TABLE guias_estafeta (id INTEGER PRIMARY KEY AUTOINCREMENT, id_pedido INTEGER, numero_guia TEXT, estatus TEXT,
     fecha_envio_est TEXT, fecha_entrega_est TEXT);
 CREATE TABLE clientes (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, telefono TEXT, email TEXT,
