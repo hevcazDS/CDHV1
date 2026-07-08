@@ -62,10 +62,6 @@ const S = {
 // ═══════════════════════════════════════════════════════
 //  CONSTANTES
 // ═══════════════════════════════════════════════════════
-function enHorario() {
-    const h = (new Date().getUTCHours() - 6 + 24) % 24;
-    return h >= 11 && h < 20;
-}
 const HORARIO          = '11:00 am – 8:00 pm';
 const HORARIO_ASESOR   = '11:00 am – 8:00 pm, todos los días';
 

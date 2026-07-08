@@ -132,10 +132,10 @@ async function handle(ctx) {
                     FROM pedidos p
                     LEFT JOIN links_pago lp ON lp.id_pedido = p.id_pedido
                     LEFT JOIN guias_estafeta g ON g.id_pedido = p.id_pedido
-                    WHERE p.cliente = (SELECT nombre FROM clientes WHERE telefono=? LIMIT 1)
-                       OR p.id_pedido IN (SELECT id_pedido FROM pedido_detalle WHERE 1=0)
+                    WHERE p.id_cliente = (SELECT id FROM clientes WHERE telefono=? LIMIT 1)
+                       OR p.cliente = (SELECT nombre FROM clientes WHERE telefono=? LIMIT 1)
                     ORDER BY p.id_pedido DESC LIMIT 3
-                `).all(tel);
+                `).all(tel, tel);
                 if (_peds.length) {
                     const _lista = _peds.map((p, i) => {
                         const _folio = p.folio || 'Sin folio';

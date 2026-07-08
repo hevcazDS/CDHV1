@@ -252,8 +252,8 @@ function checkCarritosAbandonados24h() {
     for (const ca of abandonados) {
         const yaAvisado = db.prepare(`
             SELECT id FROM cola_notificaciones
-            WHERE destinatario LIKE ? AND asunto='Carrito abandonado 24h'
-        `).get('%' + ca.telefono + '%');
+            WHERE (destinatario = ? OR destinatario LIKE ?) AND asunto='Carrito abandonado 24h'
+        `).get(ca.telefono, ca.telefono + '@%');
         if (yaAvisado) continue;
 
         let items = [];
@@ -323,9 +323,9 @@ function checkOfertasPorVencer() {
         // Verificar si ya notificamos de oferta por vencer
         const yaAvisado = db.prepare(`
             SELECT id FROM cola_notificaciones
-            WHERE destinatario LIKE ? AND asunto='Oferta por vencer 24h'
+            WHERE (destinatario = ? OR destinatario LIKE ?) AND asunto='Oferta por vencer 24h'
               AND datetime(creada_en) > datetime('now','-23 hours','localtime')
-        `).get('%' + ca.telefono + '%');
+        `).get(ca.telefono, ca.telefono + '@%');
         if (yaAvisado) continue;
 
         const cuerpo =
@@ -476,15 +476,16 @@ function checkClientesDormidos() {
         // No chocar con un masivo reciente ni repetir esta campaña antes de 15 días
         const yaPromocionado = db.prepare(`
             SELECT id FROM cola_notificaciones
-            WHERE destinatario LIKE ?
+            WHERE (destinatario = ? OR destinatario LIKE ?)
               AND (asunto = 'Promocion masiva' OR asunto = 'Cliente dormido')
               AND datetime(creada_en) > datetime('now','-15 days','localtime')
-        `).get('%' + cli.telefono + '%');
+        `).get(cli.telefono, cli.telefono + '@%');
         if (yaPromocionado) continue;
 
         const nombre = (cli.nombre || '').split(' ')[0] || 'Hola';
+        const negocio = _valorConfig('nombre_negocio', 'nuestra tienda');
         const cuerpo =
-            '🧸 ¡Hola ' + nombre + '! Te extrañamos en Julio Cepeda Jugueterías.\n\n' +
+            '¡Hola ' + nombre + '! Te extrañamos en ' + negocio + '.\n\n' +
             'Tenemos promociones especiales esperándote. Escribe *hola* para ver el catálogo. 🎁';
 
         try {

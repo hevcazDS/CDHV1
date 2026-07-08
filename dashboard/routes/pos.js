@@ -75,7 +75,15 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     const prod = db.prepare('SELECT id, name, price FROM productos WHERE id=?').get(Number(it.id_producto));
                     if (!prod) return json(res, { ok: false, error: 'Producto no encontrado: ' + it.id_producto }, 400);
                     const cantidad = Math.max(1, parseInt(it.cantidad, 10) || 1);
-                    const price = (it.precio !== undefined && it.precio !== null && it.precio !== '') ? Number(it.precio) : prod.price;
+                    let price = prod.price;
+                    if (it.precio !== undefined && it.precio !== null && it.precio !== '') {
+                        price = Number(it.precio);
+                        // Antifraude de caja: el override solo puede descontar
+                        // hasta 50% del precio de lista, nunca $0 ni sobreprecio
+                        if (!Number.isFinite(price) || price < prod.price * 0.5 || price > prod.price) {
+                            return json(res, { ok: false, error: `Precio fuera de rango para ${prod.name} (permitido: $${(prod.price * 0.5).toFixed(2)} a $${Number(prod.price).toFixed(2)})` }, 400);
+                        }
+                    }
                     carrito.push({ id: prod.id, name: prod.name, price, cantidad });
                 }
 

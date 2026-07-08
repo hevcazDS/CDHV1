@@ -148,7 +148,7 @@ async function handle(ctx) {
             }
             const resultado = grabarPedidoEnvio(data, tel);
             tagCliente(tel, 'pedido_pendiente');
-            const _eprevPeds = db.prepare("SELECT COUNT(*) AS n FROM pedidos WHERE cliente=?").get(data.nombre||tel);
+            const _eprevPeds = db.prepare("SELECT COUNT(*) AS n FROM pedidos WHERE id_cliente=(SELECT id FROM clientes WHERE telefono=? LIMIT 1) OR cliente=?").get(tel, data.nombre||tel);
             if ((_eprevPeds?.n||0) >= 1) tagCliente(tel, 'cliente_recurrente');
 
             const _descuentoCupon    = resultado.descuentoCupon || 0;

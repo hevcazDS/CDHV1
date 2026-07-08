@@ -416,7 +416,7 @@ async function handle(ctx) {
                 : grabarPedidoPickup(data, tel);
 
             tagCliente(tel, 'pedido_pendiente');
-            const _pprevPeds = db.prepare("SELECT COUNT(*) AS n FROM pedidos WHERE cliente=?").get(data.nombre||tel);
+            const _pprevPeds = db.prepare("SELECT COUNT(*) AS n FROM pedidos WHERE id_cliente=(SELECT id FROM clientes WHERE telefono=? LIMIT 1) OR cliente=?").get(tel, data.nombre||tel);
             if ((_pprevPeds?.n||0) >= 1) tagCliente(tel, 'cliente_recurrente');
             const diasMax = data.carritoEnvio && data.carritoEnvio.length
                 ? Math.max(...data.carritoEnvio.map(i => i._diasEntrega || 5))
