@@ -9,6 +9,9 @@ import '@fontsource/inter/latin-400.css';
 import '@fontsource/inter/latin-500.css';
 import '@fontsource/inter/latin-600.css';
 import '@fontsource/inter/latin-700.css';
+import '@fontsource/poppins/latin-500.css';
+import '@fontsource/poppins/latin-600.css';
+import '@fontsource/poppins/latin-700.css';
 import '@fontsource/ibm-plex-sans/latin-400.css';
 import '@fontsource/ibm-plex-sans/latin-600.css';
 import '@fontsource/ibm-plex-sans/latin-700.css';
@@ -30,10 +33,11 @@ const queryClient = new QueryClient({
 });
 
 const FUENTE = '"Inter", -apple-system, "Segoe UI", system-ui, Roboto, sans-serif';
+const FUENTE_TITULOS = '"Poppins", "Inter", -apple-system, "Segoe UI", system-ui, sans-serif';
 const mantineTheme = {
   fontFamily: FUENTE,
-  headings: { fontFamily: FUENTE, fontWeight: '700' },
-  defaultRadius: 'md',
+  headings: { fontFamily: FUENTE_TITULOS, fontWeight: '600' },
+  defaultRadius: 'lg',
   primaryColor: 'dark',
 };
 

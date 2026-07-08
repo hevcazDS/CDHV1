@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Indicator, ActionIcon } from '@mantine/core';
+import { Bell } from 'lucide-react';
 import { api } from '../api';
 
 // queryKey exportado para que Etiquetas.jsx pueda invalidarlo apenas el
@@ -26,7 +27,7 @@ export default function NotificationBell() {
         title={count > 0 ? `${count} foto(s) de Etiquetas pendientes de revisión` : 'Sin pendientes'}
         onClick={() => navigate('/etiquetas')}
       >
-        🔔
+        <Bell size={17} strokeWidth={1.75} />
       </ActionIcon>
     </Indicator>
   );

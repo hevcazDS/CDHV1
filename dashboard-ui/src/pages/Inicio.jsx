@@ -2,11 +2,11 @@ import { lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Card, Text } from '@mantine/core';
+import { Wallet, ReceiptText, Users, CreditCard, Headset, TriangleAlert, TrendingUp, Package, CalendarDays } from 'lucide-react';
 import { api } from '../api';
 import { useWhatsAppQR } from '../hooks/useWhatsAppQR';
 import WhatsAppQR from '../components/WhatsAppQR';
 import { fdate } from '../lib/format';
-import { useTextoEmoji } from '../context/EmojiContext';
 
 // Lazy: recharts (~400 KB) llega después del primer render, no lo bloquea
 const GraficaSemana = lazy(() => import('../components/GraficaSemana'));
@@ -30,8 +30,15 @@ function TrendChip({ hoy, ayer }) {
   );
 }
 
+function KpiLabel({ Icono, children }) {
+  return (
+    <Text size="sm" c="dimmed" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <Icono size={15} strokeWidth={1.75} />{children}
+    </Text>
+  );
+}
+
 export default function Inicio() {
-  const txt = useTextoEmoji();
   const { qr } = useWhatsAppQR(true, 15000);
 
   const { data: pedidos, error } = useQuery({
@@ -56,7 +63,8 @@ export default function Inicio() {
   const clientes = stats?.clientes_total || 0;
 
   const fmtMoneda = (n) => '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const hoyLargo = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const _fecha = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const hoyLargo = _fecha.charAt(0).toUpperCase() + _fecha.slice(1);
 
   // Rellena con 0 los días sin pedidos: la semana siempre son 7 barras
   const porDia = met?.por_dia || [];
@@ -78,48 +86,48 @@ export default function Inicio() {
           <div className="page-title">Inicio</div>
           <div className="page-sub">Resumen general de la operación</div>
         </div>
-        <span className="date-chip">{txt('📅 ')}{hoyLargo}</span>
+        <span className="date-chip"><CalendarDays size={14} strokeWidth={1.75} />{hoyLargo}</span>
       </div>
       {error && <div className="login-error mb-5">No se pudieron cargar los pedidos: {error.message}</div>}
       <WhatsAppQR qr={qr} />
 
       <div className="kpi-grid">
         <Card withBorder radius="md" p="lg" className="kpi-card kpi-dark">
-          <Text size="sm" c="dimmed">{txt('💵 Ventas cobradas hoy')}</Text>
-          <Text size="26px" fw={700}>{fmtMoneda(ventasHoy)}</Text>
+          <KpiLabel Icono={Wallet}>Ventas cobradas hoy</KpiLabel>
+          <Text size="26px" fw={700} className="kpi-num">{fmtMoneda(ventasHoy)}</Text>
           <span className="kpi-chip">↗ {pagadosHoy} pago{pagadosHoy === 1 ? '' : 's'} confirmado{pagadosHoy === 1 ? '' : 's'}</span>
         </Card>
         <Card withBorder radius="md" p="lg" className="kpi-card">
-          <Text size="sm" c="dimmed">{txt('🧾 Pedidos de hoy')}</Text>
-          <Text size="26px" fw={700}>{met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0}</Text>
+          <KpiLabel Icono={ReceiptText}>Pedidos de hoy</KpiLabel>
+          <Text size="26px" fw={700} className="kpi-num">{met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0}</Text>
           <TrendChip hoy={met?.pedidos?.hoy?.n} ayer={met?.pedidos?.ayer?.n} />
         </Card>
         <Card withBorder radius="md" p="lg" className="kpi-card">
-          <Text size="sm" c="dimmed">{txt('🧑 Clientes activos')}</Text>
-          <Text size="26px" fw={700}>{clientes}</Text>
+          <KpiLabel Icono={Users}>Clientes activos</KpiLabel>
+          <Text size="26px" fw={700} className="kpi-num">{clientes}</Text>
         </Card>
         <Card withBorder radius="md" p="lg" className="kpi-card">
-          <Text size="sm" c="dimmed">{txt('💳 Pagos por cobrar')}</Text>
-          <Text size="26px" fw={700}>{pagosPendientes}</Text>
+          <KpiLabel Icono={CreditCard}>Pagos por cobrar</KpiLabel>
+          <Text size="26px" fw={700} className="kpi-num">{pagosPendientes}</Text>
         </Card>
         {colaAtencion > 0 && (
           <Card withBorder radius="md" p="lg" className="kpi-card" style={{ borderColor: 'var(--red)' }}>
-            <Text size="sm" c="dimmed">{txt('👤 Clientes esperando atención')}</Text>
-            <Text size="26px" fw={700}>{colaAtencion}</Text>
+            <KpiLabel Icono={Headset}>Clientes esperando atención</KpiLabel>
+            <Text size="26px" fw={700} className="kpi-num">{colaAtencion}</Text>
             <Link to="/cola" className="kpi-chip rojo">Atender ahora →</Link>
           </Card>
         )}
         {emailsError > 0 && (
           <Card withBorder radius="md" p="lg" className="kpi-card" style={{ borderColor: 'var(--red)' }}>
-            <Text size="sm" c="dimmed">{txt('⚠️ Emails con error')}</Text>
-            <Text size="26px" fw={700}>{emailsError}</Text>
+            <KpiLabel Icono={TriangleAlert}>Emails con error</KpiLabel>
+            <Text size="26px" fw={700} className="kpi-num">{emailsError}</Text>
           </Card>
         )}
       </div>
 
       <Card withBorder radius="md" p="lg" mt="xl" className="card">
         <div className="card-header">
-          <h3>{txt('📈 Pedidos últimos 7 días')}</h3>
+          <h3><TrendingUp size={16} strokeWidth={1.75} style={{ verticalAlign: '-3px', marginRight: 7 }} />Pedidos últimos 7 días</h3>
           <div className="chart-resumen">
             <span><strong>{totalSemana}</strong> pedidos</span>
             <span><strong>{fmtMoneda(montoSemana)}</strong> en la semana</span>
@@ -132,7 +140,7 @@ export default function Inicio() {
 
       <Card withBorder radius="md" p="lg" mt="xl" className="card">
         <div className="card-header">
-          <h3>{txt('📦 Últimos pedidos')}</h3>
+          <h3><Package size={16} strokeWidth={1.75} style={{ verticalAlign: '-3px', marginRight: 7 }} />Últimos pedidos</h3>
           <div className="actions">
             <span className="text-muted text-xs">{pendientes} pendiente{pendientes === 1 ? '' : 's'}</span>
             <Link to="/pedidos" className="btn btn-sm">Ver todos</Link>

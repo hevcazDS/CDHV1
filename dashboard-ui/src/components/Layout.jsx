@@ -3,7 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AppShell, Accordion } from '@mantine/core';
 import { useAuth } from '../context/AuthContext';
-import { Emoji } from '../context/EmojiContext';
+import {
+  Home, ReceiptText, Package, Undo2, MessagesSquare, MessageCircle,
+  Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
+  RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
+  LifeBuoy, LogOut,
+} from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
 import ThemeSwitcher from './ThemeSwitcher';
@@ -13,37 +18,37 @@ import { tieneRango } from '../lib/roles';
 
 const GRUPOS = [
   { titulo: 'Operación diaria', enlaces: [
-    { to: '/', label: 'Inicio', icon: '🏠' },
-    { to: '/mostrador', label: 'Mostrador', icon: '🧾', moduloRequerido: 'pos_activo' },
-    { to: '/pedidos', label: 'Pedidos', icon: '📦' },
-    { to: '/devoluciones', label: 'Devoluciones', icon: '↩️' },
-    { to: '/cola', label: 'Cola de atención', icon: '🗨️' },
-    { to: '/notificaciones', label: 'Chat y mensajes', icon: '💬' },
+    { to: '/', label: 'Inicio', Icono: Home },
+    { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo' },
+    { to: '/pedidos', label: 'Pedidos', Icono: Package },
+    { to: '/devoluciones', label: 'Devoluciones', Icono: Undo2 },
+    { to: '/cola', label: 'Cola de atención', Icono: MessagesSquare },
+    { to: '/notificaciones', label: 'Chat y mensajes', Icono: MessageCircle },
   ]},
   { titulo: 'Envíos y logística', enlaces: [
-    { to: '/guias', label: 'Guías Estafeta', icon: '🚚', rolRequerido: 'gerente' },
-    { to: '/cola-envios', label: 'Cola de envíos', icon: '📨', rolRequerido: 'gerente' },
-    { to: '/lista-espera', label: 'Lista de Espera', icon: '🔔', rolRequerido: 'gerente' },
-    { to: '/preventas', label: 'Preventas', icon: '📅', rolRequerido: 'gerente' },
+    { to: '/guias', label: 'Guías Estafeta', Icono: Truck, rolRequerido: 'gerente' },
+    { to: '/cola-envios', label: 'Cola de envíos', Icono: Send, rolRequerido: 'gerente' },
+    { to: '/lista-espera', label: 'Lista de Espera', Icono: BellRing, rolRequerido: 'gerente' },
+    { to: '/preventas', label: 'Preventas', Icono: CalendarDays, rolRequerido: 'gerente' },
   ]},
   { titulo: 'Clientes y fidelidad', enlaces: [
-    { to: '/clientes', label: 'Clientes', icon: '👥' },
-    { to: '/ranking', label: 'Ranking', icon: '🏆' },
+    { to: '/clientes', label: 'Clientes', Icono: Users },
+    { to: '/ranking', label: 'Ranking', Icono: Trophy },
   ]},
   { titulo: 'Marketing', enlaces: [
-    { to: '/ofertas', label: 'Ofertas', icon: '🏷️', rolRequerido: 'gerente' },
-    { to: '/cupones', label: 'Cupones', icon: '🎟️', rolRequerido: 'gerente' },
+    { to: '/ofertas', label: 'Ofertas', Icono: Tag, rolRequerido: 'gerente' },
+    { to: '/cupones', label: 'Cupones', Icono: Ticket, rolRequerido: 'gerente' },
   ]},
   { titulo: 'Catálogo y datos', enlaces: [
-    { to: '/sustitutos', label: 'Relacionados', icon: '🔄', rolRequerido: 'gerente' },
-    { to: '/busquedas', label: 'Búsquedas', icon: '🔍', rolRequerido: 'gerente' },
-    { to: '/metricas', label: 'Métricas', icon: '📊', rolRequerido: 'gerente' },
-    { to: '/etiquetas', label: 'Etiquetas', icon: '🏷️', rolRequerido: 'gerente' },
+    { to: '/sustitutos', label: 'Relacionados', Icono: RefreshCw, rolRequerido: 'gerente' },
+    { to: '/busquedas', label: 'Búsquedas', Icono: Search, rolRequerido: 'gerente' },
+    { to: '/metricas', label: 'Métricas', Icono: BarChart3, rolRequerido: 'gerente' },
+    { to: '/etiquetas', label: 'Etiquetas', Icono: Tags, rolRequerido: 'gerente' },
   ]},
   { titulo: 'Sistema', enlaces: [
-    { to: '/modulos', label: 'Módulos', icon: '⚙️', rolRequerido: 'gerente' },
-    { to: '/prime', label: 'Gestión / Prime', icon: '⭐', rolRequerido: 'gerente' },
-    { to: '/beta', label: 'Beta / Pruebas', icon: '🧪', rolRequerido: 'prime' },
+    { to: '/modulos', label: 'Módulos', Icono: Settings, rolRequerido: 'gerente' },
+    { to: '/prime', label: 'Gestión / Prime', Icono: Star, rolRequerido: 'gerente' },
+    { to: '/beta', label: 'Beta / Pruebas', Icono: FlaskConical, rolRequerido: 'prime' },
   ]},
 ];
 
@@ -118,7 +123,7 @@ export default function Layout() {
                 <Accordion.Panel>
                   {g.enlaces.map(e => (
                     <NavLink key={e.to} to={e.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`} end={e.to === '/'}>
-                      <Emoji><span>{e.icon}</span> </Emoji>{e.label}
+                      <e.Icono size={16} strokeWidth={1.75} />{e.label}
                     </NavLink>
                   ))}
                 </Accordion.Panel>
@@ -127,7 +132,7 @@ export default function Layout() {
           </Accordion>
         </nav>
         <div className="sidebar-promo">
-          <div className="sidebar-promo-title">🛟 ¿Necesitas ayuda?</div>
+          <div className="sidebar-promo-title"><LifeBuoy size={15} strokeWidth={1.75} style={{ verticalAlign: '-2px', marginRight: 6 }} />¿Necesitas ayuda?</div>
           <div className="sidebar-promo-sub">Soporte y mejoras por {soporte?.nombre || 'Hevcaz Solutions'}</div>
           {waSoporte && (
             <a href={waSoporte} target="_blank" rel="noopener noreferrer" className="sidebar-promo-btn">Contactar soporte</a>
@@ -141,7 +146,7 @@ export default function Layout() {
               <span className="sidebar-user-rol">{user?.rol}</span>
             </div>
           </div>
-          <button className="btn" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={logout}>Cerrar sesión</button>
+          <button className="btn" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={logout}><LogOut size={14} strokeWidth={1.75} />Cerrar sesión</button>
         </div>
       </AppShell.Navbar>
 

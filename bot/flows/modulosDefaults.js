@@ -23,6 +23,9 @@ const DEFAULT_OFF = [
     'pos_activo',
     'facturacion_activo',
     'llm_activo',
+    // Look minimalista: el panel arranca sin emojis (iconos de línea);
+    // el toggle en Módulos permite reactivarlos por instancia.
+    'emojis_dashboard_activo',
 ];
 
 module.exports = { DEFAULT_OFF };

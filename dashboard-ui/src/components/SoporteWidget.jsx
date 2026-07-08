@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { LifeBuoy, X, MessageCircle, Mail } from 'lucide-react';
 import { api } from '../api';
 
 // Widget flotante de soporte del PROVEEDOR de software (Hevcaz Solutions).
@@ -24,14 +25,14 @@ export default function SoporteWidget() {
           background: 'var(--card, #1b1b2b)', border: '1px solid var(--border, #333)',
           borderRadius: 12, padding: 16, boxShadow: '0 8px 30px rgba(0,0,0,.45)',
         }}>
-          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>🛟 Soporte técnico</div>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}><LifeBuoy size={15} strokeWidth={1.75} />Soporte técnico</div>
           <div style={{ fontSize: 12, color: 'var(--text-mute, #99a)', marginBottom: 12 }}>
             ¿Algo no funciona? Escríbenos y te ayudamos (o nos conectamos en remoto).
           </div>
           {waUrl ? (
             <a href={waUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary"
                style={{ width: '100%', justifyContent: 'center', textDecoration: 'none', marginBottom: 8 }}>
-              💬 Contactar por WhatsApp
+              <MessageCircle size={15} strokeWidth={1.75} /> Contactar por WhatsApp
             </a>
           ) : (
             <div style={{ fontSize: 12, color: 'var(--text-mute,#99a)', marginBottom: 8 }}>
@@ -40,7 +41,7 @@ export default function SoporteWidget() {
           )}
           {info?.email && (
             <a href={`mailto:${info.email}`} className="btn" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none' }}>
-              ✉️ {info.email}
+              <Mail size={15} strokeWidth={1.75} /> {info.email}
             </a>
           )}
           <div style={{ fontSize: 10, color: 'var(--text-mute,#778)', textAlign: 'center', marginTop: 12 }}>
@@ -54,10 +55,11 @@ export default function SoporteWidget() {
         style={{
           position: 'fixed', bottom: 18, right: 18, zIndex: 1000,
           width: 52, height: 52, borderRadius: '50%', border: 'none', cursor: 'pointer',
-          background: 'var(--accent, #5b7cfa)', color: '#fff', fontSize: 22,
+          background: 'var(--accent, #5b7cfa)', color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 6px 20px rgba(0,0,0,.4)',
         }}>
-        {abierto ? '✕' : '🛟'}
+        {abierto ? <X size={22} strokeWidth={1.75} /> : <LifeBuoy size={22} strokeWidth={1.75} />}
       </button>
     </>
   );

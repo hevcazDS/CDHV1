@@ -31,7 +31,7 @@ export function EmojiProvider({ children }) {
     queryKey: EMOJIS_ACTIVO_QUERY_KEY,
     queryFn: () => api.get('/api/modulo/emojis_dashboard_activo'),
   });
-  const activo = typeof data?.activo === 'boolean' ? data.activo : true;
+  const activo = typeof data?.activo === 'boolean' ? data.activo : false;
 
   return <EmojiContext.Provider value={activo}>{children}</EmojiContext.Provider>;
 }
