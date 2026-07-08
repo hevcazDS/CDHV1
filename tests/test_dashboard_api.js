@@ -31,7 +31,8 @@ CREATE TABLE links_pago (id INTEGER PRIMARY KEY AUTOINCREMENT, id_pedido INTEGER
 CREATE TABLE guias_estafeta (id INTEGER PRIMARY KEY AUTOINCREMENT, id_pedido INTEGER, numero_guia TEXT, estatus TEXT,
     fecha_envio_est TEXT, fecha_entrega_est TEXT);
 CREATE TABLE clientes (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, telefono TEXT, email TEXT,
-    activo INTEGER DEFAULT 1, creado_en TEXT, ultima_actividad TEXT, codigo_referido TEXT, tags TEXT);
+    activo INTEGER DEFAULT 1, creado_en TEXT, ultima_actividad TEXT, codigo_referido TEXT, tags TEXT,
+    marketing_opt_out INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE cola_atencion (id INTEGER PRIMARY KEY AUTOINCREMENT, estatus TEXT NOT NULL DEFAULT 'en_espera');
 CREATE TABLE cola_emails (id INTEGER PRIMARY KEY AUTOINCREMENT, estatus TEXT NOT NULL DEFAULT 'pendiente');
 CREATE TABLE promociones (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT, tipo TEXT, valor REAL,
@@ -90,17 +91,17 @@ async function main() {
     const health = await fetch(BASE + '/health');
     ok(health.status === 200, 'GET /health no requiere sesión');
 
-    // ── 5b. /api/bot/qr — lo publica bot/index.js en `configuracion`, y es
-    // pública A PROPÓSITO: tiene que verse ANTES de loguearse al dashboard
-    // (App.jsx la usa para decidir si muestra el QR o la pantalla de login),
-    // así que se prueba explícitamente SIN cookie de sesión.
+    // ── 5b. /api/bot/qr — lo publica bot/index.js en `configuracion`. EXIGE
+    // sesión (contrato nuevo para despliegue en servidor): quien vea el QR
+    // puede vincular el WhatsApp del negocio a su teléfono, así que sin
+    // cookie debe responder 401. Flujo: login primero, QR después (App.jsx).
     const qrSinSesion = await fetch(BASE + '/api/bot/qr');
-    ok(qrSinSesion.status === 200, 'GET /api/bot/qr sin sesión -> 200 (pública a propósito, no 401)');
-    const qrVacio = await qrSinSesion.json();
-    ok(qrVacio.qr === null, 'GET /api/bot/qr sin QR pendiente devuelve null');
+    ok(qrSinSesion.status === 401, 'GET /api/bot/qr sin sesión -> 401 (ya no es pública)');
+    const qrVacio = await (await fetch(BASE + '/api/bot/qr', { headers: authHeaders })).json();
+    ok(qrVacio.qr === null, 'GET /api/bot/qr con sesión y sin QR pendiente devuelve null');
     db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('whatsapp_qr', 'dato-qr-de-prueba') ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run();
-    const qrConDato = await (await fetch(BASE + '/api/bot/qr')).json();
-    ok(qrConDato.qr === 'dato-qr-de-prueba', 'GET /api/bot/qr refleja el QR publicado por el bot, también sin sesión');
+    const qrConDato = await (await fetch(BASE + '/api/bot/qr', { headers: authHeaders })).json();
+    ok(qrConDato.qr === 'dato-qr-de-prueba', 'GET /api/bot/qr con sesión refleja el QR publicado por el bot');
 
     // ── 6. /api/stats agrega correctamente ───────────────────────────────
     const stats = await fetch(BASE + '/api/stats', { headers: authHeaders });

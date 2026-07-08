@@ -430,7 +430,9 @@ function construirAudienciaMasivo({ soloConPedido, excluirTags, soloTags, sinAct
     const _tagsExcluir = ['troll','blacklist','devolucion','queja'].concat(
         Array.isArray(excluirTags) ? excluirTags : []
     );
-    const _exclCond   = _tagsExcluir.map(() => "COALESCE(c.tags,'') NOT LIKE ?").join(' AND ');
+    // marketing_opt_out (comando BAJA, migración 0020): fuera de todo masivo
+    const _exclCond   = "COALESCE(c.marketing_opt_out,0)=0 AND " +
+        _tagsExcluir.map(() => "COALESCE(c.tags,'') NOT LIKE ?").join(' AND ');
     const _exclParams = _tagsExcluir.map(t => '%' + t + '%');
 
     let q, params;
@@ -587,13 +589,11 @@ function handleRequest(req, res) {
     const esRutaPublica = (u.pathname === '/api/login' && req.method === 'POST')
         || (u.pathname === '/api/logout' && req.method === 'POST')
         || (u.pathname === '/api/me' && req.method === 'GET')
-        // El QR de vinculación de WhatsApp tiene que verse ANTES de loguearse
-        // al dashboard — son dos cosas independientes (vincular el bot vs.
-        // entrar al panel) y exigir sesión aquí dejaba la pantalla de login
-        // como única opción al abrir Electron por primera vez, sin forma de
-        // llegar nunca al QR. Mismo criterio de confianza que /health y los
-        // estáticos: nadie sin acceso a esta máquina puede pegarle.
-        || (u.pathname === '/api/bot/qr' && req.method === 'GET')
+        // El QR de vinculación de WhatsApp EXIGE sesión (ya no es público):
+        // en servidor, quien alcance el puerto y vea el QR puede vincular el
+        // WhatsApp del negocio a su teléfono. Flujo: levantar dashboard →
+        // login (prime) → escanear QR → operar. App.jsx muestra el QR
+        // después del login.
         // Onboarding de primer arranque: una instancia recién clonada no tiene
         // sesión todavía. Se auto-bloquea por negocio_configurado dentro del
         // handler (POST responde 409 una vez configurado).

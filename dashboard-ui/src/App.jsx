@@ -38,15 +38,14 @@ const Prime = lazy(() => import('./pages/Prime'));
 
 export default function App() {
   const { user, cargando } = useAuth();
-  // Vincular WhatsApp y loguearse al dashboard son cosas independientes —
-  // antes el QR solo vivía dentro de Inicio, que nunca se monta sin sesión
-  // de dashboard, así que abrir Electron por primera vez (sin login todavía)
-  // no tenía ninguna forma de mostrarlo. Esta compuerta corre ANTES que la
-  // decisión de login, pero SOLO si todavía no hay sesión — si ya hay una
-  // sesión de dashboard abierta y WhatsApp se desvincula después, no se debe
-  // expulsar al operador a una pantalla completa: ese caso ya lo cubre el
-  // aviso dentro de Inicio.jsx, sin sacarlo de donde esté trabajando.
-  const { qr, qrListo } = useWhatsAppQR();
+  // Orden del primer arranque: login PRIMERO (el QR exige sesión — en
+  // servidor quien vea el QR puede vincular el WhatsApp del negocio), y si
+  // tras autenticarse hay un QR pendiente se muestra a pantalla completa
+  // solo esa primera vez (mostrarQR arranca en true y se apaga al escanear
+  // o al continuar). Si WhatsApp se desvincula después, el aviso dentro de
+  // Inicio.jsx lo cubre sin expulsar al operador de donde esté trabajando.
+  const { qr, qrListo } = useWhatsAppQR(!!user);
+  const [qrVisto, setQrVisto] = useState(false);
 
   // Estado de onboarding: una instancia recién clonada (negocio_configurado
   // ausente) muestra el alta desde cero ANTES del login. La de Julio Cepeda
@@ -56,16 +55,18 @@ export default function App() {
     api.get('/api/onboarding/estado').then(setOnb).catch(() => setOnb({ configurado: true }));
   }, []);
 
-  if (cargando || !qrListo || onb === undefined) return null;
+  if (cargando || onb === undefined) return null;
   if (!user && !onb.configurado) return <Onboarding estado={onb} />;
-  if (!user && qr) {
+  if (!user) return <Login />;
+  if (!qrListo) return null;
+  if (qr && !qrVisto) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
         <WhatsAppQR qr={qr} pantallaCompleta />
+        <button className="btn" onClick={() => setQrVisto(true)}>Continuar al panel sin vincular</button>
       </div>
     );
   }
-  if (!user) return <Login />;
 
   return (
     <Suspense fallback={<Center style={{ minHeight: '60vh' }}><Loader /></Center>}>

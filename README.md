@@ -108,9 +108,19 @@ docker compose logs -f app
 Notas de operación:
 
 - **El puerto 3001 solo escucha en 127.0.0.1 del host** (ver
-  `docker-compose.yml`). Para acceso remoto pon un reverse proxy con TLS
-  delante (ej. Caddy: `panel.midominio.com { reverse_proxy 127.0.0.1:3001 }`)
-  — la cookie de sesión ya va con `Secure` (`DASHBOARD_COOKIE_SECURE=true`).
+  `docker-compose.yml`). El acceso remoto es vía el **Caddy del servidor**
+  (TLS automático) — bloque mínimo en el Caddyfile:
+  `panel.midominio.com { reverse_proxy 127.0.0.1:3001 }`.
+  La cookie de sesión ya va con `Secure` (`DASHBOARD_COOKIE_SECURE=true`).
+- **Primer arranque**: 1) entra al panel y loguéate con el usuario prime,
+  2) tras el login aparece el QR de WhatsApp — escanéalo con el teléfono del
+  negocio (el QR exige sesión: nadie sin login puede vincular el número),
+  3) a partir de ahí cada quien entra con su usuario y ve solo los paneles
+  de su rol (usuario/gerente/prime).
+- **Gestionar la BD a mano**: la imagen trae el cliente `sqlite3` —
+  `docker compose exec app sqlite3 /data/jugueteria.db` (es la misma BD viva
+  del bot; SQLite en WAL aguanta lecturas concurrentes sin problema, evita
+  dejar transacciones de escritura abiertas).
 - **Persistencia**: `./data` (SQLite), volumen `wwebjs_auth` (sesión de
   WhatsApp — no se re-escanea el QR en cada deploy), `./imagenes_clientes`,
   `./logs`.

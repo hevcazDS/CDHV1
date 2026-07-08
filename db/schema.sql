@@ -229,7 +229,10 @@ CREATE TABLE IF NOT EXISTS clientes (
     -- referido (un solo uso, ver migrations/0012_referidos_descuento_usado.sql).
     codigo_referido   TEXT,
     referido_por_id   INTEGER REFERENCES clientes(id),
-    descuento_referido_usado INTEGER NOT NULL DEFAULT 0
+    descuento_referido_usado INTEGER NOT NULL DEFAULT 0,
+    -- opt-out de marketing (comando BAJA, migración 0020): 1 = no enviarle
+    -- promociones; los mensajes transaccionales no se ven afectados.
+    marketing_opt_out INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_codigo_referido ON clientes(codigo_referido);

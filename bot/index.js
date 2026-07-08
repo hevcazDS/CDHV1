@@ -547,6 +547,17 @@ function registrarContactoEntrante(telefono, textoPrimerMensaje) {
             try {
                 require('./handlers/referidosService').procesarReferidoSiAplica(info.lastInsertRowid, telefono, textoPrimerMensaje);
             } catch (e) { log.warn('Error procesando referido', e); }
+            // Aviso de privacidad de primer contacto (LFPDPPP): una sola vez,
+            // por la cola normal (auditada y con rate limit como todo lo demás).
+            try {
+                let _negocio = 'este negocio';
+                try { _negocio = _db.prepare("SELECT valor FROM configuracion WHERE clave='nombre_negocio'").get()?.valor || _negocio; } catch (_) {}
+                _db.prepare(
+                    "INSERT INTO cola_notificaciones (tipo, destinatario, asunto, cuerpo, estatus) VALUES ('whatsapp', ?, 'Aviso de privacidad', ?, 'pendiente')"
+                ).run(telefono,
+                    '🔒 ' + _negocio + ' usará tus datos solo para atender tus pedidos y enviarte promociones. ' +
+                    'Escribe *PRIVACIDAD* para ver el aviso completo o *BAJA* si no quieres recibir promociones.');
+            } catch (e) { log.warn('No se pudo encolar aviso de privacidad', e); }
         }
     } catch (e) { log.warn('Error registrando contacto entrante', e); }
 }

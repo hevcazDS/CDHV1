@@ -117,6 +117,28 @@ async function handleAction(userId, session, message, client) {
         }
     }
 
+    // ── Privacidad / opt-out de marketing (LFPDPPP) ────────────────
+    // Globales desde cualquier estado: BAJA apaga promociones (los mensajes
+    // de pedidos siguen), ALTA las reactiva, PRIVACIDAD muestra el aviso.
+    if (['baja', 'no molestar'].includes(action)) {
+        try { db.prepare('UPDATE clientes SET marketing_opt_out=1 WHERE telefono=?').run(tel); } catch (e) { log.warn('No se pudo registrar BAJA', e); }
+        return '✅ Listo, ya no te enviaremos promociones ni ofertas.\n\nSeguirás recibiendo los mensajes de tus pedidos (confirmaciones, envíos). Si cambias de opinión escribe *ALTA*.';
+    }
+    if (action === 'alta') {
+        try { db.prepare('UPDATE clientes SET marketing_opt_out=0 WHERE telefono=?').run(tel); } catch (e) { log.warn('No se pudo registrar ALTA', e); }
+        return '🎉 ¡Bienvenido de vuelta! Volverás a recibir nuestras promociones y ofertas.\n\nEscribe *hola* para ver el menú.';
+    }
+    if (['privacidad', 'aviso de privacidad'].includes(action)) {
+        const _negocio = (() => { try { return getValor('nombre_negocio', 'este negocio'); } catch (_) { return 'este negocio'; } })();
+        const _urlAviso = (() => { try { return getValor('aviso_privacidad_url', ''); } catch (_) { return ''; } })();
+        return '🔒 *Aviso de privacidad*\n\n' +
+            _negocio + ' usa tus datos (nombre, teléfono y dirección) únicamente para atender tus pedidos y, si no indicas lo contrario, enviarte promociones.\n\n' +
+            'No compartimos tus datos con terceros salvo lo necesario para entregar tu pedido (paquetería). Puedes ejercer tus derechos de acceso, rectificación, cancelación u oposición (ARCO) escribiendo aquí mismo con un asesor.\n\n' +
+            '• Escribe *BAJA* para dejar de recibir promociones.\n' +
+            '• Escribe *ASESOR* para cualquier solicitud sobre tus datos.' +
+            (_urlAviso ? '\n\nAviso completo: ' + _urlAviso : '');
+    }
+
     // Reset global
     if (['hola','inicio','menú','menu','0','salir'].includes(action)) {
         sessionManager.clearSession(userId);
