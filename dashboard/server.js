@@ -567,14 +567,12 @@ function handleRequest(req, res) {
         return res.end();
     }
 
-    // ── Rate limit por IP: 120 GET/min, 80 POST/min (uso interno dashboard) ──
-    // /api/login NO cuenta aquí -- ya tiene su propio candado por username
-    // (loginBloqueado, 5 intentos/15min) independiente de la IP, y antes
-    // compartía este mismo contador de 30 POST/min con el resto del panel,
-    // lo que producía 429 confusos con uso normal (varios toggles seguidos
-    // en Módulos, o alguien probando el candado de login a propósito).
+    // Rate limit solo para /api/* (los estáticos del bundle no cuentan — la
+    // SPA carga decenas de chunks y agotaba el contador de la API, dejando
+    // el panel en blanco). GET amplio: la SPA pollea QR/status/campana por
+    // diseño. /api/login tiene su propio candado por username (5/15min).
     const esLogin = u.pathname === '/api/login' && req.method === 'POST';
-    if (!esLogin && !rateLimit(req, res, req.method === 'POST' ? 80 : 120)) return;
+    if (u.pathname.startsWith('/api/') && !esLogin && !rateLimit(req, res, req.method === 'POST' ? 80 : 600)) return;
 
     // /health no requiere auth — para monitoreo externo
     if (req.method === 'GET' && u.pathname === '/health') {

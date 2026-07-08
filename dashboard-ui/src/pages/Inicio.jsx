@@ -32,7 +32,7 @@ function TrendChip({ hoy, ayer }) {
 
 export default function Inicio() {
   const txt = useTextoEmoji();
-  const { qr } = useWhatsAppQR();
+  const { qr } = useWhatsAppQR(true, 15000);
 
   const { data: pedidos, error } = useQuery({
     queryKey: ['pedidos'],
@@ -91,8 +91,8 @@ export default function Inicio() {
         </Card>
         <Card withBorder radius="md" p="lg" className="kpi-card">
           <Text size="sm" c="dimmed">{txt('🧾 Pedidos de hoy')}</Text>
-          <Text size="26px" fw={700}>{met?.pedidos?.hoy ?? stats?.pedidos_hoy ?? 0}</Text>
-          <TrendChip hoy={met?.pedidos?.hoy} ayer={met?.pedidos?.ayer} />
+          <Text size="26px" fw={700}>{met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0}</Text>
+          <TrendChip hoy={met?.pedidos?.hoy?.n} ayer={met?.pedidos?.ayer?.n} />
         </Card>
         <Card withBorder radius="md" p="lg" className="kpi-card">
           <Text size="sm" c="dimmed">{txt('🧑 Clientes activos')}</Text>

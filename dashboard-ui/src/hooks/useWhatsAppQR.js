@@ -5,7 +5,7 @@ import { api } from '../api';
 // en cada refresh), por eso el poll corto. El endpoint exige sesión.
 const QR_POLL_MS = 4000;
 
-export function useWhatsAppQR(activado = true) {
+export function useWhatsAppQR(activado = true, intervaloMs = QR_POLL_MS) {
   const [qr, setQr] = useState(null);
   const [listo, setListo] = useState(false);
 
@@ -16,9 +16,9 @@ export function useWhatsAppQR(activado = true) {
       .then(r => { if (activo) { setQr(r?.qr || null); setListo(true); } })
       .catch(() => { if (activo) setListo(true); });
     poll();
-    const id = setInterval(poll, QR_POLL_MS);
+    const id = setInterval(poll, intervaloMs);
     return () => { activo = false; clearInterval(id); };
-  }, [activado]);
+  }, [activado, intervaloMs]);
 
   return { qr, qrListo: listo };
 }

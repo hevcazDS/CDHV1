@@ -35,9 +35,10 @@ const Prime = lazy(() => import('./pages/Prime'));
 
 export default function App() {
   const { user, cargando } = useAuth();
-  // Login primero, QR después (el endpoint del QR exige sesión)
-  const { qr, qrListo } = useWhatsAppQR(!!user);
+  // Login primero, QR después (el endpoint del QR exige sesión). El poll
+  // se detiene al vincular o descartar; Inicio cubre desvinculaciones.
   const [qrVisto, setQrVisto] = useState(false);
+  const { qr, qrListo } = useWhatsAppQR(!!user && !qrVisto);
 
   const [onb, setOnb] = useState(undefined);
   useEffect(() => {
