@@ -41,11 +41,13 @@ function aplicar() {
             idsCli.push({ id: r.lastInsertRowid, nombre, tel });
         });
 
-        // 40 pedidos repartidos en 30 días, con pagos reales espaciados
+        // Mes completo: 1-4 pedidos POR DÍA (cobertura diaria para % y gráficas)
         let folioN = 1;
-        for (let i = 0; i < 40; i++) {
+        const plan = [];
+        for (let d = 0; d < 30; d++) for (let k = 0, n = entre(1, 4); k < n; k++) plan.push(d);
+        for (let i = 0; i < plan.length; i++) {
             const cli = rnd(idsCli);
-            const dias = entre(0, 29);
+            const dias = plan[i];
             const creado = fecha(dias, entre(10, 19));
             const total = entre(280, 2600);
             const estatus = i % 9 === 0 ? 'cancelado' : (i % 4 === 0 ? 'generado' : (i % 3 === 0 ? 'confirmado' : 'entregado'));
@@ -65,15 +67,18 @@ function aplicar() {
             }
         }
 
-        // Embudo: búsquedas → vistos → carrito → checkout → pagos + fallbacks
-        for (let i = 0; i < 60; i++) {
-            const cli = rnd(idsCli); const dias = entre(0, 29); const cuando = fecha(dias);
-            const q = rnd(BUSQUEDAS);
-            insertarEvento('busqueda', q, cli.tel, cuando);
-            if (i % 2 === 0) insertarEvento('producto_visto', q, cli.tel, cuando);
-            if (i % 3 === 0) insertarEvento('carrito_agregado', q, cli.tel, cuando);
-            if (i % 4 === 0) insertarEvento('checkout_iniciado', String(entre(300, 2000)), cli.tel, cuando);
-            if (i % 5 === 0) insertarEvento('pago_confirmado', String(entre(300, 2000)), cli.tel, cuando);
+        // Embudo DIARIO: búsquedas → vistos → carrito → checkout → pagos
+        for (let d = 0; d < 30; d++) {
+            const porDia = entre(3, 8);
+            for (let i = 0; i < porDia; i++) {
+                const cli = rnd(idsCli); const cuando = fecha(d);
+                const q = rnd(BUSQUEDAS);
+                insertarEvento('busqueda', q, cli.tel, cuando);
+                if (i % 2 === 0) insertarEvento('producto_visto', q, cli.tel, cuando);
+                if (i % 3 === 0) insertarEvento('carrito_agregado', q, cli.tel, cuando);
+                if (i % 4 === 0) insertarEvento('checkout_iniciado', String(entre(300, 2000)), cli.tel, cuando);
+                if (i % 5 === 0) insertarEvento('pago_confirmado', String(entre(300, 2000)), cli.tel, cuando);
+            }
         }
         ['¿tienen sillas para bebé?', 'factura porfa', '¿hacen envolturas?', 'quiero apartar', '¿abren domingo?']
             .forEach((txt, i) => insertarEvento('fallback', txt, TEL_BASE + (i % 8), fecha(entre(0, 10))));

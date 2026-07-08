@@ -449,6 +449,26 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 }
 .dot:hover { border-color: var(--accent); }
 .dot.activo { width: 22px; background: var(--accent); border-color: var(--accent); }
+
+/* Swap número ↔ porcentaje de los KPIs */
+.kpi-head { display: flex; justify-content: flex-end; gap: 4px; margin-bottom: 8px; }
+.swap-kpi {
+  border: 1px solid var(--border); background: var(--panel);
+  color: var(--text-mute); font-size: 11px; font-weight: 700;
+  border-radius: 999px; padding: 4px 12px; cursor: pointer;
+  font-family: var(--font-titulos);
+}
+.swap-kpi.activo { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* El contenido llena EXACTO el alto del viewport: sin franjas vacías ni
+   scroll de página en Inicio (dash de monitor); las páginas largas
+   scrollean DENTRO de .content, no en el body */
+.content { height: 100dvh; overflow: auto; display: flex; flex-direction: column; }
+.pagina-llena { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.pagina-llena .fila-2col { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+.pagina-llena .fila-2col .card { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.pagina-llena .chart-wrap { flex: 1; height: auto; min-height: 120px; }
+.pagina-llena .tabla-compacta { flex: 1; max-height: none; min-height: 0; overflow: auto; }
 /* Laptops de poca altura (1366×768): todo el Inicio en una pantalla */
 @media (max-height: 830px) {
   .page-title { font-size: 22px; }

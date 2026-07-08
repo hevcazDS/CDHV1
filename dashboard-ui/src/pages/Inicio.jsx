@@ -13,7 +13,6 @@ import { fdate } from '../lib/format';
 const MODOS_GRAFICA = [
   { value: 'barras', label: 'Barras' },
   { value: 'linea', label: 'Línea' },
-  { value: 'pct', label: 'Porcentaje del total' },
 ];
 
 // Lazy: recharts (~400 KB) llega después del primer render, no lo bloquea
@@ -44,8 +43,13 @@ function Kpi({ Icono, color, label, children }) {
 export default function Inicio() {
   const { user } = useAuth();
   const { qr } = useWhatsAppQR(true, 15000);
-  const [modoGrafica, setModoGrafica] = useState(() => localStorage.getItem('jc-grafica-inicio') || 'barras');
+  const [modoGrafica, setModoGrafica] = useState(() => {
+    const v = localStorage.getItem('jc-grafica-inicio');
+    return v === 'linea' ? 'linea' : 'barras';
+  });
   const cambiarModo = (m) => { setModoGrafica(m); localStorage.setItem('jc-grafica-inicio', m); };
+  // Swap de representación de los KPIs: número absoluto ↔ porcentaje
+  const [kpiPct, setKpiPct] = useState(false);
 
   const { data: pedidos, error } = useQuery({
     queryKey: ['pedidos'],
@@ -89,11 +93,37 @@ export default function Inicio() {
   // mensaje de distancia; motivo = qué palanca mover; conversión = salud
   // del embudo; recuperados = ROI de las campañas automáticas del bot)
   const mkt = stats?.marketing;
-  const conv = mkt?.busquedas_30d > 0 ? Math.round((mkt.pagos_30d / mkt.busquedas_30d) * 100) : null;
+  const conv = mkt?.busquedas_30d > 0 ? Math.round(((mkt.pagos_30d ?? 0) / mkt.busquedas_30d) * 100) : null;
   const MOTIVO_TXT = { precio: '→ mueve cupones/ofertas', envio: '→ baja el umbral de envío gratis', otro: '→ pregunta al cliente' };
 
+  // Modo %: hoy comparado contra el promedio diario de los últimos 30 días
+  // (o participación, donde el promedio no aplica)
+  const pctDe = (hoyV, total30) => (total30 > 0 ? Math.round((hoyV / (total30 / 30)) * 100) + '%' : '—');
+  const participacion = (parte, todo) => (todo > 0 ? Math.round((parte / todo) * 100) + '%' : '—');
+  const kpis = kpiPct ? {
+    ventas: pctDe(ventasHoy, met?.ingresos?.mes || 0),
+    ventasLabel: 'Ventas · % del prom. diario',
+    pedidos: pctDe(met?.pedidos?.hoy?.n ?? 0, met?.pedidos?.mes?.n || 0),
+    pedidosLabel: 'Pedidos · % del prom. diario',
+    chats: pctDe(stats?.chats_hoy ?? 0, stats?.chats_30d || 0),
+    chatsLabel: 'Chats · % del prom. diario',
+    clientes: participacion(stats?.clientes_nuevos_30d ?? 0, clientes),
+    clientesLabel: 'Clientes nuevos en 30d',
+    pagos: participacion(pagosPendientes, pagosPendientes + (stats?.pagos_pagados || 0)),
+    pagosLabel: 'Pagos aún por cobrar',
+    espera: participacion(colaAtencion, stats?.chats_hoy || 0),
+    esperaLabel: 'De los chats de hoy esperan',
+  } : {
+    ventas: fmtMoneda(ventasHoy), ventasLabel: 'Ventas cobradas hoy',
+    pedidos: met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0, pedidosLabel: 'Pedidos de hoy',
+    chats: stats?.chats_hoy ?? 0, chatsLabel: 'Chats nuevos hoy',
+    clientes, clientesLabel: 'Clientes activos',
+    pagos: pagosPendientes, pagosLabel: 'Pagos por cobrar',
+    espera: colaAtencion, esperaLabel: 'Esperando atención',
+  };
+
   return (
-    <div className="max-w-6xl">
+    <div className="pagina-llena">
       <div className="page-head">
         <div>
           <div className="page-title">¡Hola, {(user?.username || '').charAt(0).toUpperCase() + (user?.username || '').slice(1)}!</div>
@@ -107,26 +137,30 @@ export default function Inicio() {
       )}
       <WhatsAppQR qr={qr} />
 
-      {/* 6 KPIs cuadrados fijos — siempre una sola fila */}
+      {/* 6 KPIs cuadrados fijos — swap número/porcentaje arriba a la derecha */}
+      <div className="kpi-head">
+        <button className={`swap-kpi${kpiPct ? '' : ' activo'}`} onClick={() => setKpiPct(false)} title="Números absolutos">123</button>
+        <button className={`swap-kpi${kpiPct ? ' activo' : ''}`} onClick={() => setKpiPct(true)} title="Porcentajes (vs promedio diario 30d)">%</button>
+      </div>
       <div className="kpi-grid6">
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq kpi-dark">
-          <Kpi Icono={Wallet} color="rgba(255,255,255,0.95)" label="Ventas cobradas hoy">{fmtMoneda(ventasHoy)}</Kpi>
+          <Kpi Icono={Wallet} color="rgba(255,255,255,0.95)" label={kpis.ventasLabel}>{kpis.ventas}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
-          <Kpi Icono={ReceiptText} color="#4aa8ff" label="Pedidos de hoy">{met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0}</Kpi>
+          <Kpi Icono={ReceiptText} color="#4aa8ff" label={kpis.pedidosLabel}>{kpis.pedidos}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
-          <Kpi Icono={MessageCircle} color="var(--accent)" label="Chats nuevos hoy">{stats?.chats_hoy ?? 0}</Kpi>
+          <Kpi Icono={MessageCircle} color="var(--accent)" label={kpis.chatsLabel}>{kpis.chats}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
-          <Kpi Icono={Users} color="var(--green)" label="Clientes activos">{clientes}</Kpi>
+          <Kpi Icono={Users} color="var(--green)" label={kpis.clientesLabel}>{kpis.clientes}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
-          <Kpi Icono={CreditCard} color="#b16cea" label="Pagos por cobrar">{pagosPendientes}</Kpi>
+          <Kpi Icono={CreditCard} color="#b16cea" label={kpis.pagosLabel}>{kpis.pagos}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" component={Link} to="/cola"
           className="kpi-sq kpi-card kpi-clic" style={colaAtencion > 0 ? { borderColor: 'var(--red)' } : undefined}>
-          <Kpi Icono={Headset} color={colaAtencion > 0 ? 'var(--red)' : 'var(--text-mute)'} label="Esperando atención">{colaAtencion}</Kpi>
+          <Kpi Icono={Headset} color={colaAtencion > 0 ? 'var(--red)' : 'var(--text-mute)'} label={kpis.esperaLabel}>{kpis.espera}</Kpi>
         </Card>
       </div>
 

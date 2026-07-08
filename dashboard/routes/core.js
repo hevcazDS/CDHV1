@@ -130,6 +130,8 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
             // operador tuviera forma de notarlo desde el dashboard.
             emails_error: db.prepare("SELECT COUNT(*) c FROM cola_emails WHERE estatus='error'").get()?.c || 0,
             chats_hoy: (() => { try { return db.prepare("SELECT COUNT(*) c FROM chats_iniciados WHERE fecha=date('now','localtime')").get()?.c || 0; } catch (_) { return 0; } })(),
+            chats_30d: (() => { try { return db.prepare("SELECT COUNT(*) c FROM chats_iniciados WHERE fecha >= date('now','-30 days','localtime')").get()?.c || 0; } catch (_) { return 0; } })(),
+            clientes_nuevos_30d: db.prepare("SELECT COUNT(*) c FROM clientes WHERE activo=1 AND datetime(creado_en) >= datetime('now','-30 days','localtime')").get()?.c || 0,
         };
         // Bloque marketing (fila de Inicio): carritos abandonados = venta
         // recuperable; motivo dominante = qué palanca mover; conversión =

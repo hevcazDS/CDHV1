@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, BarChart, Bar,
 } from 'recharts';
 import { Card, Group, Title, ActionIcon, Button, Text, RingProgress } from '@mantine/core';
@@ -11,7 +11,6 @@ import { fmt } from '../lib/format';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 const ESTILOS_CHART = [
-  { value: 'area', label: 'Área' },
   { value: 'linea', label: 'Línea' },
   { value: 'barras', label: 'Barras' },
 ];
@@ -27,7 +26,10 @@ export default function Metricas() {
   const txt = useTextoEmoji();
   const [reporteMsg, setReporteMsg] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [chartTipo, setChartTipo] = useState(() => localStorage.getItem(CHART_TIPO_KEY) || 'area');
+  const [chartTipo, setChartTipo] = useState(() => {
+    const v = localStorage.getItem(CHART_TIPO_KEY);
+    return v === 'linea' || v === 'barras' ? v : 'linea';
+  });
   const cambiarChartTipo = (v) => { setChartTipo(v); localStorage.setItem(CHART_TIPO_KEY, v); };
 
   const { data: d, refetch: refetchMetricas } = useQuery({
@@ -90,7 +92,7 @@ export default function Metricas() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <RingProgress
               size={72} thickness={7} roundCaps rootColor="var(--panel-2)"
-              sections={[{ value: d?.csat?.promedio ? (d.csat.promedio / 5) * 100 : 0, color: 'var(--green)' }]}
+              sections={[{ value: d?.csat?.promedio ? Math.min(100, (d.csat.promedio / 5) * 100) : 0, color: 'var(--green)' }]}
               label={<Text ta="center" size="sm" fw={700}>{d?.csat?.promedio ? Math.round((d.csat.promedio / 5) * 100) + '%' : '—'}</Text>}
             />
             <Text size="xs" c="dimmed">{d?.csat?.n || 0} valoracion{(d?.csat?.n || 0) === 1 ? '' : 'es'}</Text>
@@ -146,7 +148,7 @@ export default function Metricas() {
                     />
                     <Line type="monotone" dataKey="t" stroke={C_ACCENT} strokeWidth={2} dot={{ r: 3, fill: C_ACCENT }} />
                   </LineChart>
-                ) : chartTipo === 'barras' ? (
+                ) : (
                   <BarChart data={dias.map(dd => ({ ...dd, diaCorto: (dd.dia || '').slice(5) }))}>
                     <CartesianGrid stroke={C_GRID} vertical={false} />
                     <XAxis dataKey="diaCorto" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} />
@@ -158,24 +160,6 @@ export default function Metricas() {
                     />
                     <Bar dataKey="t" fill={C_ACCENT} radius={[4, 4, 0, 0]} />
                   </BarChart>
-                ) : (
-                  <AreaChart data={dias.map(dd => ({ ...dd, diaCorto: (dd.dia || '').slice(5) }))}>
-                    <defs>
-                      <linearGradient id="gradPedidos" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={C_ACCENT} stopOpacity={0.45} />
-                        <stop offset="100%" stopColor={C_ACCENT} stopOpacity={0.03} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke={C_GRID} vertical={false} />
-                    <XAxis dataKey="diaCorto" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} />
-                    <YAxis stroke={C_DIM} fontSize={11} tickLine={false} axisLine={false} width={32} />
-                    <Tooltip
-                      contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 8, fontSize: 12 }}
-                      labelStyle={{ color: '#fff' }}
-                      formatter={(value, name) => [name === 't' ? `$${fmt(value)}` : value, name === 't' ? 'Monto' : 'Pedidos']}
-                    />
-                    <Area type="monotone" dataKey="t" stroke={C_ACCENT} fill="url(#gradPedidos)" strokeWidth={2} />
-                  </AreaChart>
                 )}
               </ResponsiveContainer>
             )}
