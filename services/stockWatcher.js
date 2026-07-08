@@ -30,9 +30,7 @@ function _valorConfig(clave, fallback) {
 // conversión real por campaña (ver /api/metricas/campanas) — si la columna
 // todavía no existe en producción, cae al INSERT sin ella y el envío de
 // WhatsApp sigue funcionando igual.
-// Campañas de MARKETING (no transaccionales): respetan clientes.marketing_opt_out
-// (comando BAJA en el bot, migración 0020). Todo lo demás (CSAT, seguimiento,
-// preventa, alertas al asesor) se envía siempre.
+// Solo campañas de marketing respetan el opt-out; transaccionales salen siempre
 const _CAMPANAS_MARKETING = new Set([
     'carrito_abandonado_2h', 'carrito_abandonado_24h',
     'oferta_por_vencer', 'oferta_por_vencer_24h',
@@ -41,7 +39,7 @@ const _CAMPANAS_MARKETING = new Set([
 function _optOutMarketing(tel) {
     try {
         return !!db.prepare('SELECT 1 FROM clientes WHERE telefono=? AND marketing_opt_out=1').get(tel);
-    } catch (_) { return false; } // columna aún no migrada → no bloquear
+    } catch (_) { return false; }
 }
 
 function _insertCola(tel, asunto, cuerpo, campana) {

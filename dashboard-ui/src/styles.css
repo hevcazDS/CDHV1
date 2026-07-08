@@ -1,7 +1,9 @@
+/* Tailwind solo con utilities (sin preflight: el reset pisaría Mantine) */
+@layer theme, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
 :root {
-  /* Paleta oscura — también el valor por default antes de que Mantine
-     monte y fije data-mantine-color-scheme en <html> (evita un flash con
-     colores distintos a los de siempre). */
   --bg:        #0b0f17;
   --bg-soft:   #11161f;
   --panel:     #161c28;
@@ -22,12 +24,7 @@
   font-family: 'Inter', -apple-system, 'Segoe UI', system-ui, Roboto, sans-serif;
 }
 
-/* Tema claro. Las 20 páginas siguen usando estas variables (no Mantine)
-   para su CSS, por eso el cambio de tema repinta todo el panel y no solo
-   los componentes nuevos. */
-/* Paleta clara minimalista (referencia visual del cliente: lienzo gris
-   claro, tarjetas blancas, acento monocromo oscuro — los botones primarios
-   y la tarjeta KPI principal salen oscuros, no azules). Es el tema DEFAULT. */
+/* Tema claro minimalista (default; referencia visual del cliente) */
 [data-mantine-color-scheme="light"] {
   --bg:        #eceef1;
   --bg-soft:   #ffffff;
@@ -45,20 +42,13 @@
   --red:       #d23652;
   --shadow:    0 1px 2px rgba(16,17,20,0.05), 0 10px 28px rgba(16,17,20,0.07);
 }
-/* En claro las tarjetas flotan con sombra sutil sobre el lienzo gris (en
-   oscuro el borde solo basta y la sombra ensuciaba). */
 [data-mantine-color-scheme="light"] .card,
 [data-mantine-color-scheme="light"] .kpi-card {
   box-shadow: 0 1px 2px rgba(16,17,20,0.04), 0 6px 18px rgba(16,17,20,0.05);
 }
 
-/* Tema "Confort" — tercera opción del selector de tema (ThemeSwitcher.jsx),
-   pedida explícitamente por el operador porque el oscuro de siempre (negro
-   casi puro + texto casi blanco) cansaba la vista en sesiones largas. No es
-   un tercer `colorScheme` de Mantine (solo soporta light/dark) -- es este
-   atributo aparte en <html>, aplicado SIEMPRE sobre la base oscura (grises
-   cálidos de bajo contraste en vez de negro puro, acento ámbar en vez de
-   azul saturado). */
+/* Tema "Confort": oscuro de bajo contraste vía data-confort (no es un
+   colorScheme de Mantine — Mantine solo soporta light/dark) */
 [data-confort="on"] {
   --bg:        #2b2825;
   --bg-soft:   #332f2b;
@@ -89,10 +79,7 @@ body {
 
 a { color: var(--accent); text-decoration: none; }
 
-button {
-  font-family: inherit;
-  cursor: pointer;
-}
+button { font-family: inherit; cursor: pointer; }
 
 input, select, textarea {
   font-family: inherit;
@@ -135,7 +122,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 24px;
 }
 
 .badge {
@@ -197,12 +184,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 }
 
 /* ── Layout ────────────────────────────────────────────────────────── */
-/* El ancho real del navbar lo fija únicamente el prop `navbar={{width}}`
-   de Mantine AppShell (Layout.jsx) — declararlo también aquí duplicaba la
-   fuente de verdad y, según la doc oficial de AppShell, puede desalinear
-   el offset que Mantine calcula para AppShell.Main si alguna vez divergen
-   (causa documentada de huecos/solapamientos entre navbar y main). Esta
-   clase solo controla el contenido INTERNO del navbar, nunca su ancho. */
+/* El ancho del navbar lo fija el prop navbar={{width}} de AppShell —
+   declararlo también aquí desalinearía el offset que Mantine calcula. */
 .sidebar {
   background: var(--bg-soft);
   border-right: 1px solid var(--border);
@@ -239,7 +222,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .sidebar-user-name { font-weight: 700; color: var(--text); font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-user-rol { font-size: 11px; color: var(--text-mute); text-transform: capitalize; }
 
-/* Tarjeta oscura del proveedor en el sidebar (referencia: "Upgrade to Pro") */
 .sidebar-promo {
   background: linear-gradient(150deg, #26282d, #131417);
   border-radius: var(--radius-lg);
@@ -259,7 +241,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 }
 .sidebar-promo-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
 
-/* Avatar con iniciales (topbar y pie del sidebar) */
 .avatar-chip {
   width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
@@ -280,21 +261,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .topbar-left { font-size: 17px; font-weight: 700; color: var(--text); }
 .topbar-right { display: flex; align-items: center; gap: 16px; }
 
-/* Sin padding aquí a propósito: el prop `padding` de AppShell (Layout.jsx)
-   ya lo agrega, sumado al offset del navbar, vía padding-inline-start
-   calculado por Mantine. Un `padding: 28px` plano en esta clase pisaba
-   ese cálculo (misma especificidad, cargado después del CSS de Mantine)
-   y dejaba el contenido sin el espacio reservado para el sidebar — causa
-   real de que la tabla se viera "debajo" del sidebar en vez de a su lado. */
+/* Sin padding: el prop padding de AppShell ya lo suma al offset del navbar;
+   un padding plano aquí lo pisaría (causa real de solapamiento pasado). */
 .content { overflow: auto; }
 
-/* (badge de Hevcaz Solutions removido del header — ahora vive solo en el
-   widget flotante de soporte, ver components/SoporteWidget.jsx) */
-
 /* ── Bot status widget ────────────────────────────────────────────── */
-.bot-status {
-  position: relative;
-}
+.bot-status { position: relative; }
 .bot-status-pill {
   display: flex;
   align-items: center;
@@ -344,7 +316,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .bot-history-item { font-size: 12px; color: var(--text-dim); display: flex; justify-content: space-between; gap: 8px; }
 .bot-history-item .estatus { color: var(--text); font-weight: 600; }
 
-/* ── Página inicio ────────────────────────────────────────────────── */
+/* ── Páginas ──────────────────────────────────────────────────────── */
 .page-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
 .page-sub { color: var(--text-dim); font-size: 14px; margin-bottom: 24px; }
 .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
@@ -356,37 +328,16 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   text-transform: capitalize;
 }
 
-/* Gráfica de barras CSS (Inicio) — barras oscuras redondeadas, la más alta
-   resaltada, como la referencia; sin librería de charts. */
-.chart-resumen { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-dim); }
-.chart-resumen strong { color: var(--text); }
-.bars { display: flex; align-items: flex-end; gap: 14px; height: 170px; padding-top: 8px; }
-.bars-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; min-width: 0; }
-.bars-n { font-size: 11px; font-weight: 700; color: var(--text-dim); }
-.bars-bar {
-  width: 100%; max-width: 46px;
-  background: var(--panel-2);
-  border-radius: 10px 10px 6px 6px;
-  transition: height .3s ease;
-}
-.bars-bar.top { background: linear-gradient(180deg, #2b2d33, #131417); }
-[data-mantine-color-scheme="dark"] .bars-bar { background: var(--panel-2); }
-[data-mantine-color-scheme="dark"] .bars-bar.top { background: linear-gradient(180deg, var(--accent), var(--accent-2)); }
-.bars-label { font-size: 11px; color: var(--text-mute); text-transform: capitalize; }
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
 .kpi-card { display: flex; flex-direction: column; gap: 6px; }
 .kpi-label { font-size: 13px; color: var(--text-dim); }
 .kpi-value { font-size: 26px; font-weight: 700; }
-/* Tarjeta KPI de acento (la métrica estrella — "Ventas cobradas hoy"):
-   oscura sobre el lienzo claro, como la tarjeta "Total Revenue" de la
-   referencia visual. En tema oscuro simplemente invierte un poco más. */
 .kpi-dark {
   background: linear-gradient(150deg, #26282d, #131417) !important;
   border-color: transparent !important;
 }
 .kpi-dark, .kpi-dark * { color: #fff !important; }
 .kpi-dark .kpi-chip { background: rgba(255,255,255,0.14); }
-/* Chip/pill de detalle dentro de un KPI ("3 pagos confirmados", etc.) */
 .kpi-chip {
   display: inline-flex;
   align-items: center;
@@ -404,6 +355,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .kpi-chip.rojo  { background: rgba(210,54,82,0.12); color: var(--red); }
 a.kpi-chip { text-decoration: none; }
 
+.chart-resumen { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-dim); }
+.chart-resumen strong { color: var(--text); }
+
 /* ── Tablas ────────────────────────────────────────────────────────── */
 .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
 .card-header h3 { margin: 0; font-size: 15px; }
@@ -418,7 +372,6 @@ tr:last-child td { border-bottom: none; }
 .empty { text-align: center; color: var(--text-mute); padding: 28px !important; }
 .text-muted { color: var(--text-mute); }
 
-/* ── Badges de estatus (colores semánticos genéricos) ─────────────── */
 .badge-verde    { background: rgba(54,211,153,0.15); color: var(--green); }
 .badge-amarillo { background: rgba(251,189,35,0.15); color: var(--yellow); }
 .badge-rojo     { background: rgba(244,86,108,0.15); color: var(--red); }

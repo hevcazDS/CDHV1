@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Card, Text } from '@mantine/core';
@@ -7,8 +8,9 @@ import WhatsAppQR from '../components/WhatsAppQR';
 import { fdate } from '../lib/format';
 import { useTextoEmoji } from '../context/EmojiContext';
 
-// Colores de pill por estatus de pedido (verde=cerrado bien, rojo=cancelado,
-// azul=en curso) — mismo lenguaje visual que components/Badge.jsx.
+// Lazy: recharts (~400 KB) llega después del primer render, no lo bloquea
+const GraficaSemana = lazy(() => import('../components/GraficaSemana'));
+
 function pillEstatus(estatus) {
   const e = (estatus || '').toLowerCase();
   if (e === 'entregado' || e === 'pagado') return 'badge badge-verde';
@@ -16,7 +18,6 @@ function pillEstatus(estatus) {
   return 'badge badge-azul';
 }
 
-// Chip de tendencia hoy-vs-ayer (dato real de /api/metricas, no decorado).
 function TrendChip({ hoy, ayer }) {
   if (ayer === undefined || hoy === undefined) return null;
   if (ayer === 0 && hoy === 0) return null;
@@ -31,8 +32,6 @@ function TrendChip({ hoy, ayer }) {
 
 export default function Inicio() {
   const txt = useTextoEmoji();
-  // Ya hubo login; si WhatsApp se desvincula después, este aviso lo cubre
-  // (App.jsx solo cubre el primer arranque tras el login).
   const { qr } = useWhatsAppQR();
 
   const { data: pedidos, error } = useQuery({
@@ -43,9 +42,6 @@ export default function Inicio() {
     queryKey: ['stats'],
     queryFn: () => api.get('/api/stats'),
   });
-  // hoy-vs-ayer y pedidos por día (gráfica) — mismo endpoint que Métricas,
-  // pero aquí dibujado con barras CSS para no arrastrar recharts (~434 KB)
-  // al chunk de la página de inicio.
   const { data: met } = useQuery({
     queryKey: ['metricas'],
     queryFn: () => api.get('/api/metricas'),
@@ -62,8 +58,7 @@ export default function Inicio() {
   const fmtMoneda = (n) => '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const hoyLargo = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-  // Gráfica: los últimos 7 días completos (rellena los días sin pedidos con 0
-  // para que la semana siempre tenga 7 barras, como en la referencia).
+  // Rellena con 0 los días sin pedidos: la semana siempre son 7 barras
   const porDia = met?.por_dia || [];
   const dias = [...Array(7)].map((_, i) => {
     const d = new Date(Date.now() - (6 - i) * 86400000);
@@ -71,14 +66,13 @@ export default function Inicio() {
     const row = porDia.find(r => r.dia === iso);
     return { dia: iso, label: d.toLocaleDateString('es-MX', { weekday: 'short' }), n: row?.n || 0, t: row?.t || 0 };
   });
-  const maxN = Math.max(1, ...dias.map(d => d.n));
   const totalSemana = dias.reduce((s, d) => s + d.n, 0);
   const montoSemana = dias.reduce((s, d) => s + d.t, 0);
 
   const ultimos = (pedidos || []).slice(0, 8);
 
   return (
-    <div>
+    <div className="max-w-6xl">
       <div className="page-head">
         <div>
           <div className="page-title">Inicio</div>
@@ -86,10 +80,9 @@ export default function Inicio() {
         </div>
         <span className="date-chip">{txt('📅 ')}{hoyLargo}</span>
       </div>
-      {error && <div className="login-error" style={{ marginBottom: 20 }}>No se pudieron cargar los pedidos: {error.message}</div>}
+      {error && <div className="login-error mb-5">No se pudieron cargar los pedidos: {error.message}</div>}
       <WhatsAppQR qr={qr} />
 
-      {/* KPIs de hoy — la métrica estrella va en la tarjeta oscura de acento */}
       <div className="kpi-grid">
         <Card withBorder radius="md" p="lg" className="kpi-card kpi-dark">
           <Text size="sm" c="dimmed">{txt('💵 Ventas cobradas hoy')}</Text>
@@ -124,8 +117,7 @@ export default function Inicio() {
         )}
       </div>
 
-      {/* Gráfica de la semana — barras CSS, sin dependencia de charts */}
-      <Card withBorder radius="md" p="lg" mt="lg" className="card">
+      <Card withBorder radius="md" p="lg" mt="xl" className="card">
         <div className="card-header">
           <h3>{txt('📈 Pedidos últimos 7 días')}</h3>
           <div className="chart-resumen">
@@ -133,23 +125,16 @@ export default function Inicio() {
             <span><strong>{fmtMoneda(montoSemana)}</strong> en la semana</span>
           </div>
         </div>
-        <div className="bars">
-          {dias.map(d => (
-            <div className="bars-col" key={d.dia} title={`${d.dia}: ${d.n} pedido${d.n === 1 ? '' : 's'} · ${fmtMoneda(d.t)}`}>
-              <span className="bars-n">{d.n > 0 ? d.n : ''}</span>
-              <div className={`bars-bar${d.n === maxN && d.n > 0 ? ' top' : ''}`} style={{ height: `${Math.max(4, (d.n / maxN) * 100)}%` }} />
-              <span className="bars-label">{d.label}</span>
-            </div>
-          ))}
-        </div>
+        <Suspense fallback={<div className="empty">Cargando gráfica...</div>}>
+          <GraficaSemana dias={dias} fmtMoneda={fmtMoneda} />
+        </Suspense>
       </Card>
 
-      {/* Últimos pedidos — tabla con pills de estatus, como la referencia */}
-      <Card withBorder radius="md" p="lg" mt="lg" className="card">
+      <Card withBorder radius="md" p="lg" mt="xl" className="card">
         <div className="card-header">
           <h3>{txt('📦 Últimos pedidos')}</h3>
           <div className="actions">
-            <span className="text-muted" style={{ fontSize: 12 }}>{pendientes} pendiente{pendientes === 1 ? '' : 's'}</span>
+            <span className="text-muted text-xs">{pendientes} pendiente{pendientes === 1 ? '' : 's'}</span>
             <Link to="/pedidos" className="btn btn-sm">Ver todos</Link>
           </div>
         </div>
@@ -164,7 +149,7 @@ export default function Inicio() {
                   <td><strong>{p.folio}</strong></td>
                   <td>{p.cliente || '-'}</td>
                   <td><span className={pillEstatus(p.estatus)}>{p.estatus}</span></td>
-                  <td className="text-muted" style={{ fontSize: 12 }}>{fdate(p.creado_en)}</td>
+                  <td className="text-muted text-xs">{fdate(p.creado_en)}</td>
                 </tr>
               ))}
             </tbody>

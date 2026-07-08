@@ -10,10 +10,7 @@ import Login from './components/Login';
 import Onboarding from './components/Onboarding';
 import Layout from './components/Layout';
 
-// Páginas en carga diferida (code-splitting): cada una se descarga como su
-// propio chunk al navegar, en vez de meterlas todas en el bundle inicial
-// (antes ~1.1 MB en un solo archivo). El shell (Login/Onboarding/Layout)
-// sigue siendo eager porque se necesita de inmediato.
+// Páginas lazy (code-splitting); el shell Login/Onboarding/Layout es eager
 const Inicio = lazy(() => import('./pages/Inicio'));
 const Pedidos = lazy(() => import('./pages/Pedidos'));
 const Devoluciones = lazy(() => import('./pages/Devoluciones'));
@@ -38,18 +35,10 @@ const Prime = lazy(() => import('./pages/Prime'));
 
 export default function App() {
   const { user, cargando } = useAuth();
-  // Orden del primer arranque: login PRIMERO (el QR exige sesión — en
-  // servidor quien vea el QR puede vincular el WhatsApp del negocio), y si
-  // tras autenticarse hay un QR pendiente se muestra a pantalla completa
-  // solo esa primera vez (mostrarQR arranca en true y se apaga al escanear
-  // o al continuar). Si WhatsApp se desvincula después, el aviso dentro de
-  // Inicio.jsx lo cubre sin expulsar al operador de donde esté trabajando.
+  // Login primero, QR después (el endpoint del QR exige sesión)
   const { qr, qrListo } = useWhatsAppQR(!!user);
   const [qrVisto, setQrVisto] = useState(false);
 
-  // Estado de onboarding: una instancia recién clonada (negocio_configurado
-  // ausente) muestra el alta desde cero ANTES del login. La de Julio Cepeda
-  // ya quedó configurada por la migración 0014, así que esto es transparente.
   const [onb, setOnb] = useState(undefined);
   useEffect(() => {
     api.get('/api/onboarding/estado').then(setOnb).catch(() => setOnb({ configurado: true }));

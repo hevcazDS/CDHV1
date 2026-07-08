@@ -539,16 +539,11 @@ function registrarContactoEntrante(telefono, textoPrimerMensaje) {
         const existe = _db.prepare('SELECT id FROM clientes WHERE telefono=?').get(telefono);
         if (!existe) {
             const info = _db.prepare("INSERT INTO clientes (nombre,telefono,canal_origen,activo) VALUES (NULL,?,'whatsapp',1)").run(telefono);
-            // Programa de referidos: este es el momento exacto de "cliente nuevo,
-            // primer contacto, sin compra" — si el primer mensaje trae el código
-            // de un referente, aquí solo se VINCULA (clientes.referido_por_id).
-            // El código propio y los puntos del referente se otorgan después,
-            // en su primera compra finalizada (ver otorgarPuntosPorPrimeraCompra).
+            // Referidos: aquí solo se vincula; los puntos van en la primera compra
             try {
                 require('./handlers/referidosService').procesarReferidoSiAplica(info.lastInsertRowid, telefono, textoPrimerMensaje);
             } catch (e) { log.warn('Error procesando referido', e); }
-            // Aviso de privacidad de primer contacto (LFPDPPP): una sola vez,
-            // por la cola normal (auditada y con rate limit como todo lo demás).
+            // Aviso de privacidad de primer contacto (LFPDPPP), una sola vez
             try {
                 let _negocio = 'este negocio';
                 try { _negocio = _db.prepare("SELECT valor FROM configuracion WHERE clave='nombre_negocio'").get()?.valor || _negocio; } catch (_) {}

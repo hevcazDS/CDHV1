@@ -11,9 +11,6 @@ import NotificationBell from './NotificationBell';
 import SoporteWidget from './SoporteWidget';
 import { tieneRango } from '../lib/roles';
 
-// Antes era una sola lista plana de 20 enlaces — para un solo operador
-// humano eso ya era carga cognitiva alta (hallazgo del comité de diseño/UX).
-// Agrupado por área de trabajo, sin tocar rutas ni nada del backend.
 const GRUPOS = [
   { titulo: 'Operación diaria', enlaces: [
     { to: '/', label: 'Inicio', icon: '🏠' },
@@ -21,10 +18,7 @@ const GRUPOS = [
     { to: '/pedidos', label: 'Pedidos', icon: '📦' },
     { to: '/devoluciones', label: 'Devoluciones', icon: '↩️' },
     { to: '/cola', label: 'Cola de atención', icon: '🗨️' },
-    // Antes vivía en "Marketing" (era solo broadcast) -- ahora es el centro
-    // de chat en vivo con clientes escalados (ver Notificaciones.jsx), así
-    // que pasa a este grupo junto con el resto de la operación diaria.
-    { to: '/notificaciones', label: 'Operación diaria', icon: '💬' },
+    { to: '/notificaciones', label: 'Chat y mensajes', icon: '💬' },
   ]},
   { titulo: 'Envíos y logística', enlaces: [
     { to: '/guias', label: 'Guías Estafeta', icon: '🚚', rolRequerido: 'gerente' },
@@ -53,9 +47,6 @@ const GRUPOS = [
   ]},
 ];
 
-// Mantine Accordion estilizado para verse como las secciones de siempre
-// (título compacto en mayúsculas) en vez del look "card" por default —
-// solo cambia el contenedor, no los enlaces de adentro.
 const ACCORDION_STYLES = {
   item: { border: 'none', background: 'transparent' },
   control: { padding: '10px 8px', minWidth: 0 },
@@ -71,32 +62,24 @@ const ACCORDION_STYLES = {
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
-  // Módulos opcionales que ocultan un enlace si están apagados (ej. POS).
   const { data: posActivo } = useQuery({
     queryKey: ['modulo', 'pos_activo'],
     queryFn: () => api.get('/api/modulo/pos_activo').then(r => !!r.activo).catch(() => false),
   });
   const modulosActivos = { pos_activo: posActivo };
-  // Filtro por RANGO (no match exacto): un enlace con rolRequerido='gerente'
-  // lo ven gerente y prime; uno con 'prime' solo prime. Además, un enlace con
-  // moduloRequerido solo aparece si ese módulo está activo.
+  // rolRequerido es rango mínimo, no match exacto
   const grupos = GRUPOS
     .map(g => ({ ...g, enlaces: g.enlaces.filter(e =>
       (!e.rolRequerido || tieneRango(user?.rol, e.rolRequerido)) &&
       (!e.moduloRequerido || modulosActivos[e.moduloRequerido])
     ) }))
     .filter(g => g.enlaces.length > 0);
-  // Nombre del negocio editable desde Prime (revendible a otra juguetería) —
-  // 'Julio Cepeda' es solo el placeholder mientras carga /api/negocio.
-  const [nombreNegocio, setNombreNegocio] = useState('Julio Cepeda');
 
+  const [nombreNegocio, setNombreNegocio] = useState('Julio Cepeda');
   useEffect(() => {
     api.get('/api/negocio').then(d => d?.nombre_negocio && setNombreNegocio(d.nombre_negocio)).catch(() => {});
   }, []);
 
-  // Contacto del proveedor para la tarjeta oscura del sidebar (mismo
-  // /api/soporte que usa el widget flotante — la tarjeta es el acceso
-  // siempre visible, el widget sigue siendo el panel completo).
   const [soporte, setSoporte] = useState(null);
   useEffect(() => { api.get('/api/soporte').then(setSoporte).catch(() => {}); }, []);
   const waSoporte = soporte?.whatsapp
@@ -105,37 +88,14 @@ export default function Layout() {
 
   const iniciales = (user?.username || '?').slice(0, 2).toUpperCase();
 
-  // Antes los 6 grupos (~20 enlaces) estaban siempre expandidos: en pantallas
-  // de laptop el sidebar se volvía más alto que el contenido y rompía el
-  // layout de la derecha (hallazgo directo del operador). Ahora es un
-  // acordeón de un solo grupo abierto a la vez, y ese grupo es siempre el
-  // que contiene la ruta activa — así nunca se "pierde" la página actual.
+  // Acordeón de un grupo abierto a la vez, siempre el de la ruta activa
+  // (todos expandidos desbordaban el alto del sidebar en laptops)
   const grupoActivo = grupos.find(g => g.enlaces.some(e => e.to === location.pathname))?.titulo || grupos[0]?.titulo;
   const [abierto, setAbierto] = useState(grupoActivo);
   useEffect(() => { setAbierto(grupoActivo); }, [grupoActivo]);
 
-  // AppShell de Mantine (antes: 4 divs a mano con flex/position manual) —
-  // mismas clases de siempre (sidebar/topbar/content) por dentro de cada
-  // slot, así que la apariencia y los temas claro/oscuro (variables CSS de
-  // styles.css) no cambian; lo que gana es el manejo de offsets/scroll de
-  // header+navbar+main resuelto por Mantine en vez de a mano.
-  //
-  // Sin `breakpoint` en `navbar`: confirmado en el código fuente de Mantine
-  // (assign-navbar-variables.ts) que CUALQUIER `breakpoint` truthy sin
-  // `collapsed.mobile` agrega un `@media (max-width: breakpoint)` que pone
-  // `--app-shell-navbar-offset: 0px` — es decir, el sidebar pasa a overlay
-  // (se monta encima del contenido en vez de empujarlo) por debajo de ese
-  // ancho, pensado para un Burger toggle que aquí no existe. Esta app es
-  // una sola ventana de Electron sin versión móvil, así que no se necesita
-  // ningún breakpoint — se omite (no 0, porque `breakpoint` debe ser
-  // explícitamente falsy/ausente para que la condición nunca se cumpla).
-  //
-  // `padding={28}` en vez de 0: el prop suma este valor al offset del
-  // navbar/header en el padding-inline-start/top calculado de
-  // AppShell.Main (ver AppShell.module.css). Antes era padding={0} y el
-  // padding de página se ponía en la clase `.content` — pero esa clase
-  // sobrescribía por completo ese cálculo (mismo padding-left, cargada
-  // después en el CSS), anulando el offset reservado para el sidebar.
+  // navbar sin breakpoint a propósito (sin versión móvil, es Electron/escritorio);
+  // padding en el prop de AppShell, no en .content (pisaría el offset del navbar)
   return (
     <AppShell header={{ height: 64 }} navbar={{ width: 252 }} padding={28}>
       <AppShell.Header className="topbar">
@@ -166,8 +126,6 @@ export default function Layout() {
             ))}
           </Accordion>
         </nav>
-        {/* Tarjeta oscura del proveedor (como la "Upgrade card" de la
-            referencia visual) — soporte siempre a un clic */}
         <div className="sidebar-promo">
           <div className="sidebar-promo-title">🛟 ¿Necesitas ayuda?</div>
           <div className="sidebar-promo-sub">Soporte y mejoras por {soporte?.nombre || 'Hevcaz Solutions'}</div>

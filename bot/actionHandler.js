@@ -1,18 +1,6 @@
-// actionHandler.js — Router principal del bot
-// ═══════════════════════════════════════════════════════════════
-// La lógica de cada grupo de estados vive en flows/ independientes.
-// Un error en un flow se captura aquí y resetea al usuario a MENU
-// sin tumbar el resto del bot. Sistema de tonos en flows/_config.js
-// (configurable desde el dashboard, tabla configuracion.tono_bot).
-//
-//   flows/_config.js     — tonos A/B/C/D + flags de módulos
-//   flows/_shared.js     — helpers, constantes y servicios comunes
-//   flows/menuFlow.js    — MENU, SEARCHING, WIZARD, VIEW_PRODUCT, ADD_MORE
-//   flows/cartFlow.js    — SHOW_CART, CONFIRM_ORDER, OFERTAS, CUPON
-//   flows/orderFlow.js   — ASK_CP, SPLIT_*, DELIVERY, PICKUP_CONFIRM
-//   flows/addressFlow.js — ASK_NOMBRE..ASK_REF
-//   flows/asesorFlow.js  — ASESOR, LISTA_ESPERA, SUSTITUTO, PREVENTA, CSAT, DEVOLUCION
-// ═══════════════════════════════════════════════════════════════
+// Router principal del bot — la lógica de cada grupo de estados vive en
+// flows/ (ver DOCUMENTACION_TECNICA.md). Un error en un flow resetea al
+// usuario a MENU sin tumbar el bot.
 'use strict';
 
 const shared = require('./flows/_shared');
@@ -27,8 +15,6 @@ const {
     registrarEscalada, getValor,
 } = shared;
 
-// Flujos UNIVERSALES (todos los giros). Los flujos específicos por giro se
-// agregan dinámicamente desde giroFlows.js (hueco de extensión, ver abajo).
 const FLOWS = [
     require('./flows/menuFlow'),
     require('./flows/cartFlow'),
@@ -38,17 +24,13 @@ const FLOWS = [
 ];
 
 async function handleAction(userId, session, message, client) {
-    const raw    = (message.body || '').slice(0, 500).trim();          // max 500 chars
+    const raw    = (message.body || '').slice(0, 500).trim();
     const action = raw.toLowerCase().replace(/[^\wáéíóúüñ\s]/gi, '').trim().slice(0, 100);
     let step     = session.paso_actual;
     let data     = session.data || {};
-    const tel    = userId.replace(/@.*$/, '').slice(0, 20);            // max 20 chars (teléfono)
+    const tel    = userId.replace(/@.*$/, '').slice(0, 20);
 
-    // ── Venta previa pendiente (POS) ────────────────────────────────
-    // Un asesor armó un carrito desde el dashboard y se le mandó al
-    // cliente por WhatsApp. En su primera respuesta lo metemos directo
-    // a SHOW_CART para que siga el flujo normal de carrito/envío/pago
-    // (no se reimplementa esa lógica aquí).
+    // Venta previa pendiente (POS): a SHOW_CART para seguir el flujo normal
     try {
         const _ventaPrevia = ventaPreviaService.obtenerPendiente(db, tel);
         if (_ventaPrevia) {
@@ -61,20 +43,16 @@ async function handleAction(userId, session, message, client) {
         log.error('Error venta previa', e);
     }
 
-    // ── Puntos de lealtad ─────────────────────────────────────────
-    // Delegado a puntosHandler.js — solo activo cuando puntos_activo=1
     const _puntosResp = puntosHandler ? puntosHandler.handle(raw, userId, tel, sessionManager, menuPrincipal) : null;
     if (_puntosResp !== null) return _puntosResp;
 
-    // ── Motivo de abandono de carrito ────────────────────────────────
-    // Solo en MENU: free-text (precio/envío/otro), nunca dígitos — 1-4 ya
-    // son comandos reservados del menú principal (ver flows/menuFlow.js).
+    // Motivo de abandono: solo MENU y solo free-text (1-4 son comandos del menú)
     if (step === S.MENU) {
         const _abandonoResp = abandonoHandler.handle(raw, tel);
         if (_abandonoResp) return _abandonoResp;
     }
 
-    // ── Código de reset betatestor ────────────────────────────────
+    // Reset betatestor (BETA_RESET_CODE)
     const _BETA_CODE = process.env.BETA_RESET_CODE || '';
     if (_BETA_CODE && safeEqual(raw.trim(), _BETA_CODE)) {
         try {
@@ -83,7 +61,6 @@ async function handleAction(userId, session, message, client) {
                 'SELECT id FROM clientes WHERE telefono=? OR telefono LIKE ? OR telefono LIKE ? LIMIT 1'
             ).get(_tel, _tel + '%', '%' + _tel);
 
-            // Desactivar FKs durante el reset
             db.pragma('foreign_keys = OFF');
             try {
                 if (_cli) {
@@ -117,9 +94,8 @@ async function handleAction(userId, session, message, client) {
         }
     }
 
-    // ── Privacidad / opt-out de marketing (LFPDPPP) ────────────────
-    // Globales desde cualquier estado: BAJA apaga promociones (los mensajes
-    // de pedidos siguen), ALTA las reactiva, PRIVACIDAD muestra el aviso.
+    // Privacidad / opt-out de marketing (LFPDPPP) — BAJA solo apaga
+    // promociones, los mensajes de pedidos siguen
     if (['baja', 'no molestar'].includes(action)) {
         try { db.prepare('UPDATE clientes SET marketing_opt_out=1 WHERE telefono=?').run(tel); } catch (e) { log.warn('No se pudo registrar BAJA', e); }
         return '✅ Listo, ya no te enviaremos promociones ni ofertas.\n\nSeguirás recibiendo los mensajes de tus pedidos (confirmaciones, envíos). Si cambias de opinión escribe *ALTA*.';
@@ -145,29 +121,25 @@ async function handleAction(userId, session, message, client) {
         return menuPrincipal(tel);
     }
 
-    // Detección de devolución desde cualquier estado (MENU o SEARCHING)
     if ((step === S.MENU || step === S.SEARCHING) && _RE_DEVOLUCION.test(raw)) {
         sessionManager.updateSession(userId, S.DEVOLUCION, { paso: 'bienvenida' });
         return (
-            '\u21A9\uFE0F Entendido, voy a ayudarte con tu devolución.\n\n' +
+            '↩️ Entendido, voy a ayudarte con tu devolución.\n\n' +
             '¿Qué pasó con tu producto?\n\n' +
-            '1\uFE0F\u20E3  Llegó dañado o defectuoso\n' +
-            '2\uFE0F\u20E3  Producto incorrecto (me llegó otro)\n' +
-            '3\uFE0F\u20E3  Llegó duplicado / ya lo tenía\n' +
-            '4\uFE0F\u20E3  No funciona correctamente\n' +
-            '5\uFE0F\u20E3  Otro motivo'
+            '1️⃣  Llegó dañado o defectuoso\n' +
+            '2️⃣  Producto incorrecto (me llegó otro)\n' +
+            '3️⃣  Llegó duplicado / ya lo tenía\n' +
+            '4️⃣  No funciona correctamente\n' +
+            '5️⃣  Otro motivo'
         );
     }
 
-    // Atajo: "ver carrito" desde cualquier paso de búsqueda
     if (['carrito','ver carrito','mi carrito'].includes(action) && (data.carrito||[]).length > 0) {
         sessionManager.updateSession(userId, S.SHOW_CART, { ...data, _returnStep: step });
         return mostrarCarrito(data.carrito);
     }
 
-    // ── MENU ────────────────────────────────────────────
-
-    // ── Despacho a flows (universales + los del giro activo) ──────
+    // Dispatch a flows: universales + los del giro activo
     const isImage = !!(message.hasMedia && (message.type === 'image' || message.type === 'sticker'));
     const ctx = { userId, session, message, client, raw, action, step, data, tel, isImage };
     const _giro = (() => { try { return getValor('giro', 'jugueteria'); } catch(_) { return 'jugueteria'; } })();
@@ -185,17 +157,13 @@ async function handleAction(userId, session, message, client) {
         break;
     }
 
-    // ── Hook de LLM (hueco) — antes del fallback de reglas ─────────
-    // Si está activo y configurado, el LLM atiende el texto libre que las
-    // reglas no entendieron. Hoy devuelve null (passthrough). Ver llmHandler.js.
+    // Hook de LLM antes del fallback (hoy passthrough, ver llmHandler.js)
     try {
         const _llmResp = await llmHandler.handle(raw, ctx);
         if (typeof _llmResp === 'string' && _llmResp) return _llmResp;
     } catch (e) { log.debug('Hook LLM falló (se ignora): ' + e.message); }
 
-    // ── Fallback — ningún estado manejó el mensaje ────────────────
-    // Evento "fallback" para analítica/ML — el bot no entendió el mensaje.
-    // Es justo el dataset de "lo que el LLM debería resolver" más adelante.
+    // Fallback: se registra como evento (dataset de "lo que el LLM debería resolver")
     try { const _dbFb = require('./db_connection'); _dbFb.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('fallback','whatsapp',?,?)").run((raw||'').slice(0,200), tel); } catch(e){ log.debug('No se pudo registrar evento fallback: ' + e.message); }
     sessionManager.clearSession(userId);
     return menuPrincipal(tel);

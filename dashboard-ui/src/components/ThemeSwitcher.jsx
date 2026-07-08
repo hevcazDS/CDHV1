@@ -9,15 +9,10 @@ const OPCIONES = [
 
 const STORAGE_KEY = 'jc-tema-modo';
 
-// "Confort" no es un tercer colorScheme de Mantine (solo soporta light/dark)
-// -- es colorScheme='dark' + el atributo data-confort="on" en <html>, que
-// styles.css usa para bajar contraste/brillo (grises cálidos en vez de
-// negro puro). Se guarda en localStorage aparte porque Mantine solo
-// persiste light/dark, no este tercer modo.
+// 'confort' no es un colorScheme de Mantine (solo hay light/dark): es dark +
+// data-confort="on" en <html>, que styles.css usa para bajar contraste
 export default function ThemeSwitcher() {
   const { setColorScheme } = useMantineColorScheme();
-  // Default 'light': el tema claro minimalista es el look oficial del panel
-  // (referencia visual del cliente); quien ya eligió otro lo conserva.
   const [modo, setModo] = useState(() => localStorage.getItem(STORAGE_KEY) || 'light');
 
   useEffect(() => {
@@ -27,11 +22,6 @@ export default function ThemeSwitcher() {
   }, [modo]);
 
   return (
-    <SegmentedControl
-      size="xs"
-      value={modo}
-      onChange={setModo}
-      data={OPCIONES}
-    />
+    <SegmentedControl size="xs" value={modo} onChange={setModo} data={OPCIONES} />
   );
 }

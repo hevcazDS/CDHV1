@@ -430,7 +430,6 @@ function construirAudienciaMasivo({ soloConPedido, excluirTags, soloTags, sinAct
     const _tagsExcluir = ['troll','blacklist','devolucion','queja'].concat(
         Array.isArray(excluirTags) ? excluirTags : []
     );
-    // marketing_opt_out (comando BAJA, migración 0020): fuera de todo masivo
     const _exclCond   = "COALESCE(c.marketing_opt_out,0)=0 AND " +
         _tagsExcluir.map(() => "COALESCE(c.tags,'') NOT LIKE ?").join(' AND ');
     const _exclParams = _tagsExcluir.map(t => '%' + t + '%');
@@ -589,14 +588,9 @@ function handleRequest(req, res) {
     const esRutaPublica = (u.pathname === '/api/login' && req.method === 'POST')
         || (u.pathname === '/api/logout' && req.method === 'POST')
         || (u.pathname === '/api/me' && req.method === 'GET')
-        // El QR de vinculación de WhatsApp EXIGE sesión (ya no es público):
-        // en servidor, quien alcance el puerto y vea el QR puede vincular el
-        // WhatsApp del negocio a su teléfono. Flujo: levantar dashboard →
-        // login (prime) → escanear QR → operar. App.jsx muestra el QR
-        // después del login.
-        // Onboarding de primer arranque: una instancia recién clonada no tiene
-        // sesión todavía. Se auto-bloquea por negocio_configurado dentro del
-        // handler (POST responde 409 una vez configurado).
+        // /api/bot/qr NO es pública: ver el QR = poder vincular el WhatsApp.
+        // Onboarding sí (instancia recién clonada sin sesión; se auto-bloquea
+        // con 409 una vez configurado el negocio).
         || (u.pathname === '/api/onboarding/estado' && req.method === 'GET')
         || (u.pathname === '/api/onboarding' && req.method === 'POST');
 
