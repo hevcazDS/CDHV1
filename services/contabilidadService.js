@@ -74,6 +74,30 @@ function asientoCompra(folioOC, total) {
     });
 }
 
+// Devolución de mercancía: la pieza vuelve al inventario a su costo promedio
+// (cargo Inventario, abono Costo de ventas). El reembolso de dinero al
+// cliente no está modelado como flujo todavía → se registra con asiento
+// manual si aplica.
+function asientoDevolucion(idPedido, idProducto, cantidad) {
+    if (!activo() || !(cantidad > 0)) return null;
+    const costo = _r2((db.prepare('SELECT COALESCE(costo,0) c FROM productos WHERE id=?').get(idProducto)?.c || 0) * cantidad);
+    if (!(costo > 0)) return null;
+    return registrarAsiento({
+        concepto: 'Devolución pedido ' + idPedido, referencia_tipo: 'devolucion', referencia_id: idPedido,
+        partidas: [{ cuenta: '115', debe: costo }, { cuenta: '501', haber: costo }],
+    });
+}
+
+// Entrada de mercancía SIN orden de compra (compra de contado):
+// cargo Inventario, abono Bancos
+function asientoEntradaContado(descripcion, monto) {
+    if (!activo() || !(monto > 0)) return null;
+    return registrarAsiento({
+        concepto: 'Entrada de mercancía ' + descripcion, referencia_tipo: 'compra', referencia_id: descripcion,
+        partidas: [{ cuenta: '115', debe: monto }, { cuenta: '102', haber: monto }],
+    });
+}
+
 // Pago a proveedor: cargo Proveedores, abono Bancos
 function asientoPagoCxP(idCxp, monto) {
     if (!activo() || !(monto > 0)) return null;
@@ -121,4 +145,4 @@ function libroMayor(desde, hasta) {
 function _setDb(x) { db = x; }            // solo tests
 function _setActivo(f) { _activoFn = f; } // solo tests
 
-module.exports = { activo, registrarAsiento, asientoVenta, asientoCostoVenta, asientoCompra, asientoPagoCxP, asientoReversa, libroMayor, _setDb, _setActivo };
+module.exports = { activo, registrarAsiento, asientoVenta, asientoCostoVenta, asientoCompra, asientoPagoCxP, asientoDevolucion, asientoEntradaContado, asientoReversa, libroMayor, _setDb, _setActivo };

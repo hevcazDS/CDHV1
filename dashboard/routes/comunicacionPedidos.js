@@ -391,6 +391,8 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                     if (det) {
                         db.prepare('UPDATE inventarios SET stock = stock + ? WHERE id_producto=? AND sucursal=?')
                           .run(dev.cantidad, dev.id_producto, det.sucursal_origen);
+                        try { require('../../services/contabilidadService').asientoDevolucion(dev.id_pedido, dev.id_producto, dev.cantidad); }
+                        catch (e) { log.debug('Asiento de devolución no registrado: ' + e.message); }
                     }
                 }
 

@@ -372,6 +372,10 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
                     return { anterior, nueva };
                 });
                 const r = tx();
+                if (costoNum !== null && costoNum >= 0) {
+                    try { require('../../services/contabilidadService').asientoEntradaContado(prod.name + ' ×' + cantidad, costoNum * cantidad); }
+                    catch (e) { log.debug('Asiento de entrada no registrado: ' + e.message); }
+                }
                 log.info('[prime] entrada de mercancía: ' + prod.name + ' +' + cantidad + ' (' + sucursal + ')');
                 return json(res, { ok: true, id_producto: idProducto, sucursal, stock_anterior: r.anterior, stock_nuevo: r.nueva });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
