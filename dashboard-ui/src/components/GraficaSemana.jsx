@@ -14,7 +14,7 @@ export default function GraficaSemana({ dias, fmtMoneda }) {
           labelStyle={{ color: 'var(--text)', fontWeight: 600 }}
           formatter={(v, name, item) => [`${v} pedido${v === 1 ? '' : 's'} · ${fmtMoneda(item?.payload?.t || 0)}`, null]}
         />
-        <Bar dataKey="n" radius={[8, 8, 4, 4]}>
+        <Bar dataKey="n" radius={[10, 10, 6, 6]}>
           {dias.map(d => (
             <Cell key={d.dia} fill={d.n === maxN && d.n > 0 ? 'var(--accent)' : 'var(--panel-2)'} stroke="var(--border)" />
           ))}
