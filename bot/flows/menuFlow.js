@@ -542,6 +542,7 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
 
             if (action === '1' || action.includes('seguir') || action.includes('buscar')) {
                 // Agregar y seguir buscando
+                shared.logEvento('carrito_agregado', prod.name, tel);
                 sessionManager.updateSession(userId, S.SEARCHING, {
                     ...data, carrito: nuevoCarrito, products: undefined, viewing: undefined
                 });
@@ -556,6 +557,8 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
                 );
             } else {
                 // Agregar y proceder al pago
+                shared.logEvento('carrito_agregado', prod.name, tel);
+                shared.logEvento('checkout_iniciado', totalAct.toFixed(2), tel);
                 sessionManager.updateSession(userId, S.ASK_CP, {
                     ...data, carrito: nuevoCarrito, viewing: undefined
                 });

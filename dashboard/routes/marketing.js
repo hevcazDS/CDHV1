@@ -109,6 +109,11 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
         const _pagPend= db.prepare("SELECT COUNT(*) n, COALESCE(SUM(monto),0) t FROM links_pago WHERE estatus='generado'").get();
         const _pagPag = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(monto),0) t FROM links_pago WHERE estatus='pagado'").get();
 
+        // Ingresos = dinero realmente cobrado (links_pago pagado, por pagado_en)
+        const _ingHoy = db.prepare("SELECT COALESCE(SUM(monto),0) t FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=?").get(hoy)?.t || 0;
+        const _ingSem = db.prepare("SELECT COALESCE(SUM(monto),0) t FROM links_pago WHERE estatus='pagado' AND date(pagado_en)>=?").get(semana)?.t || 0;
+        const _ingMes = db.prepare("SELECT COALESCE(SUM(monto),0) t FROM links_pago WHERE estatus='pagado' AND date(pagado_en)>=?").get(mes)?.t || 0;
+
         // Escaladas
         const _escHoy = db.prepare("SELECT COUNT(*) n FROM cola_atencion WHERE date(creada_en)=?").get(hoy)?.n || 0;
         const _escSem = db.prepare("SELECT COUNT(*) n FROM cola_atencion WHERE date(creada_en)>=?").get(semana)?.n || 0;
@@ -130,6 +135,7 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
             pedidos: { hoy: _pHoy, ayer: _pAyer, semana: _pSem, mes: _pMes, total: _pTotal },
             clientes: { hoy: _cHoy, semana: _cSem, total: _cTotal },
             pagos: { pendientes: _pagPend, pagados: _pagPag },
+            ingresos: { hoy: _ingHoy, semana: _ingSem, mes: _ingMes },
             escaladas: { hoy: _escHoy, semana: _escSem },
             notificaciones_hoy: _notifHoy,
             por_estatus: _porEstatus,

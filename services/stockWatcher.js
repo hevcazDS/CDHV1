@@ -601,7 +601,7 @@ function checkBackupReciente() {
 // en el registro de backup como enviadas — nunca borra algo que no se sabe
 // si ya quedó respaldado fuera del servidor.
 const IMG_DIR = path.join(__dirname, '..', 'bot', 'imagenes_clientes');
-const IMG_PURGA_EDAD_MS = 60 * 24 * 3_600_000; // 60 días
+const IMG_PURGA_EDAD_MS = 30 * 24 * 3_600_000; // 30 días de vida en servidor
 function purgarImagenesAntiguas() {
     if (!fs.existsSync(IMG_DIR)) return;
     let registro;
@@ -617,7 +617,7 @@ function purgarImagenesAntiguas() {
             if (ahora - fs.statSync(ruta).mtimeMs > IMG_PURGA_EDAD_MS) { fs.unlinkSync(ruta); borradas++; }
         } catch (e) { log.debug('No se pudo purgar ' + f + ': ' + e.message); }
     }
-    if (borradas) log.info(`Purgadas ${borradas} imágenes de clientes ya respaldadas (>60 días)`);
+    if (borradas) log.info(`Purgadas ${borradas} imágenes de clientes ya respaldadas (>30 días)`);
 }
 
 async function runAll() {

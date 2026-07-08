@@ -270,6 +270,8 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
 
                 // Si el pedido seguía 'Pendiente', avanzarlo a 'confirmado' — ya hay dinero.
                 const ped = db.prepare("SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR c.nombre=p.cliente WHERE p.id_pedido=? LIMIT 1").get(lp.id_pedido);
+                // Evento de funnel: cierre real de la venta
+                try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('pago_confirmado','whatsapp',?,?)").run(String(lp.monto || ''), ped?.telefono || null); } catch (_) {}
                 if (ped && /pendiente/i.test(ped.estatus || '')) {
                     db.prepare("UPDATE pedidos SET estatus='confirmado', actualizado_en=datetime('now','localtime') WHERE id_pedido=?").run(ped.id_pedido);
                     if (ped.telefono) {

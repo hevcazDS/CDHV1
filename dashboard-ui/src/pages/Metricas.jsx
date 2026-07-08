@@ -70,6 +70,22 @@ export default function Metricas() {
       <div className="page-title">Métricas</div>
       <div className="page-sub">Pedidos, conversión y reportes</div>
 
+      {/* Ingresos: dinero realmente cobrado (no pedidos creados) */}
+      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
+        <Card withBorder radius="md" p="lg" className="kpi-card kpi-dark">
+          <Text size="sm" c="dimmed">Ingresos hoy</Text>
+          <Text size="26px" fw={700} className="kpi-num">${fmt(d?.ingresos?.hoy || 0)}</Text>
+        </Card>
+        <Card withBorder radius="md" p="lg" className="kpi-card">
+          <Text size="sm" c="dimmed">Ingresos esta semana</Text>
+          <Text size="26px" fw={700} className="kpi-num">${fmt(d?.ingresos?.semana || 0)}</Text>
+        </Card>
+        <Card withBorder radius="md" p="lg" className="kpi-card">
+          <Text size="sm" c="dimmed">Ingresos este mes</Text>
+          <Text size="26px" fw={700} className="kpi-num">${fmt(d?.ingresos?.mes || 0)}</Text>
+        </Card>
+      </div>
+
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 16 }}>
         <Card withBorder radius="md" p="lg" className="kpi-card">
           <Text size="sm" c="dimmed">Pedidos hoy</Text>

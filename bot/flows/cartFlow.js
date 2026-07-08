@@ -80,6 +80,7 @@ async function handle(ctx) {
             return `🔍 ¿Qué otro ${vocab().item} buscas?`;
         }
         if (action === '2' || action.includes('pagar') || action.includes('continuar')) {
+            shared.logEvento('checkout_iniciado', totalCarrito(carrito).toFixed(2), tel);
             sessionManager.updateSession(userId, S.ASK_CP, { ...data });
             return `📮 Dime tu *código postal* para revisar disponibilidad y proceder al pago:`;
         }
@@ -319,6 +320,7 @@ async function handle(ctx) {
             if (_upd.changes === 0) {
                 return '❌ Ese cupón ya alcanzó su límite de usos.\n\nEscribe otro código o escribe *cancelar* para volver al resumen.';
             }
+            shared.logEvento('cupon_aplicado', raw.trim().toUpperCase(), tel);
         } catch(e) {
             log.debug('No se pudo registrar uso de cupón: ' + e.message);
             return '❌ No se pudo aplicar el cupón, intenta de nuevo.\n\nEscribe otro código o escribe *cancelar* para volver al resumen.';

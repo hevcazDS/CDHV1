@@ -944,6 +944,11 @@ client.on('message', async msg => {
                                 _fs.writeFileSync(_path.join(_imgDir, _fname),
                                     Buffer.from(media.data, 'base64'));
                                 _fnameGuardado = _fname;
+                                // A WebP para ahorrar espacio en el servidor (si hay cwebp)
+                                try {
+                                    const _webp = require('../services/imagenWebp').convertirAWebp(_path.join(_imgDir, _fname));
+                                    if (_webp) _fnameGuardado = _webp;
+                                } catch (_) {}
                             } else {
                                 log.warn('Cuota diaria de imágenes alcanzada, no se guarda en disco', { userId });
                             }
