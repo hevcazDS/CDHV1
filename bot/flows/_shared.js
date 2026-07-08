@@ -62,12 +62,19 @@ const S = {
 // ═══════════════════════════════════════════════════════
 //  CONSTANTES
 // ═══════════════════════════════════════════════════════
-const HORARIO          = '11:00 am – 8:00 pm';
-const HORARIO_ASESOR   = '11:00 am – 8:00 pm, todos los días';
+// Horario de atención por instancia (configuracion horario_inicio/fin, en
+// hora 0-23; defaults = los de siempre de Julio Cepeda)
+function _horaCfg(clave, fb) {
+    const v = parseInt(getValor(clave, fb), 10);
+    return Number.isInteger(v) && v >= 0 && v <= 23 ? v : parseInt(fb, 10);
+}
+function _fmtHora(h) { return (h % 12 || 12) + ':00 ' + (h < 12 ? 'am' : 'pm'); }
+const HORARIO          = _fmtHora(_horaCfg('horario_inicio', '11')) + ' – ' + _fmtHora(_horaCfg('horario_fin', '20'));
+const HORARIO_ASESOR   = HORARIO + ', todos los días';
 
 function enHorario() {
     const h = new Date().getHours();
-    return h >= 11 && h < 20;
+    return h >= _horaCfg('horario_inicio', '11') && h < _horaCfg('horario_fin', '20');
 }
 function msgHorarioAsesor() {
     if (enHorario()) return 'Un asesor te contactará en los próximos *30 minutos*. ¡Gracias! 🧸';

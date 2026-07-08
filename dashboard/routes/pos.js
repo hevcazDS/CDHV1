@@ -147,16 +147,11 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
         const ped = db.prepare("SELECT * FROM pedidos WHERE id_pedido=? AND canal_creacion='mostrador'").get(idPedido);
         if (!ped) return json(res, { ok: false, error: 'Venta de mostrador no encontrada' }, 404);
         if (/cancelado/i.test(ped.estatus || '')) return json(res, { ok: false, error: 'Esa venta ya está cancelada' }, 400);
-        db.transaction(() => {
-            const items = db.prepare('SELECT id_producto, cantidad, sucursal_origen FROM pedido_detalle WHERE id_pedido=?').all(idPedido);
-            for (const it of items) {
-                db.prepare('UPDATE inventarios SET stock = stock + ? WHERE id_producto=? AND sucursal=?')
-                  .run(it.cantidad, it.id_producto, it.sucursal_origen || sucursalDefault());
-            }
-            db.prepare("UPDATE links_pago SET estatus='cancelado' WHERE id_pedido=?").run(idPedido);
-            db.prepare("UPDATE pedidos SET estatus='cancelado', actualizado_en=datetime('now','localtime') WHERE id_pedido=?").run(idPedido);
-        })();
-        return json(res, { ok: true, id_pedido: idPedido, estatus: 'cancelado' });
+        try {
+            const r = require('../../services/reversionService').revertirCobro(idPedido, { sucursalDefault: sucursalDefault() });
+            if (!r.ok) return json(res, r, 400);
+            return json(res, { ok: true, id_pedido: idPedido, estatus: 'cancelado', puntos_revertidos: r.puntos_revertidos });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
     }
 
     // ── GET /api/pos/corte?fecha=YYYY-MM-DD — resumen del día (gerente+) ───

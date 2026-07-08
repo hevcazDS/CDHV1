@@ -11,9 +11,9 @@
 const db   = require('../bot/db_connection');
 const path = require('path');
 const log  = require('../bot/logger')('estafetaService');
-const { moduloActivo } = (() => {
+const { moduloActivo, getValor } = (() => {
     try { return require('../bot/flows/_config'); }
-    catch(_) { return { moduloActivo: () => false }; }
+    catch(_) { return { moduloActivo: () => false, getValor: (_c, fb) => fb }; }
 })();
 
 // ── Constantes ────────────────────────────────────────────────────────────
@@ -32,12 +32,14 @@ function _diasEntregaConfigurados() {
         return DIAS_ENTREGA;
     }
 }
+// Remitente por instancia desde `configuracion` (defaults = Julio Cepeda,
+// la instancia base) — editable sin tocar código en cada clon
 const REMITENTE = {
-    nombre:   'Julio Cepeda Jugueterías',
-    cp:       '78000',
-    ciudad:   'San Luis Potosí',
-    estado:   'SLP',
-    telefono: '4441234567',
+    get nombre()   { return getValor('envio_remitente_nombre',   'Julio Cepeda Jugueterías'); },
+    get cp()       { return getValor('envio_remitente_cp',       '78000'); },
+    get ciudad()   { return getValor('envio_remitente_ciudad',   'San Luis Potosí'); },
+    get estado()   { return getValor('envio_remitente_estado',   'SLP'); },
+    get telefono() { return getValor('envio_remitente_telefono', '4441234567'); },
 };
 
 // ── Cálculo de fechas hábiles ──────────────────────────────────────────────
@@ -106,8 +108,9 @@ function _generarFolioInterno(idPedido) {
 
 // ── URL de rastreo ─────────────────────────────────────────────────────────
 function urlRastreoSimulado(numeroGuia) {
-    // Cuando sea real: https://www.estafeta.com/herramientas/rastreo?guia=XXXXX
-    return `https://rastreo.julio-cepeda-bot.local/guia/${numeroGuia}`;
+    // Base configurable por instancia; cuando la API sea real:
+    // https://www.estafeta.com/herramientas/rastreo?guia=XXXXX
+    return getValor('rastreo_url_base', 'https://rastreo.julio-cepeda-bot.local/guia/') + numeroGuia;
 }
 
 // ── Crear guía ─────────────────────────────────────────────────────────────

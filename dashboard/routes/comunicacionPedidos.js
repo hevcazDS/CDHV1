@@ -176,7 +176,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
             try {
                 const d = JSON.parse(body || '{}');
                 const accion = String(d.accion || '').trim();
-                const ped = db.prepare('SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR c.nombre=p.cliente WHERE p.id_pedido=? LIMIT 1').get(id);
+                const ped = db.prepare('SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR (p.id_cliente IS NULL AND c.nombre=p.cliente) WHERE p.id_pedido=? LIMIT 1').get(id);
                 if (!ped) return json(res, { ok:false, error:'Pedido no encontrado' }, 404);
 
                 const avisar = (cuerpo) => {
@@ -227,7 +227,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                 db.prepare("UPDATE pedidos SET estatus=?, actualizado_en=datetime('now','localtime') WHERE id_pedido=?").run(estatus, id);
                 // Notificar al cliente si tiene teléfono
                 // id_cliente no estaba poblado en pedidos viejos — c.nombre=p.cliente es el join que sí funciona siempre.
-                const ped = db.prepare('SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR c.nombre=p.cliente WHERE p.id_pedido=? LIMIT 1').get(id);
+                const ped = db.prepare('SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR (p.id_cliente IS NULL AND c.nombre=p.cliente) WHERE p.id_pedido=? LIMIT 1').get(id);
                 if (ped?.telefono) {
                     const msgs = {
                         confirmado:  'Tu pedido ha sido *confirmado* ✅. Lo estamos preparando.',
@@ -269,7 +269,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                 }
 
                 // Si el pedido seguía 'Pendiente', avanzarlo a 'confirmado' — ya hay dinero.
-                const ped = db.prepare("SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR c.nombre=p.cliente WHERE p.id_pedido=? LIMIT 1").get(lp.id_pedido);
+                const ped = db.prepare("SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR (p.id_cliente IS NULL AND c.nombre=p.cliente) WHERE p.id_pedido=? LIMIT 1").get(lp.id_pedido);
                 // Evento de funnel: cierre real de la venta
                 try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('pago_confirmado','whatsapp',?,?)").run(String(lp.monto || ''), ped?.telefono || null); } catch (_) {}
                 if (ped && /pendiente/i.test(ped.estatus || '')) {
@@ -291,11 +291,20 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
         });
     }
 
-    // POST /api/pagos/:id/cancelar — cancelar un link de pago (no se va a cobrar)
+    // POST /api/pagos/:id/cancelar — cancelar un link de pago. Si YA estaba
+    // pagado, deshace el cobro completo (repone inventario, resta puntos) y
+    // el pedido regresa a Pendiente.
     if (req.method === 'POST' && p.match(/^\/api\/pagos\/\d+\/cancelar$/)) {
         const id = parseInt(p.split('/')[3]);
-        const lp = db.prepare('SELECT id FROM links_pago WHERE id=?').get(id);
+        const lp = db.prepare('SELECT * FROM links_pago WHERE id=?').get(id);
         if (!lp) return json(res, { ok:false, error:'Link de pago no encontrado' }, 404);
+        if (lp.estatus === 'pagado' && lp.id_pedido) {
+            try {
+                const r = require('../../services/reversionService').revertirCobro(lp.id_pedido, { cancelarPedido: false });
+                if (!r.ok) return json(res, r, 400);
+                return json(res, { ok:true, id, estatus:'cancelado', cobro_revertido:true, puntos_revertidos:r.puntos_revertidos });
+            } catch (e) { return json(res, { ok:false, error:e.message }, 400); }
+        }
         db.prepare("UPDATE links_pago SET estatus='cancelado' WHERE id=?").run(id);
         return json(res, { ok:true, id, estatus:'cancelado' });
     }
@@ -316,7 +325,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     if (req.method === 'GET' && p.match(/^\/api\/pedidos\/\d+\/ticket$/)) {
         const idPedido = parseInt(p.split('/')[3]);
         const ped = db.prepare(
-            "SELECT p.*, c.telefono, c.email FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR c.nombre=p.cliente WHERE p.id_pedido=? LIMIT 1"
+            "SELECT p.*, c.telefono, c.email FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR (p.id_cliente IS NULL AND c.nombre=p.cliente) WHERE p.id_pedido=? LIMIT 1"
         ).get(idPedido);
         if (!ped) return json(res, { ok:false, error:'Pedido no encontrado' }, 404);
         const items = db.prepare(

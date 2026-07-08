@@ -152,7 +152,7 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/conversion' && req.method === 'GET') {
         const pedidos  = db.prepare("SELECT COUNT(*) n FROM pedidos WHERE estatus NOT IN ('cancelado','Cancelado')").get()?.n || 0;
         const clientes = db.prepare("SELECT COUNT(*) n FROM clientes WHERE activo=1").get()?.n || 0;
-        const tasa = clientes > 0 ? ((pedidos / clientes) * 100).toFixed(1) : 0;
+        const tasa = clientes > 0 ? Number(((pedidos / clientes) * 100).toFixed(1)) : 0;
         const topBusquedas = db.prepare("SELECT valor AS busqueda, COUNT(*) AS veces FROM log_eventos WHERE tipo_evento='busqueda' GROUP BY valor ORDER BY veces DESC LIMIT 10").all();
         // Volumen/ingreso de pedidos agrupado por el tono que tenía el bot al
         // momento de generarse (columna tono_bot, ver migrations/0001_agregar_tono_bot.sql).
