@@ -94,6 +94,17 @@ export default function Layout() {
     api.get('/api/negocio').then(d => d?.nombre_negocio && setNombreNegocio(d.nombre_negocio)).catch(() => {});
   }, []);
 
+  // Contacto del proveedor para la tarjeta oscura del sidebar (mismo
+  // /api/soporte que usa el widget flotante — la tarjeta es el acceso
+  // siempre visible, el widget sigue siendo el panel completo).
+  const [soporte, setSoporte] = useState(null);
+  useEffect(() => { api.get('/api/soporte').then(setSoporte).catch(() => {}); }, []);
+  const waSoporte = soporte?.whatsapp
+    ? `https://wa.me/${soporte.whatsapp}?text=${encodeURIComponent('Hola, necesito soporte con mi sistema.')}`
+    : null;
+
+  const iniciales = (user?.username || '?').slice(0, 2).toUpperCase();
+
   // Antes los 6 grupos (~20 enlaces) estaban siempre expandidos: en pantallas
   // de laptop el sidebar se volvía más alto que el contenido y rompía el
   // layout de la derecha (hallazgo directo del operador). Ahora es un
@@ -133,6 +144,7 @@ export default function Layout() {
           <ThemeSwitcher />
           <NotificationBell />
           <BotStatusWidget />
+          <div className="avatar-chip" title={`${user?.username} · ${user?.rol}`}>{iniciales}</div>
         </div>
       </AppShell.Header>
 
@@ -154,9 +166,24 @@ export default function Layout() {
             ))}
           </Accordion>
         </nav>
+        {/* Tarjeta oscura del proveedor (como la "Upgrade card" de la
+            referencia visual) — soporte siempre a un clic */}
+        <div className="sidebar-promo">
+          <div className="sidebar-promo-title">🛟 ¿Necesitas ayuda?</div>
+          <div className="sidebar-promo-sub">Soporte y mejoras por {soporte?.nombre || 'Hevcaz Solutions'}</div>
+          {waSoporte && (
+            <a href={waSoporte} target="_blank" rel="noopener noreferrer" className="sidebar-promo-btn">Contactar soporte</a>
+          )}
+        </div>
         <div className="sidebar-foot">
-          {user?.username} · {user?.rol}
-          <div><button className="btn" style={{ marginTop: 10, width: '100%' }} onClick={logout}>Cerrar sesión</button></div>
+          <div className="sidebar-user">
+            <div className="avatar-chip">{iniciales}</div>
+            <div className="sidebar-user-info">
+              <span className="sidebar-user-name">{user?.username}</span>
+              <span className="sidebar-user-rol">{user?.rol}</span>
+            </div>
+          </div>
+          <button className="btn" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={logout}>Cerrar sesión</button>
         </div>
       </AppShell.Navbar>
 
