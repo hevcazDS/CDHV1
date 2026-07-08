@@ -31,6 +31,7 @@ function parsearCFDI(xml) {
             valor_unitario: parseFloat(_attr(m[0], 'ValorUnitario')) || 0,
             importe: parseFloat(_attr(m[0], 'Importe')) || 0,
             clave_prod_serv: _attr(m[0], 'ClaveProdServ') || null,
+            no_identificacion: _attr(m[0], 'NoIdentificacion') || null, // SKU/UPC del proveedor
         });
     }
 

@@ -330,7 +330,7 @@ CREATE TABLE IF NOT EXISTS inventario_movimientos (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     id_producto       INTEGER NOT NULL,
     sucursal          TEXT NOT NULL,
-    tipo              TEXT NOT NULL CHECK(tipo IN ('alta', 'ajuste_minimo', 'ajuste_stock')),
+    tipo              TEXT NOT NULL,  -- ledger descriptivo: venta/entrada/salida/traslado_*/ajuste_conteo/reversa/devolucion/alta/ajuste_* (CHECK removido en 0024)
     cantidad_anterior INTEGER,
     cantidad_nueva    INTEGER,
     motivo            TEXT,

@@ -330,8 +330,13 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // producto, y deja rastro en inventario_movimientos (tipo='entrada').
     // Body: { id_producto, sucursal, cantidad, costo?, proveedor? }
     if (p === '/api/prime/entrada-mercancia' && req.method === 'POST') {
-        const ses = requireSession(req, res, ['gerente']);
+        // Entrar mercancía es la chamba diaria de ALMACÉN (sin PIN, como se
+        // acordó: entrar libre, sacar con PIN) — además de gerente+
+        const ses = requireSession(req, res);
         if (!ses) return;
+        if (!require('../permisos').permite(ses.rol, 'almacen')) {
+            return json(res, { ok: false, error: 'Entrada de mercancía es del área de almacén (o administrador+)' }, 403);
+        }
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');

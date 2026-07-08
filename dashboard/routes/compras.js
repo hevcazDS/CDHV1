@@ -2,7 +2,20 @@
 // Rol Compras: solicitudes de adquisición (administrador aprueba → OC) e
 // ingreso de facturas de proveedor sin OC (→ CxP directa + asiento).
 const conta = require('../../services/contabilidadService');
+const costeo = require('../../services/costeoService');
+const kardexService = require('../../services/kardexService');
 const { permite, rangoDe } = require('../permisos');
+
+// Matchea un concepto de CFDI contra el catálogo: NoIdentificacion vs
+// upc/sku, o descripción exacta vs nombre. null = no encontrado.
+function _matchProducto(db, c) {
+    if (c.no_identificacion) {
+        const porCodigo = db.prepare('SELECT id, name FROM productos WHERE upc=? OR sku=? LIMIT 1')
+            .get(c.no_identificacion, c.no_identificacion);
+        if (porCodigo) return porCodigo;
+    }
+    return db.prepare('SELECT id, name FROM productos WHERE LOWER(name)=LOWER(?) LIMIT 1').get(c.descripcion) || null;
+}
 
 module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession, log } = ctx;
@@ -54,7 +67,14 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
             try {
                 const d = JSON.parse(body || '{}');
                 const cfdi = require('../../services/cfdiService').parsearCFDI(d.xml);
-                if (d.solo_preview) return json(res, { ok: true, cfdi });
+                if (d.solo_preview) {
+                    // Preview con matcheo de conceptos contra el catálogo
+                    const conceptos = cfdi.conceptos.map(c => {
+                        const prod = _matchProducto(db, c);
+                        return { ...c, producto_id: prod?.id || null, producto: prod?.name || null };
+                    });
+                    return json(res, { ok: true, cfdi: { ...cfdi, conceptos } });
+                }
 
                 if (cfdi.uuid && db.prepare('SELECT id FROM cuentas_pagar WHERE referencia=?').get(cfdi.uuid)) {
                     return json(res, { ok: false, error: 'Esta factura (UUID) ya está registrada' }, 400);
@@ -76,7 +96,42 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
                         partidas: [{ cuenta: d.es_mercancia ? '115' : '601', debe: cfdi.total }, { cuenta: '201', haber: cfdi.total }],
                     });
                 } catch (e) { if (conta.activo()) log.warn('Asiento CFDI falló: ' + e.message); }
-                return json(res, { ok: true, id_cxp: r.lastInsertRowid, proveedor: prov.nombre, total: cfdi.total, vence_en: vence, conceptos: cfdi.conceptos.length });
+
+                // Cargar los CONCEPTOS al inventario (opcional, solo mercancía):
+                // match → entrada con kardex + costeo promedio; sin match → se
+                // crea el producto INACTIVO (costo=unitario, para que el admin
+                // le ponga precio y lo active). El asiento de arriba ya valuó
+                // la compra — aquí NO se asienta doble.
+                const carga = { entradas: 0, creados: 0, omitidos: [] };
+                if (d.cargar_conceptos && d.es_mercancia) {
+                    const suc = (() => {
+                        const v = db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default'").get()?.valor;
+                        if (!v) return null;
+                        return db.prepare('SELECT nombre FROM sucursales WHERE id=?').get(Number(v))?.nombre
+                            || db.prepare('SELECT nombre FROM sucursales WHERE nombre=?').get(v)?.nombre || null;
+                    })();
+                    if (!suc) return json(res, { ok: false, error: 'Configura la sucursal de facturación antes de cargar conceptos' }, 400);
+                    db.transaction(() => {
+                        for (const c of cfdi.conceptos) {
+                            const cant = Math.round(c.cantidad);
+                            if (!(cant > 0)) { carga.omitidos.push(c.descripcion + ' (cantidad no entera)'); continue; }
+                            let prod = _matchProducto(db, c);
+                            if (!prod) {
+                                const nu = db.prepare(`INSERT INTO productos (tipo, name, price, costo, sku, activo, cat)
+                                                       VALUES ('fisico', ?, ?, ?, ?, 0, '')`)
+                                    .run(c.descripcion.slice(0, 120), c.valor_unitario, c.valor_unitario, c.no_identificacion || null);
+                                prod = { id: nu.lastInsertRowid };
+                                carga.creados++;
+                            }
+                            if (c.valor_unitario > 0) {
+                                try { costeo.registrarEntrada(prod.id, cant, c.valor_unitario, 'cfdi:' + (cfdi.uuid || r.lastInsertRowid)); } catch (_) {}
+                            }
+                            kardexService.movimiento({ id_producto: prod.id, sucursal: suc, tipo: 'entrada', delta: cant, motivo: 'CFDI ' + (cfdi.uuid || cfdi.folio || ''), usuario: ses.username });
+                            carga.entradas++;
+                        }
+                    })();
+                }
+                return json(res, { ok: true, id_cxp: r.lastInsertRowid, proveedor: prov.nombre, total: cfdi.total, vence_en: vence, conceptos: cfdi.conceptos.length, carga });
             } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
         });
     }

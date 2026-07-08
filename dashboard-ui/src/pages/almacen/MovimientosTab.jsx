@@ -84,6 +84,22 @@ export default function MovimientosTab() {
             Dar salida
           </Button>
         </Group>
+        <Button fullWidth mt="sm" variant="light" color="teal" disabled={!f.producto || !f.origen}
+          onClick={async () => {
+            const costo = window.prompt('Costo unitario (opcional, recalcula el promedio):', '');
+            try {
+              const r = await api.post('/api/prime/entrada-mercancia', {
+                id_producto: Number(f.producto), sucursal: f.origen, cantidad: f.cantidad,
+                costo: costo !== null && costo !== '' ? Number(costo) : undefined, proveedor: f.motivo || undefined,
+              });
+              if (!r.ok) throw new Error(r.error);
+              alert(`✓ Entrada registrada: ${r.stock_anterior} → ${r.stock_nuevo}`);
+              qc.invalidateQueries({ queryKey: ['almacen-prods'] });
+              qc.invalidateQueries({ queryKey: ['kardex'] });
+            } catch (e) { handleApiError(e); }
+          }}>
+          Entrada sin OC (libre, sin PIN)
+        </Button>
       </Card>
 
       <Card withBorder radius="md" p="lg" className="card">

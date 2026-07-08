@@ -19,11 +19,15 @@ function movimiento({ id_producto, sucursal, tipo, delta, motivo, usuario }) {
         db.prepare(`INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo, creado_por)
                     VALUES (?,?,?,?,?,?,?)`)
           .run(id_producto, sucursal, tipo, anterior, nueva, motivo || null, usuario || null);
-    } catch (_) {
+    } catch (e1) {
         try {
             db.prepare('INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo) VALUES (?,?,?,?,?,?)')
               .run(id_producto, sucursal, tipo, anterior, nueva, motivo || null);
-        } catch (_) {}
+        } catch (e2) {
+            // Un ledger de dinero NUNCA falla mudo (el CHECK legacy de 0006
+            // se tragó movimientos hasta la migración 0024)
+            console.error('[kardex] NO se pudo registrar movimiento:', e2.message, { id_producto, sucursal, tipo });
+        }
     }
     return { anterior, nueva };
 }
