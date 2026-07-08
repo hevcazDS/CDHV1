@@ -32,6 +32,7 @@ const Notificaciones = lazy(() => import('./pages/Notificaciones'));
 const Etiquetas = lazy(() => import('./pages/Etiquetas'));
 const Mostrador = lazy(() => import('./pages/Mostrador'));
 const Prime = lazy(() => import('./pages/Prime'));
+const Erp = lazy(() => import('./pages/Erp'));
 
 export default function App() {
   const { user, cargando } = useAuth();
@@ -83,6 +84,7 @@ export default function App() {
         <Route path="/etiquetas" element={<Etiquetas />} />
         <Route path="/mostrador" element={<Mostrador />} />
         {tieneRango(user.rol, 'gerente') && <Route path="/prime" element={<Prime />} />}
+        {tieneRango(user.rol, 'gerente') && <Route path="/erp" element={<Erp />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

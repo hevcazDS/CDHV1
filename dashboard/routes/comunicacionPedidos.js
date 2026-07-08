@@ -272,6 +272,12 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                 const ped = db.prepare("SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR (p.id_cliente IS NULL AND c.nombre=p.cliente) WHERE p.id_pedido=? LIMIT 1").get(lp.id_pedido);
                 // Evento de funnel: cierre real de la venta
                 try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('pago_confirmado','whatsapp',?,?)").run(String(lp.monto || ''), ped?.telefono || null); } catch (_) {}
+                // Asientos contables automáticos (módulo contabilidad_activo)
+                try {
+                    const _conta = require('../../services/contabilidadService');
+                    _conta.asientoVenta(lp.id_pedido, Number(lp.monto || 0), ped?.metodo_pago);
+                    _conta.asientoCostoVenta(lp.id_pedido);
+                } catch (e) { log.debug('Asientos de venta no registrados: ' + e.message); }
                 if (ped && /pendiente/i.test(ped.estatus || '')) {
                     db.prepare("UPDATE pedidos SET estatus='confirmado', actualizado_en=datetime('now','localtime') WHERE id_pedido=?").run(ped.id_pedido);
                     if (ped.telefono) {

@@ -26,6 +26,9 @@ const DEFAULT_OFF = [
     // Look minimalista: el panel arranca sin emojis (iconos de línea);
     // el toggle en Módulos permite reactivarlos por instancia.
     'emojis_dashboard_activo',
+    // Asientos contables automáticos (ERP Fase 6) — se enciende cuando el
+    // negocio quiere contabilidad; apagado no cambia nada del flujo.
+    'contabilidad_activo',
 ];
 
 module.exports = { DEFAULT_OFF };

@@ -16,11 +16,12 @@ function revertirCobro(idPedido, opts = {}) {
         for (const it of items) {
             const suc = it.sucursal_origen || opts.sucursalDefault;
             if (!suc) throw new Error('Detalle sin sucursal de origen y sin sucursal default — no se puede reponer inventario');
+            const anterior = db.prepare('SELECT stock FROM inventarios WHERE id_producto=? AND sucursal=?').get(it.id_producto, suc)?.stock ?? 0;
             db.prepare('UPDATE inventarios SET stock = stock + ? WHERE id_producto=? AND sucursal=?')
               .run(it.cantidad, it.id_producto, suc);
             try {
-                db.prepare("INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad, motivo) VALUES (?,?,?,?,?)")
-                  .run(it.id_producto, suc, 'reversa_cancelacion', it.cantidad, 'Cancelación pedido ' + (ped.folio || idPedido));
+                db.prepare("INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo) VALUES (?,?,?,?,?,?)")
+                  .run(it.id_producto, suc, 'reversa_cancelacion', anterior, anterior + it.cantidad, 'Cancelación pedido ' + (ped.folio || idPedido));
             } catch (_) {}
         }
 
@@ -41,6 +42,12 @@ function revertirCobro(idPedido, opts = {}) {
         db.prepare("UPDATE pedidos SET estatus=?, actualizado_en=datetime('now','localtime') WHERE id_pedido=?").run(nuevoEstatus, idPedido);
     });
     t();
+    // Contra-asientos si la contabilidad está activa (idempotente)
+    try {
+        const conta = require('./contabilidadService');
+        conta.asientoReversa('venta', idPedido);
+        conta.asientoReversa('costo_venta', idPedido);
+    } catch (_) {}
     return { ok: true, id_pedido: idPedido, puntos_revertidos: puntosRevertidos };
 }
 

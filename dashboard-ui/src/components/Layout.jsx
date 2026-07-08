@@ -7,7 +7,7 @@ import {
   Home, ReceiptText, Package, Undo2, MessagesSquare, MessageCircle,
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
-  LogOut,
+  LogOut, Landmark,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
@@ -45,6 +45,9 @@ const GRUPOS = [
     { to: '/busquedas', label: 'Búsquedas', Icono: Search, rolRequerido: 'gerente' },
     { to: '/metricas', label: 'Métricas', Icono: BarChart3, rolRequerido: 'gerente' },
     { to: '/etiquetas', label: 'Etiquetas', Icono: Tags, rolRequerido: 'gerente' },
+  ]},
+  { titulo: 'Finanzas', enlaces: [
+    { to: '/erp', label: 'ERP / Finanzas', Icono: Landmark, rolRequerido: 'gerente' },
   ]},
   { titulo: 'Sistema', enlaces: [
     { to: '/modulos', label: 'Módulos', Icono: Settings, rolRequerido: 'gerente' },
@@ -110,7 +113,7 @@ export default function Layout() {
   const monograma = nombreNegocio.split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
   const ICONO_CATEGORIA = {
     'Operación diaria': Home, 'Envíos y logística': Truck, 'Clientes y fidelidad': Users,
-    'Marketing': Tag, 'Catálogo y datos': BarChart3, 'Sistema': Settings,
+    'Marketing': Tag, 'Catálogo y datos': BarChart3, 'Finanzas': Landmark, 'Sistema': Settings,
   };
 
   // Acordeón de un grupo abierto a la vez, siempre el de la ruta activa

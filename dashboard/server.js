@@ -493,6 +493,8 @@ const ROUTE_MODULES = [
     require('./routes/primeConfig'),
     require('./routes/primeCatalogo'),
     require('./routes/primeUsuariosPuntos'),
+    require('./routes/erpProveedores'),
+    require('./routes/erpContabilidad'),
 ];
 
 function handleAPI(req, res) {

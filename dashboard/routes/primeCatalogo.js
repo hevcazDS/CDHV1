@@ -349,13 +349,20 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
                     const fila = db.prepare('SELECT * FROM inventarios WHERE id_producto=? AND sucursal=?').get(idProducto, sucursal);
                     const anterior = fila ? (fila.stock || 0) : 0;
                     const nueva = anterior + cantidad;
+                    if (costoNum !== null && costoNum >= 0) {
+                        // Costeo PROMEDIO ponderado (Fase 6) — ANTES de subir el
+                        // stock: pondera contra las existencias previas
+                        try {
+                            require('../../services/costeoService').registrarEntrada(
+                                idProducto, cantidad, costoNum, 'entrada_manual' + (proveedor ? ':' + proveedor : ''));
+                        } catch (_) {
+                            db.prepare('UPDATE productos SET costo=? WHERE id=?').run(costoNum, idProducto);
+                        }
+                    }
                     if (fila) {
                         db.prepare(`UPDATE inventarios SET stock=? WHERE ${pk}=?`).run(nueva, fila[pk]);
                     } else {
                         db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock, stock_minimo) VALUES (?, ?, ?, 0)').run(idProducto, sucursal, nueva);
-                    }
-                    if (costoNum !== null && costoNum >= 0) {
-                        db.prepare('UPDATE productos SET costo=? WHERE id=?').run(costoNum, idProducto);
                     }
                     const motivo = 'Entrada de mercancía' + (proveedor ? ' — Proveedor: ' + proveedor : '');
                     db.prepare(`

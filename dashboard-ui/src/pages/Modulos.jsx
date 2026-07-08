@@ -63,6 +63,7 @@ const MODULOS = [
   { key: 'pos_activo', titulo: '🧾 Punto de venta (mostrador)', desc: 'Cobrar ventas presenciales y hacer corte de caja' },
   { key: 'facturacion_activo', titulo: '📄 Facturación', desc: 'Comprobante con datos fiscales y referencia (no todos los negocios facturan)' },
   { key: 'emojis_dashboard_activo', titulo: '🙂 Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
+  { key: 'contabilidad_activo', titulo: '🏛️ Contabilidad (ERP)', desc: 'Asientos automáticos de cada venta/compra/pago en el libro mayor (ver ERP / Finanzas)' },
 ];
 
 const TONOS = [

@@ -119,6 +119,11 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     return { pedidoRowid, subtotal };
                 })();
                 try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('pago_confirmado','mostrador',?,?)").run(String(resultado.subtotal), (d.cliente && d.cliente.telefono) || null); } catch (_) {}
+                try {
+                    const _conta = require('../../services/contabilidadService');
+                    _conta.asientoVenta(resultado.pedidoRowid, resultado.subtotal, metodoPago);
+                    _conta.asientoCostoVenta(resultado.pedidoRowid);
+                } catch (e) { log.debug('Asientos de venta POS no registrados: ' + e.message); }
 
                 // Puntos por la compra (si hay cliente y el módulo está activo).
                 try { puntosService.otorgarPuntosPorCompra(resultado.pedidoRowid); } catch (_) {}
