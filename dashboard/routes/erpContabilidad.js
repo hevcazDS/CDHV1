@@ -40,9 +40,12 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
         return json(res, { desde, hasta, cuentas: conta.libroMayor(desde, hasta) });
     }
 
-    // Asiento manual (ajustes, capital inicial, gastos) — prime
+    // Asiento manual (ajustes, capital inicial, gastos) — es la herramienta
+    // diaria del contador: área finanzas (contabilidad/administrador/prime)
     if (p === '/api/erp/asientos' && req.method === 'POST') {
-        if (!requireSession(req, res, ['prime'])) return;
+        const sesA = requireSession(req, res);
+        if (!sesA) return;
+        if (!permite(sesA.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');

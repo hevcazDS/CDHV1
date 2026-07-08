@@ -12,6 +12,19 @@ export default function MovimientosTab() {
   const [kardexDe, setKardexDe] = useState(null);
 
   const { data: prods = [] } = useQuery({ queryKey: ['almacen-prods'], queryFn: () => api.get('/api/almacen/inventario?q=') });
+  const { data: ocs = [] } = useQuery({ queryKey: ['erp-ocs'], queryFn: () => api.get('/api/erp/ordenes-compra').catch(() => []) });
+  const ocsAbiertas = (Array.isArray(ocs) ? ocs : []).filter(o => o.estatus === 'abierta');
+
+  const recibirOC = useMutation({
+    mutationFn: (id) => api.post(`/api/erp/ordenes-compra/${id}/recibir`),
+    onSuccess: (r) => {
+      if (!r.ok) return handleApiError(new Error(r.error));
+      alert('✓ Mercancía recibida: inventario, costo promedio y CxP actualizados');
+      qc.invalidateQueries({ queryKey: ['erp-ocs'] });
+      qc.invalidateQueries({ queryKey: ['almacen-prods'] });
+    },
+    onError: handleApiError,
+  });
   const productos = [...new Map(prods.map(x => [x.id, x])).values()];
   const sucursales = [...new Set(prods.map(x => x.sucursal))];
 
@@ -39,7 +52,18 @@ export default function MovimientosTab() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 20, alignItems: 'start' }}>
       <Card withBorder radius="md" p="lg" className="card">
-        <div className="card-header"><h3>Traslado / Salida</h3><Text size="xs" c="dimmed">Requieren PIN del administrador</Text></div>
+        <div className="card-header"><h3>OC por recibir</h3><Text size="xs" c="dimmed">Recibir = entra al inventario (sin PIN)</Text></div>
+        {ocsAbiertas.length === 0 && <div className="empty" style={{ padding: 10 }}>Sin órdenes pendientes</div>}
+        {ocsAbiertas.map(oc => (
+          <div key={oc.id} className="toggle-row">
+            <div className="info">
+              <h4>{oc.folio} — {oc.proveedor}</h4>
+              <p>{(oc.items || []).map(i => `${i.cantidad}× ${i.name}`).join(', ')} · ${Number(oc.total).toFixed(2)}</p>
+            </div>
+            <Button size="xs" onClick={() => recibirOC.mutate(oc.id)} disabled={recibirOC.isPending}>Recibir</Button>
+          </div>
+        ))}
+        <div className="card-header" style={{ marginTop: 18 }}><h3>Traslado / Salida</h3><Text size="xs" c="dimmed">Requieren PIN del administrador</Text></div>
         <Select label="Producto" searchable value={f.producto} onChange={v => setF({ ...f, producto: v })} mb="sm"
           data={productos.map(x => ({ value: String(x.id), label: x.name }))} />
         <Group grow mb="sm">

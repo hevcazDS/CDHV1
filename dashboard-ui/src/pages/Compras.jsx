@@ -49,8 +49,34 @@ export default function Compras() {
             <Button fullWidth onClick={() => crearSol.mutate()} disabled={!sol.descripcion.trim()}>Enviar al administrador</Button>
           </Card>
 
+          <Card withBorder radius="md" p="lg" className="card" mb="lg">
+            <div className="card-header"><h3>Factura por XML (CFDI)</h3></div>
+            <input type="file" accept=".xml" style={{ marginBottom: 8, display: 'block' }} onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              const rd = new FileReader();
+              rd.onload = async () => {
+                try {
+                  const prev = await api.post('/api/compras/factura-xml', { xml: String(rd.result || ''), solo_preview: true });
+                  if (!prev.ok) throw new Error(prev.error);
+                  const c = prev.cfdi;
+                  const esM = window.confirm(
+                    `CFDI leído:\n\nEmisor: ${c.emisor_nombre} (${c.emisor_rfc || 'sin RFC'})\nTotal: $${c.total} ${c.moneda}\nFecha: ${c.fecha || '-'}\nConceptos: ${c.conceptos.length}\nUUID: ${c.uuid || '-'}\n\n¿Es MERCANCÍA? (Aceptar = Inventario · Cancelar = Gasto)`
+                  );
+                  if (!window.confirm('¿Registrar la factura → proveedor + cuenta por pagar' + ' + asiento?')) return;
+                  const r = await api.post('/api/compras/factura-xml', { xml: String(rd.result || ''), es_mercancia: esM });
+                  if (!r.ok) throw new Error(r.error);
+                  alert(`✓ Registrada: ${r.proveedor} · $${r.total} · vence ${r.vence_en}`);
+                } catch (err) { handleApiError(err); }
+              };
+              rd.readAsText(f);
+              e.target.value = '';
+            }} />
+            <span className="text-muted" style={{ fontSize: 11 }}>Lee el XML, crea/matchea el proveedor por RFC, genera la CxP con vencimiento y el asiento (dedupe por UUID).</span>
+          </Card>
+
           <Card withBorder radius="md" p="lg" className="card">
-            <div className="card-header"><h3>Factura de proveedor (sin OC)</h3></div>
+            <div className="card-header"><h3>Factura manual (sin XML)</h3></div>
             <Select label="Proveedor *" searchable value={fac.id_proveedor} onChange={v => setFac({ ...fac, id_proveedor: v })} mb="sm"
               data={proveedores.map(pr => ({ value: String(pr.id), label: pr.nombre }))} />
             <Group grow mb="sm">

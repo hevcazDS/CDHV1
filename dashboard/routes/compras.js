@@ -47,6 +47,40 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
         return json(res, { ok: true, id, estatus: accion });
     }
 
+    // Factura por XML (CFDI): parsea, da preview y al confirmar crea/matchea
+    // proveedor por RFC + CxP + asiento — además del modo manual de abajo.
+    if (p === '/api/compras/factura-xml' && req.method === 'POST') {
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const cfdi = require('../../services/cfdiService').parsearCFDI(d.xml);
+                if (d.solo_preview) return json(res, { ok: true, cfdi });
+
+                if (cfdi.uuid && db.prepare('SELECT id FROM cuentas_pagar WHERE referencia=?').get(cfdi.uuid)) {
+                    return json(res, { ok: false, error: 'Esta factura (UUID) ya está registrada' }, 400);
+                }
+                let prov = cfdi.emisor_rfc && db.prepare('SELECT * FROM proveedores WHERE rfc=?').get(cfdi.emisor_rfc);
+                if (!prov) {
+                    const r = db.prepare('INSERT INTO proveedores (nombre, rfc, dias_credito) VALUES (?,?,0)')
+                        .run(cfdi.emisor_nombre, cfdi.emisor_rfc || null);
+                    prov = { id: r.lastInsertRowid, nombre: cfdi.emisor_nombre, dias_credito: 0 };
+                }
+                const dias = Number.isInteger(d.dias_credito) ? d.dias_credito : (prov.dias_credito || 0);
+                const vence = db.prepare("SELECT date(COALESCE(?, date('now','localtime')), '+' || ? || ' days') v").get(cfdi.fecha, dias).v;
+                const r = db.prepare('INSERT INTO cuentas_pagar (id_proveedor, monto, vence_en, referencia) VALUES (?,?,?,?)')
+                    .run(prov.id, cfdi.total, vence, cfdi.uuid || [cfdi.serie, cfdi.folio].filter(Boolean).join('-') || null);
+                try {
+                    conta.registrarAsiento({
+                        concepto: 'CFDI ' + (cfdi.serie || '') + (cfdi.folio || cfdi.uuid || '') + ' — ' + prov.nombre,
+                        referencia_tipo: 'compra', referencia_id: 'cfdi:' + (cfdi.uuid || r.lastInsertRowid),
+                        partidas: [{ cuenta: d.es_mercancia ? '115' : '601', debe: cfdi.total }, { cuenta: '201', haber: cfdi.total }],
+                    });
+                } catch (e) { if (conta.activo()) log.warn('Asiento CFDI falló: ' + e.message); }
+                return json(res, { ok: true, id_cxp: r.lastInsertRowid, proveedor: prov.nombre, total: cfdi.total, vence_en: vence, conceptos: cfdi.conceptos.length });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+        });
+    }
+
     // Factura de proveedor SIN OC → CxP directa + asiento (mercancía o gasto)
     if (p === '/api/compras/factura' && req.method === 'POST') {
         return readBody(req, body => {

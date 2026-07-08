@@ -86,14 +86,27 @@ export default function Rrhh() {
             <div className="card-header"><h3>Empleados</h3></div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Nombre</th><th>Puesto</th><th>Salario/día</th><th>Régimen</th></tr></thead>
+                <thead><tr><th>Nombre</th><th>Puesto</th><th>Salario/día</th><th>Régimen</th><th></th></tr></thead>
                 <tbody>
-                  {empleados.length === 0 && <tr><td colSpan={4} className="empty">Sin empleados</td></tr>}
+                  {empleados.length === 0 && <tr><td colSpan={5} className="empty">Sin empleados</td></tr>}
                   {empleados.map(e => (
                     <tr key={e.id}>
                       <td><strong>#{e.id} {e.nombre}</strong></td><td>{e.puesto || '-'}</td>
                       <td>${Number(e.salario_diario).toFixed(2)}</td>
                       <td><span className={`badge ${e.con_impuestos ? 'badge-azul' : 'badge-amarillo'}`}>{e.con_impuestos ? 'Con impuestos' : 'Sin impuestos'}</span></td>
+                      <td><Group gap={4} wrap="nowrap">
+                        <Button size="xs" variant="default" onClick={async () => {
+                          const s = window.prompt('Nuevo salario diario para ' + e.nombre + ':', e.salario_diario);
+                          if (!s) return;
+                          const r = await api.put(`/api/rrhh/empleados/${e.id}`, { salario_diario: Number(s) });
+                          if (r.ok) qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); else handleApiError(new Error(r.error));
+                        }}>Salario</Button>
+                        <Button size="xs" variant="light" color="red" onClick={async () => {
+                          if (!window.confirm('¿Dar de BAJA a ' + e.nombre + '? (deja de aparecer en nómina)')) return;
+                          const r = await api.put(`/api/rrhh/empleados/${e.id}`, { activo: false });
+                          if (r.ok) qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); else handleApiError(new Error(r.error));
+                        }}>Baja</Button>
+                      </Group></td>
                     </tr>
                   ))}
                 </tbody>

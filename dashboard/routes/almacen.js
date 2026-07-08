@@ -28,6 +28,21 @@ module.exports = function almacenRoutes(req, res, p, u, ctx, next) {
             ORDER BY p2.name LIMIT 300`).all(q, like, like, like));
     }
 
+    // Plantilla de conteo: el sistema entrega el CSV con SU inventario actual
+    // para que almacén lo llene con lo contado y haga el cruce
+    if (p === '/api/almacen/plantilla-conteo' && req.method === 'GET') {
+        const suc = ((new URL(req.url, 'http://x')).searchParams.get('sucursal') || '').trim();
+        const filas = db.prepare(`
+            SELECT p2.upc, p2.sku, p2.name, i.sucursal, i.stock
+            FROM inventarios i JOIN productos p2 ON p2.id = i.id_producto
+            WHERE p2.activo=1 AND p2.tipo != 'servicio' AND (? = '' OR i.sucursal = ?)
+            ORDER BY p2.name`).all(suc, suc);
+        let csv = 'upc,nombre (referencia - no se importa),stock_sistema (referencia),cantidad\r\n';
+        for (const f of filas) csv += `${f.upc || f.sku || ''},${(f.name || '').replace(/,/g, ' ')},${f.stock},\r\n`;
+        res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="plantilla_conteo.csv"' });
+        return res.end('﻿' + csv);
+    }
+
     if (p === '/api/almacen/kardex' && req.method === 'GET') {
         const sp = (new URL(req.url, 'http://x')).searchParams;
         const idProd = parseInt(sp.get('producto'), 10);

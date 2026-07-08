@@ -32,6 +32,23 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // Editar/dar de baja empleado (salario, régimen, activo)
+    if (req.method === 'PUT' && p.match(/^\/api\/rrhh\/empleados\/\d+$/)) {
+        const id = parseInt(p.split('/').pop());
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const e = db.prepare('SELECT id FROM empleados WHERE id=?').get(id);
+                if (!e) return json(res, { ok: false, error: 'Empleado no encontrado' }, 404);
+                if (d.salario_diario !== undefined && Number(d.salario_diario) > 0) db.prepare('UPDATE empleados SET salario_diario=? WHERE id=?').run(Number(d.salario_diario), id);
+                if (d.con_impuestos !== undefined) db.prepare('UPDATE empleados SET con_impuestos=? WHERE id=?').run(d.con_impuestos ? 1 : 0, id);
+                if (d.puesto !== undefined) db.prepare('UPDATE empleados SET puesto=? WHERE id=?').run(String(d.puesto).trim() || null, id);
+                if (d.activo !== undefined) db.prepare('UPDATE empleados SET activo=? WHERE id=?').run(d.activo ? 1 : 0, id);
+                return json(res, { ok: true, id });
+            } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }
+        });
+    }
+
     // Plantilla CSV de horarios (descargable; Excel la abre directo)
     if (p === '/api/rrhh/plantilla-horarios' && req.method === 'GET') {
         const empleados = db.prepare('SELECT id, nombre FROM empleados WHERE activo=1 ORDER BY id').all();

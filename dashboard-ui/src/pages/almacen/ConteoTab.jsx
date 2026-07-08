@@ -57,7 +57,11 @@ export default function ConteoTab() {
       <Card withBorder radius="md" p="lg" className="card">
         <div className="card-header"><h3>Archivo de conteo</h3></div>
         <TextInput label="Sucursal / bodega *" value={sucursal} onChange={e => setSucursal(e.target.value)} mb="sm" />
-        <input type="file" accept=".csv,.txt" onChange={leerArchivo} style={{ marginBottom: 10 }} />
+        <Button variant="default" size="xs" mb="sm" component="a"
+          href={'/api/almacen/plantilla-conteo?sucursal=' + encodeURIComponent(sucursal.trim())}>
+          Descargar plantilla con MI inventario (para el cruce)
+        </Button>
+        <input type="file" accept=".csv,.txt" onChange={leerArchivo} style={{ marginBottom: 10, display: 'block' }} />
         <Textarea label="O pega aquí (upc,cantidad — o un UPC por línea escaneado)" minRows={7}
           value={texto} onChange={e => setTexto(e.target.value)} mb="md" styles={{ input: { fontFamily: 'monospace', fontSize: 12 } }} />
         <Button fullWidth onClick={comparar} loading={cargando} disabled={!texto.trim()}>Comparar contra la base de datos</Button>
