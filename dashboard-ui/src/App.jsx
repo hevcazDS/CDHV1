@@ -5,6 +5,7 @@ import { useAuth } from './context/AuthContext';
 import { useWhatsAppQR } from './hooks/useWhatsAppQR';
 import { api } from './api';
 import { tieneRango } from './lib/roles';
+import { permite } from './lib/permisos';
 import WhatsAppQR from './components/WhatsAppQR';
 import Login from './components/Login';
 import Onboarding from './components/Onboarding';
@@ -33,6 +34,9 @@ const Etiquetas = lazy(() => import('./pages/Etiquetas'));
 const Mostrador = lazy(() => import('./pages/Mostrador'));
 const Prime = lazy(() => import('./pages/Prime'));
 const Erp = lazy(() => import('./pages/Erp'));
+const Almacen = lazy(() => import('./pages/Almacen'));
+const Compras = lazy(() => import('./pages/Compras'));
+const Rrhh = lazy(() => import('./pages/Rrhh'));
 
 export default function App() {
   const { user, cargando } = useAuth();
@@ -84,7 +88,10 @@ export default function App() {
         <Route path="/etiquetas" element={<Etiquetas />} />
         <Route path="/mostrador" element={<Mostrador />} />
         {tieneRango(user.rol, 'gerente') && <Route path="/prime" element={<Prime />} />}
-        {tieneRango(user.rol, 'gerente') && <Route path="/erp" element={<Erp />} />}
+        {(permite(user.rol, 'finanzas') || permite(user.rol, 'compras')) && <Route path="/erp" element={<Erp />} />}
+        {permite(user.rol, 'compras') && <Route path="/compras" element={<Compras />} />}
+        {(permite(user.rol, 'almacen') || permite(user.rol, 'almacen_lectura')) && <Route path="/almacen" element={<Almacen />} />}
+        {permite(user.rol, 'rrhh') && <Route path="/rrhh" element={<Rrhh />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

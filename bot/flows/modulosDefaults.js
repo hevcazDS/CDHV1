@@ -29,6 +29,8 @@ const DEFAULT_OFF = [
     // Asientos contables automáticos (ERP Fase 6) — se enciende cuando el
     // negocio quiere contabilidad; apagado no cambia nada del flujo.
     'contabilidad_activo',
+    // RRHH/nómina — módulo opcional (una pyme sin RH opera igual sin él)
+    'rrhh_activo',
 ];
 
 module.exports = { DEFAULT_OFF };

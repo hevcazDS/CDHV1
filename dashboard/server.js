@@ -168,7 +168,7 @@ db.prepare(`CREATE TABLE IF NOT EXISTS usuarios (
     nombre TEXT NOT NULL DEFAULT '',
     password_hash TEXT NOT NULL,
     salt TEXT NOT NULL,
-    rol TEXT NOT NULL CHECK(rol IN ('usuario','gerente','prime')),
+    rol TEXT NOT NULL CHECK(rol IN ('cajero','operador','almacen','compras','rh','contabilidad','usuario','gerente','admin','prime')),
     creado_en TEXT DEFAULT (datetime('now','localtime'))
 )`).run();
 
@@ -305,11 +305,11 @@ setInterval(() => {
     for (const [token, s] of _sesiones) if (now > s.expira) eliminarSesion(token);
 }, 10 * 60_000).unref();
 
-// Reemplaza requireAuth/requireAuthPrime: una sola sesión, el rol decide qué rutas alcanza.
-// Jerarquía de roles (Bloque 2B): usuario < gerente < prime. `admin` es el
-// rol histórico — equivale a gerente (la migración 0017 lo convierte, pero se
-// mapea aquí también para no bloquear ningún login durante la transición).
-const RANGO_ROL = { usuario: 1, gerente: 2, admin: 2, prime: 3 };
+// Reemplaza requireAuth/requireAuthPrime: una sola sesión, el rol decide qué
+// rutas alcanza. La jerarquía + áreas por rol especialista viven en
+// dashboard/permisos.js (fuente única, espejo en dashboard-ui/src/lib/).
+const permisos = require('./permisos');
+const { RANGO_ROL, permite } = permisos;
 function rangoDe(rol) { return RANGO_ROL[rol] || 0; }
 
 // requireSession(req, res, rolesPermitidos?) — si se pasa rolesPermitidos, el
@@ -479,6 +479,7 @@ function construirAudienciaMasivo({ soloConPedido, excluirTags, soloTags, sinAct
 // "matcheó" salvo por no llamar a next().
 const ctx = {
     db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, iniciarCapturaDireccion, SESION_S, sessionManagerBot, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, registrarErrorDB, SECURITY_HEADERS, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, ConfigContactoSchema, ConfigEmailBotSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema,
+    permisos, permite, autorizacion: require('./autorizacion'),
 };
 
 const ROUTE_MODULES = [
@@ -495,6 +496,10 @@ const ROUTE_MODULES = [
     require('./routes/primeUsuariosPuntos'),
     require('./routes/erpProveedores'),
     require('./routes/erpContabilidad'),
+    require('./routes/seguridadOperativa'),
+    require('./routes/almacen'),
+    require('./routes/compras'),
+    require('./routes/rrhh'),
 ];
 
 function handleAPI(req, res) {

@@ -2,24 +2,40 @@
 // ERP Fase 6: proveedores, órdenes de compra (recepción aumenta inventario
 // con costeo promedio) y cuentas por pagar. Todo gerente+.
 const costeo = require('../../services/costeoService');
+const { permite, rangoDe } = require('../permisos');
 const conta = require('../../services/contabilidadService');
 
 module.exports = function erpProveedoresRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession, log, generarFolio } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
 
+    // Áreas: compras crea proveedores/OC; almacén recibe; finanzas paga y
+    // consulta. Administrador+ pasa todo (permite() lo resuelve).
+    const ses = requireSession(req, res);
+    if (!ses) return;
+    const esCompras = permite(ses.rol, 'compras');
+    const esFinanzas = permite(ses.rol, 'finanzas');
+
+    // Mismo criterio que pos.js: el valor es el ID de la sucursal (con
+    // fallback a nombre por si una instancia vieja guardó el nombre)
     const _sucursalDefault = () => {
-        try { return db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default'").get()?.valor || null; }
-        catch (_) { return null; }
+        try {
+            const v = db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default'").get()?.valor;
+            if (!v) return null;
+            const porId = db.prepare('SELECT nombre FROM sucursales WHERE id=?').get(Number(v));
+            if (porId) return porId.nombre;
+            const porNombre = db.prepare('SELECT nombre FROM sucursales WHERE nombre=?').get(v);
+            return porNombre ? porNombre.nombre : null;
+        } catch (_) { return null; }
     };
 
     // ── Proveedores ────────────────────────────────────────────────────
     if (p === '/api/erp/proveedores' && req.method === 'GET') {
-        if (!requireSession(req, res, ['gerente'])) return;
+        if (!esCompras && !esFinanzas) return json(res, { ok: false, error: 'Sin acceso a proveedores' }, 403);
         return json(res, db.prepare('SELECT * FROM proveedores WHERE activo=1 ORDER BY nombre').all());
     }
     if (p === '/api/erp/proveedores' && req.method === 'POST') {
-        if (!requireSession(req, res, ['gerente'])) return;
+        if (!esCompras) return json(res, { ok: false, error: 'Crear proveedores es del área de compras' }, 403);
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');
@@ -35,7 +51,7 @@ module.exports = function erpProveedoresRoutes(req, res, p, u, ctx, next) {
 
     // ── Órdenes de compra ──────────────────────────────────────────────
     if (p === '/api/erp/ordenes-compra' && req.method === 'GET') {
-        if (!requireSession(req, res, ['gerente'])) return;
+        if (!esCompras && !esFinanzas && !permite(ses.rol, 'almacen')) return json(res, { ok: false, error: 'Sin acceso a órdenes de compra' }, 403);
         const ocs = db.prepare(`
             SELECT oc.*, pr.nombre AS proveedor FROM ordenes_compra oc
             JOIN proveedores pr ON pr.id = oc.id_proveedor
@@ -44,7 +60,7 @@ module.exports = function erpProveedoresRoutes(req, res, p, u, ctx, next) {
         return json(res, ocs.map(oc => ({ ...oc, items: det.all(oc.id) })));
     }
     if (p === '/api/erp/ordenes-compra' && req.method === 'POST') {
-        if (!requireSession(req, res, ['gerente'])) return;
+        if (!esCompras) return json(res, { ok: false, error: 'Crear OC es del área de compras' }, 403);
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');
@@ -72,7 +88,8 @@ module.exports = function erpProveedoresRoutes(req, res, p, u, ctx, next) {
 
     // Recepción: aumenta inventario + costeo promedio + CxP + asiento compra
     if (req.method === 'POST' && p.match(/^\/api\/erp\/ordenes-compra\/\d+\/recibir$/)) {
-        if (!requireSession(req, res, ['gerente'])) return;
+        // Separación de funciones: recibe ALMACÉN (o administrador+), no compras
+        if (!permite(ses.rol, 'almacen') && rangoDe(ses.rol) < 2) return json(res, { ok: false, error: 'Recibir mercancía es del área de almacén' }, 403);
         const id = parseInt(p.split('/')[4]);
         const oc = db.prepare('SELECT * FROM ordenes_compra WHERE id=?').get(id);
         if (!oc) return json(res, { ok: false, error: 'OC no encontrada' }, 404);
@@ -112,7 +129,7 @@ module.exports = function erpProveedoresRoutes(req, res, p, u, ctx, next) {
 
     // ── Cuentas por pagar ──────────────────────────────────────────────
     if (p === '/api/erp/cxp' && req.method === 'GET') {
-        if (!requireSession(req, res, ['gerente'])) return;
+        if (!esFinanzas && !esCompras) return json(res, { ok: false, error: 'Sin acceso a cuentas por pagar' }, 403);
         return json(res, db.prepare(`
             SELECT cp.*, pr.nombre AS proveedor, oc.folio AS folio_oc,
                    CAST(julianday(cp.vence_en) - julianday(date('now','localtime')) AS INTEGER) AS dias_para_vencer
@@ -122,7 +139,8 @@ module.exports = function erpProveedoresRoutes(req, res, p, u, ctx, next) {
             ORDER BY cp.estatus = 'pagada', cp.vence_en LIMIT 200`).all());
     }
     if (req.method === 'POST' && p.match(/^\/api\/erp\/cxp\/\d+\/pagar$/)) {
-        if (!requireSession(req, res, ['gerente'])) return;
+        // Paga CONTABILIDAD (o administrador+), no quien compró
+        if (!esFinanzas) return json(res, { ok: false, error: 'Pagar CxP es del área de finanzas' }, 403);
         const id = parseInt(p.split('/')[4]);
         return readBody(req, body => {
             try {

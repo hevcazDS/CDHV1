@@ -2,10 +2,16 @@
 // ERP Fase 6: plan de cuentas, asientos (diario) y libro mayor.
 // Consultas gerente+; asiento manual solo prime.
 const conta = require('../../services/contabilidadService');
+const { permite } = require('../permisos');
 
 module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
+    if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')) {
+        const ses = requireSession(req, res);
+        if (!ses) return;
+        if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
+    }
 
     const _rango = () => {
         const sp = new URL(req.url, 'http://x').searchParams;
@@ -15,12 +21,10 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     };
 
     if (p === '/api/erp/plan-cuentas' && req.method === 'GET') {
-        if (!requireSession(req, res, ['gerente'])) return;
         return json(res, db.prepare('SELECT * FROM plan_cuentas ORDER BY codigo').all());
     }
 
     if (p === '/api/erp/asientos' && req.method === 'GET') {
-        if (!requireSession(req, res, ['gerente'])) return;
         const { desde, hasta } = _rango();
         const asientos = db.prepare(
             'SELECT * FROM asientos WHERE fecha >= ? AND fecha <= ? ORDER BY id DESC LIMIT 200'
@@ -32,7 +36,6 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     }
 
     if (p === '/api/erp/libro-mayor' && req.method === 'GET') {
-        if (!requireSession(req, res, ['gerente'])) return;
         const { desde, hasta } = _rango();
         return json(res, { desde, hasta, cuentas: conta.libroMayor(desde, hasta) });
     }

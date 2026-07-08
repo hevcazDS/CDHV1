@@ -22,6 +22,7 @@ export const TIPO_JUGUETE_OPTIONS = [
 ];
 
 export const PRODUCTO_VACIO = {
+  tipo: 'fisico',
   name: '', price: '', costo: '', sku: '', upc: '', brand: '', handle: '',
   cat: '', id_categoria: null,
   genero: '', tipo_juguete: '', edad_min: 0, edad_max: 99,
@@ -36,6 +37,7 @@ export const PRODUCTO_VACIO = {
 // edad_recomendada NO se manda: el servidor la calcula desde edad_min/max.
 export function armarDatosProducto(v) {
   return {
+    tipo: v.tipo || 'fisico',
     name: v.name,
     price: Number(v.price),
     costo: (v.costo === '' || v.costo == null) ? undefined : Number(v.costo),
@@ -132,6 +134,11 @@ export function CamposProducto({ form, categorias, onCrearCategoria }) {
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr', gap: 8 }}>
           <TextInput label="Nombre" placeholder="Nombre *" {...form.getInputProps('name')} />
           <TextInput label="Precio" type="number" min={0} step="0.01" placeholder="Precio *" {...form.getInputProps('price')} />
+          <Select label="Tipo" allowDeselect={false} data={[
+            { value: 'fisico', label: 'Físico (inventariable/enviable)' },
+            { value: 'consumible', label: 'Consumible (insumo con stock)' },
+            { value: 'servicio', label: 'Servicio (sin stock ni envío)' },
+          ]} {...form.getInputProps('tipo')} />
           <SelectCategoria form={form} categorias={categorias} onCrearCategoria={onCrearCategoria} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginTop: 8, alignItems: 'center' }}>

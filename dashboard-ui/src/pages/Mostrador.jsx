@@ -37,6 +37,21 @@ export default function Mostrador() {
     try { const r = await api.get(`/api/pos/productos?q=${encodeURIComponent(q.trim())}`); setResultados(r.items || []); }
     catch (e) { setMsg({ ok: false, t: e.message }); }
   };
+  // Escáner de código de barras: los lectores USB teclean el código y mandan
+  // Enter — buscar match EXACTO por UPC/SKU y agregar al instante.
+  const escanear = async (e) => {
+    if (e.key !== 'Enter') return;
+    const codigo = e.currentTarget.value.trim();
+    if (!codigo) return;
+    e.currentTarget.value = '';
+    try {
+      const r = await api.get(`/api/pos/productos?q=${encodeURIComponent(codigo)}`);
+      const exacto = (r.items || []).find(x => x.upc === codigo || x.sku === codigo) || (r.items || [])[0];
+      if (!exacto) return setMsg({ ok: false, t: 'Código no encontrado: ' + codigo });
+      agregar(exacto);
+      setMsg(null);
+    } catch (err) { setMsg({ ok: false, t: err.message }); }
+  };
   const agregar = (p) => {
     setCarrito(c => {
       const i = c.findIndex(x => x.id === p.id);
@@ -77,7 +92,9 @@ export default function Mostrador() {
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.4fr 1fr', alignItems: 'start' }}>
         <Card withBorder radius="md" p="lg">
           <Title order={4} mb="sm">{txt('🛒 Venta')}</Title>
-          <TextInput placeholder="Buscar producto por nombre o SKU…" value={busqueda} onChange={e => buscar(e.target.value)} mb="xs" />
+          <TextInput placeholder="🔫 Escanear código de barras (Enter agrega)" autoFocus onKeyDown={escanear} mb="xs"
+            styles={{ input: { borderColor: 'var(--accent)', fontFamily: 'monospace' } }} />
+          <TextInput placeholder="…o buscar por nombre o SKU" value={busqueda} onChange={e => buscar(e.target.value)} mb="xs" />
           {resultados.length > 0 && (
             <div className="table-wrap" style={{ maxHeight: 200, overflow: 'auto', marginBottom: 8, border: '1px solid var(--border)', borderRadius: 6 }}>
               <Table highlightOnHover verticalSpacing={4}>

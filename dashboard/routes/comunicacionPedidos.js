@@ -1,4 +1,7 @@
 'use strict';
+const kardexService = require('../../services/kardexService');
+const autorizacion = require('../autorizacion');
+const { rangoDe } = require('../permisos');
 // Extraído mecánicamente de dashboard/server.js (líneas 574-891 del
 // monolito original) — fase 4 del hardening, item de partir server.js en
 // módulos. NINGUNA línea de lógica fue reescrita, solo movida; ctx trae todo
@@ -251,6 +254,8 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     // que moviera un links_pago de 'generado' a 'pagado'.
     if (req.method === 'POST' && p.match(/^\/api\/pagos\/\d+\/marcar-pagado$/)) {
         const id = parseInt(p.split('/')[3]);
+        const _sesPago = requireSession(req, res);
+        if (!_sesPago) return;
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body || '{}'), PagoConfirmadoSchema, res, p);
@@ -261,12 +266,17 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                 if (!lp) return json(res, { ok:false, error:'Link de pago no encontrado' }, 404);
                 db.prepare("UPDATE links_pago SET estatus='pagado', pagado_en=datetime('now','localtime'), referencia_pago=? WHERE id=?").run(referencia_pago, id);
 
-                // Pago confirmado: descontar del inventario real lo vendido en este pedido.
-                const items = db.prepare('SELECT id_producto, cantidad, sucursal_origen FROM pedido_detalle WHERE id_pedido=?').all(lp.id_pedido);
+                // Pago confirmado: descontar inventario con KARDEX (los
+                // productos tipo 'servicio' no llevan stock)
+                const items = db.prepare(`
+                    SELECT d.id_producto, d.cantidad, d.sucursal_origen, COALESCE(pr.tipo,'fisico') AS tipo
+                    FROM pedido_detalle d LEFT JOIN productos pr ON pr.id = d.id_producto
+                    WHERE d.id_pedido=?`).all(lp.id_pedido);
                 for (const it of items) {
-                    db.prepare('UPDATE inventarios SET stock = MAX(0, stock - ?) WHERE id_producto=? AND sucursal=?')
-                      .run(it.cantidad, it.id_producto, it.sucursal_origen);
+                    if (it.tipo === 'servicio' || !it.sucursal_origen) continue;
+                    kardexService.movimiento({ id_producto: it.id_producto, sucursal: it.sucursal_origen, tipo: 'venta', delta: -it.cantidad, motivo: 'Pago pedido ' + lp.id_pedido, usuario: _sesPago.username });
                 }
+                db.prepare('UPDATE pedidos SET cobrado_por=? WHERE id_pedido=?').run(_sesPago.username, lp.id_pedido);
 
                 // Si el pedido seguía 'Pendiente', avanzarlo a 'confirmado' — ya hay dinero.
                 const ped = db.prepare("SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR (p.id_cliente IS NULL AND c.nombre=p.cliente) WHERE p.id_pedido=? LIMIT 1").get(lp.id_pedido);
@@ -362,11 +372,19 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     // PUT /api/devoluciones/:id — aprobar/rechazar/resolver y avisar al cliente
     if (req.method === 'PUT' && p.match(/^\/api\/devoluciones\/\d+$/)) {
         const id = parseInt(p.split('/').pop());
+        const _sesDev = requireSession(req, res);
+        if (!_sesDev) return;
         return readBody(req, body => {
             try {
-                const { estatus, notas } = JSON.parse(body);
+                const { estatus, notas, pin } = JSON.parse(body);
                 const validos = ['solicitada','aprobada','rechazada','resuelta'];
                 if (!validos.includes(estatus)) return json(res, { ok:false, error:'Estatus inválido' }, 400);
+                // Resolver/aprobar una devolución mueve dinero e inventario:
+                // administrador+ directo, roles POS con PIN de autorización
+                if (estatus !== 'solicitada') {
+                    const errPin = autorizacion.exigirAutorizacion(db, _sesDev, pin, rangoDe);
+                    if (errPin) return json(res, { ok:false, error: errPin, pin_requerido: true }, 403);
+                }
                 const terminal = estatus !== 'solicitada';
                 db.prepare(
                     "UPDATE devoluciones SET estatus=?, notas=COALESCE(?,notas)" +
@@ -389,8 +407,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                         'SELECT sucursal_origen FROM pedido_detalle WHERE id_pedido=? AND id_producto=? LIMIT 1'
                     ).get(dev.id_pedido, dev.id_producto);
                     if (det) {
-                        db.prepare('UPDATE inventarios SET stock = stock + ? WHERE id_producto=? AND sucursal=?')
-                          .run(dev.cantidad, dev.id_producto, det.sucursal_origen);
+                        kardexService.movimiento({ id_producto: dev.id_producto, sucursal: det.sucursal_origen, tipo: 'devolucion', delta: dev.cantidad, motivo: 'Devolución pedido ' + (dev.folio || dev.id_pedido), usuario: _sesDev.username });
                         try { require('../../services/contabilidadService').asientoDevolucion(dev.id_pedido, dev.id_producto, dev.cantidad); }
                         catch (e) { log.debug('Asiento de devolución no registrado: ' + e.message); }
                     }

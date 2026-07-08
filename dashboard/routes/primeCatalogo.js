@@ -202,14 +202,16 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
                 const crear = db.transaction((datos) => {
                     const r = db.prepare(`
                         INSERT INTO productos (
+                            tipo,
                             name, cat, price, costo, sku, upc, brand, handle, description, url_imagen,
                             tags, seo_description, material, color, target_audience, tipo_juguete,
                             edad_recomendada, edad_min, edad_max, genero, id_categoria,
                             peso_kg, alto_cm, ancho_cm, largo_cm,
                             stock_tienda, stock_cedis, stock_san_luis_potosi, stock_exhibicion,
                             stock_queretaro, stock_monterrey, stock_cdmx_centro, stock_base, creado_por, creado_en
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
                     `).run(
+                        datos.tipo || 'fisico',
                         datos.name, datos.cat || '', datos.price, datos.costo ?? null, datos.sku || null, datos.upc || null,
                         datos.brand || null, datos.handle || null, datos.description || null, datos.url_imagen || null,
                         datos.tags || null, datos.seo_description || null, datos.material || null, datos.color || null,

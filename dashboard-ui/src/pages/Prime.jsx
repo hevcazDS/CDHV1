@@ -25,7 +25,7 @@ const TABS = [
   { key: 'sucursales', label: '🏬 Sucursales', Componente: SucursalesTab },
   { key: 'inventario', label: '📊 Inventario', Componente: InventarioTab },
   { key: 'catalogo', label: '🧸 Catálogo', Componente: CatalogoTab },
-  { key: 'usuarios', label: '👤 Usuarios', soloPrime: true, Componente: UsuariosTab },
+  { key: 'usuarios', label: '👤 Usuarios', soloPrime: false, Componente: UsuariosTab },
   { key: 'datos', label: '🤖 Datos LLM', soloPrime: true, Componente: DatosLLMTab },
   { key: 'filtros', label: '🚫 Filtros', Componente: FiltrosTab },
 ];

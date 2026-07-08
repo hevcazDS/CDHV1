@@ -7,7 +7,7 @@ import {
   Home, ReceiptText, Package, Undo2, MessagesSquare, MessageCircle,
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
-  LogOut, Landmark,
+  LogOut, Landmark, Warehouse, ShoppingCart, IdCard,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
@@ -16,15 +16,16 @@ import NotificationBell from './NotificationBell';
 import SoporteWidget from './SoporteWidget';
 import BuscadorGlobal from './BuscadorGlobal';
 import { tieneRango } from '../lib/roles';
+import { permite, etiquetaRol } from '../lib/permisos';
 
 const GRUPOS = [
   { titulo: 'Operación diaria', enlaces: [
     { to: '/', label: 'Inicio', Icono: Home },
-    { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo' },
-    { to: '/pedidos', label: 'Pedidos', Icono: Package },
-    { to: '/devoluciones', label: 'Devoluciones', Icono: Undo2 },
-    { to: '/cola', label: 'Cola de atención', Icono: MessagesSquare },
-    { to: '/notificaciones', label: 'Chat y mensajes', Icono: MessageCircle },
+    { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo', area: 'pos' },
+    { to: '/pedidos', area: 'operacion', label: 'Pedidos', Icono: Package },
+    { to: '/devoluciones', area: 'operacion', label: 'Devoluciones', Icono: Undo2 },
+    { to: '/cola', area: 'operacion', label: 'Cola de atención', Icono: MessagesSquare },
+    { to: '/notificaciones', area: 'operacion', label: 'Chat y mensajes', Icono: MessageCircle },
   ]},
   { titulo: 'Envíos y logística', enlaces: [
     { to: '/guias', label: 'Guías Estafeta', Icono: Truck, rolRequerido: 'gerente' },
@@ -33,8 +34,8 @@ const GRUPOS = [
     { to: '/preventas', label: 'Preventas', Icono: CalendarDays, rolRequerido: 'gerente' },
   ]},
   { titulo: 'Clientes y fidelidad', enlaces: [
-    { to: '/clientes', label: 'Clientes', Icono: Users },
-    { to: '/ranking', label: 'Ranking', Icono: Trophy },
+    { to: '/clientes', area: 'operacion', label: 'Clientes', Icono: Users },
+    { to: '/ranking', area: 'operacion', label: 'Ranking', Icono: Trophy },
   ]},
   { titulo: 'Marketing', enlaces: [
     { to: '/ofertas', label: 'Ofertas', Icono: Tag, rolRequerido: 'gerente' },
@@ -47,7 +48,12 @@ const GRUPOS = [
     { to: '/etiquetas', label: 'Etiquetas', Icono: Tags, rolRequerido: 'gerente' },
   ]},
   { titulo: 'Finanzas', enlaces: [
-    { to: '/erp', label: 'ERP / Finanzas', Icono: Landmark, rolRequerido: 'gerente' },
+    { to: '/erp', label: 'ERP / Finanzas', Icono: Landmark, area: 'finanzas' },
+    { to: '/compras', label: 'Compras', Icono: ShoppingCart, area: 'compras' },
+    { to: '/rrhh', label: 'Recursos Humanos', Icono: IdCard, area: 'rrhh', moduloRequerido: 'rrhh_activo' },
+  ]},
+  { titulo: 'Almacén', enlaces: [
+    { to: '/almacen', label: 'Almacén', Icono: Warehouse, area: 'almacen' },
   ]},
   { titulo: 'Sistema', enlaces: [
     { to: '/modulos', label: 'Módulos', Icono: Settings, rolRequerido: 'gerente' },
@@ -75,11 +81,16 @@ export default function Layout() {
     queryKey: ['modulo', 'pos_activo'],
     queryFn: () => api.get('/api/modulo/pos_activo').then(r => !!r.activo).catch(() => false),
   });
-  const modulosActivos = { pos_activo: posActivo };
+  const { data: rrhhActivo } = useQuery({
+    queryKey: ['modulo', 'rrhh_activo'],
+    queryFn: () => api.get('/api/modulo/rrhh_activo').then(r => !!r.activo).catch(() => false),
+  });
+  const modulosActivos = { pos_activo: posActivo, rrhh_activo: rrhhActivo };
   // rolRequerido es rango mínimo, no match exacto
   const grupos = GRUPOS
     .map(g => ({ ...g, enlaces: g.enlaces.filter(e =>
       (!e.rolRequerido || tieneRango(user?.rol, e.rolRequerido)) &&
+      (!e.area || permite(user?.rol, e.area)) &&
       (!e.moduloRequerido || modulosActivos[e.moduloRequerido])
     ) }))
     .filter(g => g.enlaces.length > 0);
@@ -113,7 +124,7 @@ export default function Layout() {
   const monograma = nombreNegocio.split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
   const ICONO_CATEGORIA = {
     'Operación diaria': Home, 'Envíos y logística': Truck, 'Clientes y fidelidad': Users,
-    'Marketing': Tag, 'Catálogo y datos': BarChart3, 'Finanzas': Landmark, 'Sistema': Settings,
+    'Marketing': Tag, 'Catálogo y datos': BarChart3, 'Finanzas': Landmark, 'Almacén': Warehouse, 'Sistema': Settings,
   };
 
   // Acordeón de un grupo abierto a la vez, siempre el de la ruta activa
@@ -132,7 +143,7 @@ export default function Layout() {
           <ThemeSwitcher />
           <NotificationBell />
           <BotStatusWidget />
-          <div className="avatar-chip" title={`${user?.username} · ${user?.rol}`}>{iniciales}</div>
+          <div className="avatar-chip" title={`${user?.username} · ${etiquetaRol(user?.rol)}`}>{iniciales}</div>
         </div>
       </AppShell.Header>
 
@@ -191,7 +202,7 @@ export default function Layout() {
           {!colapsado && (
             <div className="sidebar-user-info">
               <span className="sidebar-user-name">{user?.username}</span>
-              <span className="sidebar-user-rol">{user?.rol}</span>
+              <span className="sidebar-user-rol">{etiquetaRol(user?.rol)}</span>
             </div>
           )}
           <button className="btn" title="Cerrar sesión" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={logout}>

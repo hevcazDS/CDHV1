@@ -8,14 +8,19 @@ import { api } from '../../api';
 import Modal from '../../components/Modal';
 
 const ROLES_OPCIONES = [
-  { value: 'usuario', label: 'usuario (cajero: atención + POS + bot)' },
-  { value: 'gerente', label: 'gerente (operación: catálogo, inventario, módulos, ofertas)' },
-  { value: 'prime', label: 'prime (control total)' },
-];
+    { value: 'cajero', label: 'Cajero (solo mostrador)' },
+    { value: 'operador', label: 'Operador (bot + POS)' },
+    { value: 'almacen', label: 'Almacén (inventario)' },
+    { value: 'compras', label: 'Compras (OC/facturas)' },
+    { value: 'rh', label: 'Recursos Humanos' },
+    { value: 'contabilidad', label: 'Contabilidad (finanzas)' },
+    { value: 'gerente', label: 'Administrador' },
+    { value: 'prime', label: 'Prime (dueño)' },
+  ];
 
 export default function UsuariosTab() {
   const queryClient = useQueryClient();
-  const usuarioForm = useForm({ initialValues: { username: '', password: '', rol: 'gerente' } });
+  const usuarioForm = useForm({ initialValues: { username: '', password: '', rol: 'operador' } });
   const [msgUsuarios, setMsgUsuarios] = useState('');
   const [usuarioEditando, setUsuarioEditando] = useState(null);
   const editarUsuarioForm = useForm({ initialValues: { nombre: '', password: '' } });
@@ -105,7 +110,12 @@ export default function UsuariosTab() {
                 <td>
                   <Select
                     size="xs"
-                    data={[{ value: 'usuario', label: 'usuario' }, { value: 'gerente', label: 'gerente' }, { value: 'prime', label: 'prime' }]}
+                    data={[
+                      { value: 'cajero', label: 'Cajero' }, { value: 'operador', label: 'Operador' },
+                      { value: 'almacen', label: 'Almacén' }, { value: 'compras', label: 'Compras' },
+                      { value: 'rh', label: 'RH' }, { value: 'contabilidad', label: 'Contabilidad' },
+                      { value: 'gerente', label: 'Administrador' }, { value: 'prime', label: 'Prime' },
+                    ]}
                     value={u.rol}
                     onChange={v => v && cambiarRolUsuario(u.id, v)}
                     allowDeselect={false}

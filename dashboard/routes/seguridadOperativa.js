@@ -1,0 +1,88 @@
+'use strict';
+// PIN de autorización (administrador/prime lo configuran) y ZONA DE PELIGRO
+// de prime: reset total de la instancia (deja la tienda limpia y reabre el
+// onboarding). El respaldo manual también es prime-only.
+const autorizacion = require('../autorizacion');
+
+const TABLAS_RESET = [
+    // operación
+    'pedido_detalle', 'links_pago', 'guias_estafeta', 'devoluciones', 'pedidos',
+    'carritos_abandonados', 'cola_atencion', 'conversaciones', 'mensajes',
+    'cola_notificaciones', 'cola_emails', 'valoraciones', 'log_eventos',
+    'lista_espera', 'alertas_reabasto', 'preventa_clientes', 'preventas',
+    'sesiones_bot', 'chats_iniciados', 'puntos_cliente', 'regalos_lealtad',
+    'promociones', 'tickets_venta', 'clientes',
+    // catálogo e inventario
+    'ubicaciones_inventario', 'inventario_movimientos', 'inventarios',
+    'productos_similares', 'productos', 'categorias', 'sucursales',
+    // ERP
+    'asientos_detalle', 'asientos', 'cuentas_pagar', 'ordenes_compra_detalle',
+    'ordenes_compra', 'proveedores', 'historial_costos', 'solicitudes_compra',
+    'cortes_caja', 'nominas', 'horarios_empleado', 'empleados',
+    'vision_revisiones', 'metodos_pago', 'series_folios', 'contadores_caso',
+];
+
+module.exports = function seguridadOperativaRoutes(req, res, p, u, ctx, next) {
+    const { db, json, readBody, requireSession, log, hashPassword, safeEqual } = ctx;
+
+    // GET estado del PIN (¿hay uno configurado?)
+    if (p === '/api/autorizacion/pin' && req.method === 'GET') {
+        if (!requireSession(req, res)) return;
+        return json(res, { configurado: autorizacion.hayPin(db) });
+    }
+    // PUT: configurar/cambiar el PIN — administrador y prime
+    if (p === '/api/autorizacion/pin' && req.method === 'PUT') {
+        if (!requireSession(req, res, ['gerente'])) return;
+        return readBody(req, body => {
+            try {
+                autorizacion.setPin(db, JSON.parse(body || '{}').pin);
+                log.info('[seguridad] PIN de autorización actualizado');
+                return json(res, { ok: true });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+        });
+    }
+
+    // ZONA DE PELIGRO — prime re-valida su contraseña + texto BORRAR.
+    // Borra TODO lo operativo, conserva solo usuarios prime y reabre onboarding.
+    if (p === '/api/prime/reset-instancia' && req.method === 'POST') {
+        const ses = requireSession(req, res, ['prime']);
+        if (!ses) return;
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                if (String(d.confirmacion || '').toUpperCase() !== 'BORRAR') {
+                    return json(res, { ok: false, error: 'Escribe BORRAR para confirmar' }, 400);
+                }
+                const yo = db.prepare('SELECT * FROM usuarios WHERE username=?').get(ses.username);
+                if (!yo || !safeEqual(hashPassword(String(d.password || ''), yo.salt), yo.password_hash)) {
+                    return json(res, { ok: false, error: 'Contraseña incorrecta' }, 401);
+                }
+                let borradas = 0;
+                db.pragma('foreign_keys = OFF');
+                try {
+                    db.transaction(() => {
+                        for (const t of TABLAS_RESET) {
+                            try { db.prepare('DELETE FROM ' + t).run(); borradas++; } catch (_) {}
+                        }
+                        db.prepare("DELETE FROM usuarios WHERE rol != 'prime'").run();
+                        db.prepare("DELETE FROM configuracion").run();
+                    })();
+                } finally { db.pragma('foreign_keys = ON'); }
+                log.warn('[PELIGRO] Instancia reseteada por ' + ses.username + ' (' + borradas + ' tablas)');
+                return json(res, { ok: true, tablas: borradas, msg: 'Instancia limpia. El onboarding se reabrirá para crear la tienda de cero.' });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
+    // Respaldo manual — prime-only (administrador NO)
+    if (p === '/api/prime/respaldo-manual' && req.method === 'POST') {
+        if (!requireSession(req, res, ['prime'])) return;
+        try {
+            require('child_process').execFile(process.execPath, [require('path').join(__dirname, '..', '..', 'scripts', 'backup.js'), 'db'], { timeout: 120000 },
+                (err) => log[err ? 'warn' : 'info']('[respaldo manual] ' + (err ? err.message : 'enviado')));
+            return json(res, { ok: true, msg: 'Respaldo en proceso — llegará al correo configurado' });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    }
+
+    return next();
+};

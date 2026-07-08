@@ -48,6 +48,34 @@ function MetodosPagoCard({ txt }) {
   );
 }
 
+// PIN de autorización: cancelaciones, devoluciones y salidas/traslados de
+// almacén de los roles operativos lo requieren. Prime y Administrador lo
+// configuran aquí.
+function PinCard({ txt }) {
+  const [pin, setPin] = useState('');
+  const { data } = useQuery({ queryKey: ['pin-estado'], queryFn: () => api.get('/api/autorizacion/pin') });
+  const guardar = async () => {
+    try {
+      const r = await api.put('/api/autorizacion/pin', { pin });
+      if (!r.ok) throw new Error(r.error);
+      alert('✓ PIN actualizado'); setPin('');
+    } catch (e) { handleApiError(e); }
+  };
+  return (
+    <div className="card" style={{ marginTop: 14 }}>
+      <div className="card-header"><h3>{txt('🔐 PIN de autorización')}</h3></div>
+      <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 10 }}>
+        Cajeros/operadores lo teclean para cancelar ventas o devolver; almacén para sacar/trasladar mercancía.
+        {data?.configurado ? ' Estado: configurado ✓' : ' Estado: SIN configurar — esas operaciones estarán bloqueadas para los roles operativos.'}
+      </p>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <TextInput type="password" placeholder="Nuevo PIN (4-12 caracteres)" value={pin} onChange={e => setPin(e.target.value)} style={{ flex: 1 }} />
+        <button className="btn btn-primary" onClick={guardar} disabled={pin.trim().length < 4}>Guardar</button>
+      </div>
+    </div>
+  );
+}
+
 const MODULOS = [
   { key: 'puntos_activo', titulo: '⭐ Puntos de Lealtad', desc: 'Clientes acumulan puntos automáticamente por compra o por referido' },
   { key: 'ofertas_activo', titulo: '🏷️ Ofertas y Descuentos', desc: 'Bot muestra ofertas activas' },
@@ -64,6 +92,7 @@ const MODULOS = [
   { key: 'facturacion_activo', titulo: '📄 Facturación', desc: 'Comprobante con datos fiscales y referencia (no todos los negocios facturan)' },
   { key: 'emojis_dashboard_activo', titulo: '🙂 Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
   { key: 'contabilidad_activo', titulo: '🏛️ Contabilidad (ERP)', desc: 'Asientos automáticos de cada venta/compra/pago en el libro mayor (ver ERP / Finanzas)' },
+  { key: 'rrhh_activo', titulo: '🪪 Recursos Humanos', desc: 'Empleados, horarios por Excel y nómina MX (con/sin impuestos)' },
 ];
 
 const TONOS = [
@@ -148,6 +177,7 @@ export default function Modulos() {
       </div>
 
       <MetodosPagoCard txt={txt} />
+          <PinCard txt={txt} />
 
       <div className="card" style={{ marginTop: 14 }}>
         <div className="card-header"><h3>{txt('🎭 Modo de conversación del bot')}</h3></div>

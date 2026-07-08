@@ -194,6 +194,7 @@ const SucursalUpdateSchema = z.object({
 // "{min}+ años" si max>=99) -- evita que quede texto libre inconsistente con
 // los rangos numéricos que sí usa bot/flows/_shared.js para filtrar.
 const ProductoBaseSchema = z.object({
+    tipo: z.enum(['fisico', 'consumible', 'servicio']).optional(),
     name:                  z.string().min(1, 'name requerido').max(200),
     cat:                   z.string().max(80).optional().nullable(),
     price:                 z.number().min(0),
@@ -250,7 +251,7 @@ const CategoriaSchema = z.object({
 const UsuarioSchema = z.object({
     username: z.string().min(3, 'username debe tener al menos 3 caracteres').max(40),
     password: z.string().min(8, 'password debe tener al menos 8 caracteres').max(200),
-    rol:      z.enum(['usuario', 'gerente', 'prime']),
+    rol:      z.enum(['cajero', 'operador', 'almacen', 'compras', 'rh', 'contabilidad', 'usuario', 'gerente', 'prime']),
     nombre:   z.string().trim().min(1).max(80).optional(),
 });
 const UsuarioUpdateSchema = z.object({

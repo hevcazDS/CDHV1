@@ -4,14 +4,21 @@
 // módulos. NINGUNA línea de lógica fue reescrita, solo movida; ctx trae todo
 // lo que este rango referenciaba como variable de módulo en el archivo
 // original (ver dashboard/server.js para la construcción de ctx).
+const { rangoDe, ROLES_CREABLES_POR_GERENTE } = require('../permisos');
+
 module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
     if (p === '/api/prime/usuarios' && req.method === 'POST') {
-        if (!requireSession(req, res, ['prime'])) return;
+        const sesU = requireSession(req, res, ['gerente']);
+        if (!sesU) return;
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body || '{}'), UsuarioSchema, res, p);
                 if (!datos) return;
+                // Administrador solo crea roles POR DEBAJO de su jerarquía
+                if (sesU.rol !== 'prime' && !ROLES_CREABLES_POR_GERENTE.includes(datos.rol)) {
+                    return json(res, { ok: false, error: 'Solo Prime puede crear usuarios administrador o prime' }, 403);
+                }
                 const { username, password, rol, nombre: nombreInput } = datos;
                 const nombre = String(nombreInput || username || '').trim();
                 if (!nombre) return json(res, { ok: false, error: 'username es obligatorio' }, 400);
@@ -30,7 +37,14 @@ module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
     }
 
     if (req.method === 'PUT' && p.match(/^\/api\/prime\/usuarios\/\d+$/)) {
-        if (!requireSession(req, res, ['prime'])) return;
+        const sesU = requireSession(req, res, ['gerente']);
+        if (!sesU) return;
+        if (sesU.rol !== 'prime') {
+            const objetivo = db.prepare('SELECT rol FROM usuarios WHERE id=?').get(parseInt(p.split('/').pop()));
+            if (objetivo && !ROLES_CREABLES_POR_GERENTE.includes(objetivo.rol)) {
+                return json(res, { ok: false, error: 'Solo Prime puede modificar administradores o prime' }, 403);
+            }
+        }
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
@@ -58,6 +72,16 @@ module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
     }
 
     if (req.method === 'DELETE' && p.match(/^\/api\/prime\/usuarios\/\d+$/)) {
+        {
+            const sesU = requireSession(req, res, ['gerente']);
+            if (!sesU) return;
+            if (sesU.rol !== 'prime') {
+                const objetivo = db.prepare('SELECT rol FROM usuarios WHERE id=?').get(parseInt(p.split('/').pop()));
+                if (objetivo && !ROLES_CREABLES_POR_GERENTE.includes(objetivo.rol)) {
+                    return json(res, { ok: false, error: 'Solo Prime puede eliminar administradores o prime' }, 403);
+                }
+            }
+        }
         const ses = requireSession(req, res, ['prime']);
         if (!ses) return;
         const id = parseInt(p.split('/').pop());

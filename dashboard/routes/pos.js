@@ -9,9 +9,22 @@
 // descuento de inventario, mismos puntos.
 const shared = require('../../bot/flows/_shared');
 const puntosService = require('../../bot/handlers/puntosService');
+const kardexService = require('../../services/kardexService');
+const autorizacion = require('../autorizacion');
+const { permite, rangoDe } = require('../permisos');
 
 module.exports = function posRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
+    // Área POS: cajero/operador/administrador/prime
+    if (p.startsWith('/api/pos/') && !p.startsWith('/api/pos/buscar-producto') && !p.startsWith('/api/pos/venta-previa')) {
+        const _s = requireSession(req, res);
+        if (!_s) return;
+        const _esCorte = p.startsWith('/api/pos/corte');
+        if (!permite(_s.rol, 'pos') && !(_esCorte && permite(_s.rol, 'cortes'))) {
+            return json(res, { ok: false, error: 'Tu rol no tiene acceso al punto de venta' }, 403);
+        }
+        req._ses = _s;
+    }
 
     function posActivo() {
         try {
@@ -45,12 +58,12 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
         const q = (new URL(req.url, 'http://x').searchParams.get('q') || '').trim();
         const suc = sucursalDefault();
         const rows = db.prepare(`
-            SELECT p.id, p.name, p.price, p.sku,
+            SELECT p.id, p.name, p.price, p.sku, p.upc, p.tipo,
                    COALESCE((SELECT stock FROM inventarios WHERE id_producto=p.id AND sucursal=?), 0) AS stock
             FROM productos p
-            WHERE p.activo=1 AND (? = '' OR p.name LIKE ? OR p.sku LIKE ?)
+            WHERE p.activo=1 AND (? = '' OR p.name LIKE ? OR p.sku LIKE ? OR p.upc = ?)
             ORDER BY p.name LIMIT 25
-        `).all(suc || '', q, '%' + q + '%', '%' + q + '%');
+        `).all(suc || '', q, '%' + q + '%', '%' + q + '%', q);
         return json(res, { items: rows, sucursal: suc });
     }
 
@@ -72,7 +85,7 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                 // salvo override explícito desde el mostrador).
                 const carrito = [];
                 for (const it of items) {
-                    const prod = db.prepare('SELECT id, name, price FROM productos WHERE id=?').get(Number(it.id_producto));
+                    const prod = db.prepare('SELECT id, name, price, tipo FROM productos WHERE id=?').get(Number(it.id_producto));
                     if (!prod) return json(res, { ok: false, error: 'Producto no encontrado: ' + it.id_producto }, 400);
                     const cantidad = Math.max(1, parseInt(it.cantidad, 10) || 1);
                     let price = prod.price;
@@ -84,7 +97,7 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                             return json(res, { ok: false, error: `Precio fuera de rango para ${prod.name} (permitido: $${(prod.price * 0.5).toFixed(2)} a $${Number(prod.price).toFixed(2)})` }, 400);
                         }
                     }
-                    carrito.push({ id: prod.id, name: prod.name, price, cantidad });
+                    carrito.push({ id: prod.id, name: prod.name, price, cantidad, tipo: prod.tipo || 'fisico' });
                 }
 
                 // Cliente opcional (para acumular puntos). Walk-in = sin cliente.
@@ -111,11 +124,12 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     const met = db.prepare('SELECT id FROM metodos_pago WHERE nombre=?').get(metodoPago);
                     db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
                       .run(pedidoRowid, met ? met.id : null, subtotal);
-                    // Descontar inventario de la sucursal (mismo patrón que marcar-pagado).
+                    // Descontar inventario con KARDEX; los servicios no llevan stock
                     for (const it of carrito) {
-                        db.prepare('UPDATE inventarios SET stock = MAX(0, stock - ?) WHERE id_producto=? AND sucursal=?')
-                          .run(it.cantidad, it.id, sucursal);
+                        if (it.tipo === 'servicio') continue;
+                        kardexService.movimiento({ id_producto: it.id, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Venta ' + folio, usuario: req._ses?.username });
                     }
+                    db.prepare('UPDATE pedidos SET cobrado_por=? WHERE id_pedido=?').run(req._ses?.username || null, pedidoRowid);
                     return { pedidoRowid, subtotal };
                 })();
                 try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('pago_confirmado','mostrador',?,?)").run(String(resultado.subtotal), (d.cliente && d.cliente.telefono) || null); } catch (_) {}
@@ -146,49 +160,62 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
     // (gerente+: la anulación es supervisión, no operación de cajero).
     // Repone inventario, cancela el pago y marca el pedido — el corte de
     // caja del día deja de contarla automáticamente (suma solo 'pagado').
+    // Cancelar venta: administrador+ directo; cajero/operador con PIN de
+    // autorización (punto único — futuro: autorización remota del admin)
     if (req.method === 'POST' && p.match(/^\/api\/pos\/venta\/\d+\/cancelar$/)) {
-        if (!requireSession(req, res, ['gerente'])) return;
         const idPedido = parseInt(p.split('/')[4]);
-        const ped = db.prepare("SELECT * FROM pedidos WHERE id_pedido=? AND canal_creacion='mostrador'").get(idPedido);
-        if (!ped) return json(res, { ok: false, error: 'Venta de mostrador no encontrada' }, 404);
-        if (/cancelado/i.test(ped.estatus || '')) return json(res, { ok: false, error: 'Esa venta ya está cancelada' }, 400);
-        try {
-            const r = require('../../services/reversionService').revertirCobro(idPedido, { sucursalDefault: sucursalDefault() });
-            if (!r.ok) return json(res, r, 400);
-            return json(res, { ok: true, id_pedido: idPedido, estatus: 'cancelado', puntos_revertidos: r.puntos_revertidos });
-        } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const err = autorizacion.exigirAutorizacion(db, req._ses, d.pin, rangoDe);
+                if (err) return json(res, { ok: false, error: err, pin_requerido: true }, 403);
+                const ped = db.prepare("SELECT * FROM pedidos WHERE id_pedido=? AND canal_creacion='mostrador'").get(idPedido);
+                if (!ped) return json(res, { ok: false, error: 'Venta de mostrador no encontrada' }, 404);
+                if (/cancelado/i.test(ped.estatus || '')) return json(res, { ok: false, error: 'Esa venta ya está cancelada' }, 400);
+                const r = require('../../services/reversionService').revertirCobro(idPedido, { sucursalDefault: sucursalDefault() });
+                if (!r.ok) return json(res, r, 400);
+                return json(res, { ok: true, id_pedido: idPedido, estatus: 'cancelado', puntos_revertidos: r.puntos_revertidos });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+        });
     }
 
-    // ── GET /api/pos/corte?fecha=YYYY-MM-DD — resumen del día (gerente+) ───
-    if (p === '/api/pos/corte' && req.method === 'GET') {
-        if (!requireSession(req, res, ['gerente'])) return;
-        const fecha = (new URL(req.url, 'http://x').searchParams.get('fecha') || new Date().toISOString().slice(0, 10)).trim();
-        const porMetodo = db.prepare(`
+    // Corte de caja: quien cobra, corta — pero SOLO su caja (sus ventas del
+    // día) y UNA sola vez al día. Administrador/Contabilidad ven y cierran
+    // el corte GLOBAL (todas las cajas + WhatsApp).
+    const _ventasDelDia = (fecha, soloDe) => {
+        const filtro = soloDe ? ' AND p.cobrado_por = ?' : '';
+        const args = soloDe ? [fecha, soloDe] : [fecha];
+        return db.prepare(`
             SELECT COALESCE(p.metodo_pago,'(sin método)') AS metodo, COUNT(*) AS n, COALESCE(SUM(lp.monto),0) AS total
             FROM links_pago lp JOIN pedidos p ON p.id_pedido = lp.id_pedido
-            WHERE lp.estatus='pagado' AND DATE(lp.pagado_en) = ?
-            GROUP BY p.metodo_pago ORDER BY total DESC
-        `).all(fecha);
+            WHERE lp.estatus='pagado' AND DATE(lp.pagado_en) = ?${filtro}
+            GROUP BY p.metodo_pago ORDER BY total DESC`).all(...args);
+    };
+
+    if (p === '/api/pos/corte' && req.method === 'GET') {
+        const ses = req._ses;
+        const esGlobal = rangoDe(ses.rol) >= 2 || permite(ses.rol, 'cortes');
+        const fecha = (new URL(req.url, 'http://x').searchParams.get('fecha') || new Date().toISOString().slice(0, 10)).trim();
+        const porMetodo = _ventasDelDia(fecha, esGlobal ? null : ses.username);
         const total_sistema = porMetodo.reduce((s, r) => s + (r.total || 0), 0);
         const efectivo_sistema = porMetodo.filter(r => r.metodo === 'efectivo').reduce((s, r) => s + (r.total || 0), 0);
-        const cortes = db.prepare('SELECT * FROM cortes_caja WHERE fecha=? ORDER BY id DESC').all(fecha);
-        return json(res, { fecha, por_metodo: porMetodo, total_sistema, efectivo_sistema, cortes });
+        const cortes = esGlobal
+            ? db.prepare('SELECT * FROM cortes_caja WHERE fecha=? ORDER BY id DESC').all(fecha)
+            : db.prepare('SELECT * FROM cortes_caja WHERE fecha=? AND usuario=? ORDER BY id DESC').all(fecha, ses.username);
+        return json(res, { fecha, alcance: esGlobal ? 'global' : 'propio', por_metodo: porMetodo, total_sistema, efectivo_sistema, cortes });
     }
 
-    // ── POST /api/pos/corte — cerrar caja del día (gerente+) ──────────────
     if (p === '/api/pos/corte' && req.method === 'POST') {
-        const ses = requireSession(req, res, ['gerente']);
-        if (!ses) return;
+        const ses = req._ses;
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');
                 const fecha = String(d.fecha || new Date().toISOString().slice(0, 10)).trim();
-                const porMetodo = db.prepare(`
-                    SELECT COALESCE(p.metodo_pago,'(sin método)') AS metodo, COUNT(*) AS n, COALESCE(SUM(lp.monto),0) AS total
-                    FROM links_pago lp JOIN pedidos p ON p.id_pedido = lp.id_pedido
-                    WHERE lp.estatus='pagado' AND DATE(lp.pagado_en) = ?
-                    GROUP BY p.metodo_pago
-                `).all(fecha);
+                const esGlobal = rangoDe(ses.rol) >= 2 || permite(ses.rol, 'cortes');
+                if (db.prepare('SELECT id FROM cortes_caja WHERE fecha=? AND usuario=?').get(fecha, ses.username)) {
+                    return json(res, { ok: false, error: 'Ya cerraste tu corte de hoy — un corte por usuario por día' }, 400);
+                }
+                const porMetodo = _ventasDelDia(fecha, esGlobal ? null : ses.username);
                 const total_sistema = porMetodo.reduce((s, r) => s + (r.total || 0), 0);
                 const efectivo_sistema = porMetodo.filter(r => r.metodo === 'efectivo').reduce((s, r) => s + (r.total || 0), 0);
                 const efectivo_contado = (d.efectivo_contado !== undefined && d.efectivo_contado !== null && d.efectivo_contado !== '') ? Number(d.efectivo_contado) : null;
@@ -197,8 +224,11 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     INSERT INTO cortes_caja (fecha, usuario, total_sistema, efectivo_sistema, efectivo_contado, diferencia, detalle_json)
                     VALUES (?,?,?,?,?,?,?)
                 `).run(fecha, ses.username, total_sistema, efectivo_sistema, efectivo_contado, diferencia, JSON.stringify(porMetodo));
-                return json(res, { ok: true, id: r.lastInsertRowid, total_sistema, efectivo_sistema, efectivo_contado, diferencia });
-            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+                return json(res, { ok: true, id: r.lastInsertRowid, alcance: esGlobal ? 'global' : 'propio', total_sistema, efectivo_sistema, efectivo_contado, diferencia });
+            } catch (e) {
+                if (/UNIQUE/.test(e.message)) return json(res, { ok: false, error: 'Ya cerraste tu corte de hoy — un corte por usuario por día' }, 400);
+                return json(res, { ok: false, error: e.message }, 500);
+            }
         });
     }
 

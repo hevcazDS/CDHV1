@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nombre        TEXT NOT NULL DEFAULT '',
     password_hash TEXT NOT NULL,
     salt          TEXT NOT NULL,
-    rol           TEXT NOT NULL CHECK(rol IN ('usuario','gerente','prime')),  -- migrations/0017 (admin→gerente)
+    rol           TEXT NOT NULL CHECK(rol IN ('cajero','operador','almacen','compras','rh','contabilidad','usuario','gerente','admin','prime')),  -- migrations/0017 y 0023
     creado_en     TEXT DEFAULT (datetime('now','localtime'))
 );
 
@@ -251,6 +251,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_codigo_referido ON clientes(codig
 -- adelante, no el que ya existe en producción).
 CREATE TABLE IF NOT EXISTS productos (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo                    TEXT NOT NULL DEFAULT 'fisico',  -- migrations/0023: fisico|consumible|servicio
     sku                     TEXT,
     upc                     TEXT,
     brand                   TEXT,
@@ -363,6 +364,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
     puntos_acreditados INTEGER NOT NULL DEFAULT 0,  -- migrations/0013_pedidos_puntos_acreditados.sql
     metodo_pago     TEXT,                          -- migrations/0014_negocio_giro_metodo_pago.sql
     metodo_entrega  TEXT,                          -- migrations/0015 ('pickup'|'paqueteria'|'repartidor')
+    cobrado_por     TEXT,                          -- migrations/0023: quién cobró (corte por usuario)
     repartidor_nombre   TEXT,                      -- migrations/0015 (dato del pedido, NO un usuario)
     repartidor_telefono TEXT,                      -- migrations/0015
     creado_en       TEXT DEFAULT (datetime('now','localtime')),
@@ -875,7 +877,9 @@ CREATE TABLE IF NOT EXISTS sucursales (
     creada_en     TEXT DEFAULT (datetime('now','localtime')),
     -- Sin dato fuente para backfillear (ver migrations/0008) -- se captura
     -- a mano desde el botón de editar sucursal en Prime.
-    codigo_postal TEXT
+    codigo_postal TEXT,
+    lat           REAL,                       -- migrations/0023 (geo)
+    lng           REAL
 );
 
 -- Ledger de movimientos de inventario: cada entrada/salida/ajuste queda
@@ -985,3 +989,67 @@ CREATE TABLE IF NOT EXISTS historial_costos (
     creado_en      TEXT DEFAULT (datetime('now','localtime'))
 );
 
+
+-- ── migrations/0023: roles operativos del ERP ──────────────────────────────
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cortes_dia_usuario ON cortes_caja(fecha, usuario);
+
+CREATE TABLE IF NOT EXISTS solicitudes_compra (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    descripcion TEXT NOT NULL,
+    id_producto INTEGER,
+    cantidad    INTEGER,
+    motivo      TEXT,
+    estatus     TEXT NOT NULL DEFAULT 'pendiente',
+    creada_por  TEXT,
+    resuelta_por TEXT,
+    creada_en   TEXT DEFAULT (datetime('now','localtime')),
+    resuelta_en TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ubicaciones_inventario (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_producto   INTEGER NOT NULL,
+    sucursal      TEXT NOT NULL,
+    zona          TEXT,
+    pasillo       TEXT,
+    rack          TEXT,
+    nivel         TEXT,
+    actualizado_en TEXT DEFAULT (datetime('now','localtime')),
+    UNIQUE(id_producto, sucursal)
+);
+
+CREATE TABLE IF NOT EXISTS empleados (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre         TEXT NOT NULL,
+    puesto         TEXT,
+    salario_diario REAL NOT NULL DEFAULT 0,
+    con_impuestos  INTEGER NOT NULL DEFAULT 0,
+    rfc            TEXT,
+    curp           TEXT,
+    nss            TEXT,
+    activo         INTEGER NOT NULL DEFAULT 1,
+    creado_en      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS horarios_empleado (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_empleado INTEGER NOT NULL REFERENCES empleados(id),
+    fecha       TEXT NOT NULL,
+    horas       REAL NOT NULL,
+    creado_en   TEXT DEFAULT (datetime('now','localtime')),
+    UNIQUE(id_empleado, fecha)
+);
+CREATE TABLE IF NOT EXISTS nominas (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_empleado  INTEGER NOT NULL REFERENCES empleados(id),
+    desde        TEXT NOT NULL,
+    hasta        TEXT NOT NULL,
+    horas        REAL NOT NULL DEFAULT 0,
+    bruto        REAL NOT NULL DEFAULT 0,
+    isr          REAL NOT NULL DEFAULT 0,
+    imss         REAL NOT NULL DEFAULT 0,
+    neto         REAL NOT NULL DEFAULT 0,
+    estatus      TEXT NOT NULL DEFAULT 'calculada',
+    pagada_en    TEXT,
+    creada_en    TEXT DEFAULT (datetime('now','localtime')),
+    UNIQUE(id_empleado, desde, hasta)
+);
