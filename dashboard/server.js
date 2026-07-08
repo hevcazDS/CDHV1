@@ -617,7 +617,9 @@ function handleRequest(req, res) {
     return serveStatic(req, res, u.pathname);
 }
 
-server.listen(PORT, '127.0.0.1', () => {
+// En Docker debe ser 0.0.0.0 (el mapeo de puertos entra por eth0); en Windows
+// local se queda en 127.0.0.1. Se configura con DASHBOARD_HOST.
+server.listen(PORT, process.env.DASHBOARD_HOST || '127.0.0.1', () => {
     log.info(`🧸 Dashboard corriendo en http://localhost:${PORT}`);
     log.info('Abre esa URL en el navegador del servidor.');
 });

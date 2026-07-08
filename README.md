@@ -80,6 +80,48 @@ npm run start:all
 > `npm run start:all` (pm2 + `ecosystem.config.js`), o arráncalos por
 > separado con `npm start` y `npm run start:dashboard` en dos terminales.
 
+## 🐳 Despliegue en servidor (Ubuntu + Docker)
+
+Un solo contenedor corre bot + dashboard bajo `pm2-runtime` — así los botones
+▶️/⏹️/🔁 del dashboard (que controlan el bot vía pm2) siguen funcionando.
+La imagen instala Chromium del sistema y construye el panel React en el build.
+
+```bash
+# 1. En el servidor: clonar el repo y preparar el entorno
+git clone <repo> && cd <repo>
+cp .env.example .env          # llena valores reales; DB_PATH/CHROME_PATH los
+                              # fija docker-compose, no hace falta tocarlos.
+                              # USA CONTRASEÑAS NUEVAS (DASHBOARD_PASS, USER_PRIME_PASSWORD)
+
+# 2. Subir la base de datos real al volumen
+mkdir -p data imagenes_clientes logs
+scp/rsync ... jugueteria.db → ./data/jugueteria.db
+
+# 3. Levantar
+docker compose up -d --build
+docker compose exec app node scripts/migrate.js   # migraciones pendientes
+
+# 4. Vincular WhatsApp: el QR sale en los logs
+docker compose logs -f app
+```
+
+Notas de operación:
+
+- **El puerto 3001 solo escucha en 127.0.0.1 del host** (ver
+  `docker-compose.yml`). Para acceso remoto pon un reverse proxy con TLS
+  delante (ej. Caddy: `panel.midominio.com { reverse_proxy 127.0.0.1:3001 }`)
+  — la cookie de sesión ya va con `Secure` (`DASHBOARD_COOKIE_SECURE=true`).
+- **Persistencia**: `./data` (SQLite), volumen `wwebjs_auth` (sesión de
+  WhatsApp — no se re-escanea el QR en cada deploy), `./imagenes_clientes`,
+  `./logs`.
+- **Backups**: cron en el host, p. ej.
+  `0 11 * * * cd /ruta/repo && docker compose exec -T app node scripts/backup.js`
+  (el sistema ya alerta por email si el backup lleva >36h sin correr).
+- **Actualizar**: `git pull && docker compose up -d --build` (la BD y la
+  sesión de WhatsApp viven en volúmenes, sobreviven el rebuild).
+- **Tests contra la BD real** (post-deploy):
+  `docker compose exec app node tests/test_db_flujo.js`.
+
 ## 🔁 Arranque automático al iniciar sesión / reiniciar el equipo
 
 `npm run start:all` deja los dos procesos corriendo bajo pm2, pero **no

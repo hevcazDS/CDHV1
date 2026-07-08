@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    container_name: bothsv
+    restart: unless-stopped
+    # init reapea los procesos hijos de Chromium (zombies de Puppeteer)
+    init: true
+    env_file: .env
+    environment:
+      DB_PATH: /data/jugueteria.db
+      CHROME_PATH: /usr/bin/chromium
+      DASHBOARD_HOST: 0.0.0.0            # dentro del contenedor; expuesto solo a 127.0.0.1 del host
+      DASHBOARD_COOKIE_SECURE: "true"    # el dashboard va detrás de un proxy con TLS
+    # Solo localhost: el dashboard se expone a internet únicamente a través
+    # del reverse proxy con TLS (Caddy/nginx), nunca directo.
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - ./data:/data                                  # jugueteria.db (SQLite WAL)
+      - wwebjs_auth:/app/.wwebjs_auth                  # sesión de WhatsApp
+      - ./imagenes_clientes:/app/bot/imagenes_clientes # fotos de clientes
+      - ./logs:/app/logs                               # logs de pm2
+
+volumes:
+  wwebjs_auth:
