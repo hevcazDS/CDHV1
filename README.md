@@ -94,12 +94,11 @@ cp .env.example .env          # llena valores reales; DB_PATH/CHROME_PATH los
                               # USA CONTRASEÑAS NUEVAS (DASHBOARD_PASS, USER_PRIME_PASSWORD)
 
 # 2. Subir la base de datos real al volumen
-mkdir -p data imagenes_clientes logs
+mkdir -p data imagenes_clientes logs logs-bot
 scp/rsync ... jugueteria.db → ./data/jugueteria.db
 
-# 3. Levantar
+# 3. Levantar (las migraciones corren solas al arrancar el contenedor)
 docker compose up -d --build
-docker compose exec app node scripts/migrate.js   # migraciones pendientes
 
 # 4. Vincular WhatsApp: el QR sale en los logs
 docker compose logs -f app
@@ -111,6 +110,11 @@ Notas de operación:
   `docker-compose.yml`). El acceso remoto es vía el **Caddy del servidor**
   (TLS automático) — bloque mínimo en el Caddyfile:
   `panel.midominio.com { reverse_proxy 127.0.0.1:3001 }`.
+  Si Caddy corre como **contenedor**, descomenta la red `proxy` en
+  `docker-compose.yml` y usa `reverse_proxy bothsv:3001` en el Caddyfile.
+- **Zona horaria**: el contenedor corre con `TZ=America/Monterrey` (los
+  cortes de caja, reportes y campañas usan hora local de SQLite) — ajústala
+  si la tienda está en otra zona.
   La cookie de sesión ya va con `Secure` (`DASHBOARD_COOKIE_SECURE=true`).
 - **Primer arranque**: 1) entra al panel y loguéate con el usuario prime,
   2) tras el login aparece el QR de WhatsApp — escanéalo con el teléfono del

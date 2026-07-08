@@ -7,7 +7,7 @@ import {
   Home, ReceiptText, Package, Undo2, MessagesSquare, MessageCircle,
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
-  LifeBuoy, LogOut,
+  LogOut,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
@@ -85,12 +85,6 @@ export default function Layout() {
     api.get('/api/negocio').then(d => d?.nombre_negocio && setNombreNegocio(d.nombre_negocio)).catch(() => {});
   }, []);
 
-  const [soporte, setSoporte] = useState(null);
-  useEffect(() => { api.get('/api/soporte').then(setSoporte).catch(() => {}); }, []);
-  const waSoporte = soporte?.whatsapp
-    ? `https://wa.me/${soporte.whatsapp}?text=${encodeURIComponent('Hola, necesito soporte con mi sistema.')}`
-    : null;
-
   const iniciales = (user?.username || '?').slice(0, 2).toUpperCase();
 
   // Acordeón de un grupo abierto a la vez, siempre el de la ruta activa
@@ -131,20 +125,10 @@ export default function Layout() {
             ))}
           </Accordion>
         </nav>
-        <div className="sidebar-promo">
-          <div className="sidebar-promo-title"><LifeBuoy size={15} strokeWidth={1.75} style={{ verticalAlign: '-2px', marginRight: 6 }} />¿Necesitas ayuda?</div>
-          <div className="sidebar-promo-sub">Soporte y mejoras por {soporte?.nombre || 'Hevcaz Solutions'}</div>
-          {waSoporte && (
-            <a href={waSoporte} target="_blank" rel="noopener noreferrer" className="sidebar-promo-btn">Contactar soporte</a>
-          )}
-        </div>
         <div className="sidebar-foot">
-          <div className="sidebar-user">
-            <div className="avatar-chip">{iniciales}</div>
-            <div className="sidebar-user-info">
-              <span className="sidebar-user-name">{user?.username}</span>
-              <span className="sidebar-user-rol">{user?.rol}</span>
-            </div>
+          <div className="sidebar-user-info">
+            <span className="sidebar-user-name">{user?.username}</span>
+            <span className="sidebar-user-rol">{user?.rol}</span>
           </div>
           <button className="btn" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={logout}><LogOut size={14} strokeWidth={1.75} />Cerrar sesión</button>
         </div>

@@ -11,6 +11,15 @@ services:
       CHROME_PATH: /usr/bin/chromium
       DASHBOARD_HOST: 0.0.0.0            # dentro del contenedor; expuesto solo a 127.0.0.1 del host
       DASHBOARD_COOKIE_SECURE: "true"    # el dashboard va detrás de un proxy con TLS
+      # SQLite usa datetime('now','localtime') en cortes/reportes/campañas:
+      # sin TZ el contenedor corre en UTC y las fechas se recorren
+      TZ: America/Monterrey
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     # Solo localhost: el dashboard se expone a internet únicamente a través
     # del reverse proxy con TLS (Caddy/nginx), nunca directo.
     ports:
@@ -20,6 +29,15 @@ services:
       - wwebjs_auth:/app/.wwebjs_auth                  # sesión de WhatsApp
       - ./imagenes_clientes:/app/bot/imagenes_clientes # fotos de clientes
       - ./logs:/app/logs                               # logs de pm2
+      - ./logs-bot:/app/bot/logs                       # logs del logger del bot
+    # Si el Caddy del servidor corre COMO CONTENEDOR (no en el host),
+    # descomenta esta red y en el Caddyfile usa `reverse_proxy bothsv:3001`;
+    # con Caddy instalado en el host, el mapeo 127.0.0.1:3001 de arriba basta.
+    # networks: [proxy]
+
+# networks:
+#   proxy:
+#     external: true   # la red donde ya vive el contenedor de Caddy
 
 volumes:
   wwebjs_auth:

@@ -22,7 +22,7 @@ RUN npm run build
 FROM node:20-bookworm-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        chromium ca-certificates fonts-liberation sqlite3 \
+        chromium ca-certificates fonts-liberation sqlite3 tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g pm2@5
 
@@ -38,4 +38,6 @@ ENV NODE_ENV=production \
     DB_PATH=/data/jugueteria.db
 
 EXPOSE 3001
-CMD ["pm2-runtime", "ecosystem.config.js"]
+# Migraciones idempotentes antes de arrancar: un deploy nuevo nunca corre
+# contra una BD sin migrar
+CMD ["sh", "-c", "node scripts/migrate.js && exec pm2-runtime ecosystem.config.js"]
