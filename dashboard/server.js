@@ -622,7 +622,7 @@ server.listen(PORT, '127.0.0.1', () => {
     log.info('Abre esa URL en el navegador del servidor.');
 });
 
-// ── Estáticos: build de React si existe, si no el dashboard.html legado ────
+// ── Estáticos: build de React (dashboard-ui/dist) ──────────────────────────
 const DIST_DIR = path.join(__dirname, '..', 'dashboard-ui', 'dist');
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -647,14 +647,7 @@ function serveStatic(req, res, pathname) {
     }
     if (pathname === '/' || pathname === '/index.html') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        return res.end(getDashboardHTML());
+        return res.end('<html><body><h1 style="font-family:sans-serif;padding:40px">Falta el build del dashboard: ejecuta "npm run build:dashboard-ui"</h1></body></html>');
     }
     res.writeHead(404); res.end('Not found');
-}
-function getDashboardHTML() {
-    const htmlFile = path.join(__dirname, 'dashboard.html');
-    try {
-        if (fs.existsSync(htmlFile)) return fs.readFileSync(htmlFile, 'utf8');
-    } catch(_) {}
-    return '<html><body><h1 style="font-family:sans-serif;padding:40px">Error: dashboard.html no encontrado en ' + __dirname + '</h1></body></html>';
 }

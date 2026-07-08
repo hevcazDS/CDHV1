@@ -2,7 +2,10 @@
 
 Sistema completo de e-commerce con **WhatsApp Bot** y **Panel Administrativo** 🇲🇽
 
-## 🖥️ Corre igual en Windows y en NixOS
+## 🖥️ Plataformas
+
+- **Windows** — entorno local de desarrollo/revisión (`start.bat` / `stop.bat`).
+- **Ubuntu + Docker** — objetivo de despliegue en servidor.
 
 El bot, el dashboard, el panel React (`dashboard-ui/`) y la ventana de
 escritorio (**botdashapp**, basada en Electron) son el mismo código Node.js
@@ -11,43 +14,16 @@ cómo se instalan las dependencias del sistema (Node, Chrome/Chromium,
 herramientas de compilación nativa). Una vez instaladas, los mismos comandos
 npm/pm2 arrancan todo igual en ambos lados.
 
-Cada plataforma tiene su propio instalador de un solo comando, con la misma
-filosofía: **scripts de texto plano, nunca empaquetados a un `.exe`/binario
-compilado**. Las herramientas que empaquetan scripts en ejecutables (pkg,
-nexe, etc.) son justo lo que los antivirus marcan como falso positivo por el
-propio empaquetado — un script visible, sin ofuscar, no dispara esos
-heurísticos. Por eso "un click o un comando" aquí significa *un instalador
-script que puedes leer*, no un binario compilado.
-
-**Windows** — instalar, luego arrancar/apagar:
+**Windows** — arrancar/apagar:
 
 ```bat
-instalador windows Chatbot.bat   :: instala/revisa todo (Node, Chrome, pm2, npm ci, build del panel, .env)
 start.bat                         :: arranca bot + dashboard (PM2) y abre la ventana de escritorio (botdashapp)
 stop.bat                          :: apaga bot + dashboard
 ```
 
-**NixOS** — equivalente, mismos pasos:
-
-```bash
-nix develop                      # dev shell con Node 20, Chromium, sqlite, etc. (ver flake.nix)
-./instalador-nixos-chatbot.sh    # instala/revisa todo (npm ci, build del panel, instala desktop, .env)
-./iniciar-nixos-chatbot.sh       # arranca bot + dashboard (PM2) y abre la ventana de escritorio (botdashapp)
-./detener-nixos-chatbot.sh       # apaga bot + dashboard
-```
-
-o, sin entrar manualmente al dev shell (`nix run` ya trae las dependencias
-del sistema vía `runtimeInputs` en `flake.nix`):
-
-```bash
-nix run .#instalar
-nix run .#iniciar
-nix run .#detener
-```
-
 Si Node 20 / Chrome / herramientas de compilación ya están en el sistema,
-este único comando npm funciona igual en ambas plataformas (sin la ventana
-de escritorio, solo bot + dashboard vía pm2):
+este único comando npm instala todo (sin la ventana de escritorio, solo
+bot + dashboard vía pm2):
 
 ```bash
 npm run install:all && npm run start:all
@@ -61,8 +37,9 @@ npm run install:all && npm run start:all
 | **Base de datos** | SQLite3 + better-sqlite3 |
 | **Visión artificial** | Google Cloud Vision API |
 | **Dashboard** | Node.js HTTP nativo (sin frameworks) |
+| **Panel React** | `dashboard-ui/` (Vite), servido estático por el mismo proceso |
 | **Logística** | Estafeta (simulado, API Phase 2) |
-| **DevOps** | NixOS + pm2 + systemd |
+| **DevOps** | pm2 local · Docker en el servidor |
 
 ## 📋 Requisitos
 
@@ -71,28 +48,25 @@ npm run install:all && npm run start:all
 - **npm 10+**
 - **Python 3** (para compilar better-sqlite3 si no hay binario prebuilt)
 - **Chrome o Chromium instalado** — define `CHROME_PATH` en `.env`. En
-  Windows hay un default; en Linux/NixOS es obligatorio (o falla al iniciar
+  Windows hay un default; en Linux es obligatorio (o falla al iniciar
   con un mensaje claro pidiéndolo)
 - **Credenciales Google Cloud Vision** (JSON)
 
 ## 🚀 Instalación rápida
 
 Usa siempre `npm ci`, no `npm install` — instala exactamente lo que dice
-`package-lock.json`, así Windows y NixOS terminan con las mismas versiones.
-
-### Opción 1: Node.js tradicional
+`package-lock.json`, así todas las máquinas terminan con las mismas versiones.
 
 ```bash
-# Clonar repo
-git 
-cd 
-
 # Instalar dependencias (exacto, desde el lockfile)
 npm ci
 
 # Configurar variables de entorno
 cp .env.example .env
 # Edita .env con tus valores reales — incluye CHROME_PATH si no es Windows
+
+# Panel React
+npm run build:dashboard-ui
 
 # Tests
 npm test
@@ -105,15 +79,6 @@ npm run start:all
 > dashboard. Para tener ambos procesos corriendo usa siempre
 > `npm run start:all` (pm2 + `ecosystem.config.js`), o arráncalos por
 > separado con `npm start` y `npm run start:dashboard` en dos terminales.
-
-### Opción 2: Con Nix (recomendado para reproducibilidad)
-
-```bash
-nix develop
-npm ci
-npm test
-npm run start:all
-```
 
 ## 🔁 Arranque automático al iniciar sesión / reiniciar el equipo
 

@@ -1,6 +1,5 @@
 // scripts/instalarBaseDeDatos.js
-// Paso de "base de datos" del instalador (ver instalador-windows-chatbot.ps1
-// / instalador-nixos-chatbot.sh): el operador elige entre crear una base de
+// Paso de "base de datos" de la instalación: el operador elige entre crear una base de
 // datos NUEVA (se le corre db/schema.sql completo) o usar una que YA tiene.
 // Para la que ya tiene, no se intenta detectar ni migrar un esquema
 // ARBITRARIO de terceros (eso se resuelve a mano caso por caso) — pero sí se
