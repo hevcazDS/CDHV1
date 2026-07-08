@@ -130,6 +130,26 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
             // operador tuviera forma de notarlo desde el dashboard.
             emails_error: db.prepare("SELECT COUNT(*) c FROM cola_emails WHERE estatus='error'").get()?.c || 0,
         };
+        // Bloque marketing (fila de Inicio): carritos abandonados = venta
+        // recuperable; motivo dominante = qué palanca mover; conversión =
+        // salud del embudo; recuperados = ROI de las campañas del bot.
+        try {
+            stats.marketing = {
+                abandonados_n: db.prepare('SELECT COUNT(*) c FROM carritos_abandonados WHERE convertido=0').get()?.c || 0,
+                abandonados_monto: (() => {
+                    try {
+                        return db.prepare(`
+                            SELECT COALESCE(SUM(json_extract(j.value,'$.price') * COALESCE(json_extract(j.value,'$.cantidad'),1)),0) s
+                            FROM carritos_abandonados ca, json_each(ca.carrito_json) j WHERE ca.convertido=0
+                        `).get()?.s || 0;
+                    } catch (_) { return 0; }
+                })(),
+                motivo_top: db.prepare("SELECT motivo, COUNT(*) c FROM carritos_abandonados WHERE convertido=0 AND motivo IS NOT NULL AND motivo!='' GROUP BY motivo ORDER BY c DESC LIMIT 1").get() || null,
+                recuperados_30d: db.prepare("SELECT COUNT(*) c FROM carritos_abandonados WHERE convertido=1 AND datetime(COALESCE(convertido_en, abandonado_en)) >= datetime('now','-30 days','localtime')").get()?.c || 0,
+                busquedas_30d: db.prepare("SELECT COUNT(*) c FROM log_eventos WHERE tipo_evento='busqueda'").get()?.c || 0,
+                pagos_30d: db.prepare("SELECT COUNT(*) c FROM log_eventos WHERE tipo_evento='pago_confirmado'").get()?.c || 0,
+            };
+        } catch (_) { stats.marketing = null; }
         return json(res, stats);
     }
 

@@ -1,9 +1,9 @@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from 'recharts';
 
-export default function GraficaSemana({ dias, fmtMoneda }) {
+export default function GraficaSemana({ dias, fmtMoneda, altura = 200 }) {
   const maxN = Math.max(1, ...dias.map(d => d.n));
   return (
-    <ResponsiveContainer width="100%" height={200}>
+    <ResponsiveContainer width="100%" height={altura}>
       <BarChart data={dias} barCategoryGap="28%">
         <CartesianGrid stroke="var(--border)" vertical={false} />
         <XAxis dataKey="label" stroke="var(--text-mute)" fontSize={11} tickLine={false} axisLine={false} />

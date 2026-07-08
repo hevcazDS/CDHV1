@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AppShell, Accordion } from '@mantine/core';
@@ -88,10 +88,21 @@ export default function Layout() {
 
   const iniciales = (user?.username || '?').slice(0, 2).toUpperCase();
 
-  // Sidebar colapsable a riel de iconos (persistido por navegador)
+  // Sidebar colapsable a riel de CATEGORÍAS (un icono por grupo; al tocar
+  // se despliega un flyout con las páginas de esa categoría)
   const [colapsado, setColapsado] = useState(() => localStorage.getItem('jc-sidebar-colapsado') === '1');
   useEffect(() => { localStorage.setItem('jc-sidebar-colapsado', colapsado ? '1' : '0'); }, [colapsado]);
-  const enlacesPlanos = grupos.flatMap(g => g.enlaces);
+  const [flyout, setFlyout] = useState(null);
+  const navRef = useRef(null);
+  useEffect(() => {
+    function fuera(e) { if (navRef.current && !navRef.current.contains(e.target)) setFlyout(null); }
+    document.addEventListener('mousedown', fuera);
+    return () => document.removeEventListener('mousedown', fuera);
+  }, []);
+  const ICONO_CATEGORIA = {
+    'Operación diaria': Home, 'Envíos y logística': Truck, 'Clientes y fidelidad': Users,
+    'Marketing': Tag, 'Catálogo y datos': BarChart3, 'Sistema': Settings,
+  };
 
   // Acordeón de un grupo abierto a la vez, siempre el de la ruta activa
   // (todos expandidos desbordaban el alto del sidebar en laptops)
@@ -102,9 +113,8 @@ export default function Layout() {
   // navbar sin breakpoint a propósito (sin versión móvil, es Electron/escritorio);
   // padding en el prop de AppShell, no en .content (pisaría el offset del navbar)
   return (
-    <AppShell header={{ height: 64 }} navbar={{ width: colapsado ? 76 : 252 }} padding={28}>
+    <AppShell layout="alt" header={{ height: 56 }} navbar={{ width: colapsado ? 76 : 252 }} padding={24}>
       <AppShell.Header className="topbar">
-        <div className="topbar-left">Panel de operaciones</div>
         <BuscadorGlobal />
         <div className="topbar-right">
           <ThemeSwitcher />
@@ -114,7 +124,7 @@ export default function Layout() {
         </div>
       </AppShell.Header>
 
-      <AppShell.Navbar className={`sidebar${colapsado ? ' colapsado' : ''}`}>
+      <AppShell.Navbar className={`sidebar${colapsado ? ' colapsado' : ''}`} ref={navRef}>
         <div className="sidebar-top">
           {!colapsado && <div className="sidebar-brand">{nombreNegocio}</div>}
           <button className="sidebar-colapsar" title={colapsado ? 'Expandir menú' : 'Contraer menú'} onClick={() => setColapsado(v => !v)}>
@@ -123,11 +133,32 @@ export default function Layout() {
         </div>
         <nav className="sidebar-nav">
           {colapsado ? (
-            enlacesPlanos.map(e => (
-              <NavLink key={e.to} to={e.to} title={e.label} className={({ isActive }) => `sidebar-link solo-icono${isActive ? ' active' : ''}`} end={e.to === '/'}>
-                <e.Icono size={18} strokeWidth={1.75} />
-              </NavLink>
-            ))
+            grupos.map(g => {
+              const IconoCat = ICONO_CATEGORIA[g.titulo] || Home;
+              const catActiva = g.enlaces.some(e => e.to === location.pathname);
+              return (
+                <div className="rail-cat" key={g.titulo}>
+                  <button
+                    title={g.titulo}
+                    className={`sidebar-link solo-icono${catActiva ? ' active' : ''}${flyout === g.titulo ? ' abierta' : ''}`}
+                    onClick={() => setFlyout(f => (f === g.titulo ? null : g.titulo))}
+                  >
+                    <IconoCat size={18} strokeWidth={1.75} />
+                  </button>
+                  {flyout === g.titulo && (
+                    <div className="rail-flyout">
+                      <div className="rail-flyout-titulo">{g.titulo}</div>
+                      {g.enlaces.map(e => (
+                        <NavLink key={e.to} to={e.to} end={e.to === '/'} onClick={() => setFlyout(null)}
+                          className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                          <e.Icono size={16} strokeWidth={1.75} />{e.label}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
           ) : (
             <Accordion value={abierto} onChange={setAbierto} chevronSize={14} styles={ACCORDION_STYLES}>
               {grupos.map(g => (
