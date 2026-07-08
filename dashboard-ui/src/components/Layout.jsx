@@ -7,7 +7,7 @@ import {
   Home, ReceiptText, Package, Undo2, MessagesSquare, MessageCircle,
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
-  LogOut, PanelLeftClose, PanelLeftOpen,
+  LogOut,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
@@ -94,11 +94,20 @@ export default function Layout() {
   useEffect(() => { localStorage.setItem('jc-sidebar-colapsado', colapsado ? '1' : '0'); }, [colapsado]);
   const [flyout, setFlyout] = useState(null);
   const navRef = useRef(null);
+  // Clic fuera del menú: se contrae solo (y cierra el submenú abierto)
   useEffect(() => {
-    function fuera(e) { if (navRef.current && !navRef.current.contains(e.target)) setFlyout(null); }
+    function fuera(e) {
+      if (navRef.current && !navRef.current.contains(e.target)) {
+        setFlyout(null);
+        setColapsado(true);
+      }
+    }
     document.addEventListener('mousedown', fuera);
     return () => document.removeEventListener('mousedown', fuera);
   }, []);
+  // Monograma del negocio ("Julio Cepeda Jugueterías" → JC): es el botón
+  // de contraer/extraer
+  const monograma = nombreNegocio.split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
   const ICONO_CATEGORIA = {
     'Operación diaria': Home, 'Envíos y logística': Truck, 'Clientes y fidelidad': Users,
     'Marketing': Tag, 'Catálogo y datos': BarChart3, 'Sistema': Settings,
@@ -113,7 +122,7 @@ export default function Layout() {
   // navbar sin breakpoint a propósito (sin versión móvil, es Electron/escritorio);
   // padding en el prop de AppShell, no en .content (pisaría el offset del navbar)
   return (
-    <AppShell layout="alt" header={{ height: 56 }} navbar={{ width: colapsado ? 76 : 252 }} padding={24}>
+    <AppShell layout="alt" header={{ height: 56 }} navbar={{ width: colapsado ? 64 : 252 }} padding={24}>
       <AppShell.Header className="topbar">
         <BuscadorGlobal />
         <div className="topbar-right">
@@ -126,10 +135,10 @@ export default function Layout() {
 
       <AppShell.Navbar className={`sidebar${colapsado ? ' colapsado' : ''}`} ref={navRef}>
         <div className="sidebar-top">
-          {!colapsado && <div className="sidebar-brand">{nombreNegocio}</div>}
-          <button className="sidebar-colapsar" title={colapsado ? 'Expandir menú' : 'Contraer menú'} onClick={() => setColapsado(v => !v)}>
-            {colapsado ? <PanelLeftOpen size={17} strokeWidth={1.75} /> : <PanelLeftClose size={17} strokeWidth={1.75} />}
+          <button className="brand-mono" title={colapsado ? 'Expandir menú' : 'Contraer menú'} onClick={() => setColapsado(v => !v)}>
+            {monograma}
           </button>
+          {!colapsado && <div className="sidebar-brand">{nombreNegocio}</div>}
         </div>
         <nav className="sidebar-nav">
           {colapsado ? (
@@ -146,12 +155,11 @@ export default function Layout() {
                     <IconoCat size={18} strokeWidth={1.75} />
                   </button>
                   {flyout === g.titulo && (
-                    <div className="rail-flyout">
-                      <div className="rail-flyout-titulo">{g.titulo}</div>
+                    <div className="rail-sub">
                       {g.enlaces.map(e => (
-                        <NavLink key={e.to} to={e.to} end={e.to === '/'} onClick={() => setFlyout(null)}
-                          className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
-                          <e.Icono size={16} strokeWidth={1.75} />{e.label}
+                        <NavLink key={e.to} to={e.to} end={e.to === '/'} title={e.label} onClick={() => setFlyout(null)}
+                          className={({ isActive }) => `sidebar-link solo-icono sub${isActive ? ' active' : ''}`}>
+                          <e.Icono size={15} strokeWidth={1.75} />
                         </NavLink>
                       ))}
                     </div>

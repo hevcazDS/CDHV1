@@ -1,13 +1,20 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Card, Text, RingProgress, Center } from '@mantine/core';
-import { Wallet, ReceiptText, Users, CreditCard, Headset, TriangleAlert, TrendingUp, Package, CalendarDays } from 'lucide-react';
+import { Wallet, ReceiptText, Users, CreditCard, Headset, TriangleAlert, TrendingUp, Package, CalendarDays, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import { useWhatsAppQR } from '../hooks/useWhatsAppQR';
 import WhatsAppQR from '../components/WhatsAppQR';
+import PuntosGrafica from '../components/PuntosGrafica';
 import { fdate } from '../lib/format';
+
+const MODOS_GRAFICA = [
+  { value: 'barras', label: 'Barras' },
+  { value: 'linea', label: 'Línea' },
+  { value: 'pct', label: 'Porcentaje del total' },
+];
 
 // Lazy: recharts (~400 KB) llega después del primer render, no lo bloquea
 const GraficaSemana = lazy(() => import('../components/GraficaSemana'));
@@ -19,32 +26,17 @@ function pillEstatus(estatus) {
   return 'badge badge-azul';
 }
 
-function TrendChip({ hoy, ayer }) {
-  if (ayer === undefined || hoy === undefined) return null;
-  if (ayer === 0 && hoy === 0) return null;
-  const sube = hoy >= ayer;
-  const pct = ayer > 0 ? Math.abs(Math.round(((hoy - ayer) / ayer) * 100)) : 100;
+// KPI cuadrado: anillo arriba, número, label — 6 exactos por fila
+function Kpi({ Icono, color, label, children }) {
   return (
-    <span className={`kpi-chip ${sube ? 'verde' : 'rojo'}`}>
-      {sube ? '↗' : '↘'} {pct}% vs ayer
-    </span>
-  );
-}
-
-// KPI con anillo decorativo alrededor del icono (2a referencia visual)
-function Kpi({ Icono, color, label, children, chip }) {
-  return (
-    <div className="kpi-flex">
+    <div className="kpi-sq-inner">
       <RingProgress
-        size={48} thickness={4} rootColor="var(--panel-2)"
+        size={44} thickness={4} rootColor="var(--panel-2)"
         sections={[{ value: 72, color }]}
-        label={<Center><Icono size={16} strokeWidth={1.75} style={{ color }} /></Center>}
+        label={<Center><Icono size={15} strokeWidth={1.75} style={{ color }} /></Center>}
       />
-      <div className="kpi-info">
-        <Text size="23px" fw={700} className="kpi-num">{children}</Text>
-        <Text size="sm" c="dimmed">{label}</Text>
-        {chip}
-      </div>
+      <Text size="21px" fw={700} className="kpi-num">{children}</Text>
+      <Text size="xs" c="dimmed" ta="center">{label}</Text>
     </div>
   );
 }
@@ -52,6 +44,8 @@ function Kpi({ Icono, color, label, children, chip }) {
 export default function Inicio() {
   const { user } = useAuth();
   const { qr } = useWhatsAppQR(true, 15000);
+  const [modoGrafica, setModoGrafica] = useState(() => localStorage.getItem('jc-grafica-inicio') || 'barras');
+  const cambiarModo = (m) => { setModoGrafica(m); localStorage.setItem('jc-grafica-inicio', m); };
 
   const { data: pedidos, error } = useQuery({
     queryKey: ['pedidos'],
@@ -108,40 +102,32 @@ export default function Inicio() {
         <span className="date-chip"><CalendarDays size={14} strokeWidth={1.75} />{hoyLargo}</span>
       </div>
       {error && <div className="login-error mb-5">No se pudieron cargar los pedidos: {error.message}</div>}
+      {emailsError > 0 && (
+        <div className="banner-alerta"><TriangleAlert size={14} strokeWidth={1.75} /> {emailsError} email{emailsError === 1 ? '' : 's'} de confirmación con error — revisa la configuración SMTP</div>
+      )}
       <WhatsAppQR qr={qr} />
 
-      <div className="kpi-grid">
-        <Card withBorder radius="md" p="lg" className="kpi-card kpi-dark">
-          <Kpi Icono={Wallet} color="rgba(255,255,255,0.95)" label="Ventas cobradas hoy"
-            chip={<span className="kpi-chip">↗ {pagadosHoy} pago{pagadosHoy === 1 ? '' : 's'} confirmado{pagadosHoy === 1 ? '' : 's'}</span>}>
-            {fmtMoneda(ventasHoy)}
-          </Kpi>
+      {/* 6 KPIs cuadrados fijos — siempre una sola fila */}
+      <div className="kpi-grid6">
+        <Card withBorder radius="md" p="md" className="kpi-card kpi-sq kpi-dark">
+          <Kpi Icono={Wallet} color="rgba(255,255,255,0.95)" label="Ventas cobradas hoy">{fmtMoneda(ventasHoy)}</Kpi>
         </Card>
-        <Card withBorder radius="md" p="lg" className="kpi-card">
-          <Kpi Icono={ReceiptText} color="#4aa8ff" label="Pedidos de hoy"
-            chip={<TrendChip hoy={met?.pedidos?.hoy?.n} ayer={met?.pedidos?.ayer?.n} />}>
-            {met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0}
-          </Kpi>
+        <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
+          <Kpi Icono={ReceiptText} color="#4aa8ff" label="Pedidos de hoy">{met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0}</Kpi>
         </Card>
-        <Card withBorder radius="md" p="lg" className="kpi-card">
+        <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
+          <Kpi Icono={MessageCircle} color="var(--accent)" label="Chats nuevos hoy">{stats?.chats_hoy ?? 0}</Kpi>
+        </Card>
+        <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
           <Kpi Icono={Users} color="var(--green)" label="Clientes activos">{clientes}</Kpi>
         </Card>
-        <Card withBorder radius="md" p="lg" className="kpi-card">
+        <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
           <Kpi Icono={CreditCard} color="#b16cea" label="Pagos por cobrar">{pagosPendientes}</Kpi>
         </Card>
-        {colaAtencion > 0 && (
-          <Card withBorder radius="md" p="lg" className="kpi-card" style={{ borderColor: 'var(--red)' }}>
-            <Kpi Icono={Headset} color="var(--red)" label="Esperando atención"
-              chip={<Link to="/cola" className="kpi-chip rojo">Atender ahora →</Link>}>
-              {colaAtencion}
-            </Kpi>
-          </Card>
-        )}
-        {emailsError > 0 && (
-          <Card withBorder radius="md" p="lg" className="kpi-card" style={{ borderColor: 'var(--red)' }}>
-            <Kpi Icono={TriangleAlert} color="var(--red)" label="Emails con error">{emailsError}</Kpi>
-          </Card>
-        )}
+        <Card withBorder radius="md" p="md" component={Link} to="/cola"
+          className="kpi-sq kpi-card kpi-clic" style={colaAtencion > 0 ? { borderColor: 'var(--red)' } : undefined}>
+          <Kpi Icono={Headset} color={colaAtencion > 0 ? 'var(--red)' : 'var(--text-mute)'} label="Esperando atención">{colaAtencion}</Kpi>
+        </Card>
       </div>
 
       {/* Marketing: dónde está el dinero por recuperar */}
@@ -178,11 +164,12 @@ export default function Inicio() {
             <div className="chart-resumen">
               <span><strong>{totalSemana}</strong> pedidos</span>
               <span><strong>{fmtMoneda(montoSemana)}</strong> en la semana</span>
+              <PuntosGrafica opciones={MODOS_GRAFICA} valor={modoGrafica} onChange={cambiarModo} />
             </div>
           </div>
           <div className="chart-wrap">
             <Suspense fallback={<div className="empty">Cargando gráfica...</div>}>
-              <GraficaSemana dias={dias} fmtMoneda={fmtMoneda} altura="100%" />
+              <GraficaSemana dias={dias} fmtMoneda={fmtMoneda} altura="100%" modo={modoGrafica} />
             </Suspense>
           </div>
         </Card>

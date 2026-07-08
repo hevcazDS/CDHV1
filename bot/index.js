@@ -536,6 +536,8 @@ function registrarContactoEntrante(telefono, textoPrimerMensaje) {
     if (!telefono) return;
     try {
         const _db = require('./db_connection');
+        // KPI "Chats nuevos hoy": 1 fila por cliente por día (UNIQUE dedupe)
+        try { _db.prepare("INSERT OR IGNORE INTO chats_iniciados (telefono, fecha) VALUES (?, date('now','localtime'))").run(telefono); } catch (_) {}
         const existe = _db.prepare('SELECT id FROM clientes WHERE telefono=?').get(telefono);
         if (!existe) {
             const info = _db.prepare("INSERT INTO clientes (nombre,telefono,canal_origen,activo) VALUES (NULL,?,'whatsapp',1)").run(telefono);

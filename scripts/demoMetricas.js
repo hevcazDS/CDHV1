@@ -78,6 +78,17 @@ function aplicar() {
         ['¿tienen sillas para bebé?', 'factura porfa', '¿hacen envolturas?', 'quiero apartar', '¿abren domingo?']
             .forEach((txt, i) => insertarEvento('fallback', txt, TEL_BASE + (i % 8), fecha(entre(0, 10))));
 
+        // Chats iniciados: histórico de 30 días + varios de HOY (KPI del día)
+        try {
+            for (let d = 0; d < 30; d++) {
+                const cuantos = d === 0 ? 5 : entre(1, 6);
+                for (let k = 0; k < cuantos && k < idsCli.length; k++) {
+                    db.prepare("INSERT OR IGNORE INTO chats_iniciados (telefono, fecha) VALUES (?, date('now','localtime', ?))")
+                      .run(idsCli[k].tel, `-${d} days`);
+                }
+            }
+        } catch (_) {}
+
         // Carritos abandonados con motivo — FUERA de la ventana de campañas (5-20 días)
         ['precio', 'precio', 'envio', 'envio', 'otro', 'precio'].forEach((motivo, i) => {
             const cli = idsCli[i % idsCli.length];
@@ -103,6 +114,7 @@ function revertir() {
         db.prepare("DELETE FROM pedidos WHERE folio LIKE 'DEMO-%'").run();
         db.prepare("DELETE FROM log_eventos WHERE telefono LIKE ?").run(TEL_BASE + '%');
         db.prepare("DELETE FROM carritos_abandonados WHERE telefono LIKE ?").run(TEL_BASE + '%');
+        try { db.prepare("DELETE FROM chats_iniciados WHERE telefono LIKE ?").run(TEL_BASE + '%'); } catch (_) {}
         db.prepare("DELETE FROM cola_notificaciones WHERE destinatario LIKE ?").run(TEL_BASE + '%');
         db.prepare("DELETE FROM valoraciones WHERE id_cliente IN (SELECT id FROM clientes WHERE telefono LIKE ?)").run(TEL_BASE + '%');
         db.prepare("DELETE FROM clientes WHERE telefono LIKE ?").run(TEL_BASE + '%');

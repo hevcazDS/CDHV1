@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LifeBuoy, X, MessageCircle, Mail } from 'lucide-react';
+import { X, MessageCircle, Mail } from 'lucide-react';
 import { api } from '../api';
 
 // Widget flotante de soporte del PROVEEDOR de software (Hevcaz Solutions).
@@ -25,7 +25,7 @@ export default function SoporteWidget() {
           background: 'var(--card, #1b1b2b)', border: '1px solid var(--border, #333)',
           borderRadius: 12, padding: 16, boxShadow: '0 8px 30px rgba(0,0,0,.45)',
         }}>
-          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}><LifeBuoy size={15} strokeWidth={1.75} />Soporte técnico</div>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}><span className="mono-h chico">H</span>Soporte técnico</div>
           <div style={{ fontSize: 12, color: 'var(--text-mute, #99a)', marginBottom: 12 }}>
             ¿Algo no funciona? Escríbenos y te ayudamos (o nos conectamos en remoto).
           </div>
@@ -59,7 +59,7 @@ export default function SoporteWidget() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 6px 20px rgba(0,0,0,.4)',
         }}>
-        {abierto ? <X size={22} strokeWidth={1.75} /> : <LifeBuoy size={22} strokeWidth={1.75} />}
+        {abierto ? <X size={22} strokeWidth={1.75} /> : <span className="mono-h">H</span>}
       </button>
     </>
   );

@@ -572,6 +572,16 @@ CREATE TABLE IF NOT EXISTS alertas_reabasto (
     creada_en   TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- chats iniciados por día (migración 0021): un cliente que escribió ese día
+CREATE TABLE IF NOT EXISTS chats_iniciados (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    telefono  TEXT NOT NULL,
+    fecha     TEXT NOT NULL,
+    creado_en TEXT DEFAULT (datetime('now','localtime')),
+    UNIQUE(telefono, fecha)
+);
+CREATE INDEX IF NOT EXISTS idx_chats_iniciados_fecha ON chats_iniciados(fecha);
+
 CREATE TABLE IF NOT EXISTS carritos_abandonados (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     telefono     TEXT NOT NULL,

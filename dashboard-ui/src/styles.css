@@ -235,27 +235,41 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   border-radius: 10px; padding: 6px; color: var(--text-mute); line-height: 0;
 }
 .sidebar-colapsar:hover { background: var(--panel-2); color: var(--text); }
-.sidebar.colapsado { padding: 16px 12px; align-items: center; }
-.sidebar.colapsado .sidebar-top { justify-content: center; width: 100%; }
-.sidebar.colapsado .sidebar-nav { width: 100%; align-items: center; gap: 6px; display: flex; flex-direction: column; }
-.sidebar-link.solo-icono { justify-content: center; padding: 11px; width: 46px; height: 44px; border: none; background: none; }
+.sidebar.colapsado { padding: 14px 8px; align-items: center; }
+.sidebar.colapsado .sidebar-top { justify-content: center; width: 100%; padding-bottom: 12px; }
+.sidebar.colapsado .sidebar-nav { width: 100%; align-items: center; gap: 4px; display: flex; flex-direction: column; overflow-y: auto; }
+.sidebar-link.solo-icono { justify-content: center; padding: 10px; width: 42px; height: 40px; border: none; background: none; }
 .sidebar-link.solo-icono.abierta { background: var(--panel-2); }
-.sidebar.colapsado .sidebar-foot { padding: 8px 0; width: 100%; }
-.sidebar.colapsado .sidebar-foot .btn { padding: 10px; }
-/* El flyout se sale del navbar: el contenedor no debe recortarlo */
-.sidebar, .sidebar.colapsado { overflow: visible; }
-.rail-cat { position: relative; }
-.rail-flyout {
-  position: absolute; left: calc(100% + 12px); top: -4px;
-  min-width: 210px; z-index: 90;
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: var(--radius); box-shadow: var(--shadow);
-  padding: 8px; display: flex; flex-direction: column; gap: 2px;
+/* Submenú INLINE del riel: los iconos de la categoría salen hacia abajo,
+   sin cabeceras — se cierra al seleccionar o al hacer clic fuera */
+.rail-cat { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.rail-sub {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  width: 48px; margin: 3px 0 5px; padding: 5px 0;
+  background: var(--panel-2); border-radius: 14px;
 }
-.rail-flyout .sidebar-link { border-radius: 10px; padding: 9px 12px; }
-.rail-flyout-titulo {
-  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .05em; color: var(--text-mute); padding: 4px 12px 6px;
+.rail-sub .sidebar-link.solo-icono.sub { width: 36px; height: 34px; padding: 8px; }
+.sidebar.colapsado .sidebar-foot { padding: 0 0 2px; width: 100%; display: flex; justify-content: center; }
+.sidebar.colapsado .sidebar-foot .btn { padding: 10px; width: 42px; }
+
+/* Monograma del negocio = botón contraer/extraer */
+.brand-mono {
+  width: 40px; height: 40px; flex-shrink: 0; border: none; cursor: pointer;
+  border-radius: 13px;
+  background: linear-gradient(150deg, #2b2d33, #131417);
+  color: #fff; font-family: var(--font-titulos);
+  font-size: 15px; font-weight: 700; letter-spacing: .02em;
+}
+[data-tema="color"] .brand-mono { background: linear-gradient(135deg, #ff9a5a, #ff5f3d); }
+.sidebar-top { align-items: center; }
+.sidebar-brand { padding: 0 0 0 10px; }
+
+/* Monograma H de Hevcaz (botón flotante de soporte) */
+.mono-h { font-family: var(--font-titulos); font-weight: 800; font-size: 21px; line-height: 1; }
+.mono-h.chico {
+  font-size: 12px; width: 22px; height: 22px; border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff;
 }
 .sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .sidebar-link {
@@ -409,10 +423,32 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .fila-2col .card { margin-top: 0 !important; }
 .tabla-compacta { max-height: 240px; overflow: auto; }
 .chart-wrap { height: clamp(150px, 24vh, 220px); }
-@media (max-width: 1100px) {
-  .fila-2col { grid-template-columns: 1fr; }
-  .chart-wrap { height: 200px; }
+
+/* KPIs cuadrados: SIEMPRE 6 exactos en una fila (dash de monitor) */
+.kpi-grid6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: clamp(10px, 1vw, 18px); }
+.kpi-sq { aspect-ratio: 1.08; display: flex; align-items: center; justify-content: center; min-width: 0; }
+.kpi-sq-inner { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; min-width: 0; }
+.kpi-sq .kpi-num { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.kpi-clic { cursor: pointer; text-decoration: none; color: inherit; transition: transform .12s ease; }
+.kpi-clic:hover { transform: translateY(-2px); color: inherit; }
+
+/* Banner de alerta delgado (no rompe la cuadrícula de KPIs) */
+.banner-alerta {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(210,54,82,0.10); border: 1px solid rgba(210,54,82,0.3);
+  color: var(--red); font-size: 12.5px; font-weight: 600;
+  border-radius: 999px; padding: 8px 16px; margin-bottom: 14px;
 }
+
+/* Puntitos de estilo de gráfica */
+.dots { display: inline-flex; align-items: center; gap: 7px; margin-left: 10px; }
+.dot {
+  width: 10px; height: 10px; border-radius: 99px; padding: 0; cursor: pointer;
+  border: 2px solid var(--text-mute); background: transparent;
+  transition: all .15s ease;
+}
+.dot:hover { border-color: var(--accent); }
+.dot.activo { width: 22px; background: var(--accent); border-color: var(--accent); }
 /* Laptops de poca altura (1366×768): todo el Inicio en una pantalla */
 @media (max-height: 830px) {
   .page-title { font-size: 22px; }

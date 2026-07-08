@@ -129,6 +129,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
             // confirmación de pedido podía fallar en silencio sin que el
             // operador tuviera forma de notarlo desde el dashboard.
             emails_error: db.prepare("SELECT COUNT(*) c FROM cola_emails WHERE estatus='error'").get()?.c || 0,
+            chats_hoy: (() => { try { return db.prepare("SELECT COUNT(*) c FROM chats_iniciados WHERE fecha=date('now','localtime')").get()?.c || 0; } catch (_) { return 0; } })(),
         };
         // Bloque marketing (fila de Inicio): carritos abandonados = venta
         // recuperable; motivo dominante = qué palanca mover; conversión =

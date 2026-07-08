@@ -3,7 +3,8 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, BarChart, Bar,
 } from 'recharts';
-import { SegmentedControl, Card, Group, Title, ActionIcon, Button, Text, RingProgress } from '@mantine/core';
+import { Card, Group, Title, ActionIcon, Button, Text, RingProgress } from '@mantine/core';
+import PuntosGrafica from '../components/PuntosGrafica';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../api';
 import { fmt } from '../lib/format';
@@ -125,7 +126,7 @@ export default function Metricas() {
           <Group justify="space-between" mb="md" wrap="wrap">
             <Title order={4}><Emoji>📈 </Emoji>Pedidos últimos 7 días {conv && <span className="badge badge-azul">Conversión: {conv.tasa_conversion}</span>}</Title>
             <Group gap="xs">
-              <SegmentedControl size="xs" value={chartTipo} onChange={cambiarChartTipo} data={ESTILOS_CHART} />
+              <PuntosGrafica opciones={ESTILOS_CHART} valor={chartTipo} onChange={cambiarChartTipo} />
               <ActionIcon variant="default" onClick={cargar}>🔄</ActionIcon>
             </Group>
           </Group>
