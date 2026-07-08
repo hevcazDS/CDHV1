@@ -48,6 +48,38 @@
   box-shadow: 0 1px 2px rgba(16,17,20,0.04), 0 6px 18px rgba(16,17,20,0.05);
 }
 
+/* Tema "Color" (2a referencia visual): claro con lienzo degradado
+   rosa/lavanda y acentos vivos naranja/morado. Es colorScheme light de
+   Mantine + data-tema="color" en <html> (mismo truco que confort). */
+[data-tema="color"] {
+  --bg:        #f7f2f7;
+  --bg-soft:   #ffffff;
+  --panel:     #ffffff;
+  --panel-2:   #f7f1f8;
+  --border:    #f0e7f0;
+  --text:      #2b2b43;
+  --text-dim:  #8a87a5;
+  --text-mute: #b3b0c4;
+  --accent:    #ff7a3d;
+  --accent-2:  #b16cea;
+  --accent-soft: rgba(255, 122, 61, 0.12);
+  --green:     #34c38f;
+  --yellow:    #f5a623;
+  --red:       #f46a6a;
+  --shadow:    0 10px 30px rgba(120, 80, 160, 0.12);
+}
+[data-tema="color"] body {
+  background: linear-gradient(135deg, #fdf2f4 0%, #f7f1fb 55%, #eef4fb 100%) fixed;
+}
+[data-tema="color"] .topbar, [data-tema="color"] .sidebar { background: rgba(255,255,255,0.75); backdrop-filter: blur(8px); }
+[data-tema="color"] .card, [data-tema="color"] .kpi-card {
+  box-shadow: 0 2px 4px rgba(120,80,160,0.05), 0 12px 28px rgba(120,80,160,0.08);
+  border-color: transparent;
+}
+[data-tema="color"] .kpi-dark { background: linear-gradient(135deg, #ff9a5a, #ff5f3d) !important; }
+[data-tema="color"] .btn-primary { background: linear-gradient(135deg, #ff8a3d, #ff5f6d); }
+[data-tema="color"] .sidebar-link.active { background: rgba(255,122,61,0.12); color: #ff7a3d; }
+
 /* Tema "Confort": oscuro de bajo contraste vía data-confort (no es un
    colorScheme de Mantine — Mantine solo soporta light/dark) */
 [data-confort="on"] {
@@ -196,7 +228,19 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   flex-direction: column;
   padding: 20px 14px;
 }
-.sidebar-brand { font-family: var(--font-titulos); font-weight: 700; font-size: 17px; letter-spacing: -0.01em; padding: 0 8px 24px; }
+.sidebar-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; padding-bottom: 18px; }
+.sidebar-brand { font-family: var(--font-titulos); font-weight: 700; font-size: 17px; letter-spacing: -0.01em; padding: 0 8px; min-width: 0; }
+.sidebar-colapsar {
+  flex-shrink: 0; background: none; border: 1px solid transparent;
+  border-radius: 10px; padding: 6px; color: var(--text-mute); line-height: 0;
+}
+.sidebar-colapsar:hover { background: var(--panel-2); color: var(--text); }
+.sidebar.colapsado { padding: 20px 12px; align-items: center; }
+.sidebar.colapsado .sidebar-top { justify-content: center; width: 100%; }
+.sidebar.colapsado .sidebar-nav { width: 100%; align-items: center; gap: 4px; }
+.sidebar-link.solo-icono { justify-content: center; padding: 11px; width: 46px; height: 42px; }
+.sidebar.colapsado .sidebar-foot { padding: 8px 0; width: 100%; }
+.sidebar.colapsado .sidebar-foot .btn { padding: 10px; }
 .sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .sidebar-link {
   display: flex;
@@ -241,8 +285,36 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   padding: 0 24px;
   background: var(--bg);
 }
-.topbar-left { font-family: var(--font-titulos); font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+.topbar-left { font-family: var(--font-titulos); font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); white-space: nowrap; }
 .topbar-right { display: flex; align-items: center; gap: 16px; }
+
+/* ── Buscador global (topbar) ─────────────────────────────────────── */
+.buscador { position: relative; flex: 1; max-width: 420px; margin: 0 20px; }
+.buscador-icono { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-mute); pointer-events: none; }
+.buscador-input {
+  width: 100%; border-radius: 999px; padding: 9px 16px 9px 38px;
+  font-size: 13px; background: var(--panel-2); border-color: transparent;
+}
+.buscador-input:focus { background: var(--panel); border-color: var(--border); }
+.buscador-drop {
+  position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 6px; z-index: 60; max-height: 380px; overflow: auto;
+}
+.buscador-seccion {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-mute); padding: 8px 10px 4px;
+}
+.buscador-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  width: 100%; text-align: left; background: none; border: none;
+  padding: 8px 10px; border-radius: 10px; color: var(--text); font-size: 13px;
+}
+.buscador-item:hover { background: var(--accent-soft); }
+.buscador-item span { font-size: 11.5px; color: var(--text-dim); }
+.buscador-vacio { padding: 14px; font-size: 12.5px; color: var(--text-mute); text-align: center; }
 
 /* Sin padding: el prop padding de AppShell ya lo suma al offset del navbar;
    un padding plano aquí lo pisaría (causa real de solapamiento pasado). */
@@ -310,7 +382,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   font-size: 12.5px; font-weight: 600; color: var(--text-dim);
 }
 
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
+.kpi-flex { display: flex; align-items: center; gap: 14px; }
+.kpi-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kpi-dark .mantine-RingProgress-root svg circle:first-of-type { stroke: rgba(255,255,255,0.18); }
 .kpi-card { display: flex; flex-direction: column; gap: 6px; }
 .kpi-label { font-size: 13px; color: var(--text-dim); }
 .kpi-value { font-size: 26px; font-weight: 700; }

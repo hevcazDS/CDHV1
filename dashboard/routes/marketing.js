@@ -109,6 +109,9 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
         const _pagPend= db.prepare("SELECT COUNT(*) n, COALESCE(SUM(monto),0) t FROM links_pago WHERE estatus='generado'").get();
         const _pagPag = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(monto),0) t FROM links_pago WHERE estatus='pagado'").get();
 
+        // CSAT: promedio de valoraciones post-entrega (escala 1-5)
+        const _csat = db.prepare("SELECT AVG(calificacion) promedio, COUNT(*) n FROM valoraciones").get() || {};
+
         // Ingresos = dinero realmente cobrado (links_pago pagado, por pagado_en)
         const _ingHoy = db.prepare("SELECT COALESCE(SUM(monto),0) t FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=?").get(hoy)?.t || 0;
         const _ingSem = db.prepare("SELECT COALESCE(SUM(monto),0) t FROM links_pago WHERE estatus='pagado' AND date(pagado_en)>=?").get(semana)?.t || 0;
@@ -136,6 +139,7 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
             clientes: { hoy: _cHoy, semana: _cSem, total: _cTotal },
             pagos: { pendientes: _pagPend, pagados: _pagPag },
             ingresos: { hoy: _ingHoy, semana: _ingSem, mes: _ingMes },
+            csat: { promedio: _csat.promedio || null, n: _csat.n || 0 },
             escaladas: { hoy: _escHoy, semana: _escSem },
             notificaciones_hoy: _notifHoy,
             por_estatus: _porEstatus,

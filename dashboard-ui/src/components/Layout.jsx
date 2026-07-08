@@ -7,13 +7,14 @@ import {
   Home, ReceiptText, Package, Undo2, MessagesSquare, MessageCircle,
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
-  LogOut,
+  LogOut, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
 import ThemeSwitcher from './ThemeSwitcher';
 import NotificationBell from './NotificationBell';
 import SoporteWidget from './SoporteWidget';
+import BuscadorGlobal from './BuscadorGlobal';
 import { tieneRango } from '../lib/roles';
 
 const GRUPOS = [
@@ -87,6 +88,11 @@ export default function Layout() {
 
   const iniciales = (user?.username || '?').slice(0, 2).toUpperCase();
 
+  // Sidebar colapsable a riel de iconos (persistido por navegador)
+  const [colapsado, setColapsado] = useState(() => localStorage.getItem('jc-sidebar-colapsado') === '1');
+  useEffect(() => { localStorage.setItem('jc-sidebar-colapsado', colapsado ? '1' : '0'); }, [colapsado]);
+  const enlacesPlanos = grupos.flatMap(g => g.enlaces);
+
   // Acordeón de un grupo abierto a la vez, siempre el de la ruta activa
   // (todos expandidos desbordaban el alto del sidebar en laptops)
   const grupoActivo = grupos.find(g => g.enlaces.some(e => e.to === location.pathname))?.titulo || grupos[0]?.titulo;
@@ -96,9 +102,10 @@ export default function Layout() {
   // navbar sin breakpoint a propósito (sin versión móvil, es Electron/escritorio);
   // padding en el prop de AppShell, no en .content (pisaría el offset del navbar)
   return (
-    <AppShell header={{ height: 64 }} navbar={{ width: 252 }} padding={28}>
+    <AppShell header={{ height: 64 }} navbar={{ width: colapsado ? 76 : 252 }} padding={28}>
       <AppShell.Header className="topbar">
         <div className="topbar-left">Panel de operaciones</div>
+        <BuscadorGlobal />
         <div className="topbar-right">
           <ThemeSwitcher />
           <NotificationBell />
@@ -107,30 +114,47 @@ export default function Layout() {
         </div>
       </AppShell.Header>
 
-      <AppShell.Navbar className="sidebar">
-        <div className="sidebar-brand">{nombreNegocio}</div>
+      <AppShell.Navbar className={`sidebar${colapsado ? ' colapsado' : ''}`}>
+        <div className="sidebar-top">
+          {!colapsado && <div className="sidebar-brand">{nombreNegocio}</div>}
+          <button className="sidebar-colapsar" title={colapsado ? 'Expandir menú' : 'Contraer menú'} onClick={() => setColapsado(v => !v)}>
+            {colapsado ? <PanelLeftOpen size={17} strokeWidth={1.75} /> : <PanelLeftClose size={17} strokeWidth={1.75} />}
+          </button>
+        </div>
         <nav className="sidebar-nav">
-          <Accordion value={abierto} onChange={setAbierto} chevronSize={14} styles={ACCORDION_STYLES}>
-            {grupos.map(g => (
-              <Accordion.Item value={g.titulo} key={g.titulo}>
-                <Accordion.Control>{g.titulo}</Accordion.Control>
-                <Accordion.Panel>
-                  {g.enlaces.map(e => (
-                    <NavLink key={e.to} to={e.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`} end={e.to === '/'}>
-                      <e.Icono size={16} strokeWidth={1.75} />{e.label}
-                    </NavLink>
-                  ))}
-                </Accordion.Panel>
-              </Accordion.Item>
-            ))}
-          </Accordion>
+          {colapsado ? (
+            enlacesPlanos.map(e => (
+              <NavLink key={e.to} to={e.to} title={e.label} className={({ isActive }) => `sidebar-link solo-icono${isActive ? ' active' : ''}`} end={e.to === '/'}>
+                <e.Icono size={18} strokeWidth={1.75} />
+              </NavLink>
+            ))
+          ) : (
+            <Accordion value={abierto} onChange={setAbierto} chevronSize={14} styles={ACCORDION_STYLES}>
+              {grupos.map(g => (
+                <Accordion.Item value={g.titulo} key={g.titulo}>
+                  <Accordion.Control>{g.titulo}</Accordion.Control>
+                  <Accordion.Panel>
+                    {g.enlaces.map(e => (
+                      <NavLink key={e.to} to={e.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`} end={e.to === '/'}>
+                        <e.Icono size={16} strokeWidth={1.75} />{e.label}
+                      </NavLink>
+                    ))}
+                  </Accordion.Panel>
+                </Accordion.Item>
+              ))}
+            </Accordion>
+          )}
         </nav>
         <div className="sidebar-foot">
-          <div className="sidebar-user-info">
-            <span className="sidebar-user-name">{user?.username}</span>
-            <span className="sidebar-user-rol">{user?.rol}</span>
-          </div>
-          <button className="btn" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={logout}><LogOut size={14} strokeWidth={1.75} />Cerrar sesión</button>
+          {!colapsado && (
+            <div className="sidebar-user-info">
+              <span className="sidebar-user-name">{user?.username}</span>
+              <span className="sidebar-user-rol">{user?.rol}</span>
+            </div>
+          )}
+          <button className="btn" title="Cerrar sesión" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={logout}>
+            <LogOut size={14} strokeWidth={1.75} />{!colapsado && 'Cerrar sesión'}
+          </button>
         </div>
       </AppShell.Navbar>
 

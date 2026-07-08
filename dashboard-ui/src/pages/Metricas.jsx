@@ -3,7 +3,7 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, BarChart, Bar,
 } from 'recharts';
-import { SegmentedControl, Card, Group, Title, ActionIcon, Button, Text } from '@mantine/core';
+import { SegmentedControl, Card, Group, Title, ActionIcon, Button, Text, RingProgress } from '@mantine/core';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../api';
 import { fmt } from '../lib/format';
@@ -70,19 +70,30 @@ export default function Metricas() {
       <div className="page-title">Métricas</div>
       <div className="page-sub">Pedidos, conversión y reportes</div>
 
-      {/* Ingresos: dinero realmente cobrado (no pedidos creados) */}
-      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
-        <Card withBorder radius="md" p="lg" className="kpi-card kpi-dark">
+      {/* Ingresos (dinero cobrado) + satisfacción del cliente */}
+      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 24 }}>
+        <Card withBorder radius="md" p="xl" className="kpi-card kpi-dark">
           <Text size="sm" c="dimmed">Ingresos hoy</Text>
           <Text size="26px" fw={700} className="kpi-num">${fmt(d?.ingresos?.hoy || 0)}</Text>
         </Card>
-        <Card withBorder radius="md" p="lg" className="kpi-card">
+        <Card withBorder radius="md" p="xl" className="kpi-card">
           <Text size="sm" c="dimmed">Ingresos esta semana</Text>
           <Text size="26px" fw={700} className="kpi-num">${fmt(d?.ingresos?.semana || 0)}</Text>
         </Card>
-        <Card withBorder radius="md" p="lg" className="kpi-card">
+        <Card withBorder radius="md" p="xl" className="kpi-card">
           <Text size="sm" c="dimmed">Ingresos este mes</Text>
           <Text size="26px" fw={700} className="kpi-num">${fmt(d?.ingresos?.mes || 0)}</Text>
+        </Card>
+        <Card withBorder radius="md" p="xl" className="kpi-card">
+          <Text size="sm" c="dimmed">Satisfacción (CSAT)</Text>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <RingProgress
+              size={72} thickness={7} roundCaps rootColor="var(--panel-2)"
+              sections={[{ value: d?.csat?.promedio ? (d.csat.promedio / 5) * 100 : 0, color: 'var(--green)' }]}
+              label={<Text ta="center" size="sm" fw={700}>{d?.csat?.promedio ? Math.round((d.csat.promedio / 5) * 100) + '%' : '—'}</Text>}
+            />
+            <Text size="xs" c="dimmed">{d?.csat?.n || 0} valoracion{(d?.csat?.n || 0) === 1 ? '' : 'es'}</Text>
+          </div>
         </Card>
       </div>
 

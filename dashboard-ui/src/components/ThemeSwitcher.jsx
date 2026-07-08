@@ -2,22 +2,28 @@ import { useEffect, useState } from 'react';
 import { SegmentedControl, useMantineColorScheme } from '@mantine/core';
 
 const OPCIONES = [
-  { value: 'light', label: 'Claro' },
-  { value: 'dark', label: 'Oscuro' },
-  { value: 'confort', label: 'Confort' },
+  { value: 'claro', label: 'Claro' },
+  { value: 'color', label: 'Color' },
+  { value: 'oscuro', label: 'Oscuro' },
 ];
 
 const STORAGE_KEY = 'jc-tema-modo';
 
-// 'confort' no es un colorScheme de Mantine (solo hay light/dark): es dark +
-// data-confort="on" en <html>, que styles.css usa para bajar contraste
+// 'claro' = light monocromo; 'color' = light + data-tema="color" (gradientes);
+// 'oscuro' = dark. Valores legacy (light/dark/confort) se mapean.
+const LEGACY = { light: 'claro', dark: 'oscuro', confort: 'oscuro' };
+
 export default function ThemeSwitcher() {
   const { setColorScheme } = useMantineColorScheme();
-  const [modo, setModo] = useState(() => localStorage.getItem(STORAGE_KEY) || 'light');
+  const [modo, setModo] = useState(() => {
+    const v = localStorage.getItem(STORAGE_KEY) || 'claro';
+    return LEGACY[v] || v;
+  });
 
   useEffect(() => {
-    setColorScheme(modo === 'light' ? 'light' : 'dark');
-    document.documentElement.setAttribute('data-confort', modo === 'confort' ? 'on' : 'off');
+    setColorScheme(modo === 'oscuro' ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-tema', modo === 'color' ? 'color' : 'off');
+    document.documentElement.setAttribute('data-confort', 'off');
     localStorage.setItem(STORAGE_KEY, modo);
   }, [modo]);
 

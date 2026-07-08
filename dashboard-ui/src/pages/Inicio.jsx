@@ -1,8 +1,9 @@
 import { lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Card, Text } from '@mantine/core';
+import { Card, Text, RingProgress, Center } from '@mantine/core';
 import { Wallet, ReceiptText, Users, CreditCard, Headset, TriangleAlert, TrendingUp, Package, CalendarDays } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import { useWhatsAppQR } from '../hooks/useWhatsAppQR';
 import WhatsAppQR from '../components/WhatsAppQR';
@@ -30,15 +31,26 @@ function TrendChip({ hoy, ayer }) {
   );
 }
 
-function KpiLabel({ Icono, children }) {
+// KPI con anillo decorativo alrededor del icono (2a referencia visual)
+function Kpi({ Icono, color, label, children, chip }) {
   return (
-    <Text size="sm" c="dimmed" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <Icono size={15} strokeWidth={1.75} />{children}
-    </Text>
+    <div className="kpi-flex">
+      <RingProgress
+        size={54} thickness={4} rootColor="var(--panel-2)"
+        sections={[{ value: 72, color }]}
+        label={<Center><Icono size={17} strokeWidth={1.75} style={{ color }} /></Center>}
+      />
+      <div className="kpi-info">
+        <Text size="26px" fw={700} className="kpi-num">{children}</Text>
+        <Text size="sm" c="dimmed">{label}</Text>
+        {chip}
+      </div>
+    </div>
   );
 }
 
 export default function Inicio() {
+  const { user } = useAuth();
   const { qr } = useWhatsAppQR(true, 15000);
 
   const { data: pedidos, error } = useQuery({
@@ -83,7 +95,7 @@ export default function Inicio() {
     <div className="max-w-6xl">
       <div className="page-head">
         <div>
-          <div className="page-title">Inicio</div>
+          <div className="page-title">¡Hola, {(user?.username || '').charAt(0).toUpperCase() + (user?.username || '').slice(1)}!</div>
           <div className="page-sub">Resumen general de la operación</div>
         </div>
         <span className="date-chip"><CalendarDays size={14} strokeWidth={1.75} />{hoyLargo}</span>
@@ -92,35 +104,35 @@ export default function Inicio() {
       <WhatsAppQR qr={qr} />
 
       <div className="kpi-grid">
-        <Card withBorder radius="md" p="lg" className="kpi-card kpi-dark">
-          <KpiLabel Icono={Wallet}>Ventas cobradas hoy</KpiLabel>
-          <Text size="26px" fw={700} className="kpi-num">{fmtMoneda(ventasHoy)}</Text>
-          <span className="kpi-chip">↗ {pagadosHoy} pago{pagadosHoy === 1 ? '' : 's'} confirmado{pagadosHoy === 1 ? '' : 's'}</span>
+        <Card withBorder radius="md" p="xl" className="kpi-card kpi-dark">
+          <Kpi Icono={Wallet} color="rgba(255,255,255,0.95)" label="Ventas cobradas hoy"
+            chip={<span className="kpi-chip">↗ {pagadosHoy} pago{pagadosHoy === 1 ? '' : 's'} confirmado{pagadosHoy === 1 ? '' : 's'}</span>}>
+            {fmtMoneda(ventasHoy)}
+          </Kpi>
         </Card>
-        <Card withBorder radius="md" p="lg" className="kpi-card">
-          <KpiLabel Icono={ReceiptText}>Pedidos de hoy</KpiLabel>
-          <Text size="26px" fw={700} className="kpi-num">{met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0}</Text>
-          <TrendChip hoy={met?.pedidos?.hoy?.n} ayer={met?.pedidos?.ayer?.n} />
+        <Card withBorder radius="md" p="xl" className="kpi-card">
+          <Kpi Icono={ReceiptText} color="#4aa8ff" label="Pedidos de hoy"
+            chip={<TrendChip hoy={met?.pedidos?.hoy?.n} ayer={met?.pedidos?.ayer?.n} />}>
+            {met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0}
+          </Kpi>
         </Card>
-        <Card withBorder radius="md" p="lg" className="kpi-card">
-          <KpiLabel Icono={Users}>Clientes activos</KpiLabel>
-          <Text size="26px" fw={700} className="kpi-num">{clientes}</Text>
+        <Card withBorder radius="md" p="xl" className="kpi-card">
+          <Kpi Icono={Users} color="var(--green)" label="Clientes activos">{clientes}</Kpi>
         </Card>
-        <Card withBorder radius="md" p="lg" className="kpi-card">
-          <KpiLabel Icono={CreditCard}>Pagos por cobrar</KpiLabel>
-          <Text size="26px" fw={700} className="kpi-num">{pagosPendientes}</Text>
+        <Card withBorder radius="md" p="xl" className="kpi-card">
+          <Kpi Icono={CreditCard} color="#b16cea" label="Pagos por cobrar">{pagosPendientes}</Kpi>
         </Card>
         {colaAtencion > 0 && (
-          <Card withBorder radius="md" p="lg" className="kpi-card" style={{ borderColor: 'var(--red)' }}>
-            <KpiLabel Icono={Headset}>Clientes esperando atención</KpiLabel>
-            <Text size="26px" fw={700} className="kpi-num">{colaAtencion}</Text>
-            <Link to="/cola" className="kpi-chip rojo">Atender ahora →</Link>
+          <Card withBorder radius="md" p="xl" className="kpi-card" style={{ borderColor: 'var(--red)' }}>
+            <Kpi Icono={Headset} color="var(--red)" label="Esperando atención"
+              chip={<Link to="/cola" className="kpi-chip rojo">Atender ahora →</Link>}>
+              {colaAtencion}
+            </Kpi>
           </Card>
         )}
         {emailsError > 0 && (
-          <Card withBorder radius="md" p="lg" className="kpi-card" style={{ borderColor: 'var(--red)' }}>
-            <KpiLabel Icono={TriangleAlert}>Emails con error</KpiLabel>
-            <Text size="26px" fw={700} className="kpi-num">{emailsError}</Text>
+          <Card withBorder radius="md" p="xl" className="kpi-card" style={{ borderColor: 'var(--red)' }}>
+            <Kpi Icono={TriangleAlert} color="var(--red)" label="Emails con error">{emailsError}</Kpi>
           </Card>
         )}
       </div>
