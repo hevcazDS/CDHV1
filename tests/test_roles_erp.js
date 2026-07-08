@@ -15,6 +15,12 @@ ok(permite('compras', 'compras') && permite('compras', 'almacen_lectura') && !pe
 ok(permite('gerente', 'rrhh') && permite('prime', 'almacen'), 'administrador/prime cubren todas las áreas (pyme mínima opera)');
 ok(!ROLES_CREABLES_POR_GERENTE.includes('prime') && !ROLES_CREABLES_POR_GERENTE.includes('gerente'), 'administrador no crea pares ni primes');
 
+// Auditor: pasa TODAS las áreas (lectura; server.js bloquea escrituras)
+const { esAuditor } = require('../dashboard/permisos');
+ok(permite('auditor', 'finanzas') && permite('auditor', 'pos') && permite('auditor', 'almacen') && permite('auditor', 'rrhh'), 'auditor lee todas las áreas');
+ok(esAuditor('auditor') && !esAuditor('gerente'), 'esAuditor identifica solo al auditor');
+ok(!ROLES_CREABLES_POR_GERENTE.includes('auditor'), 'al auditor solo lo crea Prime (audita al administrador)');
+
 // 2. PIN de autorización
 db.exec("CREATE TABLE configuracion (clave TEXT PRIMARY KEY, valor TEXT, actualizado_en TEXT)");
 const auth = require('../dashboard/autorizacion');

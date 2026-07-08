@@ -43,7 +43,12 @@ module.exports = function almacenRoutes(req, res, p, u, ctx, next) {
         return res.end('﻿' + csv);
     }
 
+    // KARDEX universal: es material de AUDITORÍA — solo administrador+ y
+    // el rol auditor lo leen (almacén opera movimientos, no revisa el ledger)
     if (p === '/api/almacen/kardex' && req.method === 'GET') {
+        if (rangoDe(sesion.rol) < 2 && sesion.rol !== 'auditor') {
+            return json(res, { ok: false, error: 'El kardex es de auditoría (administrador o auditor)' }, 403);
+        }
         const sp = (new URL(req.url, 'http://x')).searchParams;
         const idProd = parseInt(sp.get('producto'), 10);
         if (!idProd) return json(res, { ok: false, error: 'Falta producto' }, 400);

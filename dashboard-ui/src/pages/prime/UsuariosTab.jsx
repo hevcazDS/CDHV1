@@ -14,6 +14,7 @@ const ROLES_OPCIONES = [
     { value: 'compras', label: 'Compras (OC/facturas)' },
     { value: 'rh', label: 'Recursos Humanos' },
     { value: 'contabilidad', label: 'Contabilidad (finanzas)' },
+    { value: 'auditor', label: 'Auditor (solo lectura total — lo crea Prime)' },
     { value: 'gerente', label: 'Administrador' },
     { value: 'prime', label: 'Prime (dueño)' },
   ];
@@ -113,7 +114,7 @@ export default function UsuariosTab() {
                     data={[
                       { value: 'cajero', label: 'Cajero' }, { value: 'operador', label: 'Operador' },
                       { value: 'almacen', label: 'Almacén' }, { value: 'compras', label: 'Compras' },
-                      { value: 'rh', label: 'RH' }, { value: 'contabilidad', label: 'Contabilidad' },
+                      { value: 'rh', label: 'RH' }, { value: 'contabilidad', label: 'Contabilidad' }, { value: 'auditor', label: 'Auditor' },
                       { value: 'gerente', label: 'Administrador' }, { value: 'prime', label: 'Prime' },
                     ]}
                     value={u.rol}

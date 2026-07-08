@@ -600,7 +600,13 @@ function handleRequest(req, res) {
         || (u.pathname === '/api/onboarding' && req.method === 'POST');
 
     if (esRutaApi && !esRutaPublica) {
-        if (!requireSession(req, res)) return;
+        const _sesGlobal = requireSession(req, res);
+        if (!_sesGlobal) return;
+        // AUDITOR = solo lectura de TODO: cualquier escritura muere aquí
+        // (punto único; logout sí se permite para poder salir)
+        if (permisos.esAuditor(_sesGlobal.rol) && req.method !== 'GET' && u.pathname !== '/api/logout') {
+            return json(res, { ok: false, error: 'El rol Auditor es de solo lectura' }, 403);
+        }
     }
 
     if (['POST','PUT','DELETE'].includes(req.method)) {

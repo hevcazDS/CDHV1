@@ -16,7 +16,7 @@ import NotificationBell from './NotificationBell';
 import SoporteWidget from './SoporteWidget';
 import BuscadorGlobal from './BuscadorGlobal';
 import { tieneRango } from '../lib/roles';
-import { permite, etiquetaRol } from '../lib/permisos';
+import { permite, etiquetaRol, esAuditor } from '../lib/permisos';
 
 const GRUPOS = [
   { titulo: 'Operación diaria', enlaces: [
@@ -88,11 +88,16 @@ export default function Layout() {
   const modulosActivos = { pos_activo: posActivo, rrhh_activo: rrhhActivo };
   // rolRequerido es rango mínimo, no match exacto
   const grupos = GRUPOS
-    .map(g => ({ ...g, enlaces: g.enlaces.filter(e =>
-      (!e.rolRequerido || tieneRango(user?.rol, e.rolRequerido)) &&
-      (!e.area || permite(user?.rol, e.area)) &&
-      (!e.moduloRequerido || modulosActivos[e.moduloRequerido])
-    ) }))
+    .map(g => ({ ...g, enlaces: g.enlaces.filter(e => {
+      // Auditor: lee todo excepto configuración (Módulos/Prime/Beta)
+      const pasaRol = e.rolRequerido
+        ? (tieneRango(user?.rol, e.rolRequerido) ||
+           (esAuditor(user?.rol) && e.rolRequerido === 'gerente' && !['/prime', '/modulos'].includes(e.to)))
+        : true;
+      return pasaRol &&
+        (!e.area || permite(user?.rol, e.area)) &&
+        (!e.moduloRequerido || modulosActivos[e.moduloRequerido]);
+    }) }))
     .filter(g => g.enlaces.length > 0);
 
   const [nombreNegocio, setNombreNegocio] = useState('Julio Cepeda');

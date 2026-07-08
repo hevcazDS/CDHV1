@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nombre        TEXT NOT NULL DEFAULT '',
     password_hash TEXT NOT NULL,
     salt          TEXT NOT NULL,
-    rol           TEXT NOT NULL CHECK(rol IN ('cajero','operador','almacen','compras','rh','contabilidad','usuario','gerente','admin','prime')),  -- migrations/0017 y 0023
+    rol           TEXT NOT NULL CHECK(rol IN ('cajero','operador','almacen','compras','rh','contabilidad','auditor','usuario','gerente','admin','prime')),  -- migrations/0017 y 0023
     creado_en     TEXT DEFAULT (datetime('now','localtime'))
 );
 

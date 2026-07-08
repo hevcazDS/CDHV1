@@ -6,7 +6,7 @@
 'use strict';
 
 const RANGO_ROL = {
-    cajero: 1, operador: 1, almacen: 1, compras: 1, rh: 1, contabilidad: 1,
+    cajero: 1, operador: 1, almacen: 1, compras: 1, rh: 1, contabilidad: 1, auditor: 1,
     usuario: 1,           // legacy → operador (migración 0023)
     gerente: 2, admin: 2, // "Administrador" en UI
     prime: 3,
@@ -30,9 +30,12 @@ const ROLES_CREABLES_POR_GERENTE = ['cajero', 'operador', 'almacen', 'compras', 
 function rangoDe(rol) { return RANGO_ROL[rol] || 0; }
 function esAdminOMas(rol) { return rangoDe(rol) >= 2; }
 
+// El AUDITOR pasa TODAS las áreas — pero solo en LECTURA: server.js
+// bloquea cualquier método distinto de GET para este rol (punto único).
+function esAuditor(rol) { return rol === 'auditor'; }
 function permite(rol, area) {
-    if (esAdminOMas(rol)) return true;
+    if (esAdminOMas(rol) || esAuditor(rol)) return true;
     return (AREAS_POR_ROL[rol] || []).includes(area);
 }
 
-module.exports = { RANGO_ROL, AREAS_POR_ROL, ROLES_CREABLES_POR_GERENTE, rangoDe, esAdminOMas, permite };
+module.exports = { RANGO_ROL, AREAS_POR_ROL, ROLES_CREABLES_POR_GERENTE, rangoDe, esAdminOMas, esAuditor, permite };

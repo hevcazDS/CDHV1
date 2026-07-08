@@ -9,7 +9,6 @@ import { fdate } from '../../lib/format';
 export default function MovimientosTab() {
   const qc = useQueryClient();
   const [f, setF] = useState({ producto: null, origen: '', destino: '', cantidad: 1, motivo: '' });
-  const [kardexDe, setKardexDe] = useState(null);
 
   const { data: prods = [] } = useQuery({ queryKey: ['almacen-prods'], queryFn: () => api.get('/api/almacen/inventario?q=') });
   const { data: ocs = [] } = useQuery({ queryKey: ['erp-ocs'], queryFn: () => api.get('/api/erp/ordenes-compra').catch(() => []) });
@@ -28,12 +27,6 @@ export default function MovimientosTab() {
   const productos = [...new Map(prods.map(x => [x.id, x])).values()];
   const sucursales = [...new Set(prods.map(x => x.sucursal))];
 
-  const { data: kardex = [] } = useQuery({
-    queryKey: ['kardex', kardexDe],
-    queryFn: () => api.get('/api/almacen/kardex?producto=' + kardexDe),
-    enabled: !!kardexDe,
-  });
-
   const mover = useMutation({
     mutationFn: ({ ruta, body }) => {
       const pin = window.prompt('PIN de autorización del administrador:');
@@ -50,7 +43,7 @@ export default function MovimientosTab() {
   });
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 20, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20, alignItems: 'start' }}>
       <Card withBorder radius="md" p="lg" className="card">
         <div className="card-header"><h3>OC por recibir</h3><Text size="xs" c="dimmed">Recibir = entra al inventario (sin PIN)</Text></div>
         {ocsAbiertas.length === 0 && <div className="empty" style={{ padding: 10 }}>Sin órdenes pendientes</div>}
@@ -102,32 +95,6 @@ export default function MovimientosTab() {
         </Button>
       </Card>
 
-      <Card withBorder radius="md" p="lg" className="card">
-        <div className="card-header">
-          <h3>Kardex</h3>
-          <Select placeholder="Elige producto..." searchable w={280} value={kardexDe} onChange={setKardexDe}
-            data={productos.map(x => ({ value: String(x.id), label: x.name }))} />
-        </div>
-        <div className="table-wrap" style={{ maxHeight: 420, overflow: 'auto' }}>
-          <table>
-            <thead><tr><th>Fecha</th><th>Sucursal</th><th>Tipo</th><th>Δ</th><th>Saldo</th><th>Motivo / quién</th></tr></thead>
-            <tbody>
-              {!kardexDe && <tr><td colSpan={6} className="empty">Elige un producto para ver su historial</td></tr>}
-              {kardexDe && kardex.length === 0 && <tr><td colSpan={6} className="empty">Sin movimientos registrados</td></tr>}
-              {kardex.map(m => (
-                <tr key={m.id}>
-                  <td className="text-muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fdate(m.creado_en)}</td>
-                  <td style={{ fontSize: 12 }}>{m.sucursal}</td>
-                  <td><span className="chip">{m.tipo}</span></td>
-                  <td style={{ color: m.delta < 0 ? 'var(--red)' : 'var(--green)', fontWeight: 700 }}>{m.delta > 0 ? '+' : ''}{m.delta}</td>
-                  <td style={{ fontWeight: 700 }}>{m.cantidad_nueva}</td>
-                  <td className="text-muted" style={{ fontSize: 11 }}>{m.motivo || '-'}{m.creado_por ? ' · ' + m.creado_por : ''}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
     </div>
   );
 }

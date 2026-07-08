@@ -251,7 +251,7 @@ const CategoriaSchema = z.object({
 const UsuarioSchema = z.object({
     username: z.string().min(3, 'username debe tener al menos 3 caracteres').max(40),
     password: z.string().min(8, 'password debe tener al menos 8 caracteres').max(200),
-    rol:      z.enum(['cajero', 'operador', 'almacen', 'compras', 'rh', 'contabilidad', 'usuario', 'gerente', 'prime']),
+    rol:      z.enum(['cajero', 'operador', 'almacen', 'compras', 'rh', 'contabilidad', 'auditor', 'usuario', 'gerente', 'prime']),
     nombre:   z.string().trim().min(1).max(80).optional(),
 });
 const UsuarioUpdateSchema = z.object({
