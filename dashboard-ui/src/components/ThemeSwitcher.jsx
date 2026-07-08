@@ -16,7 +16,9 @@ const STORAGE_KEY = 'jc-tema-modo';
 // persiste light/dark, no este tercer modo.
 export default function ThemeSwitcher() {
   const { setColorScheme } = useMantineColorScheme();
-  const [modo, setModo] = useState(() => localStorage.getItem(STORAGE_KEY) || 'dark');
+  // Default 'light': el tema claro minimalista es el look oficial del panel
+  // (referencia visual del cliente); quien ya eligió otro lo conserva.
+  const [modo, setModo] = useState(() => localStorage.getItem(STORAGE_KEY) || 'light');
 
   useEffect(() => {
     setColorScheme(modo === 'light' ? 'light' : 'dark');

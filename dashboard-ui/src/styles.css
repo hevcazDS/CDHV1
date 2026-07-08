@@ -25,22 +25,31 @@
 /* Tema claro. Las 20 páginas siguen usando estas variables (no Mantine)
    para su CSS, por eso el cambio de tema repinta todo el panel y no solo
    los componentes nuevos. */
+/* Paleta clara minimalista (referencia visual del cliente: lienzo gris
+   claro, tarjetas blancas, acento monocromo oscuro — los botones primarios
+   y la tarjeta KPI principal salen oscuros, no azules). Es el tema DEFAULT. */
 [data-mantine-color-scheme="light"] {
-  --bg:        #f4f5f8;
+  --bg:        #eceef1;
   --bg-soft:   #ffffff;
   --panel:     #ffffff;
-  --panel-2:   #eef0f4;
-  --border:    #e1e4ea;
-  --text:      #1a1d24;
-  --text-dim:  #5b6172;
-  --text-mute: #8b91a0;
-  --accent:    #3b6fe0;
-  --accent-2:  #6c4cd8;
-  --accent-soft: rgba(59, 111, 224, 0.10);
-  --green:     #1f9d6f;
+  --panel-2:   #f2f3f6;
+  --border:    #e6e8ec;
+  --text:      #17181c;
+  --text-dim:  #6b7078;
+  --text-mute: #9aa0a8;
+  --accent:    #1d1f24;
+  --accent-2:  #34363c;
+  --accent-soft: rgba(29, 31, 36, 0.07);
+  --green:     #12a150;
   --yellow:    #b8860b;
   --red:       #d23652;
-  --shadow:    0 8px 24px rgba(20, 20, 30, 0.08);
+  --shadow:    0 1px 2px rgba(16,17,20,0.05), 0 10px 28px rgba(16,17,20,0.07);
+}
+/* En claro las tarjetas flotan con sombra sutil sobre el lienzo gris (en
+   oscuro el borde solo basta y la sombra ensuciaba). */
+[data-mantine-color-scheme="light"] .card,
+[data-mantine-color-scheme="light"] .kpi-card {
+  box-shadow: 0 1px 2px rgba(16,17,20,0.04), 0 6px 18px rgba(16,17,20,0.05);
 }
 
 /* Tema "Confort" — tercera opción del selector de tema (ThemeSwitcher.jsx),
@@ -152,8 +161,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(circle at 20% 20%, rgba(91,140,255,0.15), transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(124,92,255,0.12), transparent 50%),
+    radial-gradient(circle at 20% 20%, var(--accent-soft), transparent 50%),
+    radial-gradient(circle at 80% 80%, var(--accent-soft), transparent 50%),
     var(--bg);
 }
 .login-card {
@@ -309,6 +318,30 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .kpi-card { display: flex; flex-direction: column; gap: 6px; }
 .kpi-label { font-size: 13px; color: var(--text-dim); }
 .kpi-value { font-size: 26px; font-weight: 700; }
+/* Tarjeta KPI de acento (la métrica estrella — "Ventas cobradas hoy"):
+   oscura sobre el lienzo claro, como la tarjeta "Total Revenue" de la
+   referencia visual. En tema oscuro simplemente invierte un poco más. */
+.kpi-dark {
+  background: linear-gradient(150deg, #26282d, #131417) !important;
+  border-color: transparent !important;
+}
+.kpi-dark, .kpi-dark * { color: #fff !important; }
+.kpi-dark .kpi-chip { background: rgba(255,255,255,0.14); }
+/* Chip/pill de detalle dentro de un KPI ("3 pagos confirmados", etc.) */
+.kpi-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: inherit;
+}
+.kpi-chip.verde { background: rgba(18,161,80,0.13); color: var(--green); }
 
 /* ── Tablas ────────────────────────────────────────────────────────── */
 .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }

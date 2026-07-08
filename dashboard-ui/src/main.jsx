@@ -52,12 +52,17 @@ const mantineTheme = {
   fontFamily: FUENTE,
   headings: { fontFamily: FUENTE, fontWeight: '700' },
   defaultRadius: 'md',
-  primaryColor: 'blue',
+  // 'dark' = botones/controles Mantine monocromos oscuros, a juego con el
+  // acento charcoal del tema claro (referencia visual del cliente).
+  primaryColor: 'dark',
 };
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {/* defaultColorScheme="dark" -- "Auto" se quitó (el operador lo pidió:
+    {/* defaultColorScheme="light" -- el claro minimalista es el look oficial
+        del panel (referencia visual del cliente); ThemeSwitcher persiste la
+        elección del operador si prefiere oscuro/confort.
+        "Auto" se quitó (el operador lo pidió:
         no servía para nada en una sola ventana de Electron sin variación de
         sistema). ThemeSwitcher (en Layout) cubre los tres modos reales:
         claro/oscuro/confort -- "confort" es oscuro + el atributo aparte
@@ -65,7 +70,7 @@ createRoot(document.getElementById('root')).render(
         refleja claro/oscuro en data-mantine-color-scheme sobre <html>, que
         styles.css usa para repintar TODO el panel (no solo los componentes
         Mantine) sin tener que migrar las 20 páginas de una sola vez. */}
-    <MantineProvider defaultColorScheme="dark" theme={mantineTheme}>
+    <MantineProvider defaultColorScheme="light" theme={mantineTheme}>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>

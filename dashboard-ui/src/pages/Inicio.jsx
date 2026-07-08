@@ -46,10 +46,11 @@ export default function Inicio() {
       {/* Operación de hoy — lo primero que un dueño quiere ver al abrir el panel */}
       <Text size="sm" c="dimmed" fw={600} mb={8} style={{ textTransform: 'uppercase', letterSpacing: '.04em' }}>Hoy</Text>
       <div className="kpi-grid">
-        <Card withBorder radius="md" p="lg" className="kpi-card" style={{ borderColor: 'var(--accent, #2f9e44)' }}>
+        {/* La métrica estrella va en la tarjeta oscura de acento (kpi-dark) */}
+        <Card withBorder radius="md" p="lg" className="kpi-card kpi-dark">
           <Text size="sm" c="dimmed">{txt('💵 Ventas cobradas hoy')}</Text>
           <Text size="26px" fw={700}>{fmtMoneda(ventasHoy)}</Text>
-          <Text size="xs" c="dimmed" mt={4}>{pagadosHoy} pago{pagadosHoy === 1 ? '' : 's'} confirmado{pagadosHoy === 1 ? '' : 's'}</Text>
+          <span className="kpi-chip">↗ {pagadosHoy} pago{pagadosHoy === 1 ? '' : 's'} confirmado{pagadosHoy === 1 ? '' : 's'}</span>
         </Card>
         <Card withBorder radius="md" p="lg" className="kpi-card">
           <Text size="sm" c="dimmed">{txt('🧾 Pedidos de hoy')}</Text>
