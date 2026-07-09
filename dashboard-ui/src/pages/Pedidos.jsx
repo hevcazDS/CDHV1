@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bike, Check, ReceiptText, RefreshCw } from 'lucide-react';
+import { Bike, Check, History, ReceiptText, RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Table, Select, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
@@ -8,12 +8,26 @@ import { handleApiError } from '../lib/apiError';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import { useTextoEmoji } from '../context/EmojiContext';
+import { useAuth } from '../context/AuthContext';
 import { LEYENDA_FACTURACION } from '../lib/factura';
 
 const ESTATUS = ['pendiente', 'confirmado', 'preparando', 'enviado', 'entregado', 'cancelado'];
 
 export default function Pedidos() {
   const txt = useTextoEmoji();
+  const { user } = useAuth();
+  // Filtros que se RECUERDAN solos por usuario (idea NetSuite, versión lean)
+  const _fkey = 'jc-filtros-pedidos-' + (user?.username || 'x');
+  const [filtros, setFiltros] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(_fkey)) || { estatus: '', q: '' }; }
+    catch (_) { return { estatus: '', q: '' }; }
+  });
+  const setF = (nf) => { setFiltros(nf); try { localStorage.setItem(_fkey, JSON.stringify(nf)); } catch (_) {} };
+  const [historial, setHistorial] = useState(null);
+  const verHistorial = async (id) => {
+    try { const h = await api.get(`/api/pedidos/${id}/historial`); if (!h.ok) throw new Error(h.error); setHistorial(h); }
+    catch (e) { handleApiError(e); }
+  };
   const queryClient = useQueryClient();
   const [ticket, setTicket] = useState(null);
   const [pagoModal, setPagoModal] = useState(null);
@@ -40,6 +54,11 @@ export default function Pedidos() {
     if (estatus === 'cancelado' && !window.confirm('¿Cancelar este pedido? Se notificará al cliente.')) { refetch(); return; }
     cambiarEstatusMutation.mutate({ id, estatus });
   };
+
+  const rowsFiltrados = (rows || []).filter(r =>
+    (!filtros.estatus || r.estatus === filtros.estatus) &&
+    (!filtros.q || ((r.folio || '') + ' ' + (r.cliente || '')).toLowerCase().includes(filtros.q.toLowerCase()))
+  );
 
   const abrirTicket = async (idPedido) => {
     try {
@@ -127,6 +146,10 @@ export default function Pedidos() {
         <Group justify="space-between" mb="md">
           <Title order={4}>{txt('📦 Pedidos recientes')}</Title>
           <Group gap="xs">
+            <Select size="xs" w={130} placeholder="Estatus" clearable value={filtros.estatus || null}
+              onChange={v => setF({ ...filtros, estatus: v || '' })} data={ESTATUS} />
+            <TextInput size="xs" w={180} placeholder="Filtrar folio o cliente..." value={filtros.q}
+              onChange={e => setF({ ...filtros, q: e.target.value })} />
             <Button variant="default" size="xs" onClick={exportarCSV}>{txt('⬇️ CSV')}</Button>
             <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
@@ -138,8 +161,8 @@ export default function Pedidos() {
             </thead>
             <tbody>
               {rows === undefined && <tr><td colSpan={8} className="empty">Cargando...</td></tr>}
-              {rows?.length === 0 && <tr><td colSpan={8} className="empty">Sin pedidos</td></tr>}
-              {rows?.map(r => (
+              {rows !== undefined && rowsFiltrados.length === 0 && <tr><td colSpan={8} className="empty">Sin pedidos con ese filtro</td></tr>}
+              {rowsFiltrados.map(r => (
                 <tr key={r.id_pedido}>
                   <td><code>{r.folio || `#${r.id_pedido}`}</code></td>
                   <td>{r.cliente || '-'}</td>
@@ -159,6 +182,7 @@ export default function Pedidos() {
                         <ActionIcon variant="light" color="orange" title={r.repartidor_nombre ? `Repartidor: ${r.repartidor_nombre}` : 'Asignar repartidor'} onClick={() => abrirRepartidor(r)}><Bike size={16} strokeWidth={1.75} /></ActionIcon>
                       )}
                       <ActionIcon variant="default" title="Ver ticket" onClick={() => abrirTicket(r.id_pedido)}><ReceiptText size={16} strokeWidth={1.75} /></ActionIcon>
+                      <ActionIcon variant="default" title="Historial del pedido" onClick={() => verHistorial(r.id_pedido)}><History size={16} strokeWidth={1.75} /></ActionIcon>
                     </Group>
                   </td>
                 </tr>
@@ -243,6 +267,20 @@ export default function Pedidos() {
           </>}>
           <p className="page-sub" style={{ margin: '0 0 12px' }}>Captura la referencia del pago (efectivo, transferencia, etc.)</p>
           <TextInput autoFocus placeholder="Ej: TRANSF-00123" value={referencia} onChange={e => setReferencia(e.target.value)} />
+        </Modal>
+      )}
+      {historial && (
+        <Modal title={`Historial — ${historial.folio}`} onClose={() => setHistorial(null)}
+          actions={<Button variant="default" onClick={() => setHistorial(null)}>Cerrar</Button>}>
+          <div style={{ maxHeight: 400, overflow: 'auto' }}>
+            {historial.eventos.map((ev, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                <span className="text-muted" style={{ fontSize: 11, whiteSpace: 'nowrap', minWidth: 118 }}>{fdate(ev.ts)}</span>
+                <span className="chip">{ev.tipo}</span>
+                <span>{ev.txt}</span>
+              </div>
+            ))}
+          </div>
         </Modal>
       )}
     </div>

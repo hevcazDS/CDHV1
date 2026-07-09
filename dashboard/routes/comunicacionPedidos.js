@@ -431,5 +431,33 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
 
     // GET /api/cola_atencion — antes solo se veía el conteo (/api/stats);
     // el asesor no tenía forma de ver QUIÉN espera ni por qué desde el dashboard.
+    // Bitácora del pedido (idea Odoo "chatter"): línea de tiempo operativa —
+    // creación, pagos, kardex, repartidor, cancelación, devoluciones. Para
+    // operación diaria (los asientos contables viven en ERP > Rastro).
+    if (req.method === 'GET' && p.match(/^\/api\/pedidos\/\d+\/historial$/)) {
+        const sesH = requireSession(req, res);
+        if (!sesH) return;
+        const idH = parseInt(p.split('/')[3]);
+        const ped = db.prepare('SELECT * FROM pedidos WHERE id_pedido=?').get(idH);
+        if (!ped) return json(res, { ok: false, error: 'Pedido no encontrado' }, 404);
+        const folio = ped.folio || ('#' + idH);
+        const eventos = [];
+        eventos.push({ ts: ped.creado_en, tipo: 'creado', txt: 'Pedido creado (' + (ped.canal_creacion || 'bot') + ')' + (ped.cliente ? ' — ' + ped.cliente : '') });
+        for (const pg of db.prepare('SELECT * FROM links_pago WHERE id_pedido=?').all(idH)) {
+            eventos.push({ ts: pg.creado_en, tipo: 'pago', txt: 'Link de pago $' + pg.monto + ' (' + pg.estatus + ')' });
+            if (pg.pagado_en) eventos.push({ ts: pg.pagado_en, tipo: 'pago', txt: 'PAGADO $' + pg.monto + (ped.cobrado_por ? ' — cobró ' + ped.cobrado_por : '') + (ped.metodo_pago ? ' · ' + ped.metodo_pago : '') });
+        }
+        for (const m of db.prepare('SELECT * FROM inventario_movimientos WHERE motivo LIKE ? OR motivo LIKE ? ORDER BY id').all('%' + folio + '%', '%pedido ' + idH + '%')) {
+            eventos.push({ ts: m.creado_en, tipo: 'kardex', txt: m.tipo + ' en ' + m.sucursal + ': ' + m.cantidad_anterior + '->' + m.cantidad_nueva + (m.creado_por ? ' · ' + m.creado_por : '') });
+        }
+        if (ped.repartidor_nombre) eventos.push({ ts: ped.creado_en, tipo: 'repartidor', txt: 'Repartidor asignado: ' + ped.repartidor_nombre });
+        for (const dv of db.prepare('SELECT * FROM devoluciones WHERE id_pedido=?').all(idH)) {
+            eventos.push({ ts: dv.creado_en || ped.creado_en, tipo: 'devolucion', txt: 'Devolución ' + dv.cantidad + 'x producto ' + dv.id_producto + ' (' + dv.estatus + ')' });
+        }
+        if (ped.cancelado_en) eventos.push({ ts: ped.cancelado_en, tipo: 'cancelado', txt: 'CANCELADO por ' + (ped.cancelado_por || '?') });
+        eventos.sort((x, y) => String(x.ts).localeCompare(String(y.ts)));
+        return json(res, { ok: true, folio, estatus: ped.estatus, eventos });
+    }
+
     return next();
 };

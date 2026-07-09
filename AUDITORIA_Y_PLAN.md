@@ -24,8 +24,8 @@ Lo de abajo (plan histórico) queda como referencia — NO seguirlo directo.
 
 - [ ] **Panel de flota Hevcaz** (idea NetSuite): status.json por instancia (versión, bot online, último backup, HS-errores) + panel central del proveedor — *cuando haya 3+ clientes*
 - [x] 2026-07-09 — **Cadena de documento navegable** (SAP): ERP > Rastro de documento — folio → pedido/pagos/kardex/asientos/devoluciones (sin cambio de schema: el folio ya ligaba todo)
-- [ ] **Filtros guardados** (idea NetSuite): guardar filtros de Pedidos/Clientes con nombre por usuario
-- [ ] **Bitácora por registro** (idea Odoo): pestaña "Historial" en el pedido juntando estatus/pagos/cancelación/repartidor
+- [x] 2026-07-09 — **Filtros que se recuerdan** (NetSuite, versión lean): Pedidos gana filtro por estatus + búsqueda folio/cliente, persistidos por usuario (localStorage); filtros con nombre múltiple solo si un cliente lo pide
+- [x] 2026-07-09 — **Bitácora por pedido** (Odoo chatter): botón Historial en Pedidos — línea de tiempo creación/pagos/kardex/repartidor/devoluciones/cancelación (GET /api/pedidos/:id/historial, área operación)
 - [ ] Comprobante de transferencia por FOTO en el bot (estado PAGO_COMPROBANTE) + adjuntar foto de devolución a la notificación del asesor
 - [ ] Guiones de venta V1-V12 restantes (psicología/conversión) — revisar cuáles faltan realmente
 - [ ] Datos demo POR MÓDULO (idea Odoo): extender demoMetricas para sembrar/revertir por módulo — *solo cuando haga falta para vender*
