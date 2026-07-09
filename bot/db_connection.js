@@ -8,7 +8,13 @@ require('dotenv').config({ quiet: true });
 const DB_PATH = process.env.DB_PATH
     || path.join(__dirname, 'jugueteria.db'); // fallback: misma carpeta
 
-const db = new Database(DB_PATH, { readonly: false });
+let db;
+try {
+    db = new Database(DB_PATH, { readonly: false });
+} catch (e) {
+    console.error('[HS-101] Base de datos inaccesible (' + (process.env.DB_PATH || 'DB_PATH sin definir') + '): ' + e.message);
+    process.exit(1);
+}
 
 // WAL mode para mejor rendimiento concurrente
 db.pragma('journal_mode = WAL');

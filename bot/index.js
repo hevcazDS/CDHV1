@@ -35,7 +35,7 @@ let stockWatcherWorker = null;
 
 // Devuelve una Promise que resuelve cuando el cierre terminó (+ un colchón
 // breve) — antes esta función no se esperaba en ningún lado: se disparaba el
-// taskkill y, sin pausa, seguía directo a client.initialize(), que lanza un
+// taskkill y, sin pausa, seguía directo a client.initialize().catch(e => { log.error('[HS-501] El bridge de WhatsApp no pudo arrancar (Chrome/Puppeteer): ' + e.message); process.exit(1); }), que lanza un
 // Chrome nuevo casi al mismo tiempo que Windows todavía está liberando los
 // handles del Chrome anterior recién matado. Eso es justo lo que reprodujo
 // consistentemente "Failed to launch the browser process: Code: 1" en cada

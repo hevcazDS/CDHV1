@@ -20,7 +20,7 @@ const Database = require('better-sqlite3');
 
 const DB_PATH = process.env.DB_PATH;
 if (!DB_PATH) {
-    console.error('[migrate] ERROR: falta DB_PATH en el entorno (.env).');
+    console.error('[HS-102] [migrate] ERROR: falta DB_PATH en el entorno (.env).');
     process.exit(1);
 }
 

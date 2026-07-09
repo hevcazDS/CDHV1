@@ -23,7 +23,7 @@ const TABLAS_RESET = [
 ];
 
 module.exports = function seguridadOperativaRoutes(req, res, p, u, ctx, next) {
-    const { db, json, readBody, requireSession, log, hashPassword, safeEqual } = ctx;
+    const { db, json, readBody, requireSession, log, hashPassword, safeEqual, pm2 } = ctx;
 
     // GET estado del PIN (¿hay uno configurado?)
     if (p === '/api/autorizacion/pin' && req.method === 'GET') {
@@ -82,6 +82,39 @@ module.exports = function seguridadOperativaRoutes(req, res, p, u, ctx, next) {
                 (err) => log[err ? 'warn' : 'info']('[respaldo manual] ' + (err ? err.message : 'enviado')));
             return json(res, { ok: true, msg: 'Respaldo en proceso — llegará al correo configurado' });
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    }
+
+    // POST /api/prime/whatsapp/purgar-sesion — borra .wwebjs_auth/.wwebjs_cache
+    // (HS-503: sesión corrupta o en conflicto). Prime + contraseña + 'BORRAR'.
+    // Desvincula el número: el siguiente arranque pide QR limpio.
+    if (p === '/api/prime/whatsapp/purgar-sesion' && req.method === 'POST') {
+        const sesW = requireSession(req, res, ['prime']);
+        if (!sesW) return;
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                if (d.confirmacion !== 'BORRAR') return json(res, { ok: false, error: "Escribe BORRAR en 'confirmacion'" }, 400);
+                const u = db.prepare('SELECT * FROM usuarios WHERE username=?').get(sesW.username);
+                if (!u || hashPassword(String(d.password || ''), u.salt) !== u.password_hash) {
+                    return json(res, { ok: false, error: 'Contraseña incorrecta' }, 403);
+                }
+                log.warn('[HS-503] Purga de sesión de WhatsApp solicitada por ' + sesW.username);
+                pm2(['stop', 'bot-whatsapp'], () => {
+                    const fs = require('fs');
+                    const path = require('path');
+                    let borrados = [];
+                    for (const dir of ['.wwebjs_auth', '.wwebjs_cache']) {
+                        const ruta = path.join(__dirname, '..', '..', dir);
+                        try {
+                            if (fs.existsSync(ruta)) { fs.rmSync(ruta, { recursive: true, force: true }); borrados.push(dir); }
+                        } catch (e) { log.error('[HS-503] No se pudo borrar ' + dir + ': ' + e.message); }
+                    }
+                    try { db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('bot_estado_deseado','0') ON CONFLICT(clave) DO UPDATE SET valor='0'").run(); } catch (_) {}
+                    try { db.prepare("DELETE FROM configuracion WHERE clave='whatsapp_qr'").run(); } catch (_) {}
+                    return json(res, { ok: true, borrados, nota: 'Sesión purgada. Enciende el bot y escanea el QR limpio.' });
+                });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
     }
 
     return next();

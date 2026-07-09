@@ -18,15 +18,16 @@ export default function WhatsAppQR({ qr, pantallaCompleta = false }) {
 
   if (!qr) return null;
 
-  return (
+  const tarjeta = (
     <div
       className="card"
       style={{
-        marginBottom: pantallaCompleta ? 0 : 20,
+        marginBottom: pantallaCompleta ? 0 : 0,
         padding: 24,
         textAlign: 'center',
         borderColor: 'var(--accent)',
-        maxWidth: pantallaCompleta ? 360 : undefined,
+        maxWidth: 380,
+        background: 'var(--panel)',
       }}
     >
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{emoji('')}WhatsApp desconectado — escanea el QR para vincular</div>
@@ -35,6 +36,19 @@ export default function WhatsAppQR({ qr, pantallaCompleta = false }) {
         vinculación más adelante, este QR vuelve a aparecer automáticamente.
       </div>
       <canvas ref={canvasRef} />
+      <div style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 10 }}>
+        Esta ventana se cierra sola en cuanto el teléfono quede vinculado.
+      </div>
+    </div>
+  );
+
+  // En pantalla completa (compuerta pre-login) va tal cual; dentro del panel
+  // es una VENTANA modal que se cierra sola al loguear el teléfono.
+  if (pantallaCompleta) return tarjeta;
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', background: 'rgba(10,12,18,0.55)' }}>
+      {tarjeta}
     </div>
   );
 }

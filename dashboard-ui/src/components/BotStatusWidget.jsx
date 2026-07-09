@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bot } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { esAdminOMas } from '../lib/permisos';
 import { api } from '../api';
 
 const ETIQUETAS = {
@@ -13,6 +15,8 @@ const ETIQUETAS = {
 };
 
 export default function BotStatusWidget() {
+  const { user } = useAuth();
+  const puedeBridge = esAdminOMas(user?.rol) || ['operador', 'usuario'].includes(user?.rol);
   const queryClient = useQueryClient();
   const [abierto, setAbierto] = useState(false);
   const ref = useRef(null);
@@ -69,6 +73,14 @@ export default function BotStatusWidget() {
             <button className="btn" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('start')}>Encender</button>
             <button className="btn" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('restart')}>Reiniciar</button>
             <button className="btn btn-danger" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('stop')}>Apagar</button>
+            {puedeBridge && (
+              <button className="btn" disabled={accionMutation.isPending} title="Si el bot quedó zombie tras un reinicio del servidor (HS-502)"
+                onClick={async () => {
+                  if (!window.confirm('¿Reiniciar el BRIDGE de WhatsApp? (para cuando quedó zombie tras un reload)')) return;
+                  const r = await api.post('/api/bot/bridge/restart');
+                  alert(r.ok ? 'Bridge reiniciado' : (r.error || 'No se pudo'));
+                }}>Reiniciar bridge</button>
+            )}
           </div>
           <h4>Historial reciente</h4>
           <div className="bot-history-list">

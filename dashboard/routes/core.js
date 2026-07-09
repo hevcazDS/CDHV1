@@ -212,6 +212,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/bot/start' && req.method === 'POST') {
         pm2(['start', ECOSYSTEM_PATH, '--only', 'bot-whatsapp'], (err, stdout, stderr) => {
             if (err) return json(res, { ok:false, error: stderr || err.message }, 500);
+            try { db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('bot_estado_deseado','1') ON CONFLICT(clave) DO UPDATE SET valor='1'").run(); } catch (_) {}
             registrarCambioEstatusBot('online', 'iniciado manualmente desde el dashboard');
             return json(res, { ok:true, estatus:'iniciado' });
         });
@@ -222,6 +223,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/bot/stop' && req.method === 'POST') {
         pm2(['stop', 'bot-whatsapp'], (err, stdout, stderr) => {
             if (err) return json(res, { ok:false, error: stderr || err.message }, 500);
+            try { db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('bot_estado_deseado','0') ON CONFLICT(clave) DO UPDATE SET valor='0'").run(); } catch (_) {}
             registrarCambioEstatusBot('stopped', 'detenido manualmente desde el dashboard');
             return json(res, { ok:true, estatus:'detenido' });
         });
@@ -239,6 +241,27 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
                 if (err) return json(res, { ok:false, error: stderr || err.message }, 500);
                 registrarCambioEstatusBot('online', 'reiniciado manualmente desde el dashboard');
                 return json(res, { ok:true, estatus:'reiniciado' });
+            });
+        });
+        return;
+    }
+
+    // POST /api/bot/bridge/restart — reinicio del BRIDGE de WhatsApp
+    // (Chromium/puppeteer zombie tras reload de contenedor). Prime,
+    // Administrador u Operador.
+    if (p === '/api/bot/bridge/restart' && req.method === 'POST') {
+        const sesB = requireSession(req, res);
+        if (!sesB) return;
+        const { rangoDe } = require('../permisos');
+        if (rangoDe(sesB.rol) < 2 && !['operador', 'usuario'].includes(sesB.rol)) {
+            return json(res, { ok: false, error: 'Reiniciar el bridge es de Prime/Administrador/Operador' }, 403);
+        }
+        log.warn('[HS-502] Reinicio de bridge solicitado por ' + sesB.username);
+        cerrarElectronSiAbierto(() => {
+            pm2(['restart', 'bot-whatsapp'], (err, stdout, stderr) => {
+                if (err) return json(res, { ok: false, error: '[HS-502] ' + (stderr || err.message) }, 500);
+                registrarCambioEstatusBot('online', '[HS-502] bridge reiniciado por ' + sesB.username);
+                return json(res, { ok: true, estatus: 'bridge reiniciado' });
             });
         });
         return;

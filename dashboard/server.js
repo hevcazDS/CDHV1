@@ -289,7 +289,10 @@ const _INSTANCIA_SECRET = (() => {
     try {
         const v = fs.readFileSync(_SECRET_PATH, 'utf8').trim();
         if (v.length >= 32) return v;
-    } catch (_) {}
+        log.error('[HS-402] Secreto de instancia INVÁLIDO/corrupto (' + _SECRET_PATH + ') — se regenera; todas las sesiones quedan invalidadas');
+    } catch (e) {
+        if (e.code !== 'ENOENT') log.error('[HS-402] No se pudo leer el secreto de instancia: ' + e.message + ' — se regenera');
+    }
     const nuevo = crypto.randomBytes(32).toString('hex');
     try { fs.writeFileSync(_SECRET_PATH, nuevo, { mode: 0o600 }); } catch (e) { log.warn('No se pudo persistir el secreto de instancia: ' + e.message); }
     log.info('Secreto de instancia NUEVO generado — las sesiones previas quedan invalidadas');
@@ -660,10 +663,42 @@ function handleRequest(req, res) {
 
 // En Docker debe ser 0.0.0.0 (el mapeo de puertos entra por eth0); en Windows
 // local se queda en 127.0.0.1. Se configura con DASHBOARD_HOST.
+server.on('error', (e) => {
+    if (e && e.code === 'EADDRINUSE') {
+        log.error('[HS-201] El dashboard NO pudo tomar el puerto ' + PORT + ' (ocupado). pm2 list / matar el proceso viejo.');
+        process.exit(1);
+    }
+    log.error('[HS-201] Error del servidor http: ' + (e && e.message));
+});
 server.listen(PORT, process.env.DASHBOARD_HOST || '127.0.0.1', () => {
     log.info(`🧸 Dashboard corriendo en http://localhost:${PORT}`);
     log.info('Abre esa URL en el navegador del servidor.');
 });
+
+// ── Regla anti-zombie (HS-502): el dash SIEMPRE arranca primero; si la BD
+// dice que el bot debía estar activo pero pm2 lo reporta caído/ausente
+// (típico tras reload del contenedor), se reinicia el bridge UNA sola vez.
+// Nunca en loop: si la sesión está corrupta el remedio es HS-503 (purga).
+setTimeout(() => {
+    try {
+        const deseado = db.prepare("SELECT valor FROM configuracion WHERE clave='bot_estado_deseado'").get()?.valor === '1';
+        if (!deseado) return;
+        pm2(['jlist'], (err, stdout) => {
+            if (err) return;
+            try {
+                const lista = JSON.parse(String(stdout).slice(String(stdout).indexOf('[')) || '[]');
+                const bot = lista.find(x => x.name === 'bot-whatsapp');
+                const online = bot && bot.pm2_env && bot.pm2_env.status === 'online';
+                if (online) return;
+                log.warn('[HS-502] El bot debía estar activo y pm2 lo reporta ' + (bot ? bot.pm2_env.status : 'ausente') + ' — reinicio único del bridge');
+                pm2(bot ? ['restart', 'bot-whatsapp'] : ['start', ECOSYSTEM_PATH, '--only', 'bot-whatsapp'], (e2) => {
+                    if (e2) log.error('[HS-502] El reinicio automático falló — si persiste, purga la sesión (HS-503) desde Prime');
+                    else registrarCambioEstatusBot('online', '[HS-502] bridge reiniciado automáticamente al arrancar el dashboard');
+                });
+            } catch (_) {}
+        });
+    } catch (_) {}
+}, 5000);
 
 // ── Estáticos: build de React (dashboard-ui/dist) ──────────────────────────
 const DIST_DIR = path.join(__dirname, '..', 'dashboard-ui', 'dist');

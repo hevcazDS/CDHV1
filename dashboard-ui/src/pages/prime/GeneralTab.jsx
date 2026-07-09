@@ -302,6 +302,7 @@ export default function GeneralTab() {
         </Card>
       </SimpleGrid>
       <ZonasComisiones />
+      <ZonaPeligro />
     </div>
   );
 }
@@ -340,6 +341,47 @@ function ZonasComisiones() {
         <button className="btn btn-primary" onClick={guardar}>Guardar</button>
         {msg && <span style={{ fontSize: 12, color: msg.ok ? 'var(--green)' : 'var(--red)' }}>{msg.t}</span>}
       </div>
+    </div>
+  );
+}
+
+
+// Zona de PELIGRO (solo prime): respaldo manual, purga de sesión de WhatsApp
+// (HS-503) y reset total de la instancia. Todo con confirmaciones fuertes.
+function ZonaPeligro() {
+  const [msg, setMsg] = useState(null);
+  const correr = async (nombre, fn) => {
+    try { const r = await fn(); setMsg({ ok: r.ok !== false, t: nombre + ': ' + (r.ok !== false ? (r.nota || 'listo') : r.error) }); }
+    catch (e) { setMsg({ ok: false, t: nombre + ': ' + e.message }); }
+  };
+  const pedir = (titulo) => {
+    const password = window.prompt(titulo + '\n\nTu contraseña de Prime:');
+    if (!password) return null;
+    const confirmacion = window.prompt("Escribe BORRAR para confirmar:");
+    if (confirmacion !== 'BORRAR') return null;
+    return { password, confirmacion };
+  };
+  return (
+    <div className="card" style={{ marginTop: 14, borderColor: 'var(--red)' }}>
+      <div className="card-header"><h3 style={{ color: 'var(--red)' }}>Zona de peligro (solo Prime)</h3></div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn" onClick={() => correr('Respaldo', () => api.post('/api/prime/respaldo-manual'))}>
+          Respaldo manual ahora
+        </button>
+        <button className="btn" style={{ borderColor: 'var(--yellow)' }} onClick={() => {
+          const d = pedir('BORRAR SESIÓN DE WHATSAPP (HS-503): desvincula el número; el siguiente arranque pide QR limpio. Úsalo si el bridge quedó en conflicto.');
+          if (d) correr('Purga WhatsApp', () => api.post('/api/prime/whatsapp/purgar-sesion', d));
+        }}>
+          Borrar sesión de WhatsApp
+        </button>
+        <button className="btn btn-danger" onClick={() => {
+          const d = pedir('RESET DE INSTANCIA: borra TODA la operación (pedidos, clientes, inventario) y reabre el onboarding. Solo sobreviven los usuarios Prime.');
+          if (d) correr('Reset', () => api.post('/api/prime/reset-instancia', d));
+        }}>
+          Resetear instancia (borrar todo)
+        </button>
+      </div>
+      {msg && <p style={{ fontSize: 12, marginTop: 10, color: msg.ok ? 'var(--green)' : 'var(--red)' }}>{msg.t}</p>}
     </div>
   );
 }
