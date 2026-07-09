@@ -27,6 +27,14 @@ try { if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true }); }
 // Stream de archivo (append)
 let _stream = null;
 try {
+    // Rotación simple: si el log pasa de 10 MB se renombra a .old (un solo
+    // respaldo) — evita llenar el disco en instancias de larga vida.
+    try {
+        const st = fs.existsSync(LOG_FILE) && fs.statSync(LOG_FILE);
+        if (st && st.size > 10 * 1024 * 1024) {
+            fs.renameSync(LOG_FILE, LOG_FILE + '.old');
+        }
+    } catch (_) {}
     _stream = fs.createWriteStream(LOG_FILE, { flags: 'a', encoding: 'utf8' });
     _stream.on('error', () => { _stream = null; });
 } catch(_) {}

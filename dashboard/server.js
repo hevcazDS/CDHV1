@@ -94,7 +94,10 @@ const USER_PRIME_NOMBRE   = process.env.USER_PRIME_NOMBRE || USER_PRIME || '';
 // ── Rate limiting por IP ──────────────────────────────────────────────────
 const _rlMap = new Map();
 function rateLimit(req, res, max = 30, windowMs = 60000) {
-    const ip  = req.socket.remoteAddress || 'unknown';
+    // Detrás de Caddy (TRUST_PROXY=1) la IP real viene en X-Forwarded-For;
+    // sin proxy se IGNORA el header (spoofeable) y se usa el socket.
+    const ip = (process.env.TRUST_PROXY === '1' && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim())
+        || req.socket.remoteAddress || 'unknown';
     const now = Date.now();
     const d   = _rlMap.get(ip) || { count: 0, reset: now + windowMs };
     if (now > d.reset) { d.count = 0; d.reset = now + windowMs; }
@@ -277,6 +280,12 @@ const _sesiones = new Map(); // token -> { username, rol, expira }
 })();
 
 function crearSesion(username, rol, ttlMs = SESSION_TTL_MS) {
+    // Un login nuevo invalida las sesiones previas del mismo usuario (un
+    // token robado muere en cuanto el dueño vuelve a entrar)
+    for (const [tok, ses] of _sesiones) {
+        if (ses.username === username) _sesiones.delete(tok);
+    }
+    try { db.prepare('DELETE FROM sesiones_dashboard WHERE username=?').run(username); } catch (_) {}
     const token = crypto.randomBytes(32).toString('hex');
     const expira = Date.now() + ttlMs;
     _sesiones.set(token, { username, rol, expira });

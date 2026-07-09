@@ -92,7 +92,7 @@ function buscarUpsellMsg(prod, totalAct) {
     } catch (_) { return ''; }
 }
 
-const STEPS = [S.MENU, S.SEARCHING, S.WIZARD_Q1, S.WIZARD_Q2, S.WIZARD_Q3, S.VIEW_PRODUCT, S.ADD_MORE, S.REFERIDOS];
+const STEPS = [S.MENU, S.SEARCHING, S.WIZARD_Q1, S.WIZARD_Q2, S.WIZARD_Q3, S.VIEW_PRODUCT, S.ADD_MORE, S.REFERIDOS, S.VARIANTE];
 
 async function handle(ctx) {
     const { userId, session, message, client, raw, action, step, data, tel } = ctx;
@@ -413,6 +413,30 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
     }
 
     // ── VIEW_PRODUCT ─────────────────────────────────────
+    if (step === S.VARIANTE) {
+        const prod = data.viewing;
+        const vars = data._variantes || [];
+        const i = parseInt(action, 10) - 1;
+        if (!prod || !(i >= 0 && i < vars.length)) {
+            return 'Elige el número de una de las opciones de la lista, o escribe *menu* para regresar.';
+        }
+        const v = vars[i];
+        const conVariante = { ...prod, id_variante: v.id, variante: v.etiqueta, name: prod.name + ' (' + v.etiqueta + ')' };
+        const result = agregarAlCarrito(data.carrito || [], conVariante);
+        if (!result.ok) {
+            sessionManager.updateSession(userId, S.VIEW_PRODUCT, { ...data, _variantes: undefined });
+            return 'Ya llevas varias unidades de ese producto — escribe *asesor* para pedido mayorista.';
+        }
+        sessionManager.updateSession(userId, S.ADD_MORE, { ...data, carrito: result.carrito, _variantes: undefined });
+        return `✅ Agregué *${conVariante.name}* a tu carrito.
+
+🛒 Total: $${result.total.toFixed(2)}
+
+1️⃣  💳 Pagar ahora
+2️⃣  🔍 Seguir comprando
+3️⃣  👁 Ver carrito`;
+    }
+
     if (step === S.VIEW_PRODUCT) {
         const products = data.products || [];
         const carrito  = data.carrito  || [];
@@ -524,6 +548,14 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
 
         // Opciones 1 y 2 — agregar al carrito
         if (['1','2'].includes(action) || action.includes('agregar') || action.includes('carrito')) {
+            // Producto con VARIANTES (talla/color): preguntar antes de agregar
+            const _vars = require('../../services/variantesService').variantesConStock(prod.id).filter(v => v.stock > 0);
+            if (_vars.length) {
+                sessionManager.updateSession(userId, S.VARIANTE, { ...data, carrito: carrito2, _variantes: _vars });
+                return '¿Cuál te doy de *' + prod.name + '*?\n\n' +
+                    _vars.slice(0, 9).map((v, i) => `${i + 1}️⃣  ${v.etiqueta}` + (v.stock <= 3 ? '  _(últimas ' + v.stock + ')_' : '')).join('\n') +
+                    '\n\n_Escribe el número de tu talla/opción._';
+            }
             const result = agregarAlCarrito(carrito2, prod);
 
             if (result.escalar) {

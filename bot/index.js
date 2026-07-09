@@ -570,6 +570,9 @@ function yaNosEscribioAntes(_db, telefono) {
 function procesarColaNotificaciones() {
     try {
         const _db = require('./db_connection');
+        // Mensajes envenenados: 3 intentos fallidos → 'sin_entregar' (dejan
+        // de reintentarse para siempre y quedan visibles en el panel)
+        try { _db.prepare("UPDATE cola_notificaciones SET estatus='sin_entregar' WHERE tipo='whatsapp' AND estatus='pendiente' AND intentos >= 3").run(); } catch (_) {}
         const pendientes = _db.prepare(
             "SELECT * FROM cola_notificaciones WHERE tipo='whatsapp' AND intentos < 3 AND (estatus='pendiente' OR (estatus='programado' AND enviar_despues_de <= datetime('now','localtime'))) ORDER BY id LIMIT 10"
         ).all();

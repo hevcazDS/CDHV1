@@ -402,6 +402,8 @@ CREATE TABLE IF NOT EXISTS pedido_detalle (
     cantidad        INTEGER NOT NULL,
     precio_unitario REAL NOT NULL,
     subtotal_linea  REAL,
+    id_variante     INTEGER,
+    variante        TEXT,
     sucursal_origen TEXT
 );
 
@@ -1070,3 +1072,24 @@ CREATE TABLE IF NOT EXISTS citas (
 );
 CREATE INDEX IF NOT EXISTS idx_citas_fecha ON citas(fecha, hora);
 CREATE INDEX IF NOT EXISTS idx_citas_tel ON citas(telefono);
+
+-- 0027: variantes talla×color con stock por sucursal (ropa/zapatos)
+CREATE TABLE IF NOT EXISTS producto_variantes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_producto INTEGER NOT NULL,
+    talla       TEXT,
+    color       TEXT,
+    sku         TEXT,
+    upc         TEXT,
+    activo      INTEGER NOT NULL DEFAULT 1,
+    creado_en   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE(id_producto, talla, color)
+);
+CREATE TABLE IF NOT EXISTS inventario_variantes (
+    id_variante INTEGER NOT NULL,
+    sucursal    TEXT NOT NULL,
+    stock       INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (id_variante, sucursal)
+);
+-- 0027: pedido_detalle.id_variante / variante · 0028: rastro de cancelación en pedidos
+-- (ALTER en migraciones; en fresh-install van inline en las CREATE de arriba si aplica)

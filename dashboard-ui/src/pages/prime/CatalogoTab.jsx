@@ -7,11 +7,14 @@ import { Card, Title, Group, ActionIcon, Table, TextInput, NumberInput, Select, 
 import { api } from '../../api';
 import Modal from '../../components/Modal';
 import { CamposProducto, armarDatosProducto, PRODUCTO_VACIO } from './productoCampos';
+import VariantesModal from './VariantesModal';
+import { Shirt } from 'lucide-react';
 
 export default function CatalogoTab() {
   const queryClient = useQueryClient();
 
   const productoForm = useForm({ initialValues: PRODUCTO_VACIO });
+  const [variantesDe, setVariantesDe] = useState(null);
   const [msgProducto, setMsgProducto] = useState('');
   const [stockInicial, setStockInicial] = useState('0');
 
@@ -215,6 +218,7 @@ export default function CatalogoTab() {
                   <td>
                     <Group gap={4} wrap="nowrap">
                       <ActionIcon variant="light" color="teal" title="Recibir mercancía (entrada de stock)" onClick={() => abrirEntrada(p)}><Inbox size={16} strokeWidth={1.75} /></ActionIcon>
+                      <ActionIcon variant="light" color="grape" title="Tallas y colores (variantes por sucursal)" onClick={() => setVariantesDe(p)}><Shirt size={16} strokeWidth={1.75} /></ActionIcon>
                       <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionProducto(p)}><Pencil size={16} strokeWidth={1.75} /></ActionIcon>
                     </Group>
                   </td>
@@ -258,6 +262,7 @@ export default function CatalogoTab() {
           <p className="page-sub" style={{ fontSize: 11, marginTop: 10 }}>Suma al stock de esa sucursal y queda registrado en el historial de movimientos.</p>
         </Modal>
       )}
+      {variantesDe && <VariantesModal producto={variantesDe} onClose={() => setVariantesDe(null)} />}
     </div>
   );
 }

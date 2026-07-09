@@ -54,6 +54,13 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
 
     // ── GET /api/pos/productos?q= — búsqueda ligera para el mostrador ──────
     if (p === '/api/pos/productos' && req.method === 'GET') {
+        {
+            const q0 = ((new URL(req.url, 'http://x')).searchParams.get('q') || '').trim();
+            const vv = q0 && require('../../services/variantesService').porCodigo(q0);
+            if (vv) {
+                return json(res, { items: [{ id: vv.id_producto, name: vv.name + ' (' + [vv.talla, vv.color].filter(Boolean).join(' / ') + ')', price: vv.price, tipo: vv.tipo, upc: q0, sku: q0, id_variante: vv.id_variante }] });
+            }
+        }
         if (!posActivo()) return json(res, { ok: false, error: 'El módulo de punto de venta está desactivado' }, 403);
         const q = (new URL(req.url, 'http://x').searchParams.get('q') || '').trim();
         const suc = sucursalDefault();
@@ -90,7 +97,10 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     // granel/volumen (abarrotes, construcción): cantidad decimal permitida
                     const cantidad = Math.max(0.001, Math.round((parseFloat(it.cantidad) || 1) * 1000) / 1000);
                     let price = prod.price;
-                    if (it.precio !== undefined && it.precio !== null && it.precio !== '') {
+                    if (it.precio !== undefined && it.precio !== null && it.precio !== '' && Number(it.precio) !== prod.price) {
+                        // Antifraude: cambiar el precio de lista requiere PIN
+                        const errP = autorizacion.exigirAutorizacion(db, req._ses, d.pin, rangoDe);
+                        if (errP) return json(res, { ok: false, error: 'Cambiar el precio requiere PIN de autorización', pin_requerido: true }, 403);
                         price = Number(it.precio);
                         // Antifraude de caja: el override solo puede descontar
                         // hasta 50% del precio de lista, nunca $0 ni sobreprecio
@@ -98,7 +108,7 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                             return json(res, { ok: false, error: `Precio fuera de rango para ${prod.name} (permitido: $${(prod.price * 0.5).toFixed(2)} a $${Number(prod.price).toFixed(2)})` }, 400);
                         }
                     }
-                    carrito.push({ id: prod.id, name: prod.name, price, cantidad, tipo: prod.tipo || 'fisico' });
+                    carrito.push({ id: prod.id, name: prod.name, price, cantidad, tipo: prod.tipo || 'fisico', id_variante: it.id_variante || null, variante: it.variante || null });
                 }
 
                 // Cliente opcional (para acumular puntos). Walk-in = sin cliente.
@@ -129,6 +139,7 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     for (const it of carrito) {
                         if (it.tipo === 'servicio') continue;
                         kardexService.movimiento({ id_producto: it.id, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Venta ' + folio, usuario: req._ses?.username });
+                        if (it.id_variante) require('../../services/variantesService').descontarVariante(it.id_variante, sucursal, it.cantidad);
                     }
                     db.prepare('UPDATE pedidos SET cobrado_por=? WHERE id_pedido=?').run(req._ses?.username || null, pedidoRowid);
                     return { pedidoRowid, subtotal };
@@ -175,6 +186,8 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                 if (/cancelado/i.test(ped.estatus || '')) return json(res, { ok: false, error: 'Esa venta ya está cancelada' }, 400);
                 const r = require('../../services/reversionService').revertirCobro(idPedido, { sucursalDefault: sucursalDefault() });
                 if (!r.ok) return json(res, r, 400);
+                // rastro antifraude: quién canceló y cuándo (migración 0028)
+                try { db.prepare("UPDATE pedidos SET cancelado_por=?, cancelado_en=datetime('now','localtime') WHERE id_pedido=?").run(req._ses?.username || null, idPedido); } catch (_) {}
                 return json(res, { ok: true, id_pedido: idPedido, estatus: 'cancelado', puntos_revertidos: r.puntos_revertidos });
             } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
         });

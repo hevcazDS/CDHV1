@@ -329,6 +329,27 @@ module.exports = function primeCatalogoRoutes(req, res, p, u, ctx, next) {
     // suma al inventario de una sucursal, opcionalmente actualiza el costo del
     // producto, y deja rastro en inventario_movimientos (tipo='entrada').
     // Body: { id_producto, sucursal, cantidad, costo?, proveedor? }
+    // ── Variantes talla×color con stock POR SUCURSAL (gerente+) ─────────
+    if (req.method === 'GET' && p.match(/^\/api\/prime\/variantes\/\d+$/)) {
+        const ses = requireSession(req, res, ['gerente']);
+        if (!ses) return;
+        const idP = parseInt(p.split('/').pop());
+        return json(res, require('../../services/variantesService').matrizDe(idP));
+    }
+    if (req.method === 'POST' && p.match(/^\/api\/prime\/variantes\/\d+$/)) {
+        const ses = requireSession(req, res, ['gerente']);
+        if (!ses) return;
+        const idP = parseInt(p.split('/').pop());
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                if (!Array.isArray(d.filas)) return json(res, { ok: false, error: 'Falta filas[]' }, 400);
+                const r = require('../../services/variantesService').guardarMatriz(idP, d.filas, ses.username);
+                return json(res, { ok: true, ...r });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
     if (p === '/api/prime/entrada-mercancia' && req.method === 'POST') {
         // Entrar mercancía es la chamba diaria de ALMACÉN (sin PIN, como se
         // acordó: entrar libre, sacar con PIN) — además de gerente+

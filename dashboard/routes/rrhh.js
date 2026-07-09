@@ -2,7 +2,8 @@
 // RRHH (módulo rrhh_activo): empleados, horarios por plantilla CSV (Excel la
 // abre/guarda nativo) y nómina. Acceso: rh, contabilidad, administrador+.
 const nominaService = require('../../services/nominaService');
-const { permite } = require('../permisos');
+const autorizacion = require('../autorizacion');
+const { permite, rangoDe } = require('../permisos');
 
 module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
@@ -41,7 +42,12 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
                 const d = JSON.parse(body || '{}');
                 const e = db.prepare('SELECT id FROM empleados WHERE id=?').get(id);
                 if (!e) return json(res, { ok: false, error: 'Empleado no encontrado' }, 404);
-                if (d.salario_diario !== undefined && Number(d.salario_diario) > 0) db.prepare('UPDATE empleados SET salario_diario=? WHERE id=?').run(Number(d.salario_diario), id);
+                if (d.salario_diario !== undefined && Number(d.salario_diario) > 0) {
+                    // Antifraude: cambiar salario exige PIN para roles operativos
+                    const errS = autorizacion.exigirAutorizacion(db, ses, d.pin, rangoDe);
+                    if (errS) return json(res, { ok: false, error: errS, pin_requerido: true }, 403);
+                    db.prepare('UPDATE empleados SET salario_diario=? WHERE id=?').run(Number(d.salario_diario), id);
+                }
                 if (d.con_impuestos !== undefined) db.prepare('UPDATE empleados SET con_impuestos=? WHERE id=?').run(d.con_impuestos ? 1 : 0, id);
                 if (d.puesto !== undefined) db.prepare('UPDATE empleados SET puesto=? WHERE id=?').run(String(d.puesto).trim() || null, id);
                 if (d.activo !== undefined) db.prepare('UPDATE empleados SET activo=? WHERE id=?').run(d.activo ? 1 : 0, id);
@@ -109,7 +115,11 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/rrhh/nomina/pagar' && req.method === 'POST') {
         return readBody(req, body => {
             try {
-                const { desde, hasta } = JSON.parse(body || '{}');
+                const { desde, hasta, pin } = JSON.parse(body || '{}');
+                // Antifraude: PAGAR nómina exige PIN del administrador para
+                // roles operativos (RH no se paga a sí mismo sin autorización)
+                const errN = autorizacion.exigirAutorizacion(db, ses, pin, rangoDe);
+                if (errN) return json(res, { ok: false, error: errN, pin_requerido: true }, 403);
                 return json(res, { ok: true, ...nominaService.pagar(desde, hasta) });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });

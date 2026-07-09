@@ -60,6 +60,7 @@ const S = {
     CITA_FECHA:      'CITA_FECHA',
     CITA_HORA:       'CITA_HORA',
     CITA_CONFIRMA:   'CITA_CONFIRMA',
+    VARIANTE:        'VARIANTE',
 };
 
 // ═══════════════════════════════════════════════════════
@@ -368,7 +369,8 @@ function stockBatch(ids, estado) {
  */
 function agregarAlCarrito(carritoActual, producto) {
     const carrito = carritoActual ? [...carritoActual] : [];
-    const idx     = carrito.findIndex(i => i.id === producto.id);
+    // misma prenda en otra talla/color = renglón aparte
+    const idx     = carrito.findIndex(i => i.id === producto.id && (i.id_variante || null) === (producto.id_variante || null));
     const cantidadActual = idx >= 0 ? carrito[idx].cantidad : 0;
 
     if (cantidadActual >= MAX_MISMO_PROD) {
@@ -761,13 +763,21 @@ const _insertarPedidoConCarritoTx = db.transaction((clienteNombre, carrito, ciud
     let subtotal = 0;
 
     // Insertar línea por cada item del carrito
-    const stmtDetalle = db.prepare(`
+    let stmtDetalle;
+    try {
+        stmtDetalle = db.prepare(`
+            INSERT INTO pedido_detalle (id_pedido, id_producto, cantidad, precio_unitario, subtotal_linea, sucursal_origen, id_variante, variante)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+    } catch (_) { stmtDetalle = null; } // BD sin migración 0027
+    const stmtViejo = db.prepare(`
         INSERT INTO pedido_detalle (id_pedido, id_producto, cantidad, precio_unitario, subtotal_linea, sucursal_origen)
         VALUES (?, ?, ?, ?, ?, ?)
     `);
     for (const item of carrito) {
         const lineTotal = item.price * item.cantidad;
-        stmtDetalle.run(pedidoRowid, item.id, item.cantidad, item.price, lineTotal, sucursalOrigen || '');
+        if (stmtDetalle) stmtDetalle.run(pedidoRowid, item.id, item.cantidad, item.price, lineTotal, sucursalOrigen || '', item.id_variante || null, item.variante || null);
+        else stmtViejo.run(pedidoRowid, item.id, item.cantidad, item.price, lineTotal, sucursalOrigen || '');
         subtotal += lineTotal;
     }
 
