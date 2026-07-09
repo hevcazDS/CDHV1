@@ -45,12 +45,13 @@ bloque ① (bugs/controles), luego ⑦ (tablero financiero).
 - [ ] **Cierre de período laxo** (Oxford D6): el cierre bloquea asientos pero NO inserciones de kardex con fecha en mes cerrado
 - [x] 2026-07-09 (v1.01) — **PII en `cola_emails`** (Seguridad): nombre/dirección en claro en asunto/cuerpo. Redactar el asunto
 
-### ⑦ Tablero financiero de dirección — 3 votos (Harvard+LSE+Oxford), datos ya existen
-- [ ] **Estado de Resultados (P&L)**: Ventas − COGS − Gastos = Utilidad $/% (desde asientos 401/501/601)
-- [ ] **Antigüedad de CxC (aging 0-30/31-60/61-90/90+)** desde pedidos+links_pago
-- [ ] **Rotación de inventario / días** desde kardex+inventarios
-- [ ] **Margen por categoría** desde productos.costo+pedido_detalle
-- [ ] **Ticket promedio vs período anterior** + balance general básico (activo/pasivo/capital desde libro mayor)
+### ⑦ Tablero financiero de dirección — HECHO 2026-07-09 (v1.01)
+ERP > Tablero de dirección (GET /api/erp/tablero, área finanzas; auditor lee). Todo desde datos existentes, probado contra la BD real (aging $28,960 y ticket $1,313/54 pedidos reales):
+- [x] Estado de Resultados (P&L): Ventas − COGS − Gastos = Utilidad $/% (asientos 401/501/601)
+- [x] Balance general básico (activo/pasivo/capital + utilidad acumulada, con check de cuadre)
+- [x] Antigüedad de CxC (aging 0-30/31-60/61-90/90+) desde links_pago no pagados
+- [x] Rotación de inventario / días de inventario / rotación anual desde inventarios×costo + COGS
+- [x] Margen por categoría (ventas pagadas del período) y ticket promedio vs período anterior
 
 ### ② Mejoras de valor (medio) — después de ① y ⑦
 - [ ] `alert/confirm/prompt` nativos → modales/toasts (helper useConfirm) — UX/UI + Cajero

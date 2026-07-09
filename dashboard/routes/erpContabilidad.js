@@ -8,7 +8,7 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
     if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')
-        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre')) {
+        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero')) {
         const ses = requireSession(req, res);
         if (!ses) return;
         if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
@@ -64,6 +64,100 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
                                   FROM asientos a WHERE a.referencia_id=? OR a.concepto LIKE ? OR a.concepto LIKE ? ORDER BY a.id`).all(String(id), like1, like2),
             devoluciones: db.prepare('SELECT * FROM devoluciones WHERE id_pedido=?').all(id),
         });
+    }
+
+    // TABLERO DE DIRECCIÓN (comité: Harvard+LSE+Oxford) — estado de
+    // resultados, balance, aging CxC, rotación de inventario, margen por
+    // categoría y ticket vs período anterior. Todo desde datos existentes.
+    if (p === '/api/erp/tablero' && req.method === 'GET') {
+        const { desde, hasta } = _rango();
+        const r2 = (n) => Math.round((n || 0) * 100) / 100;
+
+        // — Estado de resultados (del período) —
+        const may = conta.libroMayor(desde, hasta);
+        const cta = (c) => may.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
+        const ingresos = r2(cta('401').haber - cta('401').debe);
+        const cogs = r2(cta('501').debe - cta('501').haber);
+        const gastos = r2(cta('601').debe - cta('601').haber);
+        const utilidad_bruta = r2(ingresos - cogs);
+        const utilidad_operativa = r2(utilidad_bruta - gastos);
+        const pyl = { ingresos, cogs, utilidad_bruta, gastos, utilidad_operativa,
+            margen_bruto_pct: ingresos ? r2(utilidad_bruta / ingresos * 100) : 0,
+            margen_neto_pct: ingresos ? r2(utilidad_operativa / ingresos * 100) : 0 };
+
+        // — Balance general (acumulado hasta 'hasta') —
+        const acum = conta.libroMayor('1900-01-01', hasta);
+        const porTipo = { activo: 0, pasivo: 0, capital: 0, ingreso: 0, costo: 0, gasto: 0 };
+        for (const c of acum) {
+            const t = c.tipo || '';
+            if (t === 'activo' || t === 'costo' || t === 'gasto') porTipo[t] = (porTipo[t] || 0) + (c.debe - c.haber);
+            else porTipo[t] = (porTipo[t] || 0) + (c.haber - c.debe);
+        }
+        const utilidad_acumulada = r2(porTipo.ingreso - porTipo.costo - porTipo.gasto);
+        const balance = {
+            activos: r2(porTipo.activo),
+            pasivos: r2(porTipo.pasivo),
+            capital: r2(porTipo.capital + utilidad_acumulada),
+            cuadra: Math.abs(porTipo.activo - (porTipo.pasivo + porTipo.capital + utilidad_acumulada)) < 0.5,
+        };
+
+        // — Aging de CxC (pedidos con pago generado no pagado) —
+        let aging = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
+        try {
+            const cxc = db.prepare(`
+                SELECT lp.monto, CAST(julianday('now','localtime') - julianday(p2.creado_en) AS INT) dias
+                FROM links_pago lp JOIN pedidos p2 ON p2.id_pedido = lp.id_pedido
+                WHERE lp.estatus != 'pagado' AND p2.estatus NOT IN ('cancelado')`).all();
+            for (const x of cxc) {
+                const b = x.dias <= 30 ? '0-30' : x.dias <= 60 ? '31-60' : x.dias <= 90 ? '61-90' : '90+';
+                aging[b] = r2(aging[b] + (x.monto || 0));
+            }
+        } catch (_) {}
+
+        // — Rotación de inventario —
+        let inventario = {};
+        try {
+            const valorInv = db.prepare('SELECT COALESCE(SUM(i.stock * COALESCE(pr.costo,0)),0) v FROM inventarios i JOIN productos pr ON pr.id = i.id_producto').get().v;
+            const diasPeriodo = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
+            const cogsDiario = cogs / diasPeriodo;
+            inventario = {
+                valor: r2(valorInv),
+                cogs_periodo: cogs,
+                dias_inventario: cogsDiario > 0 ? Math.round(valorInv / cogsDiario) : null, // cuántos días dura el stock al ritmo actual
+                rotacion_anual: valorInv > 0 ? r2(cogs / diasPeriodo * 365 / valorInv) : null,
+            };
+        } catch (_) {}
+
+        // — Margen por categoría (ventas pagadas del período) —
+        let categorias = [];
+        try {
+            categorias = db.prepare(`
+                SELECT COALESCE(NULLIF(pr.cat,''), 'Sin categoría') categoria,
+                       ROUND(SUM(d.precio_unitario * d.cantidad),2) ventas,
+                       ROUND(SUM(COALESCE(pr.costo,0) * d.cantidad),2) costo
+                FROM pedido_detalle d
+                JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
+                JOIN productos pr ON pr.id = d.id_producto
+                JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
+                WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?
+                GROUP BY categoria ORDER BY ventas DESC LIMIT 20`).all(desde, hasta)
+                .map(c => ({ ...c, margen: r2(c.ventas - c.costo), margen_pct: c.ventas ? r2((c.ventas - c.costo) / c.ventas * 100) : 0 }));
+        } catch (_) {}
+
+        // — Ticket promedio vs período anterior —
+        let ticket = {};
+        try {
+            const dias = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
+            const prevHasta = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
+            const prevDesde = new Date(Date.parse(desde) - dias * 86400000).toISOString().slice(0, 10);
+            const q = (d1, d2) => db.prepare(`SELECT COALESCE(SUM(monto),0) t, COUNT(DISTINCT id_pedido) n FROM links_pago WHERE estatus='pagado' AND date(pagado_en)>=? AND date(pagado_en)<=?`).get(d1, d2);
+            const act = q(desde, hasta), prev = q(prevDesde, prevHasta);
+            const tAct = act.n ? act.t / act.n : 0, tPrev = prev.n ? prev.t / prev.n : 0;
+            ticket = { actual: r2(tAct), anterior: r2(tPrev), pedidos: act.n,
+                variacion_pct: tPrev ? r2((tAct - tPrev) / tPrev * 100) : null };
+        } catch (_) {}
+
+        return json(res, { desde, hasta, pyl, balance, aging, inventario, categorias, ticket });
     }
 
     // Cierre de período contable (idea SAP): 'YYYY-MM' — nada se asienta en

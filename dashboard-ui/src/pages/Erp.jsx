@@ -6,8 +6,10 @@ import CxpTab from './erp/CxpTab';
 import ContabilidadTab from './erp/ContabilidadTab';
 import GastosImpuestosTab from './erp/GastosImpuestosTab';
 import RastroTab from './erp/RastroTab';
+import TableroTab from './erp/TableroTab';
 
 const TABS = [
+  { key: 'tablero', label: 'Tablero de dirección', Componente: TableroTab },
   { key: 'proveedores', label: 'Proveedores', Componente: ProveedoresTab },
   { key: 'compras', label: 'Órdenes de compra', Componente: ComprasTab },
   { key: 'cxp', label: 'Cuentas por pagar', Componente: CxpTab },
