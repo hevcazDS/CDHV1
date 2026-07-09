@@ -128,6 +128,87 @@ function revertir() {
     console.log('🧹 Datos DEMO eliminados por completo.');
 }
 
-if (MODO === 'aplicar') aplicar();
-else if (MODO === 'revertir') revertir();
-else { console.log('Uso: node scripts/demoMetricas.js aplicar|revertir'); process.exit(1); }
+// ── Demo POR MÓDULO (idea Odoo): citas / rrhh / gastos ─────────────────
+// node scripts/demoMetricas.js aplicar citas|rrhh|gastos · revertir <modulo>
+// Todo con marca DEMO reconocible; el revertir general NO los toca (cada
+// módulo se siembra/limpia por separado para demostrar solo lo que se vende).
+const MODULOS_DEMO = {
+    citas: {
+        aplicar() {
+            const ins = db.prepare("INSERT INTO citas (telefono, nombre, servicio, fecha, hora, estatus) VALUES (?,?,?,?,?,?)");
+            const HH = ['10:00', '11:00', '12:00', '16:00', '17:00'];
+            const SRV = ['Corte demo', 'Diseño demo', 'Manicure demo', 'Revisión demo'];
+            let n = 0;
+            for (let d = 0; d < 5; d++) {
+                const f = new Date(Date.now() + d * 86400000);
+                const iso = new Date(f.getTime() - f.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+                for (let i = 0; i < 2 + (d % 2); i++) {
+                    ins.run(TEL_BASE + (i % 8), rnd(NOMBRES), rnd(SRV), iso, HH[(d + i) % HH.length], d === 0 && i === 0 ? 'confirmada' : 'pendiente');
+                    n++;
+                }
+            }
+            console.log(`✅ ${n} citas DEMO sembradas (próximos 5 días). Revertir: aplicar el mismo comando con "revertir citas".`);
+        },
+        revertir() {
+            const r = db.prepare("DELETE FROM citas WHERE servicio LIKE '%demo%' OR telefono LIKE ?").run(TEL_BASE + '%');
+            console.log(`🧹 ${r.changes} citas DEMO eliminadas.`);
+        },
+    },
+    rrhh: {
+        aplicar() {
+            const emp = db.prepare("INSERT INTO empleados (nombre, puesto, salario_diario, con_impuestos) VALUES (?,?,?,?)");
+            const e1 = emp.run('Empleado Demo Libre', 'Mostrador', 400, 0).lastInsertRowid;
+            const e2 = emp.run('Empleado Demo Formal', 'Almacén', 450, 1).lastInsertRowid;
+            const hor = db.prepare("INSERT OR IGNORE INTO horarios_empleado (id_empleado, fecha, horas) VALUES (?,?,?)");
+            for (let d = 1; d <= 14; d++) {
+                const iso = new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+                hor.run(e1, iso, 8); hor.run(e2, iso, 8);
+            }
+            console.log('✅ 2 empleados DEMO + 14 días de horarios. Calcula la nómina en RRHH para ver el ISR/IMSS.');
+        },
+        revertir() {
+            const ids = db.prepare("SELECT id FROM empleados WHERE nombre LIKE 'Empleado Demo%'").all().map(r => r.id);
+            for (const id of ids) {
+                db.prepare('DELETE FROM nominas WHERE id_empleado=?').run(id);
+                db.prepare('DELETE FROM horarios_empleado WHERE id_empleado=?').run(id);
+                db.prepare('DELETE FROM empleados WHERE id=?').run(id);
+            }
+            console.log(`🧹 ${ids.length} empleados DEMO (y sus horarios/nóminas) eliminados.`);
+        },
+    },
+    gastos: {
+        aplicar() {
+            const conta = require('../services/contabilidadService');
+            if (!conta.activo()) { console.log('⚠️ Activa el módulo Contabilidad primero (Módulos).'); return; }
+            for (const [c, m, metodo] of [['Renta local (DEMO)', 8000, 'bancos'], ['Luz CFE (DEMO)', 1450, 'bancos'], ['Papelería (DEMO)', 320, 'caja']]) {
+                conta.asientoGasto(c, m, metodo, true);
+            }
+            console.log('✅ 3 gastos DEMO asentados (ver ERP > Gastos e impuestos).');
+        },
+        revertir() {
+            // los asientos son INMUTABLES (0030) — el demo de gastos se anula
+            // con asientos inversos, igual que en la vida real
+            const conta = require('../services/contabilidadService');
+            const filas = db.prepare("SELECT a.id, a.concepto FROM asientos a WHERE a.referencia_tipo='gasto' AND a.concepto LIKE '%(DEMO)%'").all();
+            let n = 0;
+            for (const f of filas) {
+                const parts = db.prepare('SELECT cuenta, debe, haber FROM asientos_detalle WHERE id_asiento=?').all(f.id);
+                try {
+                    conta.registrarAsiento({
+                        concepto: 'REVERSA demo: ' + f.concepto, referencia_tipo: 'reversa', referencia_id: String(f.id),
+                        partidas: parts.map(pp => ({ cuenta: pp.cuenta, debe: pp.haber, haber: pp.debe })),
+                    });
+                    n++;
+                } catch (e) { console.log('  no se pudo reversar', f.id, e.message); }
+            }
+            console.log(`🧹 ${n} gastos DEMO anulados con asiento inverso (el libro queda cuadrado).`);
+        },
+    },
+};
+
+const MODULO = process.argv[3];
+if (MODO === 'aplicar' && MODULO && MODULOS_DEMO[MODULO]) MODULOS_DEMO[MODULO].aplicar();
+else if (MODO === 'revertir' && MODULO && MODULOS_DEMO[MODULO]) MODULOS_DEMO[MODULO].revertir();
+else if (MODO === 'aplicar' && !MODULO) aplicar();
+else if (MODO === 'revertir' && !MODULO) revertir();
+else { console.log('Uso: node scripts/demoMetricas.js aplicar|revertir [citas|rrhh|gastos]'); process.exit(1); }

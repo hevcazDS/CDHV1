@@ -118,7 +118,7 @@ async function handle(ctx) {
         if (/devolver|devolv|devoluci[oó]n|devuelta|cambiar.*producto|cambio.*producto|quiero.*devolver|quiero.*cambiar|repetido|duplicado|ya.*ten[ií]a|me.*llegó.*mal|llegó.*incorrecto|no.*funciona|est[aá].*roto|est[aá].*da[nñ]ado|garantia|garant[ií]a|me.*equivoqu[eé]|pedido.*mal/i.test(raw)) {
             sessionManager.updateSession(userId, S.DEVOLUCION, { paso: 'bienvenida' });
             return (
-                '↩️ Entendido, voy a ayudarte con tu devolución.\n\n' +
+                '↩️ Una disculpa por la molestia — lo resolvemos. Voy a ayudarte con tu devolución.\n\n' +
                 'Cuéntame, *¿qué pasó con tu producto?*\n\n' +
                 '1️⃣  Llegó dañado o defectuoso\n' +
                 '2️⃣  Me llegó un producto diferente al que pedí\n' +
@@ -179,7 +179,15 @@ async function handle(ctx) {
         if (/oferta|descuento|promo|rebaja|barato|econom|sale|más bara|lo más bara|qué tienen de oferta|tienen algo de oferta|tienen descuento/i.test(raw)) {
             // Gate: módulo de ofertas desactivado desde el dashboard
             if (!moduloActivo('ofertas_activo')) {
-                return '🏷️ En este momento no tenemos ofertas activas.\n\n¡Pero tenemos más de 600 ' + vocab().items + ' a excelentes precios! Escribe *1* para buscar.';
+                // V4: nunca "no hay" a secas — ofrecer el más vendido (prueba social)
+                let _topV = null;
+                try {
+                    _topV = db.prepare(`SELECT pr.name FROM pedido_detalle pd JOIN productos pr ON pr.id = pd.id_producto
+                                        GROUP BY pd.id_producto ORDER BY SUM(pd.cantidad) DESC LIMIT 1`).get();
+                } catch (_) {}
+                return '🏷️ En este momento no tenemos ofertas activas.\n\n' +
+                    (_topV ? '💡 Pero el favorito de nuestros clientes es *' + _topV.name + '* — escríbeme su nombre y te lo muestro.\n\n' : '') +
+                    '¡Tenemos ' + vocab().items + ' a excelentes precios! Escribe *1* para buscar.';
             }
             try {
                 const _hoy = new Date().toISOString().slice(0, 10);

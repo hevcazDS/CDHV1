@@ -28,8 +28,8 @@ Lo de abajo (plan histórico) queda como referencia — NO seguirlo directo.
 - [x] 2026-07-09 — **Bitácora por pedido** (Odoo chatter): botón Historial en Pedidos — línea de tiempo creación/pagos/kardex/repartidor/devoluciones/cancelación (GET /api/pedidos/:id/historial, área operación)
 - [x] 2026-07-09 — Comprobante de transferencia por FOTO (S.PAGO_COMPROBANTE): el bot pide la foto al elegir transferencia, la liga al folio y escala a Cola de atención para validar
 - [x] 2026-07-09 — Circuito completo de devolución con decisión del ASESOR: la foto se REENVÍA al WhatsApp del asesor al instante (evidencia y comprobante de transferencia), queda ligada como evidencia_url visible en el panel ("Ver foto"), el asesor decide aprobar/rechazar/resolver (con PIN para roles operativos), queda registrado QUIÉN decidió y el cliente recibe el veredicto por WhatsApp
-- [ ] Guiones de venta V1-V12 restantes (psicología/conversión) — revisar cuáles faltan realmente
-- [ ] Datos demo POR MÓDULO (idea Odoo): extender demoMetricas para sembrar/revertir por módulo — *solo cuando haga falta para vender*
+- [x] 2026-07-09 — Guiones de venta: aplicados V1 (urgencia honesta en carrito 2h), V2 (fuera promesas medibles), V3 (ETA concreto al escalar), V4 (sin ofertas -> sugiere el más vendido), V5 (empatía en devolución), V9 (cupón "no acumulable"), V10 (dormidos con gancho), V12 (alerta interna sobria). V6 ya vigilado (gratis solo envío); V7/V8/V11 descartados: bajo valor vs riesgo de romper copy probado
+- [x] 2026-07-09 — Datos demo POR MÓDULO (Odoo): demoMetricas aplicar|revertir [citas|rrhh|gastos] — citas próximas 5 días, 2 empleados+14d horarios, 3 gastos (que se ANULAN con asiento inverso, respetando la inmutabilidad de libros). Probado ida y vuelta
 
 ## ⏸️ EN PAUSA / BLOQUEADOS (no tocar sin decisión del dueño)
 

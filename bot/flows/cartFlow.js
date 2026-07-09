@@ -356,12 +356,51 @@ async function handle(ctx) {
         }
         const elegido = metodos[idx];
         registrarMetodoPago(pedidos, elegido.nombre);
+        // TRANSFERENCIA: pedir la FOTO del comprobante aquí mismo (auditoría
+        // multimodal: antes la foto caía al fallback y se perdía)
+        if (elegido.nombre === 'transferencia') {
+            sessionManager.updateSession(userId, S.PAGO_COMPROBANTE, { _pagoPedidos: pedidos });
+            return (
+                '✅ *Forma de pago registrada.*\n\n' +
+                instruccionPago(elegido, pedidos) + '\n\n' +
+                '📸 Cuando hagas la transferencia, *mándame aquí mismo la foto del comprobante* y lo pasamos a validar.\n\n_O escribe *luego* si prefieres enviarlo después._'
+            );
+        }
         sessionManager.clearSession(userId);
         return (
             '✅ *Forma de pago registrada.*\n\n' +
             instruccionPago(elegido, pedidos) + '\n\n' +
             `¡Gracias por tu compra! ${vocab().emoji} Escribe *hola* si necesitas algo más.`
         );
+    }
+
+    // ── PAGO_COMPROBANTE — el cliente manda la foto de su transferencia ──
+    if (step === S.PAGO_COMPROBANTE) {
+        const isImage = ctx.isImage;
+        const pedidos = data._pagoPedidos || [];
+        const folios = pedidos.map(pp => pp.folio || ('#' + pp.id)).join(', ');
+        if (isImage) {
+            // la imagen ya quedó guardada por el pipeline; escalar a validación
+            try {
+                registrarEscalada(userId, null, 'Comprobante de transferencia recibido — validar pago de ' + folios, tel);
+            } catch (e) { log.warn('No se pudo encolar validación de comprobante: ' + e.message); }
+            // reenviar el comprobante DIRECTO al WhatsApp del asesor
+            try {
+                const _op = shared.getValor('operador_telefono', process.env.ASESOR_WHATSAPP);
+                if (_op && message?.downloadMedia) {
+                    const _media = await message.downloadMedia();
+                    if (_media) await client.sendMessage(String(_op).replace(/\D/g, '') + '@c.us', _media,
+                        { caption: '🧾 Comprobante de transferencia — ' + folios + ' · cliente ' + tel });
+                }
+            } catch (e) { log.debug('No se pudo reenviar comprobante: ' + e.message); }
+            sessionManager.clearSession(userId);
+            return '✅ ¡Recibí tu comprobante! El equipo lo valida y te confirmamos por aquí.\n\n¡Gracias por tu compra! ' + vocab().emoji;
+        }
+        if (/lueg|despu|más tarde|mas tarde|rato/i.test(raw)) {
+            sessionManager.clearSession(userId);
+            return 'Va — cuando lo tengas, mándame la foto por aquí y lo validamos. ¡Gracias por tu compra! ' + vocab().emoji;
+        }
+        return '📸 Mándame la *foto* del comprobante de tu transferencia, o escribe *luego* para enviarla después.';
     }
 
     return undefined; // estado no manejado por este flow

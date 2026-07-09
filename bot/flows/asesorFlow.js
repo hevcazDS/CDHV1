@@ -281,8 +281,8 @@ async function handle(ctx) {
 
             try {
                 db.prepare(
-                    'INSERT INTO devoluciones (id_pedido,motivo,estatus,id_producto,cantidad,creada_en) VALUES (?,?,\'solicitada\',?,?,datetime(\'now\',\'localtime\'))'
-                ).run(data.idPedido||null, _resumen, data.idProductoDevuelto||null, data.cantidadDevuelta||null);
+                    'INSERT INTO devoluciones (id_pedido,motivo,estatus,id_producto,cantidad,evidencia_url,creada_en) VALUES (?,?,\'solicitada\',?,?,?,datetime(\'now\',\'localtime\'))'
+                ).run(data.idPedido||null, _resumen, data.idProductoDevuelto||null, data.cantidadDevuelta||null, data.evidencia||null);
             } catch(e){ log.debug('No se pudo registrar devolución: ' + e.message); }
             tagCliente(tel, 'devolucion');
             try {

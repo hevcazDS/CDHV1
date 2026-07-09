@@ -217,7 +217,7 @@ function checkCarritosAbandonados() {
             cuerpo =
                 '\uD83D\uDED2 \u00a1Oye! Dejaste productos en tu carrito:\n\n' +
                 resumen + mas + '\n\n' +
-                '\u00bfQuieres continuar tu compra? Escribe *hola* para retomarlo.';
+                'Te lo tengo apartado, pero el stock se mueve r\u00e1pido \u26a1\n\u00bfContinuamos? Escribe *hola* para retomarlo.';
         }
         cuerpo += '\n\n\uD83D\uDCAC Por cierto, \u00bfqu\u00E9 te detuvo? Responde *precio*, *env\u00EDo* u *otro* \u2014 nos ayuda a mejorar.';
 
@@ -288,7 +288,7 @@ function checkCarritosAbandonados24h() {
                 '🎁 ¿Sigues pensándolo? Va un *' + descuento + '% de descuento* para que termines tu compra:\n\n' +
                 resumen + mas + '\n\n' +
                 '🏷️ Código: *' + codigo + '*\n' +
-                '⏰ Válido 48 horas — escribe *hola* para continuar.' +
+                '⏰ Válido 48 horas — escribe *hola* para continuar. _No acumulable con otras promos._' +
                 '\n\n💬 Por cierto, ¿qué te detuvo? Responde *precio*, *envío* u *otro* — nos ayuda a mejorar.';
 
             _insertCola(ca.telefono, 'Carrito abandonado 24h', cuerpo, 'carrito_abandonado_24h');
@@ -455,7 +455,7 @@ function checkQuejasSinRespuesta() {
     for (const q of pendientes) {
         const nombre = (q.nombre || 'Cliente').split(' ')[0];
         const cuerpo =
-            '🚨 *URGENTE — caso sin atender hace más de 2h*\n\n' +
+            '⏰ *Caso sin atender desde hace 2h — dale prioridad*\n\n' +
             'Cliente: ' + nombre + ' (' + (q.telefono || '—') + ')\n' +
             'Motivo: ' + (q.motivo_escalada || q.tipo || 'Solicitud') +
             (q.caso ? '\nCaso: ' + q.caso : '');
@@ -508,7 +508,7 @@ function checkClientesDormidos() {
         const negocio = _valorConfig('nombre_negocio', 'nuestra tienda');
         const cuerpo =
             '¡Hola ' + nombre + '! Te extrañamos en ' + negocio + '.\n\n' +
-            'Tenemos promociones especiales esperándote. Escribe *hola* para ver el catálogo. 🎁';
+            'Hay novedades desde tu última visita y un descuento esperándote en tu próxima compra.\n\nEscribe *hola* y te muestro lo nuevo. 🎁';
 
         try {
             _insertCola(cli.telefono, 'Cliente dormido', cuerpo, 'reactivacion_dormidos');

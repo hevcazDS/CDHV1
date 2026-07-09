@@ -90,7 +90,7 @@ const FRASES = {
         A: '¿En qué podemos servirle el día de hoy?\n\n1️⃣  Buscar un {item}\n2️⃣  Recibir una recomendación\n3️⃣  Rastrear su pedido\n4️⃣  Hablar con un asesor\n5️⃣  Su código de referido',
         B: '1️⃣  Buscar {item}\n2️⃣  Ayúdame a elegir\n3️⃣  Rastrear pedido\n4️⃣  Asesor\n5️⃣  Mi código de referido',
         C: 'Soy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué {item} busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido',
-        D: '¿Qué hacemos?\n\n1️⃣  🔍 Ya sé qué busco\n2️⃣  🎯 Recomiéndame algo (3 preguntas, 30 segundos)\n3️⃣  📦 ¿Dónde va mi pedido?\n4️⃣  👤 Hablar con una persona\n5️⃣  🎁 Mi código de referido',
+        D: '¿Qué hacemos?\n\n1️⃣  🔍 Ya sé qué busco\n2️⃣  🎯 Recomiéndame algo (3 preguntas rápidas)\n3️⃣  📦 ¿Dónde va mi pedido?\n4️⃣  👤 Hablar con una persona\n5️⃣  🎁 Mi código de referido',
     },
     buscar_inicio: {
         A: '🔍 Indíquenos el nombre o descripción del {item}. También puede enviar una fotografía 📸 o el enlace del artículo 🔗',
@@ -105,10 +105,10 @@ const FRASES = {
         D: '🎯 3 preguntas rápidas.\n\n*1/3* ¿Para quién es?\n\n1️⃣ 👶 Bebé (0–2)\n2️⃣ 🧒 Niño/a (3–8)\n3️⃣ 🧑 9–12\n4️⃣ 🎓 Adolescente/adulto',
     },
     asesor_notificado: {
-        A: '👤 Su solicitud ha sido registrada y nuestro equipo de ventas notificado.\n⏰ Horario de atención: *{horario}*',
-        B: '👤 Listo, ya avisé al equipo.\n⏰ Horario: *{horario}*',
-        C: '👤 Hemos notificado a nuestro equipo de ventas.\n\n⏰ Horario de atención: *{horario}*',
-        D: '✅ Listo, una persona te escribe pronto.\n⏰ *{horario}*',
+        A: '👤 Su solicitud ha sido registrada y nuestro equipo de ventas notificado. En horario de atención, le respondemos normalmente en menos de 15 minutos.\n⏰ Horario de atención: *{horario}*',
+        B: '👤 Listo, ya avisé al equipo — en horario te contestan normalmente en menos de 15 min.\n⏰ Horario: *{horario}*',
+        C: '👤 Hemos notificado a nuestro equipo de ventas — dentro de horario suelen responder en menos de 15 minutos.\n\n⏰ Horario de atención: *{horario}*',
+        D: '✅ Listo, una persona te escribe en menos de 15 min (en horario).\n⏰ *{horario}*',
     },
     agregado_pagar: {
         A: '✅ *{producto}* fue agregado a su carrito.\n\n📮 Indíquenos su *código postal* para verificar disponibilidad y proceder al pago:',
@@ -138,7 +138,7 @@ const FRASES = {
         A: 'Buen día. Soy el asistente virtual de *{negocio}*. ¿En qué podemos ayudarle? {emoji}',
         B: 'Hola, soy el bot de *{negocio_corto}*. ¿Qué {item} buscas? {emoji}',
         C: 'Hola, soy el asistente de *{negocio}*. ¿En qué {item} puedo ayudarte hoy? {emoji}',
-        D: '¡Hola! {emoji} Aquí *{negocio_corto}* — dime qué buscas (nombre, foto o link) y lo encuentro en segundos.',
+        D: '¡Hola! {emoji} Aquí *{negocio_corto}* — dime qué buscas (nombre, foto o link) y te lo encuentro al tiro.',
     },
     lista_espera_oferta: {
         A: '🔍 Por el momento este artículo se encuentra agotado, pero recibiremos más unidades pronto. Si lo desea, le notificamos por WhatsApp en cuanto esté disponible:\n\n1️⃣  🔔 Notificarme cuando llegue\n2️⃣  🔍 Ver alternativas disponibles\n3️⃣  🏠 Volver al menú',
