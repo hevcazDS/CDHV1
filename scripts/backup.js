@@ -58,6 +58,28 @@ function guardarRegistro(reg) {
     catch(e) { console.warn('[backup] No se pudo guardar registro:', e.message); }
 }
 
+// ── Cifrado opcional del respaldo (modo configurado por Prime) ──────
+// off → gz en claro; bajo → clave envuelta en la BD (auto); alto → clave
+// pasada por env BACKUP_KEY_HEX desde el respaldo manual (dashboard armado).
+function cifrarSiAplica(buf) {
+    try {
+        const db = require('../bot/db_connection');
+        const modo = db.prepare("SELECT valor FROM configuracion WHERE clave='backup_cifrado_modo'").get()?.valor || 'off';
+        if (modo === 'off') return { buf, ext: '.gz' };
+        const cb = require('../services/cryptoBackup');
+        let key = null;
+        if (modo === 'bajo') {
+            const wrapped = db.prepare("SELECT valor FROM configuracion WHERE clave='backup_key_wrapped'").get()?.valor;
+            const secreto = fs.readFileSync(path.join(__dirname, '..', 'dashboard', '.instancia_secret'), 'utf8').trim();
+            if (wrapped) key = cb.desenvolverConSecreto(wrapped, secreto);
+        } else if (modo === 'alto') {
+            if (process.env.BACKUP_KEY_HEX) key = Buffer.from(process.env.BACKUP_KEY_HEX, 'hex');
+        }
+        if (!key) { console.warn('[backup] cifrado ' + modo + ' pero sin clave disponible — se envía SIN cifrar'); return { buf, ext: '.gz' }; }
+        return { buf: cb.cifrar(buf, key), ext: '.gz.enc' };
+    } catch (e) { console.warn('[backup] no se pudo cifrar: ' + e.message); return { buf, ext: '.gz' }; }
+}
+
 // ── Comprimir un archivo a gzip ────────────────────────────────────
 function comprimirArchivo(srcPath) {
     return new Promise((resolve, reject) => {
@@ -201,10 +223,11 @@ async function runBackupDB() {
     console.log('[backup] Iniciando backup DB -> ' + DEST_MAIL);
     if (!fs.existsSync(DB_PATH)) { console.error('[backup] DB no encontrada:', DB_PATH); return false; }
     try {
-        const buf = await comprimirArchivo(DB_PATH);
-        console.log('[backup] DB comprimida: ' + (buf.length / 1024).toFixed(0) + ' KB');
+        const _gz = await comprimirArchivo(DB_PATH);
+        const { buf, ext } = cifrarSiAplica(_gz);
+        console.log('[backup] DB comprimida' + (ext === '.gz.enc' ? ' + CIFRADA' : '') + ': ' + (buf.length / 1024).toFixed(0) + ' KB');
         const ok = await enviarBackup(
-            [{ nombre: 'jugueteria_' + fecha + '.db.gz', data: buf }],
+            [{ nombre: 'jugueteria_' + fecha + '.db' + ext, data: buf }],
             'Backup DB Julio Cepeda - ' + fecha
         );
         console.log(ok ? '[backup] OK DB enviada a ' + DEST_MAIL : '[backup] ERROR DB fallo');

@@ -8,7 +8,7 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
     if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')
-        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente')) {
+        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos')) {
         const ses = requireSession(req, res);
         if (!ses) return;
         if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
@@ -64,6 +64,25 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
                                   FROM asientos a WHERE a.referencia_id=? OR a.concepto LIKE ? OR a.concepto LIKE ? ORDER BY a.id`).all(String(id), like1, like2),
             devoluciones: db.prepare('SELECT * FROM devoluciones WHERE id_pedido=?').all(id),
         });
+    }
+
+    // PRODUCTOS VENDIDOS (dueño): qué se vendió, cuánto y en cuánto — sirve
+    // aunque el negocio NO lleve inventario (la venta se graba igual). Base
+    // para ir formalizando.
+    if (p === '/api/erp/productos-vendidos' && req.method === 'GET') {
+        const { desde, hasta } = _rango();
+        const filas = db.prepare(`
+            SELECT COALESCE(pr.name, d.id_producto) producto, pr.sku,
+                   ROUND(SUM(d.cantidad),3) unidades,
+                   ROUND(SUM(d.precio_unitario * d.cantidad),2) total
+            FROM pedido_detalle d
+            JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
+            JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
+            LEFT JOIN productos pr ON pr.id = d.id_producto
+            WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?
+            GROUP BY d.id_producto ORDER BY total DESC LIMIT 500`).all(desde, hasta);
+        const totalGeneral = filas.reduce((s, f) => s + (f.total || 0), 0);
+        return json(res, { desde, hasta, filas, total: Math.round(totalGeneral * 100) / 100 });
     }
 
     // FACTURACIÓN PENDIENTE (dueño): pedidos con datos fiscales capturados,

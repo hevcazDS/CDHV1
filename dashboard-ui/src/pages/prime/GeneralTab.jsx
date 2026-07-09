@@ -302,6 +302,7 @@ export default function GeneralTab() {
         </Card>
       </SimpleGrid>
       <ZonasComisiones />
+      <CifradoBackup />
       <ZonaPeligro />
     </div>
   );
@@ -382,6 +383,81 @@ function ZonaPeligro() {
         </button>
       </div>
       {msg && <p style={{ fontSize: 12, marginTop: 10, color: msg.ok ? 'var(--green)' : 'var(--red)' }}>{msg.t}</p>}
+    </div>
+  );
+}
+
+
+// Cifrado de respaldos + restaurar BD (Master Password). Alto = la maestra
+// no se guarda, la clave derivada se MUESTRA una vez; bajo = clave en la BD.
+function CifradoBackup() {
+  const [estado, setEstado] = useState(null);
+  const [claveMostrada, setClaveMostrada] = useState('');
+  const [msg, setMsg] = useState(null);
+  useEffect(() => { api.get('/api/prime/backup-cifrado').then(setEstado).catch(() => {}); }, []);
+  const setModo = async (modo) => {
+    setMsg(null); setClaveMostrada('');
+    let body = { modo };
+    if (modo === 'alto') {
+      const master = window.prompt('CIFRADO ALTO — define tu contraseña MAESTRA (mín. 8). No se guarda: se derivará una clave que deberás APUNTAR/fotografiar. Si la pierdes junto con la maestra, los respaldos serán irrecuperables.');
+      if (!master) return;
+      body.master = master;
+    }
+    try {
+      const r = await api.put('/api/prime/backup-cifrado', body);
+      if (!r.ok) throw new Error(r.error);
+      if (r.clave_derivada) setClaveMostrada(r.clave_derivada);
+      setMsg({ ok: true, t: 'Modo: ' + r.modo });
+      api.get('/api/prime/backup-cifrado').then(setEstado);
+    } catch (e) { setMsg({ ok: false, t: e.message }); }
+  };
+  const armar = async () => {
+    const master = window.prompt('Ingresa la contraseña maestra para armar la clave de cifrado:');
+    if (!master) return;
+    const r = await api.post('/api/prime/backup-cifrado/armar', { master });
+    setMsg(r.ok ? { ok: true, t: 'Clave armada' } : { ok: false, t: r.error });
+    api.get('/api/prime/backup-cifrado').then(setEstado);
+  };
+  const restaurar = async () => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.enc,.gz,.db';
+    inp.onchange = async () => {
+      const f = inp.files?.[0]; if (!f) return;
+      const password = window.prompt('Tu contraseña de Prime:'); if (!password) return;
+      const b64 = btoa(String.fromCharCode(...new Uint8Array(await f.arrayBuffer())));
+      let clave_hex, master;
+      if (!f.name.endsWith('.gz')) {
+        clave_hex = window.prompt('Clave de descifrado (la clave_hex que apuntaste). Deja vacío para usar la contraseña maestra:') || undefined;
+        if (!clave_hex) master = window.prompt('Contraseña maestra:') || undefined;
+      }
+      try {
+        const r = await api.post('/api/prime/restaurar-bd', { archivo_base64: b64, password, clave_hex, master });
+        if (!r.ok) throw new Error(r.error);
+        alert(r.msg + '\n\nReinicia el sistema (o el bridge) para aplicar la restauración.');
+      } catch (e) { setMsg({ ok: false, t: e.message }); }
+    };
+    inp.click();
+  };
+  return (
+    <div className="card" style={{ marginTop: 14 }}>
+      <div className="card-header"><h3>Cifrado de respaldos y restauración</h3></div>
+      <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 8 }}>
+        Modo actual: <strong>{estado?.modo || '...'}</strong>{estado?.modo === 'alto' && !estado?.armado && ' (sin armar — ingresa la maestra)'}.
+        Alto = máxima seguridad (la maestra no se guarda). Bajo = automático (clave en la base). Off = sin cifrar.
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn" onClick={() => setModo('off')}>Sin cifrar</button>
+        <button className="btn" onClick={() => setModo('bajo')}>Cifrado básico</button>
+        <button className="btn btn-primary" onClick={() => setModo('alto')}>Cifrado alto (maestra)</button>
+        {estado?.modo === 'alto' && !estado?.armado && <button className="btn" onClick={armar}>Armar clave</button>}
+        <button className="btn" style={{ borderColor: 'var(--yellow)' }} onClick={restaurar}>Restaurar base de datos…</button>
+      </div>
+      {claveMostrada && (
+        <div style={{ marginTop: 10, padding: 10, border: '2px solid var(--red)', borderRadius: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--red)' }}>APUNTA O FOTOGRAFÍA ESTA CLAVE — no se vuelve a mostrar:</div>
+          <code style={{ fontSize: 12, wordBreak: 'break-all' }}>{claveMostrada}</code>
+        </div>
+      )}
+      {msg && <p style={{ fontSize: 12, marginTop: 8, color: msg.ok ? 'var(--green)' : 'var(--red)' }}>{msg.t}</p>}
     </div>
   );
 }

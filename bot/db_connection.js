@@ -8,6 +8,24 @@ require('dotenv').config({ quiet: true });
 const DB_PATH = process.env.DB_PATH
     || path.join(__dirname, 'jugueteria.db'); // fallback: misma carpeta
 
+// Restauración: si Prime dejó un archivo '<DB>.restore' validado, se hace
+// el swap ANTES de abrir la BD (nunca se reemplaza un archivo abierto). El
+// original se conserva como '.pre-restore-<ts>' por si acaso.
+try {
+    const fs = require('fs');
+    const _stage = DB_PATH + '.restore';
+    if (fs.existsSync(_stage)) {
+        if (fs.existsSync(DB_PATH)) {
+            const _ts = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15);
+            try { fs.renameSync(DB_PATH, DB_PATH + '.pre-restore-' + _ts); } catch (_) {}
+            // limpiar los WAL/SHM viejos para que no choquen con la BD nueva
+            for (const ext of ['-wal', '-shm']) { try { fs.unlinkSync(DB_PATH + ext); } catch (_) {} }
+        }
+        fs.renameSync(_stage, DB_PATH);
+        console.log('[restore] Base de datos restaurada desde respaldo. Original guardado como .pre-restore-*');
+    }
+} catch (e) { console.error('[restore] No se pudo aplicar la restauración: ' + e.message); }
+
 let db;
 try {
     db = new Database(DB_PATH, { readonly: false });

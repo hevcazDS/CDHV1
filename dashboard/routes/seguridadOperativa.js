@@ -79,13 +79,137 @@ module.exports = function seguridadOperativaRoutes(req, res, p, u, ctx, next) {
     }
 
     // Respaldo manual — prime-only (administrador NO)
+    // Secreto de instancia (para envolver la clave del modo 'bajo').
+    const _leerSecreto = () => {
+        try { return require('fs').readFileSync(require('path').join(__dirname, '..', '.instancia_secret'), 'utf8').trim(); }
+        catch (_) { return 'sin-secreto'; }
+    };
+    const _cb = require('../../services/cryptoBackup');
+
+    // GET estado del cifrado de respaldos
+    if (p === '/api/prime/backup-cifrado' && req.method === 'GET') {
+        if (!requireSession(req, res, ['prime'])) return;
+        const modo = db.prepare("SELECT valor FROM configuracion WHERE clave='backup_cifrado_modo'").get()?.valor || 'off';
+        const armado = modo !== 'alto' || !!_cb.claveArmada();
+        return json(res, { modo, armado });
+    }
+    // PUT configurar el modo. 'alto': body.master → deriva, guarda SOLO el
+    // salt, ARMA la clave y la DEVUELVE una vez (para apuntar). 'bajo': clave
+    // aleatoria envuelta con el secreto de instancia en la BD. 'off': limpia.
+    if (p === '/api/prime/backup-cifrado' && req.method === 'PUT') {
+        const ses = requireSession(req, res, ['prime']);
+        if (!ses) return;
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const modo = d.modo;
+                const set = (k, v) => db.prepare("INSERT INTO configuracion (clave,valor) VALUES (?,?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(k, v);
+                require('../../services/configAudit').logCambio(db, 'backup_cifrado_modo', modo, ses.username);
+                if (modo === 'alto') {
+                    if (!d.master || String(d.master).length < 8) return json(res, { ok: false, error: 'La contraseña maestra debe tener al menos 8 caracteres' }, 400);
+                    const salt = _cb.nuevoSalt();
+                    const key = _cb.derivar(d.master, salt);
+                    set('backup_cifrado_modo', 'alto'); set('backup_salt', salt);
+                    db.prepare("DELETE FROM configuracion WHERE clave='backup_key_wrapped'").run();
+                    _cb.armar(key);
+                    // Se devuelve la clave derivada UNA vez para que el dueño la
+                    // apunte/fotografíe. No se guarda en ningún lado.
+                    return json(res, { ok: true, modo, clave_derivada: key.toString('hex'), aviso: 'Apunta o fotografía esta clave AHORA. No se vuelve a mostrar y no se guarda. Si pierdes la contraseña maestra Y esta clave, los respaldos serán irrecuperables.' });
+                }
+                if (modo === 'bajo') {
+                    const key = _cb.nuevaClave();
+                    set('backup_cifrado_modo', 'bajo');
+                    set('backup_key_wrapped', _cb.envolverConSecreto(key, _leerSecreto()));
+                    db.prepare("DELETE FROM configuracion WHERE clave='backup_salt'").run();
+                    _cb.desarmar();
+                    return json(res, { ok: true, modo });
+                }
+                // off
+                set('backup_cifrado_modo', 'off');
+                db.prepare("DELETE FROM configuracion WHERE clave IN ('backup_salt','backup_key_wrapped')").run();
+                _cb.desarmar();
+                return json(res, { ok: true, modo: 'off' });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+    // POST armar la clave 'alto' tras un reinicio (re-deriva con la maestra).
+    if (p === '/api/prime/backup-cifrado/armar' && req.method === 'POST') {
+        if (!requireSession(req, res, ['prime'])) return;
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const salt = db.prepare("SELECT valor FROM configuracion WHERE clave='backup_salt'").get()?.valor;
+                if (!salt) return json(res, { ok: false, error: 'El cifrado alto no está configurado' }, 400);
+                _cb.armar(_cb.derivar(String(d.master || ''), salt));
+                return json(res, { ok: true, armado: true });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
     if (p === '/api/prime/respaldo-manual' && req.method === 'POST') {
         if (!requireSession(req, res, ['prime'])) return;
         try {
-            require('child_process').execFile(process.execPath, [require('path').join(__dirname, '..', '..', 'scripts', 'backup.js'), 'db'], { timeout: 120000 },
+            const modo = db.prepare("SELECT valor FROM configuracion WHERE clave='backup_cifrado_modo'").get()?.valor || 'off';
+            const env = { ...process.env };
+            // modo alto: pasar la clave armada al proceso hijo por env (única
+            // forma de que backup.js —proceso aparte— la use; nunca a disco)
+            if (modo === 'alto') {
+                const k = _cb.claveArmada();
+                if (!k) return json(res, { ok: false, error: 'El cifrado alto no está armado — ingresa la contraseña maestra primero' }, 400);
+                env.BACKUP_KEY_HEX = k.toString('hex');
+            }
+            require('child_process').execFile(process.execPath, [require('path').join(__dirname, '..', '..', 'scripts', 'backup.js'), 'db'], { timeout: 120000, env },
                 (err) => log[err ? 'warn' : 'info']('[respaldo manual] ' + (err ? err.message : 'enviado')));
-            return json(res, { ok: true, msg: 'Respaldo en proceso — llegará al correo configurado' });
+            return json(res, { ok: true, msg: 'Respaldo en proceso' + (modo !== 'off' ? ' (cifrado)' : '') + ' — llegará al correo configurado' });
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    }
+
+    // POST /api/prime/restaurar-bd — sube un respaldo (base64), lo descifra
+    // (auto-detecta gz vs cifrado), valida que sea SQLite, y lo deja en
+    // staging para el swap-on-boot (db_connection lo aplica al reiniciar,
+    // nunca reemplaza un archivo abierto). NO toca la sesion de WhatsApp.
+    // Para respaldos cifrados manda 'clave_hex' (la que apuntaste) — sobrevive
+    // aunque la BD actual este destruida.
+    if (p === '/api/prime/restaurar-bd' && req.method === 'POST') {
+        const sesR = requireSession(req, res, ['prime']);
+        if (!sesR) return;
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const yo = db.prepare('SELECT * FROM usuarios WHERE username=?').get(sesR.username);
+                if (!yo || hashPassword(String(d.password || ''), yo.salt) !== yo.password_hash) {
+                    return json(res, { ok: false, error: 'Contrasena de Prime incorrecta' }, 403);
+                }
+                let blob = Buffer.from(String(d.archivo_base64 || ''), 'base64');
+                if (blob.length < 32) return json(res, { ok: false, error: 'Archivo vacio o invalido' }, 400);
+                const zlib = require('zlib');
+                let gz;
+                if (blob[0] === 0x1f && blob[1] === 0x8b) {
+                    gz = blob;
+                } else {
+                    let key = null;
+                    if (d.clave_hex) key = Buffer.from(String(d.clave_hex), 'hex');
+                    else {
+                        const salt = db.prepare("SELECT valor FROM configuracion WHERE clave='backup_salt'").get()?.valor;
+                        const wrapped = db.prepare("SELECT valor FROM configuracion WHERE clave='backup_key_wrapped'").get()?.valor;
+                        if (d.master && salt) key = _cb.derivar(String(d.master), salt);
+                        else if (wrapped) key = _cb.desenvolverConSecreto(wrapped, _leerSecreto());
+                    }
+                    if (!key) return json(res, { ok: false, error: 'Respaldo cifrado: manda clave_hex (la que apuntaste) o la contrasena maestra' }, 400);
+                    try { gz = _cb.descifrar(blob, key); }
+                    catch (_) { return json(res, { ok: false, error: 'No se pudo descifrar: clave incorrecta o archivo danado' }, 400); }
+                }
+                const raw = zlib.gunzipSync(gz);
+                const SQLITE_HDR = Buffer.from('53514c69746520666f726d6174203300', 'hex'); // "SQLite format 3\0"
+                if (!raw.subarray(0, 16).equals(SQLITE_HDR)) {
+                    return json(res, { ok: false, error: 'El archivo no es una base de datos SQLite valida' }, 400);
+                }
+                const DB_PATH = process.env.DB_PATH || require('path').join(__dirname, '..', '..', 'bot', 'jugueteria.db');
+                require('fs').writeFileSync(DB_PATH + '.restore', raw);
+                require('../../services/configAudit').logCambio(db, 'restauracion_bd', new Date().toISOString(), sesR.username);
+                return json(res, { ok: true, msg: 'Respaldo validado (' + (raw.length / 1024 / 1024).toFixed(1) + ' MB). Reinicia el sistema para aplicarlo; el original se guarda como respaldo.', requiere_reinicio: true });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
     }
 
     // POST /api/prime/whatsapp/purgar-sesion — borra .wwebjs_auth/.wwebjs_cache

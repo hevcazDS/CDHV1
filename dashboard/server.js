@@ -651,7 +651,8 @@ function handleRequest(req, res) {
 
     if (['POST','PUT','DELETE'].includes(req.method)) {
         if (rejectCrossSiteForm(req, res)) return;
-        capBodySize(req, res);
+        // La restauración de BD sube un archivo grande — usa su propio tope.
+        if (u.pathname !== '/api/prime/restaurar-bd') capBodySize(req, res);
     }
 
     if (esRutaApi) return handleAPI(req, res);
