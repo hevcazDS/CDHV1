@@ -31,6 +31,48 @@ Lo de abajo (plan histórico) queda como referencia — NO seguirlo directo.
 - [x] 2026-07-09 — Guiones de venta: aplicados V1 (urgencia honesta en carrito 2h), V2 (fuera promesas medibles), V3 (ETA concreto al escalar), V4 (sin ofertas -> sugiere el más vendido), V5 (empatía en devolución), V9 (cupón "no acumulable"), V10 (dormidos con gancho), V12 (alerta interna sobria). V6 ya vigilado (gratis solo envío); V7/V8/V11 descartados: bajo valor vs riesgo de romper copy probado
 - [x] 2026-07-09 — Datos demo POR MÓDULO (Odoo): demoMetricas aplicar|revertir [citas|rrhh|gastos] — citas próximas 5 días, 2 empleados+14d horarios, 3 gastos (que se ANULAN con asiento inverso, respetando la inmutabilidad de libros). Probado ida y vuelta
 
+## 🆕 v1.01 — Cola del comité de 16 auditorías (2026-07-09)
+
+Hallazgos verificados contra el código (falsos positivos ya descartados:
+`pago_real_activo` NO está en el UI). Orden acordado con el dueño: primero
+bloque ① (bugs/controles), luego ⑦ (tablero financiero).
+
+### ① Bugs y controles de integridad — REALES, arreglar ya
+- [ ] **Sobreventa en POS**: `pos.js` descuenta sin validar que el stock alcance (kardex hace MAX(0,…) y lo enmascara). Validar stock ≥ cantidad antes de cobrar. (Cajero)
+- [ ] **Asientos opcionales** (Oxford D2): con `contabilidad_activo` OFF la venta cobra y mueve inventario pero NO asienta. Bloquear apagar el módulo con período abierto / o asiento obligatorio en el chokepoint de pago
+- [ ] **CFDI sin protección XXE/DoS**: el parser no rechaza `<!DOCTYPE` ni topa tamaño/conceptos. Añadir guardas (Seguridad)
+- [ ] **Bitácora de `configuracion`** (Oxford D1/D5): registrar quién/valor-anterior en cambios críticos (periodo_cerrado, iva_pct, mantenimiento_bd, módulos). Hoy el bypass de inmutabilidad no deja rastro
+- [ ] **Cierre de período laxo** (Oxford D6): el cierre bloquea asientos pero NO inserciones de kardex con fecha en mes cerrado
+- [ ] **PII en `cola_emails`** (Seguridad): nombre/dirección en claro en asunto/cuerpo. Redactar el asunto
+
+### ⑦ Tablero financiero de dirección — 3 votos (Harvard+LSE+Oxford), datos ya existen
+- [ ] **Estado de Resultados (P&L)**: Ventas − COGS − Gastos = Utilidad $/% (desde asientos 401/501/601)
+- [ ] **Antigüedad de CxC (aging 0-30/31-60/61-90/90+)** desde pedidos+links_pago
+- [ ] **Rotación de inventario / días** desde kardex+inventarios
+- [ ] **Margen por categoría** desde productos.costo+pedido_detalle
+- [ ] **Ticket promedio vs período anterior** + balance general básico (activo/pasivo/capital desde libro mayor)
+
+### ② Mejoras de valor (medio) — después de ① y ⑦
+- [ ] `alert/confirm/prompt` nativos → modales/toasts (helper useConfirm) — UX/UI + Cajero
+- [ ] Índices SQL faltantes (folio/cliente/nombre/brand) + batch `GET /api/modulos` (hoy 17 requests en serie) — Rendimiento
+- [ ] Quick-wins de copy: emojis 🧸 hardcodeados por giro, textos que ayudan, leyenda CFDI clara ("no es factura timbrada"), disclaimer nómina/Hevcaz visible en UI — Redacción + Legal + RH
+- [ ] Marketing: link wa.me+UTM + códigos de campaña (atribución) — Marketing
+- [ ] Eventos de embudo intermedios (orden_confirmada, metodo_entrega, direccion_capturada, carrito_convertido) — CRO
+- [ ] Guía Estafeta: avisar "simulada" al cliente en WhatsApp (hoy solo en email) — PO
+
+### ③ Fricción de venta/POS (medio)
+- [ ] Complemento sugerido en POS (sube ticket) — Ventas + CRO
+- [ ] Upsell siempre visible (no solo bajo umbral de envío), auto-usar dirección guardada del recurrente, mostrar total antes del CP — Ventas
+
+### ④ Anotado — grande o depende de terceros (NO ahora)
+- [ ] Nómina MX completa (aguinaldo/prima vacacional/finiquito/séptimo día/expediente con antigüedad) — comité coincide: úsala como BORRADOR + PAC externo (ya documentado). Legalmente arriesgado omitir en finiquito → disclaimer en UI mitiga por ahora — RH+Legal
+- [ ] Dashboard del vendedor / cartera de clientes asignados / alertas en tiempo real — Vendedor
+- [ ] Monitor de baneo WhatsApp (tasa sin_entregar, reconexiones) + roadmap a WhatsApp Business API — Ecommerce (riesgo #1 de producción)
+- [ ] Cifrado de backups en reposo, CSP sin unsafe-inline, cookie Secure por defecto en prod — Seguridad
+- [ ] Recompra programada (consumibles), NPS→Google Reviews tras CSAT 5 — Marketing
+- [ ] LLM real (hook ya listo), búsqueda semántica — Ecommerce
+- [ ] Proceso ARCO formal + retención/purga de conversaciones (24m sin pedido) — Legal
+
 ## ⏸️ EN PAUSA / BLOQUEADOS (no tocar sin decisión del dueño)
 
 - [ ] **Hotel** (habitaciones + calendario de ocupación) — PAUSADO por el dueño 2026-07-08
