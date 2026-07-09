@@ -3,8 +3,9 @@
 // para que el cliente solicite su factura. Regla del negocio: solo se puede
 // facturar dentro del mes contable en curso.
 export const LEYENDA_FACTURACION =
-  'Para facturar, solicítelo con esta referencia únicamente dentro del mes contable en curso. ' +
-  'No se podrá facturar en meses posteriores.';
+  'COMPROBANTE — no es una factura fiscal (CFDI) timbrada. Para tu factura, ' +
+  'solicítala con esta referencia dentro del mes contable en curso; no se ' +
+  'podrá facturar en meses posteriores.';
 
 // ¿El pedido/venta trae datos fiscales (= el cliente quiere factura)?
 export function quiereFactura(p) {

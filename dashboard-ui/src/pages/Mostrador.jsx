@@ -54,7 +54,10 @@ export default function Mostrador() {
       setMsg(null);
     } catch (err) { setMsg({ ok: false, t: err.message }); }
   };
+  const [sugeridos, setSugeridos] = useState([]);
   const agregar = (p) => {
+    // Complemento sugerido (Ventas + CRO): sube el ticket del mostrador
+    api.get('/api/pos/sugeridos?id=' + p.id).then(r => setSugeridos(r.items || [])).catch(() => {});
     setCarrito(c => {
       const i = c.findIndex(x => x.id === p.id);
       if (i >= 0) { const n = [...c]; n[i] = { ...n[i], cantidad: n[i].cantidad + 1 }; return n; }
@@ -109,6 +112,17 @@ export default function Mostrador() {
             styles={{ input: { borderColor: 'var(--accent)', fontFamily: 'monospace' } }} />
           <TextInput placeholder="…o buscar por nombre o SKU" value={busqueda} onChange={e => buscar(e.target.value)} mb="xs" />
           <Button variant="subtle" size="xs" mb="xs" onClick={reimprimir}>Reimprimir último ticket</Button>
+          {sugeridos.length > 0 && (
+            <div style={{ marginBottom: 8, padding: 8, background: 'var(--panel-2)', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-mute)', marginBottom: 4 }}>Suele llevarse también:</div>
+              <Group gap={6}>
+                {sugeridos.map(s => (
+                  <Button key={s.id} size="compact-xs" variant="default"
+                    onClick={() => agregar(s)}>{s.name} · ${Number(s.price).toFixed(0)}</Button>
+                ))}
+              </Group>
+            </div>
+          )}
           {resultados.length > 0 && (
             <div className="table-wrap" style={{ maxHeight: 200, overflow: 'auto', marginBottom: 8, border: '1px solid var(--border)', borderRadius: 6 }}>
               <Table highlightOnHover verticalSpacing={4}>

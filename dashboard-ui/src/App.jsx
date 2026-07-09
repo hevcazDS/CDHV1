@@ -10,6 +10,7 @@ import WhatsAppQR from './components/WhatsAppQR';
 import Login from './components/Login';
 import Onboarding from './components/Onboarding';
 import Layout from './components/Layout';
+import { UiHost } from './lib/ui';
 
 // Páginas lazy (code-splitting); el shell Login/Onboarding/Layout es eager
 const Inicio = lazy(() => import('./pages/Inicio'));

@@ -27,6 +27,21 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // GET /api/modulos — estado de TODOS los módulos en UNA sola llamada
+    // (rendimiento: Modulos.jsx hacía 17 requests en serie). Mapa {clave:activo}.
+    if (p === '/api/modulos' && req.method === 'GET') {
+        try {
+            const { DEFAULT_OFF } = require('../../bot/flows/modulosDefaults');
+            const filas = db.prepare("SELECT clave, valor FROM configuracion WHERE clave LIKE '%_activo'").all();
+            const set = filas.reduce((m, r) => (m[r.clave] = r.valor !== '0', m), {});
+            const claves = new URL(req.url, 'http://x').searchParams.get('claves');
+            const pedidas = claves ? claves.split(',') : Object.keys(set);
+            const out = {};
+            for (const k of pedidas) out[k] = (k in set) ? set[k] : !DEFAULT_OFF.includes(k);
+            return json(res, out);
+        } catch (_) { return json(res, {}); }
+    }
+
     // GET /api/modulo/:clave — estado de un módulo
     if (p.startsWith('/api/modulo/') && req.method === 'GET') {
         const clave = p.split('/').pop();

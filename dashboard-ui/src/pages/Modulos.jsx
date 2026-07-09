@@ -110,14 +110,10 @@ export default function Modulos() {
   const { data: estado } = useQuery({
     queryKey: ['modulos-estado'],
     queryFn: async () => {
-      const rows = [];
-      for (const m of MODULOS) {
-        try {
-          const r = await api.get(`/api/modulo/${m.key}`);
-          rows.push({ key: m.key, activo: r && !r.error ? !!r.activo : true });
-        } catch (_) { /* ignorar, mantiene la lista parcial */ }
-      }
-      return rows;
+      // Una sola llamada (antes eran 17 en serie) — GET /api/modulos
+      const claves = MODULOS.map(m => m.key).join(',');
+      const mapa = await api.get('/api/modulos?claves=' + claves).catch(() => ({}));
+      return MODULOS.map(m => ({ key: m.key, activo: mapa[m.key] !== false }));
     },
   });
 

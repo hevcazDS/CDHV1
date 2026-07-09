@@ -138,7 +138,7 @@ export default function Rrhh() {
               <TextInput type="date" size="xs" value={periodo.desde} onChange={e => setPeriodo({ ...periodo, desde: e.target.value })} />
               <TextInput type="date" size="xs" value={periodo.hasta} onChange={e => setPeriodo({ ...periodo, hasta: e.target.value })} />
               <Button size="xs" onClick={() => calcular.mutate()}>Calcular</Button>
-              <Button size="xs" variant="light" color="teal" onClick={() => pagar.mutate()}>Pagar periodo</Button>
+              <Button size="xs" variant="light" color="teal" onClick={() => { if (window.confirm("El ISR/IMSS es APROXIMADO para gestión interna. El cálculo fiscal definitivo y el CFDI de nómina los hace tu contador/PAC. ¿Pagar el periodo?")) pagar.mutate(); }}>Pagar periodo</Button>
             </Group>
           </div>
           <div className="table-wrap" style={{ maxHeight: 460, overflow: 'auto' }}>

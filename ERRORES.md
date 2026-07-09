@@ -22,6 +22,23 @@ pelón se confundiría con "Payment Required" de HTTP).
 | `HS-502` | Bridge zombie: había un bot activo pero el proceso quedó colgado (típico tras reload del contenedor). El dashboard lo detecta al arrancar y **reinicia el bridge una sola vez** | Si tras el reinicio automático sigue caído, usar "Reiniciar bridge" en el panel; si tampoco, ver HS-503 |
 | `HS-503` | Sesión de WhatsApp corrupta o en conflicto (`.wwebjs_auth`) | Prime → General → zona de peligro → "Borrar sesión de WhatsApp"; el siguiente arranque pide QR limpio |
 
+## Integridad y control (v1.01+) — advertencias operativas
+
+Estos NO son fallos de arranque: son candados de negocio que devuelven un
+código HTTP y un mensaje claro. Se documentan para soporte y auditoría.
+
+| Código | Significado | Cuándo salta |
+|---|---|---|
+| `409 pin_requerido` (POS) | Sobreventa: se intenta cobrar más de lo que hay en stock | El cajero debe teclear el PIN del administrador para vender sobre pedido (negativo); el admin pasa directo |
+| `403` "Cambiar el precio requiere PIN" | Override de precio de lista en el POS | Igual que arriba: precio ≠ lista exige PIN |
+| `400` "XML con DOCTYPE/ENTITY no permitido" | CFDI malicioso (XXE / billion-laughs) rechazado por el parser | Al subir un XML de factura con `<!DOCTYPE`/`<!ENTITY`, >5 MB o >1000 conceptos |
+| `403` "Solo Prime puede desactivar Contabilidad" | Un gerente intenta apagar `contabilidad_activo` | Protege la integridad de los libros (ventas sin asiento) — solo el dueño puede |
+
+**Bitácora forense** (`configuracion_log`, migración 0031): todo cambio a
+módulos, `periodo_cerrado` y el bypass `mantenimiento_bd` queda registrado
+con quién / valor anterior / cuándo. Consultable para auditoría; hace
+detectable cualquier manipulación que antes no dejaba rastro.
+
 ## Reglas de arranque
 
 1. **El dashboard SIEMPRE tiene prioridad**: arranca primero e independiente

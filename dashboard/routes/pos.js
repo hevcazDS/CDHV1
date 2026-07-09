@@ -74,6 +74,21 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
         return json(res, { items: rows, sucursal: suc });
     }
 
+    // ── GET /api/pos/sugeridos?id= — complemento para subir el ticket ─────
+    // (Ventas + CRO): reutiliza sustitutos/relacionados del catálogo.
+    if (p === '/api/pos/sugeridos' && req.method === 'GET') {
+        if (!posActivo()) return json(res, { items: [] });
+        const idP = parseInt(new URL(req.url, 'http://x').searchParams.get('id'), 10);
+        if (!idP) return json(res, { items: [] });
+        try {
+            const items = require('../../services/stockService').buscarSustitutosAuto(idP, 0.6, 3)
+                .filter(x => x.id !== idP)
+                .map(x => ({ id: x.id, name: x.name, price: x.price }))
+                .slice(0, 3);
+            return json(res, { items });
+        } catch (_) { return json(res, { items: [] }); }
+    }
+
     // ── POST /api/pos/venta — cobrar una venta presencial ─────────────────
     // Body: { items:[{id_producto,cantidad,precio?}], metodo_pago, sucursal?,
     //         cliente?:{nombre,telefono}, efectivo_recibido? }

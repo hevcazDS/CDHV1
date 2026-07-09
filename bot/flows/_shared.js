@@ -82,7 +82,7 @@ function enHorario() {
     return h >= _horaCfg('horario_inicio', '11') && h < _horaCfg('horario_fin', '20');
 }
 function msgHorarioAsesor() {
-    if (enHorario()) return 'Un asesor te contactará en los próximos *30 minutos*. ¡Gracias! 🧸';
+    if (enHorario()) return 'Un asesor te contactará en cuanto esté disponible (normalmente en menos de 15 min en horario). ¡Gracias! ' + (vocab().emoji || '');
     return 'Estamos fuera de horario. 🌙\n⏰ Nuestro horario es *' + HORARIO_ASESOR + '*.\nHemos registrado tu solicitud y te contactaremos al inicio del siguiente horario.';
 }
 const _RE_DEVOLUCION = /devolver|devolv|devoluci[oó]n|devuelta|cambiar.*producto|cambio.*producto|quiero.*devolver|quiero.*cambiar|repetido|duplicado|ya.*tenía|me.*llegó.*mal|llegó.*incorrecto|no.*funciona|está.*roto|está.*dañado|garantia|garantía|me.*equivoqué|pedido.*mal|llegó.*dañado|producto.*dañado|dañado/i;

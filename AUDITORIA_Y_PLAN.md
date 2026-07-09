@@ -53,17 +53,18 @@ ERP > Tablero de dirección (GET /api/erp/tablero, área finanzas; auditor lee).
 - [x] Rotación de inventario / días de inventario / rotación anual desde inventarios×costo + COGS
 - [x] Margen por categoría (ventas pagadas del período) y ticket promedio vs período anterior
 
-### ② Mejoras de valor (medio) — después de ① y ⑦
-- [ ] `alert/confirm/prompt` nativos → modales/toasts (helper useConfirm) — UX/UI + Cajero
-- [ ] Índices SQL faltantes (folio/cliente/nombre/brand) + batch `GET /api/modulos` (hoy 17 requests en serie) — Rendimiento
-- [ ] Quick-wins de copy: emojis 🧸 hardcodeados por giro, textos que ayudan, leyenda CFDI clara ("no es factura timbrada"), disclaimer nómina/Hevcaz visible en UI — Redacción + Legal + RH
-- [ ] Marketing: link wa.me+UTM + códigos de campaña (atribución) — Marketing
-- [ ] Eventos de embudo intermedios (orden_confirmada, metodo_entrega, direccion_capturada, carrito_convertido) — CRO
-- [ ] Guía Estafeta: avisar "simulada" al cliente en WhatsApp (hoy solo en email) — PO
+### ② Mejoras de valor (medio) — v1.02 2026-07-09
+- [x] `alert/confirm/prompt` nativos → toasts + confirm propios (lib/ui.jsx, SIN dep nueva; UiHost en App). apiError y Modulos migrados; el resto de páginas migra gradualmente
+- [x] Índices SQL (migración 0032: folio/cliente/nombre/brand/links_pago) + batch `GET /api/modulos` (Modulos.jsx pasó de 17 requests en serie a 1)
+- [x] Quick-wins de copy: emoji por giro (fuera 🧸 hardcodeado en _shared/asesorFlow), leyenda CFDI clara ("no es factura fiscal timbrada"), disclaimer nómina "aproximada" en confirm antes de pagar, ETA de asesor honesto
+- [x] Guía Estafeta: el bot avisa "(número de referencia)" cuando la guía es simulada
+- [ ] PENDIENTE: Marketing link wa.me + códigos de campaña (atribución) — Marketing
+- [ ] PENDIENTE: Eventos de embudo intermedios — CRO
+- [ ] PENDIENTE: disclaimer de Hevcaz (deslinde fiscal) en el widget de soporte — Legal
 
-### ③ Fricción de venta/POS (medio)
-- [ ] Complemento sugerido en POS (sube ticket) — Ventas + CRO
-- [ ] Upsell siempre visible (no solo bajo umbral de envío), auto-usar dirección guardada del recurrente, mostrar total antes del CP — Ventas
+### ③ Fricción de venta/POS (medio) — v1.02 2026-07-09
+- [x] Complemento sugerido en POS (GET /api/pos/sugeridos; tira "suele llevarse también" en Mostrador) — Ventas + CRO
+- [ ] PENDIENTE (toca el checkout del bot, pase cuidadoso aparte): upsell siempre visible, auto-usar dirección guardada del recurrente, mostrar total antes del CP — Ventas
 
 ### ④ Anotado — grande o depende de terceros (NO ahora)
 - [ ] Nómina MX completa (aguinaldo/prima vacacional/finiquito/séptimo día/expediente con antigüedad) — comité coincide: úsala como BORRADOR + PAC externo (ya documentado). Legalmente arriesgado omitir en finiquito → disclaimer en UI mitiga por ahora — RH+Legal
