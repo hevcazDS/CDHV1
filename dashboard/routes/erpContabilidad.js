@@ -8,7 +8,7 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
     if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')
-        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero')) {
+        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente')) {
         const ses = requireSession(req, res);
         if (!ses) return;
         if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
@@ -64,6 +64,21 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
                                   FROM asientos a WHERE a.referencia_id=? OR a.concepto LIKE ? OR a.concepto LIKE ? ORDER BY a.id`).all(String(id), like1, like2),
             devoluciones: db.prepare('SELECT * FROM devoluciones WHERE id_pedido=?').all(id),
         });
+    }
+
+    // FACTURACIÓN PENDIENTE (dueño): pedidos con datos fiscales capturados,
+    // exportable para que un PAC/tercero los timbre externamente. El enganche
+    // del PAC va aquí cuando se contrate. NO es CFDI timbrado.
+    if (p === '/api/erp/facturacion-pendiente' && req.method === 'GET') {
+        const { desde, hasta } = _rango();
+        const filas = db.prepare(`
+            SELECT p2.folio, p2.razon_social, p2.rfc,
+                   COALESCE((SELECT SUM(monto) FROM links_pago lp WHERE lp.id_pedido=p2.id_pedido AND lp.estatus='pagado'), p2.total) monto,
+                   p2.creado_en
+            FROM pedidos p2
+            WHERE (p2.rfc IS NOT NULL AND p2.rfc != '') AND date(p2.creado_en) >= ? AND date(p2.creado_en) <= ?
+            ORDER BY p2.id_pedido DESC LIMIT 500`).all(desde, hasta);
+        return json(res, { desde, hasta, filas });
     }
 
     // TABLERO DE DIRECCIÓN (comité: Harvard+LSE+Oxford) — estado de

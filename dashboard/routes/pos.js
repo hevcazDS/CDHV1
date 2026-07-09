@@ -32,6 +32,15 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
             return !!r && (r.valor === '1' || r.valor === 'true');
         } catch (_) { return false; }
     }
+    // Negocios que SOLO venden (sin control de inventario): default ON, pero
+    // si el dueño lo apaga, el POS no valida ni descuenta stock — puede
+    // vender por código aunque no haya existencias registradas.
+    function inventarioActivo() {
+        try {
+            const r = db.prepare("SELECT valor FROM configuracion WHERE clave='inventario_activo' LIMIT 1").get();
+            return !r || r.valor !== '0'; // default ON
+        } catch (_) { return true; }
+    }
     function sucursalDefault() {
         try {
             const row = db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default' LIMIT 1").get();
@@ -131,7 +140,7 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                 // no llevan stock. Vender en negativo (sobre pedido) exige PIN —
                 // admin pasa, cajero lo teclea.
                 const _faltantes = [];
-                for (const it of carrito) {
+                if (inventarioActivo()) for (const it of carrito) {
                     if (it.tipo === 'servicio') continue;
                     const stk = db.prepare('SELECT COALESCE(stock,0) s FROM inventarios WHERE id_producto=? AND sucursal=?').get(it.id, sucursal)?.s ?? 0;
                     if (stk < it.cantidad) _faltantes.push(it.name + ' (hay ' + stk + ', pides ' + it.cantidad + ')');
@@ -165,9 +174,10 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     const met = db.prepare('SELECT id FROM metodos_pago WHERE nombre=?').get(metodoPago);
                     db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
                       .run(pedidoRowid, met ? met.id : null, subtotal);
-                    // Descontar inventario con KARDEX; los servicios no llevan stock
+                    // Descontar inventario con KARDEX; los servicios no llevan
+                    // stock; y si el negocio no controla inventario, tampoco.
                     for (const it of carrito) {
-                        if (it.tipo === 'servicio') continue;
+                        if (it.tipo === 'servicio' || !inventarioActivo()) continue;
                         kardexService.movimiento({ id_producto: it.id, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Venta ' + folio, usuario: req._ses?.username });
                         if (it.id_variante) require('../../services/variantesService').descontarVariante(it.id_variante, sucursal, it.cantidad);
                     }

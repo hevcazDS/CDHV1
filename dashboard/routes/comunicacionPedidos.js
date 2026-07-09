@@ -136,14 +136,24 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                         "INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus,enviar_despues_de) VALUES ('whatsapp',?,'Promocion masiva',?,?,?)"
                     );
                 }
+                // Anti-baneo: los comunicados masivos NO salen de golpe. Se
+                // escalonan en la BD con enviar_despues_de acumulado (15 s a 2
+                // min aleatorio por mensaje). Persistente y crash-safe: cada
+                // fila sale a su hora y una vez enviada no se re-procesa (a
+                // diferencia de un setTimeout en memoria, que doblaría envíos
+                // entre ciclos). El chat p2p NO pasa por aquí.
+                const _baseMs = _enviarDespues ? new Date(_enviarDespues.replace(' ', 'T')).getTime() : Date.now();
+                let _accSeg = 0;
                 const encolarTodos = db.transaction((lista) => {
                     for (const cli of lista) {
                         if (!cli.telefono) continue;
                         const nombre = cli.nombre ? cli.nombre.split(' ')[0] : 'Cliente';
                         const nombreCap = nombre.charAt(0).toUpperCase() + nombre.slice(1).toLowerCase();
                         const msgP = mensaje.replace(/\{nombre\}/gi, nombreCap);
-                        if (_conCampana) stmt.run(cli.telefono, msgP, _estatus, _enviarDespues, _campana);
-                        else stmt.run(cli.telefono, msgP, _estatus, _enviarDespues);
+                        _accSeg += 15 + Math.random() * 105; // 15–120 s entre mensajes
+                        const _cuando = new Date(_baseMs + _accSeg * 1000).toISOString().replace('T', ' ').slice(0, 19);
+                        if (_conCampana) stmt.run(cli.telefono, msgP, 'programado', _cuando, _campana);
+                        else stmt.run(cli.telefono, msgP, 'programado', _cuando);
                         encolados++;
                     }
                 });
@@ -279,7 +289,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                     WHERE d.id_pedido=?`).all(lp.id_pedido);
                 for (const it of items) {
                     if (it.tipo === 'servicio' || !it.sucursal_origen) continue;
-                    kardexService.movimiento({ id_producto: it.id_producto, sucursal: it.sucursal_origen, tipo: 'venta', delta: -it.cantidad, motivo: 'Pago pedido ' + lp.id_pedido, usuario: _sesPago.username });
+                    !(db.prepare("SELECT valor FROM configuracion WHERE clave='inventario_activo'").get()?.valor === '0') && kardexService.movimiento({ id_producto: it.id_producto, sucursal: it.sucursal_origen, tipo: 'venta', delta: -it.cantidad, motivo: 'Pago pedido ' + lp.id_pedido, usuario: _sesPago.username });
                 }
                 db.prepare('UPDATE pedidos SET cobrado_por=? WHERE id_pedido=?').run(_sesPago.username, lp.id_pedido);
 

@@ -135,7 +135,8 @@ async function handle(ctx) {
             // Validar stock en el momento de confirmar — puede haber cambiado desde ASK_CP
             const _carrito = data.carrito || [];
             const _sinStock = [];
-            for (const item of _carrito) {
+            const _controlInv = moduloActivo('inventario_activo');
+            if (_controlInv) for (const item of _carrito) {
                 if (!item.id) continue;
                 const _prod = db.prepare('SELECT name, stock_tienda, stock_cedis FROM productos WHERE id=?').get(item.id);
                 const _stockTotal = (_prod?.stock_tienda || 0) + (_prod?.stock_cedis || 0);

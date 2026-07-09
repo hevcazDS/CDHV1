@@ -66,7 +66,20 @@ ERP > Tablero de dirección (GET /api/erp/tablero, área finanzas; auditor lee).
 - [x] Complemento sugerido en POS (GET /api/pos/sugeridos; tira "suele llevarse también" en Mostrador) — Ventas + CRO
 - [x] 2026-07-09 (v1.02) Checkout: upsell siempre visible (antes se ocultaba al pasar el umbral de envío gratis); subtotal anclado ANTES de pedir el CP. Auto-usar dirección: NO — el flujo ya la reusa en 1 toque (CONFIRM_DIR_GUARDADA) y auto-usarla sin confirmar es riesgo de enviar a dirección vieja
 
-### ④ Anotado — grande o depende de terceros (NO ahora)
+### v1.03 (2026-07-09) — hecho en este pase
+- [x] **Degradación elegante** (dueño): módulo `inventario_activo` (default ON) — negocios que SOLO venden lo apagan y el POS/bot no validan ni descuentan stock (venden por código sin existencias). Contabilidad ya era toggleable. El sistema corre con inventario OFF y/o contabilidad OFF sin romperse
+- [x] **Reglas WhatsApp anti-baneo**: comunicados masivos escalonados 15 s–2 min por mensaje vía enviar_despues_de (persistente/crash-safe, no en memoria); la regla "el bot nunca contacta primero" ya existía y aplica a toda la cola. Chat p2p no se toca
+- [x] **Reporte de facturación pendiente**: ERP > Facturación pendiente — folios + RFC + razón social + monto, exportable CSV para PAC/despacho externo. Enganche del PAC marcado
+
+### ④ PENDIENTES QUE NO ALCANCÉ EN ESTE PASE (documentados, en orden)
+- [ ] **Backup cifrado + restaurar desde Prime** (siguiente): Master Password → PBKDF2+salt → clave AES-256-GCM; la maestra NO se guarda, la clave derivada se MUESTRA en pantalla una vez (el dueño la apunta/fotografía) y entra al núcleo en memoria; modo bajo = clave sencilla en claro en la BD (toggle). Restaurar: subir respaldo + contraseña; NO tocar .wwebjs_auth ni .instancia_secret; parar bot → reemplazar .db → reanudar. OJO recuperabilidad: en modo alto, si se pierde la maestra Y la clave impresa, los respaldos son irrecuperables (por diseño)
+- [ ] **Pasarela — link de pago autogenerado** (toggle `pago_link_activo`): generar link y enviarlo por WhatsApp desde el bot y el POS; gateway real stubbed hasta credenciales (enganche listo como el del LLM)
+- [ ] **Recompra — las dos**: (a) Compras: historial + botón "recomprar" que prellena OC (proveedores e insumos); (b) cliente: bot recuerda recomprar consumibles. Ambas tageables
+- [ ] **Nómina fiscal + RH completo** (toggle `nomina_fiscal_activo`, default OFF=sencilla): expediente con antigüedad/RFC/CURP/NSS, horarios/faltas/altas-bajas, aguinaldo/prima/finiquito/días de descanso/horas extra, comisiones, deducciones/prestaciones, método de pago; al pagar genera asiento a contabilidad
+- [ ] **Restaurante/mesas**: giro restaurante — abrir N mesas, agregar platillos con comentario libre (sin chile/mitad), preticket a cocina, cierre al POS
+- [ ] Modo bajo del cifrado + verificar candado de datos LLM solo-Prime
+
+### ⑤ Anotado — depende de terceros / futuro (NO ahora)
 - [ ] Nómina MX completa (aguinaldo/prima vacacional/finiquito/séptimo día/expediente con antigüedad) — comité coincide: úsala como BORRADOR + PAC externo (ya documentado). Legalmente arriesgado omitir en finiquito → disclaimer en UI mitiga por ahora — RH+Legal
 - [ ] Dashboard del vendedor / cartera de clientes asignados / alertas en tiempo real — Vendedor
 - [ ] Monitor de baneo WhatsApp (tasa sin_entregar, reconexiones) + roadmap a WhatsApp Business API — Ecommerce (riesgo #1 de producción)

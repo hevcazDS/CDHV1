@@ -7,6 +7,7 @@ import ContabilidadTab from './erp/ContabilidadTab';
 import GastosImpuestosTab from './erp/GastosImpuestosTab';
 import RastroTab from './erp/RastroTab';
 import TableroTab from './erp/TableroTab';
+import FacturacionTab from './erp/FacturacionTab';
 
 const TABS = [
   { key: 'tablero', label: 'Tablero de dirección', Componente: TableroTab },
@@ -15,6 +16,7 @@ const TABS = [
   { key: 'cxp', label: 'Cuentas por pagar', Componente: CxpTab },
   { key: 'contabilidad', label: 'Contabilidad', Componente: ContabilidadTab },
   { key: 'gastos', label: 'Gastos e impuestos', Componente: GastosImpuestosTab },
+  { key: 'facturacion', label: 'Facturación pendiente', Componente: FacturacionTab },
   { key: 'rastro', label: 'Rastro de documento', Componente: RastroTab },
 ];
 
