@@ -37,6 +37,7 @@ const Erp = lazy(() => import('./pages/Erp'));
 const Almacen = lazy(() => import('./pages/Almacen'));
 const Compras = lazy(() => import('./pages/Compras'));
 const Rrhh = lazy(() => import('./pages/Rrhh'));
+const Citas = lazy(() => import('./pages/Citas'));
 
 export default function App() {
   const { user, cargando } = useAuth();
@@ -92,6 +93,7 @@ export default function App() {
         {permite(user.rol, 'compras') && <Route path="/compras" element={<Compras />} />}
         {(permite(user.rol, 'almacen') || permite(user.rol, 'almacen_lectura')) && <Route path="/almacen" element={<Almacen />} />}
         {permite(user.rol, 'rrhh') && <Route path="/rrhh" element={<Rrhh />} />}
+              {permite(user.rol, 'operacion') && <Route path="/citas" element={<Citas />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -24,9 +24,15 @@
 // Mapa giro → [módulos de flujo]. Vacío por defecto: ningún giro agrega flujos
 // todavía, así que el comportamiento es idéntico al actual. Es el punto de
 // extensión documentado, no una feature a medias.
+const _CITAS = [require('./citasFlow')];
 const GIRO_FLOWS = {
     // restaurante: [ require('./restauranteFlow') ],
-    // barberia:    [ require('./citasFlow') ],
+    servicios:     _CITAS,
+    mantenimiento: _CITAS,
+    barberia:      _CITAS,
+    tatuajes:      _CITAS,
+    estetica:      _CITAS,
+    unas:          _CITAS,
 };
 
 // Devuelve los flujos extra del giro indicado (o []). Tolerante a errores de

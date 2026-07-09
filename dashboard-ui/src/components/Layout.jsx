@@ -25,6 +25,7 @@ const GRUPOS = [
     { to: '/pedidos', area: 'operacion', label: 'Pedidos', Icono: Package },
     { to: '/devoluciones', area: 'operacion', label: 'Devoluciones', Icono: Undo2 },
     { to: '/cola', area: 'operacion', label: 'Cola de atención', Icono: MessagesSquare },
+      { to: '/citas', label: 'Citas', area: 'operacion', moduloRequerido: 'citas_activo' },
     { to: '/notificaciones', area: 'operacion', label: 'Chat y mensajes', Icono: MessageCircle },
   ]},
   { titulo: 'Envíos y logística', enlaces: [

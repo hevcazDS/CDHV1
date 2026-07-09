@@ -57,6 +57,9 @@ const S = {
     CUPON:           'CUPON',
     REFERIDOS:       'REFERIDOS',
     PAGO_METODO:     'PAGO_METODO',
+    CITA_FECHA:      'CITA_FECHA',
+    CITA_HORA:       'CITA_HORA',
+    CITA_CONFIRMA:   'CITA_CONFIRMA',
 };
 
 // ═══════════════════════════════════════════════════════
@@ -1048,6 +1051,7 @@ function menuItemsActivos(giroKey) {
             try { return !!(referidosService.referidosActivo && referidosService.referidosActivo()); }
             catch(_) { return false; }
         }
+        if (k === 'citas') return moduloActivo('citas_activo'); // default OFF
         return true;
     });
 }
@@ -1062,6 +1066,7 @@ const _MENU_ALIAS = {
     wizard:    ['wizard', 'ayuda'],
     rastrear:  ['rastrear', 'pedido', 'mis pedidos', 'historial'],
     asesor:    ['asesor'],
+    citas:     ['cita', 'citas', 'agendar', 'agendar cita', 'reservar'],
     referidos: ['referido', 'referidos', 'codigo de referido', 'código de referido', 'mi codigo', 'mi código'],
 };
 function resolverOpcionMenu(action) {
@@ -1087,6 +1092,7 @@ function menuOpcionesAdaptativo(giroKey) {
         wizard:    '🧙 Ayúdame a elegir',
         rastrear:  '📦 Rastrear mi pedido',
         asesor:    '👤 Hablar con una persona',
+        citas:     '📅 Agendar una cita',
         referidos: '🎁 Mi código de referido',
     };
     const lineas = keys.map((k, i) => (_MENU_NUM[i] || (i + 1) + '️⃣') + '  ' + (LABELS[k] || k));

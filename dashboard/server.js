@@ -500,6 +500,7 @@ const ROUTE_MODULES = [
     require('./routes/almacen'),
     require('./routes/compras'),
     require('./routes/rrhh'),
+    require('./routes/citas'),
 ];
 
 function handleAPI(req, res) {

@@ -381,6 +381,28 @@ function checkStockMinimo() {
 }
 
 // ── 8. Seguimiento 48h post-pedido ────────────────────────────────
+// Recordatorio de CITA: un día antes (o el mismo día si se agendó hoy para
+// mañana ya pasó el ciclo). Marca recordatorio_enviado para no duplicar.
+function checkRecordatoriosCitas() {
+    let citas;
+    try {
+        citas = db.prepare(`
+            SELECT id, telefono, nombre, fecha, hora FROM citas
+            WHERE estatus IN ('pendiente','confirmada') AND recordatorio_enviado = 0
+              AND fecha = date('now','localtime','+1 day')
+        `).all();
+    } catch (_) { return; } // tabla ausente (BD sin migrar) → silencio
+    for (const c of citas) {
+        _insertCola(c.telefono, 'Recordatorio cita ' + c.id,
+            `📅 ¡Hola${c.nombre ? ' ' + c.nombre.split(' ')[0] : ''}! Te recordamos tu cita de *mañana ${c.fecha.slice(8)}/${c.fecha.slice(5,7)}* a las *${c.hora}*.
+
+Si necesitas cambiarla, responde este mensaje. ¡Te esperamos!`,
+            'recordatorio_cita');
+        db.prepare('UPDATE citas SET recordatorio_enviado=1 WHERE id=?').run(c.id);
+    }
+    if (citas.length) log.info(`[stockWatcher] ${citas.length} recordatorio(s) de cita encolados`);
+}
+
 function checkSeguimiento48h() {
     const pedidos = db.prepare(`
         SELECT g.id_pedido, p.cliente, c.telefono, c.nombre
@@ -634,6 +656,7 @@ async function runAll() {
         // CSAT y seguimiento: siempre (dependen de guías, no de cola)
         _runCheck(checkCSAT, 'checkCSAT');
         _runCheck(checkSeguimiento48h, 'checkSeguimiento48h');
+        _runCheck(checkRecordatoriosCitas, 'checkRecordatoriosCitas');
         _runCheck(checkQuejasSinRespuesta, 'checkQuejasSinRespuesta');
         if (_hayCarrito) {
             _runCheck(checkCarritosAbandonados, 'checkCarritosAbandonados');

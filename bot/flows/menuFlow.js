@@ -106,6 +106,10 @@ async function handle(ctx) {
             sessionManager.updateSession(userId, S.SEARCHING, { carrito: data.carrito || [] });
             return t('buscar_inicio') || `🔍 ¿Qué juguete buscas? Puedes:\n\n· Escribir el nombre o descripción\n· Enviar una *foto* del juguete 📸\n· Pegar el *link* de donde lo viste 🔗\n\n_Ej: "patines para niña" · foto de la caja · link de Amazon o Shopify_`;
         }
+        if (_opt === 'citas') {
+            // giros de servicio: delega al citasFlow (módulo citas_activo)
+            return require('./citasFlow').iniciar(userId, { carrito: data.carrito || [] });
+        }
         if (_opt === 'wizard') {
             sessionManager.updateSession(userId, S.WIZARD_Q1, { carrito: data.carrito || [] });
             return t('wizard_q1') || `🧙 ¡Te ayudo a encontrar el regalo perfecto! 🎁\n\n*Pregunta 1 de 3* — ¿Para quién es el juguete?\n\n1️⃣  👶 Bebé (0–2 años)\n2️⃣  🧒 Niño/a (3–8 años)\n3️⃣  🧑 Preadolescente (9–12)\n4️⃣  🎓 Adolescente / Adulto`;

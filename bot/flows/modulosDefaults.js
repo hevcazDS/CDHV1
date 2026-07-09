@@ -22,6 +22,7 @@ const DEFAULT_OFF = [
     'entrega_repartidor_activo',
     'pos_activo',
     'facturacion_activo',
+    'citas_activo',
     'llm_activo',
     // Look minimalista: el panel arranca sin emojis (iconos de línea);
     // el toggle en Módulos permite reactivarlos por instancia.

@@ -115,17 +115,20 @@ const GIRO_DEFAULT = 'jugueteria';
 // negocio de servicios (barbería, uñas), así que esos giros lo omiten.
 // restaurante SÍ lo conserva (ahí es "¿qué me recomiendas?").
 const _MENU_SIN_WIZARD = ['buscar', 'rastrear', 'asesor', 'referidos'];
+// Giros de SERVICIO: además ofrecen "agendar cita" (la opción solo se
+// muestra si el módulo citas_activo está encendido — menuItemsActivos).
+const _MENU_SERVICIO = ['buscar', 'citas', 'rastrear', 'asesor', 'referidos'];
 const MENU_GIRO = {
     retail:        _MENU_SIN_WIZARD,
     abarrotes:     _MENU_SIN_WIZARD,
     carniceria:    _MENU_SIN_WIZARD,
     ferreteria:    _MENU_SIN_WIZARD,
-    servicios:     _MENU_SIN_WIZARD,
-    mantenimiento: _MENU_SIN_WIZARD,
-    barberia:      _MENU_SIN_WIZARD,
-    tatuajes:      _MENU_SIN_WIZARD,
-    estetica:      _MENU_SIN_WIZARD,
-    unas:          _MENU_SIN_WIZARD,
+    servicios:     _MENU_SERVICIO,
+    mantenimiento: _MENU_SERVICIO,
+    barberia:      _MENU_SERVICIO,
+    tatuajes:      _MENU_SERVICIO,
+    estetica:      _MENU_SERVICIO,
+    unas:          _MENU_SERVICIO,
     custom:        _MENU_SIN_WIZARD,
 };
 

@@ -1053,3 +1053,20 @@ CREATE TABLE IF NOT EXISTS nominas (
     creada_en    TEXT DEFAULT (datetime('now','localtime')),
     UNIQUE(id_empleado, desde, hasta)
 );
+
+-- 0026: citas (giros de servicio — bot agenda, dashboard opera, watcher recuerda 24h antes)
+CREATE TABLE IF NOT EXISTS citas (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    telefono             TEXT NOT NULL,
+    nombre               TEXT,
+    servicio             TEXT,
+    fecha                TEXT NOT NULL,
+    hora                 TEXT NOT NULL,
+    estatus              TEXT NOT NULL DEFAULT 'pendiente'
+                         CHECK(estatus IN ('pendiente','confirmada','completada','cancelada','no_asistio')),
+    notas                TEXT,
+    recordatorio_enviado INTEGER NOT NULL DEFAULT 0,
+    creado_en            TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_citas_fecha ON citas(fecha, hora);
+CREATE INDEX IF NOT EXISTS idx_citas_tel ON citas(telefono);
