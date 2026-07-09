@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bike, Check, History, ReceiptText, RefreshCw } from 'lucide-react';
+import { Bike, Check, History, Link2, ReceiptText, RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Table, Select, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
@@ -183,6 +183,12 @@ export default function Pedidos() {
                       )}
                       <ActionIcon variant="default" title="Ver ticket" onClick={() => abrirTicket(r.id_pedido)}><ReceiptText size={16} strokeWidth={1.75} /></ActionIcon>
                       <ActionIcon variant="default" title="Historial del pedido" onClick={() => verHistorial(r.id_pedido)}><History size={16} strokeWidth={1.75} /></ActionIcon>
+                      {r.pago_estatus !== 'pagado' && (
+                        <ActionIcon variant="default" title="Enviar link de pago por WhatsApp" onClick={async () => {
+                          const rr = await api.post(`/api/pagos/${r.id_pedido}/enviar-link`).catch(e => ({ ok: false, error: e.message }));
+                          alert(rr.ok ? 'Link de pago enviado al cliente por WhatsApp' : (rr.error || 'No se pudo'));
+                        }}><Link2 size={16} strokeWidth={1.75} /></ActionIcon>
+                      )}
                     </Group>
                   </td>
                 </tr>

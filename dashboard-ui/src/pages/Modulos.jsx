@@ -84,6 +84,7 @@ const MODULOS = [
   { key: 'carritos_activo', titulo: 'Carritos abandonados', desc: 'Mensaje automático 2h después' },
   { key: 'vision_activo', titulo: 'Búsqueda por imagen', desc: 'Vision API para búsqueda con fotos' },
   { key: 'referidos_activo', titulo: 'Programa de referidos', desc: 'Código de referido y puntos en la primera compra' },
+  { key: 'pago_link_activo', titulo: '🔗 Link de pago', desc: 'Enviar por WhatsApp un link de pago (tu Clip/Mercado Pago/PayPal, o un gateway) desde el bot y el POS' },
   { key: 'pago_multimetodo_activo', titulo: 'Pago multi-método', desc: 'El bot ofrece efectivo/contra entrega, transferencia y link (no solo link)' },
   { key: 'entrega_pickup_activo', titulo: 'Recoger en sucursal', desc: 'El bot ofrece pickup en tienda' },
   { key: 'entrega_paqueteria_activo', titulo: 'Envío por paquetería', desc: 'El bot ofrece envío a domicilio por paquetería (Estafeta)' },

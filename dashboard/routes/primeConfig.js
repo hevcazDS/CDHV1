@@ -350,6 +350,24 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // GET/PUT /api/prime/pago-url — el link de pago que el negocio ya tiene
+    // (Clip/Mercado Pago/PayPal.me), que el bot y el POS envían por WhatsApp.
+    if (p === '/api/prime/pago-url' && req.method === 'GET') {
+        if (!requireSession(req, res, ['prime'])) return;
+        return json(res, { pago_url_base: db.prepare("SELECT valor FROM configuracion WHERE clave='pago_url_base'").get()?.valor || '' });
+    }
+    if (p === '/api/prime/pago-url' && req.method === 'PUT') {
+        if (!requireSession(req, res, ['prime'])) return;
+        return readBody(req, body => {
+            try {
+                const v = String(JSON.parse(body || '{}').pago_url_base || '').trim();
+                if (v && !/^https?:\/\//i.test(v)) return json(res, { ok: false, error: 'El link debe empezar con http(s)://' }, 400);
+                db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('pago_url_base', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(v);
+                return json(res, { ok: true, pago_url_base: v });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
     // GET/PUT /api/prime/config-contacto — teléfono del operador (antes solo
     // ASESOR_WHATSAPP en .env), contacto de soporte (url/teléfono/correo) y
     // destino(s) de correo de los backups automáticos. Todo vía `bot/flows/

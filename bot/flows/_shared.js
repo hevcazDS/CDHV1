@@ -728,9 +728,16 @@ function debePreguntarMetodoPago() {
 // ═══════════════════════════════════════════════════════
 function insertarLinkPago(pedidoRowid, monto, folio) {
     const token   = `PP-${folio}-${Date.now()}`;
-    const linkUrl = moduloActivo('pago_real_activo')
-        ? _crearLinkPagoReal(pedidoRowid, monto, folio, token)
-        : `https://www.paypal.com/checkoutnow?token=${token}`;
+    let linkUrl;
+    if (moduloActivo('pago_real_activo')) {
+        linkUrl = _crearLinkPagoReal(pedidoRowid, monto, folio, token);
+    } else if (moduloActivo('pago_link_activo')) {
+        // Link de pago del negocio (su Clip/MP/gateway) — punto único
+        try { linkUrl = require('../../services/pagoLinkService').generarLink({ idPedido: pedidoRowid, folio, monto }).url; }
+        catch (_) { linkUrl = `https://www.paypal.com/checkoutnow?token=${token}`; }
+    } else {
+        linkUrl = `https://www.paypal.com/checkoutnow?token=${token}`;
+    }
     const expira  = new Date(Date.now() + 48*3600*1000).toISOString().replace('T',' ').substring(0,19);
     db.prepare(`
         INSERT INTO links_pago (id_pedido, id_metodo, url_link, token_externo, monto, moneda, estatus, fecha_expiracion)

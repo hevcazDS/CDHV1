@@ -264,6 +264,29 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // POST /api/pagos/:id/enviar-link — genera el link de pago del pedido y lo
+    // manda por WhatsApp al cliente (desde el panel/POS). Área operación.
+    if (req.method === 'POST' && p.match(/^\/api\/pagos\/\d+\/enviar-link$/)) {
+        const sesL = requireSession(req, res);
+        if (!sesL) return;
+        const idP = parseInt(p.split('/')[3]);
+        const pagoLink = require('../../services/pagoLinkService');
+        if (!pagoLink.pagoLinkActivo()) return json(res, { ok: false, error: 'Activa el módulo "Link de pago" en Módulos' }, 400);
+        const ped = db.prepare('SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente WHERE p.id_pedido=?').get(idP);
+        if (!ped) return json(res, { ok: false, error: 'Pedido no encontrado' }, 404);
+        const tel = ped.telefono || ped.cliente_telefono;
+        if (!tel) return json(res, { ok: false, error: 'El pedido no tiene teléfono de cliente' }, 400);
+        try {
+            const monto = ped.total || db.prepare("SELECT SUM(monto) m FROM links_pago WHERE id_pedido=?").get(idP)?.m || 0;
+            const { url, referencia } = pagoLink.generarLink({ idPedido: idP, folio: ped.folio, monto });
+            // dejar/actualizar la fila de links_pago (generado)
+            try { db.prepare("INSERT INTO links_pago (id_pedido, url_link, token_externo, monto, moneda, estatus) VALUES (?,?,?,?, 'MXN','generado')").run(idP, url, referencia, monto); } catch (_) {}
+            const cuerpo = 'Para pagar tu pedido *' + (ped.folio || '#' + idP) + '* ($' + Number(monto).toFixed(2) + '):\n\n' + url + '\n\nReferencia: *' + referencia + '*';
+            db.prepare("INSERT INTO cola_notificaciones (tipo, destinatario, asunto, cuerpo, estatus) VALUES ('whatsapp', ?, 'Link de pago', ?, 'pendiente')").run(tel, cuerpo);
+            return json(res, { ok: true, url, referencia });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+    }
+
     // POST /api/pagos/:id/marcar-pagado — cobro recibido fuera de PayPal
     // (efectivo, transferencia, etc). Antes de esto no había NINGÚN código
     // que moviera un links_pago de 'generado' a 'pagado'.
