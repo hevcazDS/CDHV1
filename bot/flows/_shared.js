@@ -61,6 +61,7 @@ const S = {
     CITA_HORA:       'CITA_HORA',
     CITA_CONFIRMA:   'CITA_CONFIRMA',
     VARIANTE:        'VARIANTE',
+    PAGO_COMPROBANTE: 'PAGO_COMPROBANTE',
 };
 
 // ═══════════════════════════════════════════════════════

@@ -63,7 +63,7 @@ const {
     registrarMetodoPago,
 } = shared;
 
-const STEPS = [S.SHOW_CART, S.CONFIRM_ORDER, S.OFERTAS, S.CUPON, S.PAGO_METODO];
+const STEPS = [S.SHOW_CART, S.CONFIRM_ORDER, S.OFERTAS, S.CUPON, S.PAGO_METODO, S.PAGO_COMPROBANTE];
 
 async function handle(ctx) {
     const { userId, session, message, client, raw, action, step, data, tel } = ctx;
