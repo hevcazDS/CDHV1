@@ -1,22 +1,50 @@
-> ## ESTADO REAL — 2026-07-08 (leer antes que el plan de abajo)
-> Auditado contra el código: buena parte de lo planeado abajo YA ESTÁ CONSTRUIDO.
->
-> **HECHO** ✅: Fase 1 (fixes críticos, reversión de cobros/puntos, IVA aplicado,
-> horario/remitente configurables) · ERP completo (plan de cuentas, asientos
-> automáticos, proveedores/OC/CxP, costeo promedio, gastos, reporte de
-> impuestos IVA trasladado vs acreditable, lector de CFDI XML) · POS multi-caja
-> (corte por usuario único/día, escáner, decimal p/ granel, PIN en cancelar/
-> precio) · RBAC 10 roles + auditor solo-lectura + PIN de autorización ·
-> Kardex universal · Almacén (ubicaciones, conteo por UPC con plantilla,
-> traslados) · RRHH/nómina MX con PIN antifraude · Citas con recordatorio 24h
-> (6 giros de servicio) · Variantes talla×color con stock por sucursal ·
-> Editor de frases del bot en Prime · Multimodal con respuesta por tipo ·
-> Sesiones firmadas con secreto de instancia (no migrables).
->
-> **PENDIENTE REAL**: ISP/cambaceo (falta: zonas_cobertura + comisiones por
-> vendedor; citas y planes-servicio ya existen) · Pasarela de pago real
-> (Stripe/MP — requiere cuentas del cliente) · Conciliación bancaria · CFDI
-> timbrado con PAC · Hotel (EN PAUSA por decisión del dueño 2026-07-08).
+# PLAN MAESTRO — checklist vivo (actualizado 2026-07-09)
+
+Única fuente del rumbo. Al terminar algo: palomearlo aquí con fecha.
+Lo de abajo (plan histórico) queda como referencia — NO seguirlo directo.
+
+## ✅ Construido y verificado (no reabrir)
+
+- [x] ERP: plan de cuentas, asientos automáticos, balanza, proveedores/OC/CxP, costeo promedio
+- [x] Gastos del contador + reporte de impuestos (IVA trasladado vs acreditable) + lector CFDI XML
+- [x] POS multi-caja: corte único por usuario/día, escáner, decimal (granel), PIN en cancelar/precio, reimprimir ticket
+- [x] RBAC 10 roles + auditor solo-lectura (candado global GET) + PIN de autorización operativa
+- [x] Kardex universal inmutable (triggers 0030) + conteo por UPC con plantilla + ubicaciones + traslados
+- [x] RRHH/nómina MX (ISR/IMSS aprox) con PIN antifraude en pagar/salario
+- [x] Citas con recordatorio 24h (barbería/tatuajes/estética/uñas/mantenimiento/servicios/ISP)
+- [x] Variantes talla×color con stock POR SUCURSAL (bot pregunta talla; POS escanea variante)
+- [x] ISP: zonas de cobertura por CP + comisiones por vendedor
+- [x] Editor de frases del bot por instancia (Prime) + multimodal con respuesta por tipo
+- [x] Sesiones firmadas con secreto de instancia (no migrables) + catálogo de errores HS-xxx (ERRORES.md)
+- [x] Bot bajo demanda: QR modal auto-cierre, regla anti-zombie HS-502 (intento único), reinicio de bridge, purga de sesión WhatsApp (HS-503)
+- [x] Inicios por rol + herramientas por rol (exports CSV, cancelar OC, reactivar empleado)
+- [x] 2026-07-09 — Benchmarks ERP adoptados: cierre de período contable (SAP), dependencias entre módulos (Odoo), versión visible en panel, inmutabilidad de libros por triggers (SAP)
+
+## 🔜 EN COLA (orden acordado)
+
+- [ ] **Panel de flota Hevcaz** (idea NetSuite): status.json por instancia (versión, bot online, último backup, HS-errores) + panel central del proveedor — *cuando haya 3+ clientes*
+- [ ] **Cadena de documento navegable** (idea SAP): campo documento_origen consistente + vista "rastro" venta→kardex→asiento→cobro
+- [ ] **Filtros guardados** (idea NetSuite): guardar filtros de Pedidos/Clientes con nombre por usuario
+- [ ] **Bitácora por registro** (idea Odoo): pestaña "Historial" en el pedido juntando estatus/pagos/cancelación/repartidor
+- [ ] Comprobante de transferencia por FOTO en el bot (estado PAGO_COMPROBANTE) + adjuntar foto de devolución a la notificación del asesor
+- [ ] Ubicación GPS del cliente → pre-llenar dirección cuando hay repartidor propio
+- [ ] Guiones de venta V1-V12 restantes (psicología/conversión) — revisar cuáles faltan realmente
+
+## ⏸️ EN PAUSA / BLOQUEADOS (no tocar sin decisión del dueño)
+
+- [ ] **Hotel** (habitaciones + calendario de ocupación) — PAUSADO por el dueño 2026-07-08
+- [ ] **Pasarela de pago real** (Stripe/MercadoPago/OXXO) — bloqueado: requiere cuentas del cliente
+- [ ] **CFDI timbrado con PAC** (Facturama/SW) — bloqueado: requiere contrato PAC del cliente
+- [ ] **Conciliación bancaria** — tiene sentido después de la pasarela
+
+## 🔁 Recurrentes antes de cada deploy
+
+- [ ] `node scripts/demoMetricas.js revertir` (si se sembró demo)
+- [ ] Borrar usuarios de prueba (caja1, auditor1, alm1)
+- [ ] `TRUST_PROXY=1` + SOPORTE_HEVCAZ_* en el .env del servidor
+- [ ] El secreto `dashboard/.instancia_secret` NUNCA se copia entre servidores
+
+
 
 # Auditoría consolidada y plan por fases
 

@@ -58,7 +58,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/me' && req.method === 'GET') {
         const s = obtenerSesion(req);
         if (!s) return json(res, { ok: false }, 401);
-        return json(res, { ok: true, username: s.username, rol: s.rol });
+        return json(res, { ok: true, username: s.username, rol: s.rol, version: ctx.APP_VERSION });
     }
 
     // GET /api/pedidos

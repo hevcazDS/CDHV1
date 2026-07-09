@@ -8,7 +8,7 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
     if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')
-        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos')) {
+        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre')) {
         const ses = requireSession(req, res);
         if (!ses) return;
         if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
@@ -39,6 +39,27 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/erp/libro-mayor' && req.method === 'GET') {
         const { desde, hasta } = _rango();
         return json(res, { desde, hasta, cuentas: conta.libroMayor(desde, hasta) });
+    }
+
+    // Cierre de período contable (idea SAP): 'YYYY-MM' — nada se asienta en
+    // meses <= cerrado. Reabrir = borrar el valor (queda en el log de quién).
+    if (p === '/api/erp/periodo-cierre' && req.method === 'GET') {
+        return json(res, { cerrado: db.prepare("SELECT valor FROM configuracion WHERE clave='periodo_cerrado'").get()?.valor || null });
+    }
+    if (p === '/api/erp/periodo-cierre' && req.method === 'PUT') {
+        const sesP = requireSession(req, res);
+        if (!sesP) return;
+        if (!permite(sesP.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
+        return readBody(req, body => {
+            try {
+                const v = String(JSON.parse(body || '{}').cerrado || '').trim();
+                if (v && !/^\d{4}-\d{2}$/.test(v)) return json(res, { ok: false, error: 'Formato YYYY-MM (o vacío para reabrir)' }, 400);
+                if (v) db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('periodo_cerrado', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(v);
+                else db.prepare("DELETE FROM configuracion WHERE clave='periodo_cerrado'").run();
+                ctx.log.info('[contable] período ' + (v ? 'cerrado hasta ' + v : 'REABIERTO') + ' por ' + sesP.username);
+                return json(res, { ok: true, cerrado: v || null });
+            } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }
+        });
     }
 
     // Registro de GASTOS directos (renta, luz, papelería) → asiento 601

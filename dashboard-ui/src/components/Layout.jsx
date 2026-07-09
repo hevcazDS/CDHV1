@@ -151,7 +151,7 @@ export default function Layout() {
           <ThemeSwitcher />
           <NotificationBell />
           <BotStatusWidget />
-          <div className="avatar-chip" title={`${user?.username} · ${etiquetaRol(user?.rol)}`}>{iniciales}</div>
+          <div className="avatar-chip" title={`${user?.username} · ${etiquetaRol(user?.rol)}{user?.version ? ' · v' + user.version : ''}`}>{iniciales}</div>
         </div>
       </AppShell.Header>
 

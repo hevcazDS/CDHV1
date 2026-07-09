@@ -34,4 +34,13 @@ const DEFAULT_OFF = [
     'rrhh_activo',
 ];
 
-module.exports = { DEFAULT_OFF };
+// Dependencias entre módulos (idea Odoo): activar la llave exige que sus
+// dependencias estén activas; apagar una dependencia con dependientes
+// activos se bloquea. Lo valida el toggle del dashboard.
+const DEPENDE_DE = {
+    facturacion_activo: ['contabilidad_activo'],
+    // el picker de método de pago en el bot presupone métodos configurados,
+    // pero eso ya lo resuelve el catálogo metodos_pago — sin dependencia dura
+};
+
+module.exports = { DEFAULT_OFF, DEPENDE_DE };

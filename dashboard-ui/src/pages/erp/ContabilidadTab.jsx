@@ -4,6 +4,7 @@ import { Card, Text, TextInput, Group } from '@mantine/core';
 import { api } from '../../api';
 import { Button } from '@mantine/core';
 import { exportarCSV } from '../../lib/csv';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Libro mayor + diario de asientos. Los asientos automáticos requieren el
 // módulo "Contabilidad" encendido (Módulos); aquí solo se consulta.
@@ -36,6 +37,7 @@ export default function ContabilidadTab() {
           cuentas.map(x => [x.cuenta, x.nombre, x.debe.toFixed(2), x.haber.toFixed(2), x.saldo.toFixed(2)]))}>
           Exportar libro (CSV)
         </Button>
+        <PeriodoCierre />
         <Button variant="default" size="xs" onClick={() => exportarCSV(`diario_${desde}_${hasta}`,
           ['fecha', 'concepto', 'cuenta', 'debe', 'haber'],
           asientos.flatMap(a => (a.partidas || []).map(pa => [a.fecha, a.concepto, pa.cuenta + ' ' + (pa.nombre || ''), pa.debe.toFixed(2), pa.haber.toFixed(2)])))}>
@@ -93,5 +95,28 @@ export default function ContabilidadTab() {
         </Card>
       </div>
     </div>
+  );
+}
+
+
+// Cierre de período (idea SAP): nada se asienta en meses ya cerrados —
+// candado que pide todo contador. Reabrir queda logueado.
+function PeriodoCierre() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ['periodo-cierre'], queryFn: () => api.get('/api/erp/periodo-cierre') });
+  const mut = useMutation({
+    mutationFn: (cerrado) => api.put('/api/erp/periodo-cierre', { cerrado }),
+    onSuccess: (r) => { if (r.ok === false) alert(r.error); qc.invalidateQueries({ queryKey: ['periodo-cierre'] }); },
+  });
+  const mesPasado = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7);
+  return (
+    <Group gap="xs" align="end">
+      <Text size="xs" c={data?.cerrado ? 'red' : 'dimmed'}>
+        {data?.cerrado ? `Período CERRADO hasta ${data.cerrado}` : 'Período abierto'}
+      </Text>
+      {!data?.cerrado
+        ? <Button size="xs" variant="default" onClick={() => window.confirm(`¿Cerrar el período hasta ${mesPasado}? Nada podrá asentarse en esos meses.`) && mut.mutate(mesPasado)}>Cerrar hasta {mesPasado}</Button>
+        : <Button size="xs" variant="light" color="red" onClick={() => window.confirm('¿REABRIR el período? (queda registrado)') && mut.mutate('')}>Reabrir</Button>}
+    </Group>
   );
 }

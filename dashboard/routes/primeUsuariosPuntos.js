@@ -111,12 +111,28 @@ module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
     // POST /api/puntos/config — habilitar o deshabilitar cualquier módulo (gerente+)
     // Body: { activo: true | false } o { clave: 'nombre_modulo', activo: true | false }
     if (p === '/api/puntos/config' && req.method === 'POST') {
+        // (las validaciones de dependencias entre módulos van adentro, tras
+        // parsear el body — ver _validarDependencias)
         if (!requireSession(req, res, ['gerente'])) return;
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body), ModuloConfigSchema, res, p);
                 if (!datos) return;
                 const { clave, activo } = datos;
+                // Dependencias entre módulos (idea Odoo)
+                const { DEPENDE_DE, DEFAULT_OFF } = require('../../bot/flows/modulosDefaults');
+                const _estaActivo = (k) => {
+                    const r = db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(k);
+                    return r ? r.valor !== '0' : !DEFAULT_OFF.includes(k);
+                };
+                if (activo) {
+                    for (const dep of (DEPENDE_DE[clave] || [])) {
+                        if (!_estaActivo(dep)) return json(res, { ok: false, error: `Este módulo depende de "${dep}" — actívalo primero` }, 400);
+                    }
+                } else {
+                    const dependientes = Object.entries(DEPENDE_DE).filter(([hijo, deps]) => deps.includes(clave) && _estaActivo(hijo)).map(([hijo]) => hijo);
+                    if (dependientes.length) return json(res, { ok: false, error: `No se puede apagar: ${dependientes.join(', ')} depende(n) de este módulo` }, 400);
+                }
                 db.prepare('INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES (?, ?, datetime(\'now\',\'localtime\'))').run(clave, activo ? '1' : '0');
                 log.info('Módulo ' + clave + ': ' + (activo ? 'ACTIVADO' : 'DESACTIVADO'));
                 return json(res, { ok: true, clave, activo });

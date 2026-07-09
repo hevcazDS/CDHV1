@@ -18,6 +18,12 @@ function activo() { return _activoFn(); }
 // partidas: [{ cuenta, debe?, haber? }] — debe cuadrar (±1 centavo)
 function registrarAsiento({ concepto, referencia_tipo = 'manual', referencia_id = null, partidas }) {
     if (!Array.isArray(partidas) || partidas.length < 2) throw new Error('Un asiento requiere al menos 2 partidas');
+    // CIERRE DE PERÍODO (idea SAP): si el mes en curso ya está cerrado por
+    // el contador ('periodo_cerrado' = 'YYYY-MM'), no entra ningún asiento.
+    const cerrado = getValor('periodo_cerrado', '');
+    if (cerrado && new Date().toISOString().slice(0, 7) <= cerrado) {
+        throw new Error('Período contable CERRADO hasta ' + cerrado + ' — reabre el período en ERP > Contabilidad para asentar');
+    }
     let debe = 0, haber = 0;
     for (const pa of partidas) {
         if (!pa.cuenta) throw new Error('Partida sin cuenta');
