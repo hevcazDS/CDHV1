@@ -80,9 +80,13 @@ async function handle(ctx) {
             return `🔍 ¿Qué otro ${vocab().item} buscas?`;
         }
         if (action === '2' || action.includes('pagar') || action.includes('continuar')) {
-            shared.logEvento('checkout_iniciado', totalCarrito(carrito).toFixed(2), tel);
+            const _sub = totalCarrito(carrito);
+            shared.logEvento('checkout_iniciado', _sub.toFixed(2), tel);
             sessionManager.updateSession(userId, S.ASK_CP, { ...data });
-            return `📮 Dime tu *código postal* para revisar disponibilidad y proceder al pago:`;
+            // Ventas: anclar el subtotal ANTES de pedir el CP (menos fricción).
+            return `🛒 Tu subtotal es *$${_sub.toFixed(2)} MXN*.
+
+📮 Dime tu *código postal* para calcular el envío y darte el total exacto:`;
         }
         if (action === '3' || action.includes('vaciar') || action.includes('limpiar')) {
             sessionManager.updateSession(userId, S.SEARCHING, { ...data, carrito: [] });
@@ -148,6 +152,7 @@ async function handle(ctx) {
                 );
             }
             const resultado = grabarPedidoEnvio(data, tel);
+            shared.logEvento('orden_confirmada', resultado.folio, tel); // embudo (CRO)
             tagCliente(tel, 'pedido_pendiente');
             const _eprevPeds = db.prepare("SELECT COUNT(*) AS n FROM pedidos WHERE id_cliente=(SELECT id FROM clientes WHERE telefono=? LIMIT 1) OR cliente=?").get(tel, data.nombre||tel);
             if ((_eprevPeds?.n||0) >= 1) tagCliente(tel, 'cliente_recurrente');

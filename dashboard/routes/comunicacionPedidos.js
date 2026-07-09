@@ -98,9 +98,12 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/masivo' && req.method === 'POST') {
         return readBody(req, body => {
             try {
-                const datos = validar(JSON.parse(body), MasivoSchema, res, p);
+                const _raw = JSON.parse(body);
+                const datos = validar(_raw, MasivoSchema, res, p);
                 if (!datos) return;
                 const { mensaje, soloConPedido, limite, excluirTags, soloTags, sinActividad } = datos;
+                // Código de campaña para atribución (Marketing) — sanitizado
+                const _campana = (String(_raw.codigo_campana || '').trim() || 'promocion_masiva').slice(0, 40).replace(/[^a-zA-Z0-9_-]/g, '_');
 
                 let clientes = construirAudienciaMasivo({ soloConPedido, excluirTags, soloTags, sinActividad });
                 if (limite && limite > 0) clientes = clientes.slice(0, limite);
@@ -122,12 +125,13 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                 // campana: tag fijo para poder medir conversión de envíos masivos en
                 // /api/metricas/campanas — si la columna todavía no existe en
                 // producción, cae al INSERT sin ella y el envío sigue funcionando igual.
-                let stmt;
+                let stmt, _conCampana = true;
                 try {
                     stmt = db.prepare(
-                        "INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus,enviar_despues_de,campana) VALUES ('whatsapp',?,'Promocion masiva',?,?,?,'promocion_masiva')"
+                        "INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus,enviar_despues_de,campana) VALUES ('whatsapp',?,'Promocion masiva',?,?,?,?)"
                     );
                 } catch (_) {
+                    _conCampana = false;
                     stmt = db.prepare(
                         "INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus,enviar_despues_de) VALUES ('whatsapp',?,'Promocion masiva',?,?,?)"
                     );
@@ -138,7 +142,8 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                         const nombre = cli.nombre ? cli.nombre.split(' ')[0] : 'Cliente';
                         const nombreCap = nombre.charAt(0).toUpperCase() + nombre.slice(1).toLowerCase();
                         const msgP = mensaje.replace(/\{nombre\}/gi, nombreCap);
-                        stmt.run(cli.telefono, msgP, _estatus, _enviarDespues);
+                        if (_conCampana) stmt.run(cli.telefono, msgP, _estatus, _enviarDespues, _campana);
+                        else stmt.run(cli.telefono, msgP, _estatus, _enviarDespues);
                         encolados++;
                     }
                 });
@@ -298,6 +303,12 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                     // ningún ticket físico, aplica a cualquier pedido pagado/confirmado.
                     try { require('../bot/handlers/puntosService').otorgarPuntosPorCompra(ped.id_pedido); }
                     catch (e) { log.debug('No se pudo procesar otorgamiento de puntos por compra: ' + e.message); }
+                    // Embudo (CRO): marca el carrito abandonado como convertido
+                    // y registra el evento — mide ROI real de la recuperación.
+                    try {
+                        const conv = db.prepare("UPDATE carritos_abandonados SET convertido=1 WHERE telefono=? AND convertido=0").run(ped.telefono || '');
+                        if (conv.changes > 0) db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('carrito_convertido','whatsapp',?,?)").run(String(ped.total||''), ped.telefono || null);
+                    } catch (_) {}
                     // Único disparador del programa de referidos: primera compra finalizada.
                     try { require('../bot/handlers/referidosService').otorgarPuntosPorPrimeraCompra(ped.id_cliente); }
                     catch (e) { log.debug('No se pudo procesar otorgamiento de puntos por referido: ' + e.message); }

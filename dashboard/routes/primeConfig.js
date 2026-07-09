@@ -27,6 +27,20 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // GET /api/marketing/wa-link?campana=X — link wa.me compartible para
+    // redes con la campaña embebida en el texto ([promo:X]); el bot la
+    // captura en el primer mensaje → clientes.canal_origen (atribución).
+    if (p === '/api/marketing/wa-link' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
+        const sp = new URL(req.url, 'http://x').searchParams;
+        const campana = (sp.get('campana') || '').trim().slice(0, 30).replace(/[^a-zA-Z0-9_-]/g, '_') || 'general';
+        const num = String(db.prepare("SELECT valor FROM configuracion WHERE clave='operador_telefono'").get()?.valor
+            || process.env.ASESOR_WHATSAPP || '').replace(/\D/g, '');
+        if (!num) return json(res, { ok: false, error: 'Configura el teléfono del operador en Prime > General' }, 400);
+        const texto = `Hola, quiero información [promo:${campana}]`;
+        return json(res, { ok: true, campana, link: `https://wa.me/${num}?text=${encodeURIComponent(texto)}` });
+    }
+
     // GET /api/modulos — estado de TODOS los módulos en UNA sola llamada
     // (rendimiento: Modulos.jsx hacía 17 requests en serie). Mapa {clave:activo}.
     if (p === '/api/modulos' && req.method === 'GET') {

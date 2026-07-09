@@ -62,6 +62,8 @@ export default function Notificaciones() {
   const [audienciaTipo, setAudienciaTipo] = useState('todos');
   const [limM, setLimM] = useState(50);
   const [msgMasivo, setMsgMasivo] = useState('');
+  const [codigoCampana, setCodigoCampana] = useState('');
+  const [waLink, setWaLink] = useState('');
   const [cuando, setCuando] = useState('ahora');
   const [fechaProg, setFechaProg] = useState('');
   const [respMasivo, setRespMasivo] = useState(null);
@@ -276,6 +278,7 @@ export default function Notificaciones() {
 
     enviarMasivoMutation.mutate({
       mensaje: mensajeFinal, limite: limM, enviarEn,
+      codigo_campana: codigoCampana || undefined,
       soloConPedido: audienciaTipo === 'conPedido',
       soloTags: audienciaTipo === 'recurrentes' ? ['cliente_recurrente'] : [],
       sinActividad: audienciaTipo === 'sinActividad',
@@ -531,6 +534,16 @@ export default function Notificaciones() {
               </div>
             )}
 
+            <TextInput label="Código de campaña (opcional — para medir atribución)" placeholder="ej. VERANO_IG"
+              value={codigoCampana} onChange={e => setCodigoCampana(e.target.value)} mb="xs" size="xs" />
+            <Group gap="xs" mb="sm">
+              <Button size="xs" variant="default" onClick={async () => {
+                try { const r = await api.get('/api/marketing/wa-link?campana=' + encodeURIComponent(codigoCampana || 'general'));
+                  if (r.ok) { setWaLink(r.link); navigator.clipboard?.writeText(r.link); } else alert(r.error);
+                } catch (e) { alert(e.message); }
+              }}>Generar link wa.me para redes</Button>
+              {waLink && <span style={{ fontSize: 11, color: 'var(--text-mute)', wordBreak: 'break-all' }}>Copiado: {waLink}</span>}
+            </Group>
             <Button fullWidth disabled={enviarMasivoMutation.isPending} onClick={enviarMasivo}>
               <Emoji></Emoji>Enviar a {audiencia?.length || 0} clientes
             </Button>

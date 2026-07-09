@@ -65,7 +65,8 @@ const {
 function buscarUpsellMsg(prod, totalAct) {
     if (!moduloActivo('upselling_activo')) return '';
     const FLETE_UMBRAL = parseFloat(process.env.FLETE_UMBRAL || '699');
-    if (totalAct >= FLETE_UMBRAL) return '';
+    // Ventas: el complemento se muestra SIEMPRE (antes se ocultaba al pasar
+    // el umbral de envío gratis, perdiendo ticket del cliente que ya calificó).
     try {
         const _nombre = (prod.name || '').toLowerCase();
         const _familias = [
@@ -84,9 +85,11 @@ function buscarUpsellMsg(prod, totalAct) {
         if (!_disponibles.length) return '';
         const _sug = _disponibles[0];
         const _falta = FLETE_UMBRAL - totalAct;
-        const _hint = totalAct + _sug.price >= FLETE_UMBRAL
-            ? ' _¡Con esto llegas a envío gratis!_ 🎉'
-            : ' _Te faltan $' + _falta.toFixed(0) + ' para envío gratis._';
+        const _hint = totalAct >= FLETE_UMBRAL
+            ? ' _suelen ir juntos._'
+            : (totalAct + _sug.price >= FLETE_UMBRAL
+                ? ' _¡Con esto llegas a envío gratis!_ 🎉'
+                : ' _Te faltan $' + _falta.toFixed(0) + ' para envío gratis._');
         return '\n\n💡 *' + _familia.label + ', muchos llevan también:*\n' +
             '*' + _sug.name + '* — $' + Number(_sug.price).toFixed(2) + ' MXN' + _hint;
     } catch (_) { return ''; }

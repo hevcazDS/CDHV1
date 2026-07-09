@@ -540,7 +540,11 @@ function registrarContactoEntrante(telefono, textoPrimerMensaje) {
         try { _db.prepare("INSERT OR IGNORE INTO chats_iniciados (telefono, fecha) VALUES (?, date('now','localtime'))").run(telefono); } catch (_) {}
         const existe = _db.prepare('SELECT id FROM clientes WHERE telefono=?').get(telefono);
         if (!existe) {
-            const info = _db.prepare("INSERT INTO clientes (nombre,telefono,canal_origen,activo) VALUES (NULL,?,'whatsapp',1)").run(telefono);
+            // Atribución de campaña: si el primer mensaje trae [promo:CODE]
+            // (del link wa.me compartido en redes), se guarda como canal_origen.
+            let _origen = 'whatsapp';
+            try { const _mp = (textoPrimerMensaje || '').match(/\[promo:([a-zA-Z0-9_-]{1,30})\]/i); if (_mp) _origen = 'promo:' + _mp[1]; } catch (_) {}
+            const info = _db.prepare("INSERT INTO clientes (nombre,telefono,canal_origen,activo) VALUES (NULL,?,?,1)").run(telefono, _origen);
             // Referidos: aquí solo se vincula; los puntos van en la primera compra
             try {
                 require('./handlers/referidosService').procesarReferidoSiAplica(info.lastInsertRowid, telefono, textoPrimerMensaje);

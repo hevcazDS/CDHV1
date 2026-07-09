@@ -58,13 +58,13 @@ ERP > Tablero de dirección (GET /api/erp/tablero, área finanzas; auditor lee).
 - [x] Índices SQL (migración 0032: folio/cliente/nombre/brand/links_pago) + batch `GET /api/modulos` (Modulos.jsx pasó de 17 requests en serie a 1)
 - [x] Quick-wins de copy: emoji por giro (fuera 🧸 hardcodeado en _shared/asesorFlow), leyenda CFDI clara ("no es factura fiscal timbrada"), disclaimer nómina "aproximada" en confirm antes de pagar, ETA de asesor honesto
 - [x] Guía Estafeta: el bot avisa "(número de referencia)" cuando la guía es simulada
-- [ ] PENDIENTE: Marketing link wa.me + códigos de campaña (atribución) — Marketing
-- [ ] PENDIENTE: Eventos de embudo intermedios — CRO
+- [x] 2026-07-09 (v1.02) Marketing: link wa.me con campaña embebida (GET /api/marketing/wa-link) + el bot captura promo:CODE del 1er mensaje en canal_origen; masivos aceptan codigo_campana para atribucion en /api/metricas/campanas
+- [x] 2026-07-09 (v1.02) Eventos de embudo: orden_confirmada, direccion_capturada, carrito_convertido (el de metodo_entrega ya lo cubre paso_actual en el dataset)
 - [ ] PENDIENTE: disclaimer de Hevcaz (deslinde fiscal) en el widget de soporte — Legal
 
 ### ③ Fricción de venta/POS (medio) — v1.02 2026-07-09
 - [x] Complemento sugerido en POS (GET /api/pos/sugeridos; tira "suele llevarse también" en Mostrador) — Ventas + CRO
-- [ ] PENDIENTE (toca el checkout del bot, pase cuidadoso aparte): upsell siempre visible, auto-usar dirección guardada del recurrente, mostrar total antes del CP — Ventas
+- [x] 2026-07-09 (v1.02) Checkout: upsell siempre visible (antes se ocultaba al pasar el umbral de envío gratis); subtotal anclado ANTES de pedir el CP. Auto-usar dirección: NO — el flujo ya la reusa en 1 toque (CONFIRM_DIR_GUARDADA) y auto-usarla sin confirmar es riesgo de enviar a dirección vieja
 
 ### ④ Anotado — grande o depende de terceros (NO ahora)
 - [ ] Nómina MX completa (aguinaldo/prima vacacional/finiquito/séptimo día/expediente con antigüedad) — comité coincide: úsala como BORRADOR + PAC externo (ya documentado). Legalmente arriesgado omitir en finiquito → disclaimer en UI mitiga por ahora — RH+Legal
