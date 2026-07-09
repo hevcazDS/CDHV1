@@ -185,11 +185,19 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     // Registro de GASTOS directos (renta, luz, papelería) → asiento 601
     // (+119 si trae IVA) contra Caja/Bancos. Requiere módulo contabilidad ON.
     if (p === '/api/erp/gastos' && req.method === 'POST') {
+        const sesG = requireSession(req, res);
+        if (!sesG) return;
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');
                 const monto = Number(d.monto);
                 if (!String(d.concepto || '').trim() || !(monto > 0)) return json(res, { ok: false, error: 'Faltan concepto o monto' }, 400);
+                // Cierre forzado: bloquea si el mes anterior no está cerrado (días 1-3)
+                const _pend = conta.mesPendienteDeCierre();
+                if (_pend && !(sesG.rol === 'prime' && d.override_cierre)) {
+                    return json(res, { ok: false, error: 'Cierra primero el período ' + _pend + ' (ERP > Contabilidad). Solo Prime puede autorizar la excepción.', requiere_cierre: _pend, override_prime: sesG.rol === 'prime' }, 409);
+                }
+                if (_pend && d.override_cierre) require('../../services/configAudit').logCambio(db, 'override_cierre_gasto', _pend, sesG.username);
                 if (!conta.activo()) return json(res, { ok: false, error: 'Activa el módulo Contabilidad en Módulos para registrar gastos' }, 400);
                 const id = conta.asientoGasto(String(d.concepto).trim(), monto, d.metodo === 'bancos' ? 'bancos' : 'caja', !!d.con_iva);
                 return json(res, { ok: true, id_asiento: id });

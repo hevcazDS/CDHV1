@@ -15,6 +15,18 @@ const _r2 = (n) => Math.round(Number(n) * 100) / 100;
 let _activoFn = () => moduloActivo('contabilidad_activo');
 function activo() { return _activoFn(); }
 
+// Cierre forzado: en los días 1-3 del mes, si el mes anterior NO está
+// cerrado, devuelve ese mes ('YYYY-MM') — las rutas de gastos/facturas lo
+// usan para bloquear. Fuera de la ventana o ya cerrado → null.
+function mesPendienteDeCierre() {
+    const hoy = new Date();
+    if (hoy.getDate() > 3) return null; // solo los primeros 3 días
+    const ant = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+    const mesAnt = ant.toISOString().slice(0, 7);
+    const cerrado = getValor('periodo_cerrado', '');
+    return (cerrado && cerrado >= mesAnt) ? null : mesAnt;
+}
+
 // partidas: [{ cuenta, debe?, haber? }] — debe cuadrar (±1 centavo)
 function registrarAsiento({ concepto, referencia_tipo = 'manual', referencia_id = null, partidas }) {
     if (!Array.isArray(partidas) || partidas.length < 2) throw new Error('Un asiento requiere al menos 2 partidas');
@@ -171,4 +183,4 @@ function libroMayor(desde, hasta) {
 function _setDb(x) { db = x; }            // solo tests
 function _setActivo(f) { _activoFn = f; } // solo tests
 
-module.exports = { activo, registrarAsiento, asientoVenta, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoEntradaContado, asientoReversa, libroMayor, _setDb, _setActivo };
+module.exports = { activo, mesPendienteDeCierre, registrarAsiento, asientoVenta, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoEntradaContado, asientoReversa, libroMayor, _setDb, _setActivo };

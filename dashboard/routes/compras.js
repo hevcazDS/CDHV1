@@ -66,6 +66,11 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');
+                const _pend = conta.mesPendienteDeCierre();
+                if (!d.solo_preview && _pend && !(ses.rol === 'prime' && d.override_cierre)) {
+                    return json(res, { ok: false, error: 'Cierra primero el período ' + _pend + '. Solo Prime autoriza la excepción.', requiere_cierre: _pend, override_prime: ses.rol === 'prime' }, 409);
+                }
+                if (!d.solo_preview && _pend && d.override_cierre) require('../../services/configAudit').logCambio(db, 'override_cierre_factura', _pend, ses.username);
                 const cfdi = require('../../services/cfdiService').parsearCFDI(d.xml);
                 if (d.solo_preview) {
                     // Preview con matcheo de conceptos contra el catálogo
@@ -137,6 +142,7 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
     }
 
     // Factura de proveedor SIN OC → CxP directa + asiento (mercancía o gasto)
+    // (el candado de cierre forzado va dentro del handler POST, ver abajo)
     if (p === '/api/compras/factura' && req.method === 'POST') {
         return readBody(req, body => {
             try {
@@ -145,6 +151,11 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
                 if (!Number.isInteger(d.id_proveedor) || !(monto > 0)) {
                     return json(res, { ok: false, error: 'Faltan proveedor/monto' }, 400);
                 }
+                const _pend = conta.mesPendienteDeCierre();
+                if (_pend && !(ses.rol === 'prime' && d.override_cierre)) {
+                    return json(res, { ok: false, error: 'Cierra primero el período ' + _pend + '. Solo Prime autoriza la excepción.', requiere_cierre: _pend, override_prime: ses.rol === 'prime' }, 409);
+                }
+                if (_pend && d.override_cierre) require('../../services/configAudit').logCambio(db, 'override_cierre_factura', _pend, ses.username);
                 const prov = db.prepare('SELECT * FROM proveedores WHERE id=?').get(d.id_proveedor);
                 if (!prov) return json(res, { ok: false, error: 'Proveedor no encontrado' }, 404);
                 const dias = Number.isInteger(d.dias_credito) ? d.dias_credito : (prov.dias_credito || 0);

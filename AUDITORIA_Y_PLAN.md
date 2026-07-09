@@ -42,7 +42,7 @@ bloque ① (bugs/controles), luego ⑦ (tablero financiero).
 - [x] 2026-07-09 (v1.01) — **Asientos opcionales** (Oxford D2): con `contabilidad_activo` OFF la venta cobra y mueve inventario pero NO asienta. Bloquear apagar el módulo con período abierto / o asiento obligatorio en el chokepoint de pago
 - [x] 2026-07-09 (v1.01) — **CFDI XXE/DoS**: el parser no rechaza `<!DOCTYPE` ni topa tamaño/conceptos. Añadir guardas (Seguridad)
 - [x] 2026-07-09 (v1.01) — **Bitácora de `configuracion`** (Oxford D1/D5): registrar quién/valor-anterior en cambios críticos (periodo_cerrado, iva_pct, mantenimiento_bd, módulos). Hoy el bypass de inmutabilidad no deja rastro
-- [ ] **Cierre de período laxo** (Oxford D6): el cierre bloquea asientos pero NO inserciones de kardex con fecha en mes cerrado
+- [x] 2026-07-09 (v1.02) **Cierre FORZADO del mes** (dueño): días 1-3 del mes, si no se cerró el anterior, se BLOQUEA capturar gastos y facturas (409 requiere_cierre). Solo Prime autoriza la excepción (override_cierre), que queda en la bitácora forense (configuracion_log). Cierra el hueco #5/D6
 - [x] 2026-07-09 (v1.01) — **PII en `cola_emails`** (Seguridad): nombre/dirección en claro en asunto/cuerpo. Redactar el asunto
 
 ### ⑦ Tablero financiero de dirección — HECHO 2026-07-09 (v1.01)
