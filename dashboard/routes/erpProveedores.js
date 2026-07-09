@@ -86,6 +86,29 @@ module.exports = function erpProveedoresRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // Reordenar: crea una OC NUEVA (abierta) copiando los items de una previa
+    // (proveedores e insumos). Área compras. Gate por recompra_activo.
+    if (req.method === 'POST' && p.match(/^\/api\/erp\/ordenes-compra\/\d+\/reordenar$/)) {
+        if (!esCompras) return json(res, { ok: false, error: 'Reordenar es del área de compras' }, 403);
+        const _rec = db.prepare("SELECT valor FROM configuracion WHERE clave='recompra_activo'").get()?.valor === '1';
+        if (!_rec) return json(res, { ok: false, error: 'Activa el módulo Recompra en Módulos' }, 400);
+        const idOrig = parseInt(p.split('/')[4]);
+        const oc = db.prepare('SELECT * FROM ordenes_compra WHERE id=?').get(idOrig);
+        if (!oc) return json(res, { ok: false, error: 'OC no encontrada' }, 404);
+        const items = db.prepare('SELECT id_producto, cantidad, costo_unitario FROM ordenes_compra_detalle WHERE id_oc=?').all(idOrig);
+        if (!items.length) return json(res, { ok: false, error: 'La OC no tiene items' }, 400);
+        const total = items.reduce((s, it) => s + it.cantidad * it.costo_unitario, 0);
+        const folio = generarFolio('oc');
+        const nuevaId = db.transaction(() => {
+            const r = db.prepare('INSERT INTO ordenes_compra (folio, id_proveedor, total, notas) VALUES (?,?,?,?)')
+                .run(folio, oc.id_proveedor, Math.round(total * 100) / 100, 'Recompra de ' + (oc.folio || '#' + idOrig));
+            const ins = db.prepare('INSERT INTO ordenes_compra_detalle (id_oc, id_producto, cantidad, costo_unitario) VALUES (?,?,?,?)');
+            for (const it of items) ins.run(r.lastInsertRowid, it.id_producto, it.cantidad, it.costo_unitario);
+            return r.lastInsertRowid;
+        })();
+        return json(res, { ok: true, id: nuevaId, folio });
+    }
+
     // Cancelar una OC ABIERTA creada por error (compras o administrador+).
     // Recibidas no se cancelan: eso ya movió inventario/CxP (usa reversa).
     if (req.method === 'POST' && p.match(/^\/api\/erp\/ordenes-compra\/\d+\/cancelar$/)) {

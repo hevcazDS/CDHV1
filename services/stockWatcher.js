@@ -32,6 +32,7 @@ function _valorConfig(clave, fallback) {
 // WhatsApp sigue funcionando igual.
 // Solo campañas de marketing respetan el opt-out; transaccionales salen siempre
 const _CAMPANAS_MARKETING = new Set([
+    'recompra',
     'carrito_abandonado_2h', 'carrito_abandonado_24h',
     'oferta_por_vencer', 'oferta_por_vencer_24h',
     'reactivacion_dormidos',
@@ -474,6 +475,44 @@ function checkQuejasSinRespuesta() {
     return total;
 }
 
+// ── Recompra de consumibles (cliente) — recordar cuando se le acaba ─────
+// Busca clientes que compraron un producto tipo 'consumible' hace ~N días
+// (config recompra_dias, def 30) y no han vuelto a comprar ESE producto; les
+// recuerda recomprarlo. Dedupe: no repetir la campaña al mismo tel en 20 días.
+// Gate: módulo recompra_activo.
+function checkRecompraConsumibles() {
+    if (!_flagActivo('recompra_activo')) return;
+    let dias = parseInt(_valorConfig ? _valorConfig('recompra_dias', '30') : '30', 10);
+    if (!Number.isFinite(dias) || dias < 1) dias = 30;
+    let filas;
+    try {
+        filas = db.prepare(`
+            SELECT c.telefono, c.nombre, pr.name producto, MAX(p.creado_en) ultima
+            FROM pedido_detalle d
+            JOIN pedidos p ON p.id_pedido = d.id_pedido
+            JOIN productos pr ON pr.id = d.id_producto AND pr.tipo = 'consumible'
+            JOIN clientes c ON c.id = p.id_cliente
+            WHERE c.telefono IS NOT NULL AND c.telefono != ''
+              AND COALESCE(c.tags,'') NOT LIKE '%troll%'
+            GROUP BY c.telefono, d.id_producto
+            HAVING MAX(p.creado_en) <= datetime('now','localtime','-' || ? || ' days')
+               AND MAX(p.creado_en) >  datetime('now','localtime','-' || ? || ' days')
+        `).all(dias, dias + 7); // ventana de 7 días para no perseguir viejos
+    } catch (_) { return; }
+    let total = 0;
+    for (const f of filas) {
+        // dedupe: ¿ya se le mandó recompra en 20 días?
+        const ya = db.prepare(`SELECT 1 FROM cola_notificaciones WHERE (destinatario=? OR destinatario LIKE ?) AND campana='recompra' AND datetime(creada_en) > datetime('now','-20 days','localtime') LIMIT 1`).get(f.telefono, f.telefono + '@%');
+        if (ya) continue;
+        const nombre = (f.nombre || '').split(' ')[0];
+        const cuerpo = '¡Hola' + (nombre ? ' ' + nombre : '') + '! ¿Ya se te acabó tu *' + f.producto + '*? 🛒\n\nEscribe *hola* y te lo dejo listo para recomprar en un momento.';
+        _insertCola(f.telefono, 'Recompra ' + f.producto, cuerpo, 'recompra');
+        total++;
+    }
+    if (total > 0) log.info('[stockWatcher] ' + total + ' recordatorio(s) de recompra de consumibles');
+    return total;
+}
+
 // ── 9. Clientes dormidos — reactivación a los 40 días sin compra ────────
 // Se espacía de los masivos (cada ~15 días) para no aturdir con publicidad:
 // si el cliente ya recibió un masivo o esta misma campaña en los últimos 15
@@ -665,6 +704,7 @@ async function runAll() {
         }
         _runCheck(checkStockMinimo, 'checkStockMinimo');
         _runCheck(checkClientesDormidos, 'checkClientesDormidos');
+        _runCheck(checkRecompraConsumibles, 'checkRecompraConsumibles');
         _runCheck(checkBackupReciente, 'checkBackupReciente');
         _runCheck(purgarImagenesAntiguas, 'purgarImagenesAntiguas');
         _runCheck(actualizarLeadScores, 'actualizarLeadScores');

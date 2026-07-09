@@ -77,7 +77,12 @@ export default function ComprasTab() {
                   <td>{oc.proveedor}</td>
                   <td>${Number(oc.total).toFixed(2)}</td>
                   <td><span className={`badge ${oc.estatus === 'recibida' ? 'badge-verde' : oc.estatus === 'cancelada' ? 'badge-rojo' : 'badge-azul'}`}>{oc.estatus}</span></td>
-                  <td>{oc.estatus === 'abierta' && (
+                  <td>
+                    <Button size="xs" variant="subtle" mr={6} onClick={async () => {
+                      const r = await api.post(`/api/erp/ordenes-compra/${oc.id}/reordenar`).catch(e => ({ ok: false, error: e.message }));
+                      if (r.ok) { alert('Nueva OC creada: ' + r.folio); qc.invalidateQueries(); } else alert(r.error);
+                    }}>Reordenar</Button>
+                    {oc.estatus === 'abierta' && (
                     <>
                     <Button size="xs" variant="default" onClick={() => recibir.mutate(oc.id)} disabled={recibir.isPending}>Recibir</Button>
                         <Button size="xs" variant="light" color="red" ml={6} onClick={async () => {
