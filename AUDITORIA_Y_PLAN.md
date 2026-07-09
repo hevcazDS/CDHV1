@@ -1,3 +1,23 @@
+> ## ESTADO REAL — 2026-07-08 (leer antes que el plan de abajo)
+> Auditado contra el código: buena parte de lo planeado abajo YA ESTÁ CONSTRUIDO.
+>
+> **HECHO** ✅: Fase 1 (fixes críticos, reversión de cobros/puntos, IVA aplicado,
+> horario/remitente configurables) · ERP completo (plan de cuentas, asientos
+> automáticos, proveedores/OC/CxP, costeo promedio, gastos, reporte de
+> impuestos IVA trasladado vs acreditable, lector de CFDI XML) · POS multi-caja
+> (corte por usuario único/día, escáner, decimal p/ granel, PIN en cancelar/
+> precio) · RBAC 10 roles + auditor solo-lectura + PIN de autorización ·
+> Kardex universal · Almacén (ubicaciones, conteo por UPC con plantilla,
+> traslados) · RRHH/nómina MX con PIN antifraude · Citas con recordatorio 24h
+> (6 giros de servicio) · Variantes talla×color con stock por sucursal ·
+> Editor de frases del bot en Prime · Multimodal con respuesta por tipo ·
+> Sesiones firmadas con secreto de instancia (no migrables).
+>
+> **PENDIENTE REAL**: ISP/cambaceo (falta: zonas_cobertura + comisiones por
+> vendedor; citas y planes-servicio ya existen) · Pasarela de pago real
+> (Stripe/MP — requiere cuentas del cliente) · Conciliación bancaria · CFDI
+> timbrado con PAC · Hotel (EN PAUSA por decisión del dueño 2026-07-08).
+
 # Auditoría consolidada y plan por fases
 
 Fecha: 2026-07-08 · Fuentes: 4 auditores (ERP, bugs, multi-negocio, ventas/psicología)

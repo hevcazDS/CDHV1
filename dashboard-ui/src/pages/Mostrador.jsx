@@ -72,14 +72,23 @@ export default function Mostrador() {
     if (!carrito.length) return;
     setMsg(null); setCobrando(true);
     try {
-      const r = await api.post('/api/pos/venta', {
-        items: carrito.map(i => ({ id_producto: i.id, cantidad: i.cantidad, precio: i.price })),
+      const armarVenta = (pin) => api.post('/api/pos/venta', {
+        items: carrito.map(i => ({ id_producto: i.id, cantidad: i.cantidad, precio: i.price, id_variante: i.id_variante || undefined })),
         metodo_pago: metodoPago,
         cliente: (clienteTel || clienteNombre) ? { telefono: clienteTel || undefined, nombre: clienteNombre || undefined } : undefined,
         efectivo_recibido: efectivo === '' ? undefined : Number(efectivo),
         razon_social: razonSocial || undefined,
         rfc: rfc || undefined,
+        pin,
       });
+      let r = await armarVenta();
+      if (r?.pin_requerido) {
+        // el backend exige PIN (cambio de precio de lista)
+        const pin = window.prompt('Esta venta cambia un precio de lista — PIN de autorización del administrador:');
+        if (!pin) { setCobrando(false); return; }
+        r = await armarVenta(pin);
+      }
+      if (r && r.ok === false) throw new Error(r.error || 'No se pudo cobrar');
       setTicket(r);
       try { localStorage.setItem('pos-ultimo-ticket', JSON.stringify(r)); } catch (_) {}
       setCarrito([]); setEfectivo(''); setClienteTel(''); setClienteNombre(''); setRazonSocial(''); setRfc('');

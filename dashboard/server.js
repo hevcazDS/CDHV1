@@ -279,6 +279,26 @@ const _sesiones = new Map(); // token -> { username, rol, expira }
     } catch (e) { log.warn('No se pudieron cargar sesiones persistidas', e); }
 })();
 
+// ── Secreto de instancia (archivo local, NO viaja en la BD ni en backups) ──
+// El token de sesión va FIRMADO (HMAC) con este secreto: una fila de sesión
+// migrada de otra instancia o inyectada directo en sqlite no valida. Si el
+// archivo no existe (proyecto recién levantado) se genera uno nuevo y todas
+// las sesiones anteriores mueren — el token no se migra, se ejecuta nuevo.
+const _SECRET_PATH = path.join(__dirname, '.instancia_secret');
+const _INSTANCIA_SECRET = (() => {
+    try {
+        const v = fs.readFileSync(_SECRET_PATH, 'utf8').trim();
+        if (v.length >= 32) return v;
+    } catch (_) {}
+    const nuevo = crypto.randomBytes(32).toString('hex');
+    try { fs.writeFileSync(_SECRET_PATH, nuevo, { mode: 0o600 }); } catch (e) { log.warn('No se pudo persistir el secreto de instancia: ' + e.message); }
+    log.info('Secreto de instancia NUEVO generado — las sesiones previas quedan invalidadas');
+    return nuevo;
+})();
+function _firmar(token) {
+    return crypto.createHmac('sha256', _INSTANCIA_SECRET).update(token).digest('hex').slice(0, 24);
+}
+
 function crearSesion(username, rol, ttlMs = SESSION_TTL_MS) {
     // Un login nuevo invalida las sesiones previas del mismo usuario (un
     // token robado muere en cuanto el dueño vuelve a entrar)
@@ -290,12 +310,18 @@ function crearSesion(username, rol, ttlMs = SESSION_TTL_MS) {
     const expira = Date.now() + ttlMs;
     _sesiones.set(token, { username, rol, expira });
     db.prepare('INSERT OR REPLACE INTO sesiones_dashboard (token, username, rol, expira) VALUES (?, ?, ?, ?)').run(token, username, rol, expira);
-    return token;
+    // la cookie lleva token.FIRMA — la firma solo la produce ESTE servidor
+    return token + '.' + _firmar(token);
 }
 function obtenerSesion(req) {
     const cookie = req.headers['cookie'] || '';
-    const m = cookie.match(/(?:^|;\s*)jc_session=([a-f0-9]+)/);
+    const m = cookie.match(/(?:^|;\s*)jc_session=([a-f0-9]+)\.([a-f0-9]+)/);
     if (!m) return null;
+    // verificar la FIRMA antes de siquiera buscar la sesión (anti-migración
+    // y anti-inyección directa en la BD)
+    let firmaOk = false;
+    try { firmaOk = crypto.timingSafeEqual(Buffer.from(_firmar(m[1])), Buffer.from(m[2])); } catch (_) {}
+    if (!firmaOk) return null;
     const s = _sesiones.get(m[1]);
     if (!s) return null;
     if (Date.now() > s.expira) {

@@ -155,3 +155,20 @@ restaurar el `.db.gz` del último backup por correo a `./data/`.
 - No edites la BD de producción sin transacción y sin backup del día.
 - No pongas `BETA_RESET_CODE` en producción.
 - No borres el volumen `wwebjs_auth` en un deploy (desvincula WhatsApp).
+
+
+## Seguridad de sesiones al desplegar (IMPORTANTE)
+
+- **`dashboard/.instancia_secret`**: archivo generado automáticamente la
+  primera vez que arranca el dashboard en cada servidor. Firma (HMAC) los
+  tokens de sesión: una sesión copiada de otra instancia o inyectada a mano
+  en la BD **no valida**. **NUNCA lo copies entre servidores ni lo metas a
+  backups/git** — al levantar un proyecto nuevo se genera uno nuevo y todos
+  los usuarios simplemente vuelven a iniciar sesión (ese es el comportamiento
+  correcto: el token no se migra, se ejecuta uno nuevo).
+- En Docker: móntalo en el volumen local del contenedor (junto a la BD) para
+  que un restart del contenedor no cierre sesiones, pero NO lo incluyas en
+  imágenes ni en la copia que se lleva a otra instancia.
+- **`TRUST_PROXY=1`** en el `.env` del servidor (detrás de Caddy): hace que el
+  rate-limit use la IP real del cliente (X-Forwarded-For). En local/sin proxy
+  NO lo pongas — el header es falsificable y se ignora a propósito.
