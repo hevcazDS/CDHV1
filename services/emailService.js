@@ -314,7 +314,9 @@ async function notificarPedido(pedidoData) {
     }
 
     const html    = _templatePedido(pedidoData);
-    const asunto  = `Nuevo pedido ${folio} — ${pedidoData.cliente} — $${Number(pedidoData.total).toFixed(2)} MXN`;
+    // El nombre del cliente NO va en el asunto (los proveedores de correo
+    // registran asuntos en logs). El nombre completo va en el cuerpo.
+    const asunto  = `Nuevo pedido ${folio} — $${Number(pedidoData.total).toFixed(2)} MXN`;
 
     // Siempre encolar primero (para historial)
     try {

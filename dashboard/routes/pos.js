@@ -111,6 +111,21 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     carrito.push({ id: prod.id, name: prod.name, price, cantidad, tipo: prod.tipo || 'fisico', id_variante: it.id_variante || null, variante: it.variante || null });
                 }
 
+                // Antisobreventa (hallazgo del cajero): NO cobrar más de lo que
+                // hay. Físico/consumible se valida contra inventarios; servicios
+                // no llevan stock. Vender en negativo (sobre pedido) exige PIN —
+                // admin pasa, cajero lo teclea.
+                const _faltantes = [];
+                for (const it of carrito) {
+                    if (it.tipo === 'servicio') continue;
+                    const stk = db.prepare('SELECT COALESCE(stock,0) s FROM inventarios WHERE id_producto=? AND sucursal=?').get(it.id, sucursal)?.s ?? 0;
+                    if (stk < it.cantidad) _faltantes.push(it.name + ' (hay ' + stk + ', pides ' + it.cantidad + ')');
+                }
+                if (_faltantes.length) {
+                    const errStk = autorizacion.exigirAutorizacion(db, req._ses, d.pin, rangoDe);
+                    if (errStk) return json(res, { ok: false, error: 'Stock insuficiente: ' + _faltantes.join(', ') + '. Requiere PIN para vender sobre pedido.', pin_requerido: true }, 409);
+                }
+
                 // Cliente opcional (para acumular puntos). Walk-in = sin cliente.
                 let idCliente = null, nombreCliente = 'Mostrador';
                 if (d.cliente && (d.cliente.telefono || d.cliente.nombre)) {

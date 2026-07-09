@@ -119,6 +119,12 @@ module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
                 const datos = validar(JSON.parse(body), ModuloConfigSchema, res, p);
                 if (!datos) return;
                 const { clave, activo } = datos;
+                // Apagar CONTABILIDAD es un evento de alto riesgo forense
+                // (ventas sin asiento) — solo Prime, y siempre queda logueado.
+                if (clave === 'contabilidad_activo' && !activo && sesU.rol !== 'prime') {
+                    return json(res, { ok: false, error: 'Solo Prime puede desactivar Contabilidad (afecta la integridad de los libros)' }, 403);
+                }
+                require('../../services/configAudit').logCambio(db, clave, activo ? '1' : '0', sesU.username);
                 // Dependencias entre módulos (idea Odoo)
                 const { DEPENDE_DE, DEFAULT_OFF } = require('../../bot/flows/modulosDefaults');
                 const _estaActivo = (k) => {

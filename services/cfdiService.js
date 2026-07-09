@@ -16,6 +16,10 @@ function _bloque(xml, tag) {
 
 function parsearCFDI(xml) {
     const s = String(xml || '');
+    // Anti-DoS (auditoría de seguridad): tope de tamaño, sin DOCTYPE/ENTITY
+    // (XXE / billion-laughs) y tope de conceptos (ReDoS del regex global).
+    if (s.length > 5 * 1024 * 1024) throw new Error('XML demasiado grande (>5MB)');
+    if (/<!DOCTYPE|<!ENTITY/i.test(s)) throw new Error('XML con DOCTYPE/ENTITY no permitido');
     if (!/Comprobante/i.test(s)) throw new Error('El archivo no parece un CFDI (falta nodo Comprobante)');
     const comprobante = _bloque(s, 'Comprobante');
     const emisor = _bloque(s, 'Emisor');
@@ -25,6 +29,7 @@ function parsearCFDI(xml) {
     const reConcepto = /<[a-zA-Z0-9]*:?Concepto\b[^>]*>/gi;
     let m;
     while ((m = reConcepto.exec(s)) !== null) {
+        if (conceptos.length >= 1000) throw new Error('CFDI con demasiados conceptos (>1000)');
         conceptos.push({
             descripcion: _attr(m[0], 'Descripcion') || '',
             cantidad: parseFloat(_attr(m[0], 'Cantidad')) || 1,

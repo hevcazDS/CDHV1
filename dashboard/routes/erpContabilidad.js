@@ -79,6 +79,7 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
             try {
                 const v = String(JSON.parse(body || '{}').cerrado || '').trim();
                 if (v && !/^\d{4}-\d{2}$/.test(v)) return json(res, { ok: false, error: 'Formato YYYY-MM (o vacío para reabrir)' }, 400);
+                require('../../services/configAudit').logCambio(db, 'periodo_cerrado', v || null, sesP.username);
                 if (v) db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('periodo_cerrado', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(v);
                 else db.prepare("DELETE FROM configuracion WHERE clave='periodo_cerrado'").run();
                 ctx.log.info('[contable] período ' + (v ? 'cerrado hasta ' + v : 'REABIERTO') + ' por ' + sesP.username);

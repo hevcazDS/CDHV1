@@ -38,12 +38,12 @@ Hallazgos verificados contra el código (falsos positivos ya descartados:
 bloque ① (bugs/controles), luego ⑦ (tablero financiero).
 
 ### ① Bugs y controles de integridad — REALES, arreglar ya
-- [ ] **Sobreventa en POS**: `pos.js` descuenta sin validar que el stock alcance (kardex hace MAX(0,…) y lo enmascara). Validar stock ≥ cantidad antes de cobrar. (Cajero)
-- [ ] **Asientos opcionales** (Oxford D2): con `contabilidad_activo` OFF la venta cobra y mueve inventario pero NO asienta. Bloquear apagar el módulo con período abierto / o asiento obligatorio en el chokepoint de pago
-- [ ] **CFDI sin protección XXE/DoS**: el parser no rechaza `<!DOCTYPE` ni topa tamaño/conceptos. Añadir guardas (Seguridad)
-- [ ] **Bitácora de `configuracion`** (Oxford D1/D5): registrar quién/valor-anterior en cambios críticos (periodo_cerrado, iva_pct, mantenimiento_bd, módulos). Hoy el bypass de inmutabilidad no deja rastro
+- [x] 2026-07-09 (v1.01) — **Sobreventa en POS**: `pos.js` descuenta sin validar que el stock alcance (kardex hace MAX(0,…) y lo enmascara). Validar stock ≥ cantidad antes de cobrar. (Cajero)
+- [x] 2026-07-09 (v1.01) — **Asientos opcionales** (Oxford D2): con `contabilidad_activo` OFF la venta cobra y mueve inventario pero NO asienta. Bloquear apagar el módulo con período abierto / o asiento obligatorio en el chokepoint de pago
+- [x] 2026-07-09 (v1.01) — **CFDI XXE/DoS**: el parser no rechaza `<!DOCTYPE` ni topa tamaño/conceptos. Añadir guardas (Seguridad)
+- [x] 2026-07-09 (v1.01) — **Bitácora de `configuracion`** (Oxford D1/D5): registrar quién/valor-anterior en cambios críticos (periodo_cerrado, iva_pct, mantenimiento_bd, módulos). Hoy el bypass de inmutabilidad no deja rastro
 - [ ] **Cierre de período laxo** (Oxford D6): el cierre bloquea asientos pero NO inserciones de kardex con fecha en mes cerrado
-- [ ] **PII en `cola_emails`** (Seguridad): nombre/dirección en claro en asunto/cuerpo. Redactar el asunto
+- [x] 2026-07-09 (v1.01) — **PII en `cola_emails`** (Seguridad): nombre/dirección en claro en asunto/cuerpo. Redactar el asunto
 
 ### ⑦ Tablero financiero de dirección — 3 votos (Harvard+LSE+Oxford), datos ya existen
 - [ ] **Estado de Resultados (P&L)**: Ventas − COGS − Gastos = Utilidad $/% (desde asientos 401/501/601)

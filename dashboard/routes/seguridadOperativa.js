@@ -61,7 +61,8 @@ module.exports = function seguridadOperativaRoutes(req, res, p, u, ctx, next) {
                 db.pragma('foreign_keys = OFF');
                 try {
                     db.transaction(() => {
-                        // bypass de los triggers de inmutabilidad (0030)
+                        // bypass de los triggers de inmutabilidad (0030) — LOGUEADO
+                        try { require('../../services/configAudit').logCambio(db, 'mantenimiento_bd', '1', ses.username); } catch (_) {}
                         try { db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('mantenimiento_bd','1') ON CONFLICT(clave) DO UPDATE SET valor='1'").run(); } catch (_) {}
                         for (const t of TABLAS_RESET) {
                             try { db.prepare('DELETE FROM ' + t).run(); borradas++; } catch (_) {}
