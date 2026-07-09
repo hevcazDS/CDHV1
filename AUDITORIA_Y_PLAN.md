@@ -23,12 +23,12 @@ Lo de abajo (plan histórico) queda como referencia — NO seguirlo directo.
 ## 🔜 EN COLA (orden acordado)
 
 - [ ] **Panel de flota Hevcaz** (idea NetSuite): status.json por instancia (versión, bot online, último backup, HS-errores) + panel central del proveedor — *cuando haya 3+ clientes*
-- [ ] **Cadena de documento navegable** (idea SAP): campo documento_origen consistente + vista "rastro" venta→kardex→asiento→cobro
+- [x] 2026-07-09 — **Cadena de documento navegable** (SAP): ERP > Rastro de documento — folio → pedido/pagos/kardex/asientos/devoluciones (sin cambio de schema: el folio ya ligaba todo)
 - [ ] **Filtros guardados** (idea NetSuite): guardar filtros de Pedidos/Clientes con nombre por usuario
 - [ ] **Bitácora por registro** (idea Odoo): pestaña "Historial" en el pedido juntando estatus/pagos/cancelación/repartidor
 - [ ] Comprobante de transferencia por FOTO en el bot (estado PAGO_COMPROBANTE) + adjuntar foto de devolución a la notificación del asesor
-- [ ] Ubicación GPS del cliente → pre-llenar dirección cuando hay repartidor propio
 - [ ] Guiones de venta V1-V12 restantes (psicología/conversión) — revisar cuáles faltan realmente
+- [ ] Datos demo POR MÓDULO (idea Odoo): extender demoMetricas para sembrar/revertir por módulo — *solo cuando haga falta para vender*
 
 ## ⏸️ EN PAUSA / BLOQUEADOS (no tocar sin decisión del dueño)
 
@@ -36,6 +36,25 @@ Lo de abajo (plan histórico) queda como referencia — NO seguirlo directo.
 - [ ] **Pasarela de pago real** (Stripe/MercadoPago/OXXO) — bloqueado: requiere cuentas del cliente
 - [ ] **CFDI timbrado con PAC** (Facturama/SW) — bloqueado: requiere contrato PAC del cliente
 - [ ] **Conciliación bancaria** — tiene sentido después de la pasarela
+
+## 🚫 Decisiones de arquitectura — NO adoptar del benchmark (SAP/NetSuite/Odoo)
+
+Registradas para no re-discutirlas cada auditoría:
+
+- **NO multi-tenant compartido** (NetSuite): instancia-por-cliente es correcta
+  para whatsapp-web.js (cada tenant = su Chromium/número) y aísla datos/fallas.
+- **NO ORM ni capas de abstracción** (Odoo/SAP): better-sqlite3 con SQL a la
+  vista es ventaja de auditabilidad a este tamaño.
+- **NO motor de workflows configurable** (SAP): las aprobaciones necesarias
+  (solicitudes de compra, PIN) ya existen explícitas; un motor genérico es
+  sobre-diseño.
+- **NO scripting embebido tipo SuiteScript** (NetSuite): nuestros puntos de
+  extensión (giroFlows, editor de frases, hueco LLM) ya cubren lo mismo con
+  mantenimiento acotado.
+- **NO CPQ/MRP/manufactura/WMS con olas de picking**: ningún giro objetivo lo pide.
+- **El usuario "repartidor" NO existe** (decisión del dueño): el repartidor es
+  DATO del pedido (nombre/teléfono), sin cuenta, sin app, sin GPS — el aviso
+  "va en camino" lo manda el WhatsApp del negocio.
 
 ## 🔁 Recurrentes antes de cada deploy
 

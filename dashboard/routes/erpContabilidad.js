@@ -41,6 +41,31 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
         return json(res, { desde, hasta, cuentas: conta.libroMayor(desde, hasta) });
     }
 
+    // RASTRO DE DOCUMENTO (idea SAP): desde un folio, toda la cadena —
+    // pedido → detalle → pagos → kardex → asientos → devoluciones. Área
+    // finanzas (el auditor pasa por su bypass de lectura).
+    if (p === '/api/erp/rastro' && req.method === 'GET') {
+        const sesR = requireSession(req, res);
+        if (!sesR) return;
+        if (!permite(sesR.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso' }, 403);
+        const q = ((new URL(req.url, 'http://x')).searchParams.get('folio') || '').trim();
+        if (!q) return json(res, { ok: false, error: 'Falta folio' }, 400);
+        const ped = db.prepare('SELECT * FROM pedidos WHERE folio=? OR id_pedido=? LIMIT 1').get(q, parseInt(q.replace(/\D/g, ''), 10) || -1);
+        if (!ped) return json(res, { ok: false, error: 'No encontré pedido con folio ' + q }, 404);
+        const id = ped.id_pedido, folio = ped.folio || ('#' + id);
+        const like1 = '%' + folio + '%', like2 = '%pedido ' + id + '%';
+        return json(res, {
+            ok: true,
+            pedido: ped,
+            detalle: db.prepare('SELECT d.*, pr.name FROM pedido_detalle d LEFT JOIN productos pr ON pr.id=d.id_producto WHERE d.id_pedido=?').all(id),
+            pagos: db.prepare('SELECT * FROM links_pago WHERE id_pedido=?').all(id),
+            kardex: db.prepare('SELECT * FROM inventario_movimientos WHERE motivo LIKE ? OR motivo LIKE ? ORDER BY id').all(like1, like2),
+            asientos: db.prepare(`SELECT a.*, (SELECT GROUP_CONCAT(d2.cuenta || ' $' || COALESCE(NULLIF(d2.debe,0), d2.haber), ' · ') FROM asientos_detalle d2 WHERE d2.id_asiento=a.id) partidas_txt
+                                  FROM asientos a WHERE a.referencia_id=? OR a.concepto LIKE ? OR a.concepto LIKE ? ORDER BY a.id`).all(String(id), like1, like2),
+            devoluciones: db.prepare('SELECT * FROM devoluciones WHERE id_pedido=?').all(id),
+        });
+    }
+
     // Cierre de período contable (idea SAP): 'YYYY-MM' — nada se asienta en
     // meses <= cerrado. Reabrir = borrar el valor (queda en el log de quién).
     if (p === '/api/erp/periodo-cierre' && req.method === 'GET') {
