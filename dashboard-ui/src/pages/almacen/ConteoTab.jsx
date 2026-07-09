@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, Button, TextInput, Textarea, Text } from '@mantine/core';
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
+import { exportarCSV } from '../../lib/csv';
 
 // Conteo físico contra archivo: CSV/TXT con "upc,cantidad" (o solo UPCs
 // escaneados uno por línea — se agrupan solos). Compara vs BD y aplica
@@ -93,7 +94,16 @@ export default function ConteoTab() {
             {resultado.no_encontrados.length > 0 && (
               <Text size="xs" c="red" mt="sm">UPCs no encontrados: {resultado.no_encontrados.join(', ')}</Text>
             )}
-            {difs.length > 0 && <Button fullWidth mt="md" onClick={aplicar}>Aplicar ajustes (kardex auditado)</Button>}
+            {difs.length > 0 && (
+              <>
+                <Button fullWidth mt="md" onClick={aplicar}>Aplicar ajustes (kardex auditado)</Button>
+                <Button fullWidth mt="xs" variant="default" onClick={() => exportarCSV('conteo_diferencias_' + resultado.sucursal,
+                  ['upc', 'producto', 'sistema', 'fisico', 'diferencia'],
+                  difs.map(x => [x.upc, x.name, x.sistema, x.fisico, x.diferencia]))}>
+                  Exportar diferencias (CSV)
+                </Button>
+              </>
+            )}
           </>
         )}
       </Card>

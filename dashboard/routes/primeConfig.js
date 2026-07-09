@@ -42,6 +42,51 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         } catch(_) { return json(res, { clave, activo: true }); }
     }
 
+    // ── Editor del bot (prime): personalizar las respuestas por instancia ──
+    // GET lista cada frase editable con su texto EFECTIVO (tono+giro actuales)
+    // y el override propio si existe; PUT guarda/borra el override en
+    // configuracion ('frase_<clave>') — el bot lo recoge en <=60s (cache TTL).
+    if (p === '/api/prime/frases' && req.method === 'GET') {
+        if (!requireSession(req, res, ['prime'])) return;
+        const conf = require('../../bot/flows/_config');
+        conf.invalidarCache();
+        const DESCRIPCION = {
+            saludo_nuevo: 'Saludo a cliente nuevo', saludo_recurrente: 'Saludo a cliente que regresa (usa {nombre})',
+            menu_opciones: 'Opciones del menu principal', buscar_inicio: 'Al elegir "buscar"',
+            wizard_q1: 'Primera pregunta del asistente de regalo', asesor_notificado: 'Al pasar con un asesor',
+            agregado_pagar: 'Producto agregado al carrito', disponibilidad_local: 'Cuando hay stock local',
+            cancelado: 'Al cancelar/regresar al menu', error_generico: 'Cuando algo falla',
+            texto_libre: 'Cuando no entiende el mensaje', lista_espera_oferta: 'Oferta de lista de espera',
+            gracias_cierre: 'Despedida al cerrar',
+        };
+        const filas = Object.keys(conf.FRASES).map(clave => ({
+            clave,
+            descripcion: DESCRIPCION[clave] || clave,
+            efectivo: conf.t(clave),
+            override: db.prepare('SELECT valor FROM configuracion WHERE clave=?').get('frase_' + clave)?.valor || null,
+        }));
+        return json(res, { frases: filas, variables: '{negocio} {negocio_corto} {item} {items} {emoji} {nombre}' });
+    }
+    if (p === '/api/prime/frases' && req.method === 'PUT') {
+        if (!requireSession(req, res, ['prime'])) return;
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const conf = require('../../bot/flows/_config');
+                if (!conf.FRASES[d.clave]) return json(res, { ok: false, error: 'Frase desconocida: ' + d.clave }, 400);
+                const k = 'frase_' + d.clave;
+                const texto = String(d.texto || '').trim();
+                if (!texto) {
+                    db.prepare('DELETE FROM configuracion WHERE clave=?').run(k);
+                } else {
+                    db.prepare('INSERT INTO configuracion (clave, valor) VALUES (?,?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor').run(k, texto);
+                }
+                conf.invalidarCache();
+                return json(res, { ok: true, clave: d.clave, efectivo: conf.t(d.clave) });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
     // POST /api/prime/exportar-llm — exporta el dataset conversacional y lo
     // manda por correo (backup) para entrenar un LLM APARTE, fuera de
     // producción. Solo prime. No entrena ni llama a ningún LLM aquí.

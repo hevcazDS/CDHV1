@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Select } from '@mantine/core';
+import { Card, Select, Button, Group } from '@mantine/core';
+import { exportarCSV } from '../../lib/csv';
 import { api } from '../../api';
 import { fdate } from '../../lib/format';
 
@@ -19,8 +20,13 @@ export default function KardexTab() {
     <Card withBorder radius="md" p="lg" className="card">
       <div className="card-header">
         <h3>Kardex de movimientos</h3>
-        <Select placeholder="Elige producto..." searchable w={300} value={kardexDe} onChange={setKardexDe}
-          data={productos.map(x => ({ value: String(x.id), label: x.name }))} />
+        <Group gap="xs">
+          <Select placeholder="Elige producto..." searchable w={300} value={kardexDe} onChange={setKardexDe}
+            data={productos.map(x => ({ value: String(x.id), label: x.name }))} />
+          <Button variant="default" size="xs" disabled={!kardex.length} onClick={() => exportarCSV('kardex_' + kardexDe,
+            ['fecha', 'sucursal', 'tipo', 'delta', 'saldo', 'motivo', 'usuario'],
+            kardex.map(m => [m.creado_en, m.sucursal, m.tipo, m.delta, m.cantidad_nueva, m.motivo || '', m.creado_por || '']))}>CSV</Button>
+        </Group>
       </div>
       <div className="table-wrap" style={{ maxHeight: 480, overflow: 'auto' }}>
         <table>

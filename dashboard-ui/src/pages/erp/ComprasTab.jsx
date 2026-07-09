@@ -78,7 +78,14 @@ export default function ComprasTab() {
                   <td>${Number(oc.total).toFixed(2)}</td>
                   <td><span className={`badge ${oc.estatus === 'recibida' ? 'badge-verde' : oc.estatus === 'cancelada' ? 'badge-rojo' : 'badge-azul'}`}>{oc.estatus}</span></td>
                   <td>{oc.estatus === 'abierta' && (
+                    <>
                     <Button size="xs" variant="default" onClick={() => recibir.mutate(oc.id)} disabled={recibir.isPending}>Recibir</Button>
+                        <Button size="xs" variant="light" color="red" ml={6} onClick={async () => {
+                          if (!window.confirm('¿Cancelar esta OC? (solo se cancelan abiertas, no mueve inventario)')) return;
+                          const r = await api.post(`/api/erp/ordenes-compra/${oc.id}/cancelar`);
+                          if (r.ok) qc.invalidateQueries(); else alert(r.error);
+                        }}>Cancelar</Button>
+                    </>
                   )}</td>
                 </tr>
               ))}

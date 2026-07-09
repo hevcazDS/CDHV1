@@ -15,7 +15,8 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
     if (!activo) return json(res, { ok: false, error: 'El módulo RRHH está desactivado (actívalo en Módulos)' }, 403);
 
     if (p === '/api/rrhh/empleados' && req.method === 'GET') {
-        return json(res, db.prepare('SELECT * FROM empleados WHERE activo=1 ORDER BY nombre').all());
+        const todos = new URL(req.url, 'http://x').searchParams.get('todos') === '1';
+        return json(res, db.prepare(`SELECT * FROM empleados ${todos ? '' : 'WHERE activo=1'} ORDER BY activo DESC, nombre`).all());
     }
     if (p === '/api/rrhh/empleados' && req.method === 'POST') {
         return readBody(req, body => {

@@ -911,6 +911,23 @@ client.on('message', async msg => {
             }
         }
 
+        // ── 3.9 MEDIA NO SOPORTADA: avisar en vez de caer al fallback mudo ──
+        // (auditoría multimodal: audio/video/documento/sticker/ubicación caían
+        // en silencio y el cliente nunca sabía por qué se reinició el menú)
+        const _MEDIA_MSG = {
+            audio:    '🎙️ Por ahora no puedo escuchar audios. ¿Me lo escribes en texto, porfa?',
+            ptt:      '🎙️ Por ahora no puedo escuchar notas de voz. ¿Me lo escribes en texto, porfa?',
+            video:    '📹 No puedo ver videos. Descríbeme lo que buscas o mándame una *foto*.',
+            document: '📄 No puedo abrir documentos. Si es un comprobante, mándalo como *foto*; si es una lista, escríbemela.',
+            sticker:  '😄 ¡Buen sticker! Pero para ayudarte necesito que me escribas o me mandes una *foto* del producto.',
+            location: '📍 Recibí tu ubicación, pero por ahora la dirección la tomo por texto durante el pedido.',
+            vcard:    '👤 Recibí el contacto, pero yo atiendo directo a quien me escribe. ¿En qué te ayudo?',
+        };
+        if (!bodyRaw && _MEDIA_MSG[msg.type]) {
+            _enProceso.delete(userId);
+            return await sendSafe(client, userId, _MEDIA_MSG[msg.type]);
+        }
+
         // ── 4. PREPROCESSOR DE IMAGEN ─────────────────────────────────────
         let msgFinal = msg;
 

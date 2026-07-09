@@ -87,7 +87,8 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                 for (const it of items) {
                     const prod = db.prepare('SELECT id, name, price, tipo FROM productos WHERE id=?').get(Number(it.id_producto));
                     if (!prod) return json(res, { ok: false, error: 'Producto no encontrado: ' + it.id_producto }, 400);
-                    const cantidad = Math.max(1, parseInt(it.cantidad, 10) || 1);
+                    // granel/volumen (abarrotes, construcción): cantidad decimal permitida
+                    const cantidad = Math.max(0.001, Math.round((parseFloat(it.cantidad) || 1) * 1000) / 1000);
                     let price = prod.price;
                     if (it.precio !== undefined && it.precio !== null && it.precio !== '') {
                         price = Number(it.precio);

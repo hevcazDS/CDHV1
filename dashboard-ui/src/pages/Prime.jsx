@@ -14,6 +14,7 @@ import InventarioTab from './prime/InventarioTab';
 import CatalogoTab from './prime/CatalogoTab';
 import UsuariosTab from './prime/UsuariosTab';
 import DatosLLMTab from './prime/DatosLLMTab';
+import BotEditorTab from './prime/BotEditorTab';
 import FiltrosTab from './prime/FiltrosTab';
 
 // soloPrime: integraciones, identidad del negocio, gestión de usuarios y
@@ -26,6 +27,7 @@ const TABS = [
   { key: 'inventario', label: 'Inventario', Componente: InventarioTab },
   { key: 'catalogo', label: 'Catálogo', Componente: CatalogoTab },
   { key: 'usuarios', label: 'Usuarios', soloPrime: false, Componente: UsuariosTab },
+  { key: 'bot', label: 'Editor del bot', soloPrime: true, Componente: BotEditorTab },
   { key: 'datos', label: 'Datos LLM', soloPrime: true, Componente: DatosLLMTab },
   { key: 'filtros', label: 'Filtros', Componente: FiltrosTab },
 ];

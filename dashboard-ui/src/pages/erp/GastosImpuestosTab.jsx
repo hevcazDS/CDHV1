@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, TextInput, NumberInput, Select, Checkbox, Group, Text } from '@mantine/core';
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
+import { exportarCSV } from '../../lib/csv';
 
 // Herramientas diarias del contador: captura de gastos (renta/luz/etc. →
 // asiento automático) y reporte de impuestos del periodo (IVA trasladado
@@ -70,7 +71,11 @@ export default function GastosImpuestosTab() {
         </Card>
 
         <Card withBorder radius="md" p="lg" className="card">
-          <div className="card-header"><h3>Gastos registrados</h3><Text size="xs" c="dimmed">{gastos.length}</Text></div>
+          <div className="card-header"><h3>Gastos registrados</h3>
+            <Group gap="xs"><Text size="xs" c="dimmed">{gastos.length}</Text>
+              <Button variant="default" size="xs" onClick={() => exportarCSV(`gastos_${rango.desde}_${rango.hasta}`,
+                ['fecha', 'concepto', 'total'], gastos.map(x => [x.fecha, x.concepto.replace(/^Gasto: /, ''), Number(x.total).toFixed(2)]))}>CSV</Button>
+            </Group></div>
           <div className="table-wrap" style={{ maxHeight: 380, overflow: 'auto' }}>
             <table>
               <thead><tr><th>Fecha</th><th>Concepto</th><th>Total</th></tr></thead>

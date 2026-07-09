@@ -86,6 +86,17 @@ module.exports = function erpProveedoresRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // Cancelar una OC ABIERTA creada por error (compras o administrador+).
+    // Recibidas no se cancelan: eso ya movió inventario/CxP (usa reversa).
+    if (req.method === 'POST' && p.match(/^\/api\/erp\/ordenes-compra\/\d+\/cancelar$/)) {
+        const idOC = parseInt(p.split('/')[4]);
+        const oc = db.prepare('SELECT * FROM ordenes_compra WHERE id=?').get(idOC);
+        if (!oc) return json(res, { ok: false, error: 'OC no encontrada' }, 404);
+        if (oc.estatus !== 'abierta') return json(res, { ok: false, error: 'Solo se cancelan OC abiertas (esta está ' + oc.estatus + ')' }, 400);
+        db.prepare("UPDATE ordenes_compra SET estatus='cancelada' WHERE id=?").run(idOC);
+        return json(res, { ok: true, id: idOC });
+    }
+
     // Recepción: aumenta inventario + costeo promedio + CxP + asiento compra
     if (req.method === 'POST' && p.match(/^\/api\/erp\/ordenes-compra\/\d+\/recibir$/)) {
         // Separación de funciones: recibe ALMACÉN (o administrador+), no compras

@@ -181,8 +181,12 @@ function t(clave, vars = {}) {
     const giro    = getGiro(_cache.modulos.giro || GIRO_DEFAULT);
     const overrides = (giro.frases && giro.frases[clave]) || null;
     const set = FRASES[clave];
-    if (!set && !overrides) return '';
-    let txt = (overrides && (overrides[tono] || overrides.C)) ||
+    // Override por INSTANCIA (editor del bot en Prime): la fila configuracion
+    // 'frase_<clave>' gana sobre giro y tono. Vacío/ausente = sin override.
+    const propia = _cache.modulos['frase_' + clave];
+    if (!set && !overrides && !propia) return '';
+    let txt = (propia && String(propia).trim()) ||
+              (overrides && (overrides[tono] || overrides.C)) ||
               (set && (set[tono] || set.C)) || '';
     // Auto-vars de negocio/giro primero; las pasadas por el llamador ganan.
     const todas = { ..._varsNegocio(), ...vars };

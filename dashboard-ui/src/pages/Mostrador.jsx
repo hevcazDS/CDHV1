@@ -28,6 +28,7 @@ export default function Mostrador() {
   const [rfc, setRfc] = useState('');
   const [msg, setMsg] = useState(null);
   const [ticket, setTicket] = useState(null);
+  const reimprimir = () => { try { const t = JSON.parse(localStorage.getItem('pos-ultimo-ticket') || 'null'); if (t) setTicket(t); else alert('No hay ticket previo en esta caja'); } catch (_) {} };
   const [cobrando, setCobrando] = useState(false);
 
   useEffect(() => { if (config?.metodos?.length) setMetodoPago(config.metodos[0]); }, [config]);
@@ -61,7 +62,8 @@ export default function Mostrador() {
     });
     setBusqueda(''); setResultados([]);
   };
-  const setCantidad = (id, cant) => setCarrito(c => c.map(x => x.id === id ? { ...x, cantidad: Math.max(1, cant) } : x));
+  // decimal permitido (granel/volumen: kg, m3, bulto)
+  const setCantidad = (id, cant) => setCarrito(c => c.map(x => x.id === id ? { ...x, cantidad: Math.max(0.001, Number(cant) || 1) } : x));
   const quitar = (id) => setCarrito(c => c.filter(x => x.id !== id));
   const total = useMemo(() => carrito.reduce((s, i) => s + i.price * i.cantidad, 0), [carrito]);
   const cambio = (metodoPago === 'efectivo' && efectivo !== '') ? Math.max(0, Number(efectivo) - total) : null;
@@ -79,6 +81,7 @@ export default function Mostrador() {
         rfc: rfc || undefined,
       });
       setTicket(r);
+      try { localStorage.setItem('pos-ultimo-ticket', JSON.stringify(r)); } catch (_) {}
       setCarrito([]); setEfectivo(''); setClienteTel(''); setClienteNombre(''); setRazonSocial(''); setRfc('');
     } catch (e) { setMsg({ ok: false, t: e.message }); }
     finally { setCobrando(false); }
@@ -96,6 +99,7 @@ export default function Mostrador() {
           <TextInput placeholder="Escanear código de barras (Enter agrega)" autoFocus onKeyDown={escanear} mb="xs"
             styles={{ input: { borderColor: 'var(--accent)', fontFamily: 'monospace' } }} />
           <TextInput placeholder="…o buscar por nombre o SKU" value={busqueda} onChange={e => buscar(e.target.value)} mb="xs" />
+          <Button variant="subtle" size="xs" mb="xs" onClick={reimprimir}>Reimprimir último ticket</Button>
           {resultados.length > 0 && (
             <div className="table-wrap" style={{ maxHeight: 200, overflow: 'auto', marginBottom: 8, border: '1px solid var(--border)', borderRadius: 6 }}>
               <Table highlightOnHover verticalSpacing={4}>
@@ -119,7 +123,7 @@ export default function Mostrador() {
               {carrito.map(i => (
                 <tr key={i.id}>
                   <td>{i.name}<br /><span className="text-muted" style={{ fontSize: 11 }}>${fmt(i.price)} c/u</span></td>
-                  <td><NumberInput size="xs" min={1} value={i.cantidad} onChange={v => setCantidad(i.id, Number(v) || 1)} /></td>
+                  <td><NumberInput decimalScale={3} step={1} size="xs" min={1} value={i.cantidad} onChange={v => setCantidad(i.id, Number(v) || 1)} /></td>
                   <td style={{ textAlign: 'right' }}>${fmt(i.price * i.cantidad)}</td>
                   <td><ActionIcon variant="subtle" color="red" onClick={() => quitar(i.id)}><Trash2 size={16} strokeWidth={1.75} /></ActionIcon></td>
                 </tr>

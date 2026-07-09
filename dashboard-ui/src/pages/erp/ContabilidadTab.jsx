@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Text, TextInput, Group } from '@mantine/core';
 import { api } from '../../api';
+import { Button } from '@mantine/core';
+import { exportarCSV } from '../../lib/csv';
 
 // Libro mayor + diario de asientos. Los asientos automáticos requieren el
 // módulo "Contabilidad" encendido (Módulos); aquí solo se consulta.
@@ -26,9 +28,19 @@ export default function ContabilidadTab() {
 
   return (
     <div>
-      <Group mb="md" gap="sm">
+      <Group mb="md" gap="sm" align="end">
         <TextInput type="date" label="Desde" value={desde} onChange={e => setDesde(e.target.value)} />
         <TextInput type="date" label="Hasta" value={hasta} onChange={e => setHasta(e.target.value)} />
+        <Button variant="default" size="xs" onClick={() => exportarCSV(`libro_mayor_${desde}_${hasta}`,
+          ['cuenta', 'nombre', 'debe', 'haber', 'saldo'],
+          cuentas.map(x => [x.cuenta, x.nombre, x.debe.toFixed(2), x.haber.toFixed(2), x.saldo.toFixed(2)]))}>
+          Exportar libro (CSV)
+        </Button>
+        <Button variant="default" size="xs" onClick={() => exportarCSV(`diario_${desde}_${hasta}`,
+          ['fecha', 'concepto', 'cuenta', 'debe', 'haber'],
+          asientos.flatMap(a => (a.partidas || []).map(pa => [a.fecha, a.concepto, pa.cuenta + ' ' + (pa.nombre || ''), pa.debe.toFixed(2), pa.haber.toFixed(2)])))}>
+          Exportar diario (CSV)
+        </Button>
       </Group>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 20, alignItems: 'start' }}>

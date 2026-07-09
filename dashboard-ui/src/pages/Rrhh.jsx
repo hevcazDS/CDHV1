@@ -14,10 +14,11 @@ export default function Rrhh() {
   const hoy = new Date().toISOString().slice(0, 10);
   const hace14 = new Date(Date.now() - 13 * 86400000).toISOString().slice(0, 10);
   const [periodo, setPeriodo] = useState({ desde: hace14, hasta: hoy });
+  const [verBajas, setVerBajas] = useState(false);
 
   const { data: modulo } = useQuery({ queryKey: ['modulo-rrhh'], queryFn: () => api.get('/api/modulo/rrhh_activo').catch(() => null) });
   const moduloApagado = modulo && !modulo.error && !modulo.activo;
-  const { data: empleados = [] } = useQuery({ queryKey: ['rrhh-emp'], queryFn: () => api.get('/api/rrhh/empleados'), enabled: !moduloApagado });
+  const { data: empleados = [] } = useQuery({ queryKey: ['rrhh-emp', verBajas], queryFn: () => api.get('/api/rrhh/empleados' + (verBajas ? '?todos=1' : '')), enabled: !moduloApagado });
   const { data: nominas = [] } = useQuery({ queryKey: ['rrhh-nom'], queryFn: () => api.get('/api/rrhh/nomina') });
 
   const crearEmp = useMutation({
@@ -90,7 +91,9 @@ export default function Rrhh() {
             </div>
           </Card>
           <Card withBorder radius="md" p="lg" className="card">
-            <div className="card-header"><h3>Empleados</h3></div>
+            <div className="card-header"><h3>Empleados</h3>
+              <Checkbox size="xs" label="Ver bajas" checked={verBajas} onChange={e => setVerBajas(e.currentTarget.checked)} />
+            </div>
             <div className="table-wrap">
               <table>
                 <thead><tr><th>Nombre</th><th>Puesto</th><th>Salario/día</th><th>Régimen</th><th></th></tr></thead>
@@ -108,11 +111,15 @@ export default function Rrhh() {
                           const r = await api.put(`/api/rrhh/empleados/${e.id}`, { salario_diario: Number(s) });
                           if (r.ok) qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); else handleApiError(new Error(r.error));
                         }}>Salario</Button>
-                        <Button size="xs" variant="light" color="red" onClick={async () => {
+                        {!!e.activo && <Button size="xs" variant="light" color="red" onClick={async () => {
                           if (!window.confirm('¿Dar de BAJA a ' + e.nombre + '? (deja de aparecer en nómina)')) return;
                           const r = await api.put(`/api/rrhh/empleados/${e.id}`, { activo: false });
                           if (r.ok) qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); else handleApiError(new Error(r.error));
-                        }}>Baja</Button>
+                        }}>Baja</Button>}
+                        {!e.activo && <Button size="xs" variant="light" color="teal" onClick={async () => {
+                          const rr = await api.put(`/api/rrhh/empleados/${e.id}`, { activo: true });
+                          if (rr.ok) qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); else handleApiError(new Error(rr.error));
+                        }}>Reactivar</Button>}
                       </Group></td>
                     </tr>
                   ))}
