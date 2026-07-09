@@ -26,9 +26,12 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
                 const nombre = String(d.nombre || '').trim();
                 const salario = Number(d.salario_diario);
                 if (!nombre || !(salario > 0)) return json(res, { ok: false, error: 'Nombre y salario diario (>0) son obligatorios' }, 400);
-                const r = db.prepare('INSERT INTO empleados (nombre, puesto, salario_diario, con_impuestos, rfc, curp, nss) VALUES (?,?,?,?,?,?,?)')
+                const r = db.prepare(`INSERT INTO empleados (nombre, puesto, salario_diario, con_impuestos, rfc, curp, nss, fecha_alta, departamento, comision_pct, metodo_pago, username, contacto_emergencia) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
                     .run(nombre, String(d.puesto || '').trim() || null, salario, d.con_impuestos ? 1 : 0,
-                         String(d.rfc || '').trim() || null, String(d.curp || '').trim() || null, String(d.nss || '').trim() || null);
+                         String(d.rfc || '').trim() || null, String(d.curp || '').trim() || null, String(d.nss || '').trim() || null,
+                         String(d.fecha_alta || '').trim() || null, String(d.departamento || '').trim() || null,
+                         Math.max(0, Number(d.comision_pct) || 0), (d.metodo_pago === 'efectivo' ? 'efectivo' : 'transferencia'),
+                         String(d.username || '').trim() || null, String(d.contacto_emergencia || '').trim() || null);
                 return json(res, { ok: true, id: r.lastInsertRowid });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });
@@ -50,6 +53,10 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
                 }
                 if (d.con_impuestos !== undefined) db.prepare('UPDATE empleados SET con_impuestos=? WHERE id=?').run(d.con_impuestos ? 1 : 0, id);
                 if (d.puesto !== undefined) db.prepare('UPDATE empleados SET puesto=? WHERE id=?').run(String(d.puesto).trim() || null, id);
+                for (const [campo, col] of [['fecha_alta','fecha_alta'],['departamento','departamento'],['metodo_pago','metodo_pago'],['username','username'],['contacto_emergencia','contacto_emergencia']]) {
+                    if (d[campo] !== undefined) db.prepare('UPDATE empleados SET ' + col + '=? WHERE id=?').run(String(d[campo]).trim() || null, id);
+                }
+                if (d.comision_pct !== undefined) db.prepare('UPDATE empleados SET comision_pct=? WHERE id=?').run(Math.max(0, Number(d.comision_pct) || 0), id);
                 if (d.activo !== undefined) db.prepare('UPDATE empleados SET activo=? WHERE id=?').run(d.activo ? 1 : 0, id);
                 return json(res, { ok: true, id });
             } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }
@@ -122,6 +129,31 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
                 if (errN) return json(res, { ok: false, error: errN, pin_requerido: true }, 403);
                 return json(res, { ok: true, ...nominaService.pagar(desde, hasta) });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
+    // Aguinaldo de un empleado para un año (proporcional a días trabajados)
+    if (req.method === 'GET' && p.match(/^\/api\/rrhh\/aguinaldo\/\d+$/)) {
+        const id = parseInt(p.split('/').pop());
+        const e = db.prepare('SELECT * FROM empleados WHERE id=?').get(id);
+        if (!e) return json(res, { ok: false, error: 'Empleado no encontrado' }, 404);
+        const anio = parseInt(new URL(req.url, 'http://x').searchParams.get('anio'), 10) || new Date().getFullYear();
+        // días trabajados = días con horario registrado en el año (aprox)
+        const dias = db.prepare("SELECT COUNT(DISTINCT fecha) n FROM horarios_empleado WHERE id_empleado=? AND fecha>=? AND fecha<=?").get(id, anio + '-01-01', anio + '-12-31')?.n || 0;
+        return json(res, { ok: true, empleado: e.nombre, anio, dias_trabajados: dias, aguinaldo: nominaService.aguinaldo(e.salario_diario, dias) });
+    }
+    // Finiquito de un empleado a una fecha de baja
+    if (req.method === 'POST' && p.match(/^\/api\/rrhh\/finiquito\/\d+$/)) {
+        const id = parseInt(p.split('/').pop());
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const e = db.prepare('SELECT * FROM empleados WHERE id=?').get(id);
+                if (!e) return json(res, { ok: false, error: 'Empleado no encontrado' }, 404);
+                const fecha = /^\d{4}-\d{2}-\d{2}$/.test(d.fecha_baja || '') ? d.fecha_baja : new Date().toISOString().slice(0, 10);
+                const fin = nominaService.finiquito(e, fecha, { dias_pendientes: d.dias_pendientes, despido_injustificado: !!d.despido_injustificado });
+                return json(res, { ok: true, empleado: e.nombre, fecha_baja: fecha, ...fin });
+            } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }
         });
     }
 

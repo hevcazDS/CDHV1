@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, TextInput, NumberInput, Checkbox, Group, Text, Tabs } from '@mantine/core';
+import { Card, Button, TextInput, NumberInput, Checkbox, Group, Text, Tabs, Select } from '@mantine/core';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 
@@ -10,20 +10,22 @@ import { handleApiError } from '../lib/apiError';
 export default function Rrhh() {
   const qc = useQueryClient();
   const [tab, setTab] = useState('empleados');
-  const [emp, setEmp] = useState({ nombre: '', puesto: '', salario_diario: 0, con_impuestos: false, rfc: '', nss: '' });
+  const [emp, setEmp] = useState({ nombre: '', puesto: '', salario_diario: 0, con_impuestos: false, rfc: '', nss: '', curp: '', fecha_alta: '', departamento: '', comision_pct: 0, metodo_pago: 'transferencia', username: '' });
   const hoy = new Date().toISOString().slice(0, 10);
   const hace14 = new Date(Date.now() - 13 * 86400000).toISOString().slice(0, 10);
   const [periodo, setPeriodo] = useState({ desde: hace14, hasta: hoy });
   const [verBajas, setVerBajas] = useState(false);
 
   const { data: modulo } = useQuery({ queryKey: ['modulo-rrhh'], queryFn: () => api.get('/api/modulo/rrhh_activo').catch(() => null) });
+  const { data: modFiscal } = useQuery({ queryKey: ['modulo-nom-fiscal'], queryFn: () => api.get('/api/modulo/nomina_fiscal_activo').catch(() => null) });
+  const fiscal = !!modFiscal?.activo;
   const moduloApagado = modulo && !modulo.error && !modulo.activo;
   const { data: empleados = [] } = useQuery({ queryKey: ['rrhh-emp', verBajas], queryFn: () => api.get('/api/rrhh/empleados' + (verBajas ? '?todos=1' : '')), enabled: !moduloApagado });
   const { data: nominas = [] } = useQuery({ queryKey: ['rrhh-nom'], queryFn: () => api.get('/api/rrhh/nomina') });
 
   const crearEmp = useMutation({
     mutationFn: () => api.post('/api/rrhh/empleados', emp),
-    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); setEmp({ nombre: '', puesto: '', salario_diario: 0, con_impuestos: false, rfc: '', nss: '' }); qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); },
+    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); setEmp({ nombre: '', puesto: '', salario_diario: 0, con_impuestos: false, rfc: '', nss: '', curp: '', fecha_alta: '', departamento: '', comision_pct: 0, metodo_pago: 'transferencia', username: '' }); qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); },
     onError: handleApiError,
   });
   const importar = (e) => {
@@ -81,6 +83,23 @@ export default function Rrhh() {
               <TextInput label="NSS" value={emp.nss} onChange={e => setEmp({ ...emp, nss: e.target.value })} />
             </Group>
             <Checkbox label="Con impuestos (retener ISR + IMSS)" checked={emp.con_impuestos} onChange={e => setEmp({ ...emp, con_impuestos: e.currentTarget.checked })} mb="md" />
+            {fiscal && (
+              <>
+                <Group grow mb="sm">
+                  <TextInput type="date" label="Fecha de alta (antigüedad)" value={emp.fecha_alta} onChange={e => setEmp({ ...emp, fecha_alta: e.target.value })} />
+                  <TextInput label="CURP" value={emp.curp} onChange={e => setEmp({ ...emp, curp: e.target.value })} />
+                </Group>
+                <Group grow mb="sm">
+                  <TextInput label="Departamento" value={emp.departamento} onChange={e => setEmp({ ...emp, departamento: e.target.value })} />
+                  <NumberInput label="Comisión % (sobre lo que cobra)" min={0} max={100} value={emp.comision_pct} onChange={v => setEmp({ ...emp, comision_pct: v || 0 })} />
+                </Group>
+                <Group grow mb="sm">
+                  <TextInput label="Usuario POS (para comisión)" placeholder="username del cajero" value={emp.username} onChange={e => setEmp({ ...emp, username: e.target.value })} />
+                  <Select label="Método de pago" allowDeselect={false} value={emp.metodo_pago} onChange={v => setEmp({ ...emp, metodo_pago: v })}
+                    data={[{ value: 'transferencia', label: 'Transferencia' }, { value: 'efectivo', label: 'Efectivo' }]} />
+                </Group>
+              </>
+            )}
             <Button fullWidth onClick={() => crearEmp.mutate()} disabled={!emp.nombre.trim() || !(emp.salario_diario > 0)}>Guardar empleado</Button>
             <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
               <Text size="sm" fw={600} mb={6}>Horarios por Excel</Text>
@@ -143,14 +162,14 @@ export default function Rrhh() {
           </div>
           <div className="table-wrap" style={{ maxHeight: 460, overflow: 'auto' }}>
             <table>
-              <thead><tr><th>Empleado</th><th>Periodo</th><th>Horas</th><th>Bruto</th><th>ISR</th><th>IMSS</th><th>Neto</th><th>Estatus</th></tr></thead>
+              <thead><tr><th>Empleado</th><th>Periodo</th><th>Horas</th>{fiscal && <th>H.Extra</th>}{fiscal && <th>Comis.</th>}<th>Bruto</th><th>ISR</th><th>IMSS</th><th>Neto</th><th>Estatus</th></tr></thead>
               <tbody>
                 {nominas.length === 0 && <tr><td colSpan={8} className="empty">Calcula un periodo para ver la nómina</td></tr>}
                 {nominas.map(n => (
                   <tr key={n.id}>
                     <td><strong>{n.nombre}</strong></td>
                     <td className="text-muted" style={{ fontSize: 11 }}>{n.desde} → {n.hasta}</td>
-                    <td>{n.horas}</td><td>${n.bruto.toFixed(2)}</td>
+                    <td>{n.horas}</td>{fiscal && <td>{n.horas_extra ?? 0}</td>}{fiscal && <td>${(n.comisiones ?? 0).toFixed(2)}</td>}<td>${n.bruto.toFixed(2)}</td>
                     <td>{n.isr > 0 ? '$' + n.isr.toFixed(2) : '—'}</td>
                     <td>{n.imss > 0 ? '$' + n.imss.toFixed(2) : '—'}</td>
                     <td style={{ fontWeight: 700 }}>${n.neto.toFixed(2)}</td>

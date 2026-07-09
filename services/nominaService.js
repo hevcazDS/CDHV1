@@ -23,32 +23,107 @@ function isrMensual(baseMensual) {
     return _r2(fila[1] + (baseMensual - fila[0]) * (fila[2] / 100));
 }
 
+// ── FISCAL (LFT) — funciones puras, aproximadas: valida con tu contador ──
+// Antigüedad en años completos desde la fecha de alta.
+function antiguedadAnios(fechaAlta, hasta) {
+    if (!fechaAlta) return 0;
+    const a = new Date(fechaAlta), b = hasta ? new Date(hasta) : new Date();
+    let y = b.getFullYear() - a.getFullYear();
+    if (b.getMonth() < a.getMonth() || (b.getMonth() === a.getMonth() && b.getDate() < a.getDate())) y--;
+    return Math.max(0, y);
+}
+// Días de vacaciones por ley (LFT 2023): 1er año 12, +2/año hasta 20 (5º),
+// luego +2 cada 5 años.
+function diasVacacionesLey(anios) {
+    if (anios < 1) return 0;
+    if (anios <= 5) return 10 + anios * 2;        // 1->12 ... 5->20
+    return 20 + Math.floor((anios - 1) / 5) * 2;  // 6-10->22, 11-15->24...
+}
+// Aguinaldo: 15 días mínimos, proporcional a los días trabajados en el año.
+function aguinaldo(salarioDiario, diasTrabajadosAnio, diasBase = 15) {
+    return _r2(salarioDiario * diasBase * Math.min(1, diasTrabajadosAnio / 365));
+}
+// Prima vacacional: 25% sobre el salario de los días de vacaciones.
+function primaVacacional(salarioDiario, diasVacaciones, pct = 0.25) {
+    return _r2(salarioDiario * diasVacaciones * pct);
+}
+// Días del año en curso trabajados hasta 'hasta' (o desde el alta si entró
+// este año). Base para las partes proporcionales del finiquito.
+function _diasEnAnio(fechaAlta, hasta) {
+    const fin = new Date(hasta);
+    const inicioAnio = new Date(fin.getFullYear(), 0, 1);
+    const alta = fechaAlta ? new Date(fechaAlta) : inicioAnio;
+    const desde = alta > inicioAnio ? alta : inicioAnio;
+    return Math.max(0, Math.round((fin - desde) / 86400000) + 1);
+}
+// Finiquito (partes proporcionales — NO incluye indemnización por despido
+// injustificado, que es aparte). Devuelve el desglose.
+function finiquito(empleado, fechaBaja, opts = {}) {
+    const sd = Number(empleado.salario_diario) || 0;
+    const anios = antiguedadAnios(empleado.fecha_alta, fechaBaja);
+    const diasAnio = _diasEnAnio(empleado.fecha_alta, fechaBaja);
+    const diasVac = diasVacacionesLey(Math.max(1, anios));
+    const ag = aguinaldo(sd, diasAnio);
+    const vacProp = _r2(sd * diasVac * Math.min(1, diasAnio / 365));
+    const primaVac = _r2(vacProp * 0.25);
+    const diasPend = _r2(sd * (Number(opts.dias_pendientes) || 0));
+    let indemnizacion = 0;
+    if (opts.despido_injustificado) {
+        indemnizacion = _r2(sd * 90 + sd * 20 * anios); // 3 meses + 20 días/año
+    }
+    const total = _r2(diasPend + ag + vacProp + primaVac + indemnizacion);
+    return { antiguedad_anios: anios, dias_aguinaldo: 15, aguinaldo: ag,
+        dias_vacaciones: diasVac, vacaciones_proporcional: vacProp, prima_vacacional: primaVac,
+        dias_pendientes: diasPend, indemnizacion, total };
+}
+
 // Calcula la nómina de TODOS los empleados activos en el rango [desde, hasta]
 // usando horarios_empleado. Jornada = 8h → hora = salario_diario / 8.
+function _fiscalActivo() {
+    try { return db.prepare("SELECT valor FROM configuracion WHERE clave='nomina_fiscal_activo'").get()?.valor === '1'; }
+    catch (_) { return false; }
+}
 function calcular(desde, hasta) {
     const dias = Math.max(1, Math.round((new Date(hasta) - new Date(desde)) / 86400000) + 1);
-    const factorMes = 30 / dias; // prorrateo del periodo a base mensual
+    const factorMes = 30 / dias;
+    const fiscal = _fiscalActivo();
     const empleados = db.prepare('SELECT * FROM empleados WHERE activo=1').all();
     const horasDe = db.prepare('SELECT COALESCE(SUM(horas),0) h FROM horarios_empleado WHERE id_empleado=? AND fecha>=? AND fecha<=?');
+    const porDia  = db.prepare('SELECT fecha, horas FROM horarios_empleado WHERE id_empleado=? AND fecha>=? AND fecha<=?');
     const resultados = [];
 
     for (const e of empleados) {
-        const horas = horasDe.get(e.id, desde, hasta)?.h || 0;
-        if (!(horas > 0)) continue;
-        const bruto = _r2(horas * (e.salario_diario / 8));
+        const horasTot = horasDe.get(e.id, desde, hasta)?.h || 0;
+        if (!(horasTot > 0)) continue;
+        const tarifaHora = e.salario_diario / 8;
+        let horasNormales = horasTot, horasExtra = 0, comisiones = 0;
+        if (fiscal) {
+            // horas extra = lo que pasa de 8h POR DÍA, pagadas al doble (LFT)
+            horasNormales = 0;
+            for (const d of porDia.all(e.id, desde, hasta)) {
+                horasNormales += Math.min(d.horas, 8);
+                horasExtra    += Math.max(0, d.horas - 8);
+            }
+            // comisiones = % sobre lo COBRADO por el empleado (liga por username)
+            if (e.comision_pct > 0 && e.username) {
+                const ventas = db.prepare("SELECT COALESCE(SUM(lp.monto),0) v FROM links_pago lp JOIN pedidos p ON p.id_pedido=lp.id_pedido WHERE lp.estatus='pagado' AND p.cobrado_por=? AND date(lp.pagado_en)>=? AND date(lp.pagado_en)<=?").get(e.username, desde, hasta)?.v || 0;
+                comisiones = _r2(ventas * (e.comision_pct / 100));
+            }
+        }
+        const bruto = _r2(horasNormales * tarifaHora + horasExtra * tarifaHora * 2 + comisiones);
         let isr = 0, imss = 0;
         if (e.con_impuestos) {
             isr = _r2(isrMensual(bruto * factorMes) / factorMes);
             imss = _r2(bruto * (IMSS_OBRERO_PCT / 100));
         }
         const neto = _r2(bruto - isr - imss);
-        db.prepare(`INSERT INTO nominas (id_empleado, desde, hasta, horas, bruto, isr, imss, neto)
-                    VALUES (?,?,?,?,?,?,?,?)
+        db.prepare(`INSERT INTO nominas (id_empleado, desde, hasta, horas, horas_extra, comisiones, bruto, isr, imss, neto)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(id_empleado, desde, hasta) DO UPDATE SET
-                      horas=excluded.horas, bruto=excluded.bruto, isr=excluded.isr,
-                      imss=excluded.imss, neto=excluded.neto`)
-          .run(e.id, desde, hasta, horas, bruto, isr, imss, neto);
-        resultados.push({ id_empleado: e.id, nombre: e.nombre, horas, bruto, isr, imss, neto, con_impuestos: !!e.con_impuestos });
+                      horas=excluded.horas, horas_extra=excluded.horas_extra, comisiones=excluded.comisiones,
+                      bruto=excluded.bruto, isr=excluded.isr, imss=excluded.imss, neto=excluded.neto`)
+          .run(e.id, desde, hasta, horasTot, horasExtra, comisiones, bruto, isr, imss, neto);
+        resultados.push({ id_empleado: e.id, nombre: e.nombre, horas: horasTot, horas_extra: horasExtra, comisiones, bruto, isr, imss, neto, con_impuestos: !!e.con_impuestos, metodo_pago: e.metodo_pago });
     }
     return resultados;
 }
@@ -75,4 +150,4 @@ function pagar(desde, hasta) {
 
 function _setDb(x) { db = x; } // solo tests
 
-module.exports = { calcular, pagar, isrMensual, _setDb };
+module.exports = { calcular, pagar, isrMensual, antiguedadAnios, diasVacacionesLey, aguinaldo, primaVacacional, finiquito, _setDb };

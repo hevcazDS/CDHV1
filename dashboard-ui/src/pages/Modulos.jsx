@@ -95,6 +95,7 @@ const MODULOS = [
   { key: 'emojis_dashboard_activo', titulo: 'Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
   { key: 'contabilidad_activo', titulo: 'Contabilidad (ERP)', desc: 'Asientos automáticos de cada venta/compra/pago en el libro mayor (ver ERP / Finanzas)' },
   { key: 'citas_activo', titulo: 'Citas y agenda', desc: 'El bot agenda citas por fecha/hora (giros de servicio) con recordatorio 24h antes' },
+  { key: 'nomina_fiscal_activo', titulo: '🧾 Nómina fiscal (LFT)', desc: 'Nómina completa: horas extra, comisiones, aguinaldo, finiquito, vacaciones LFT. Apagado = nómina sencilla' },
   { key: 'rrhh_activo', titulo: 'Recursos Humanos', desc: 'Empleados, horarios por Excel y nómina MX (con/sin impuestos)' },
 ];
 

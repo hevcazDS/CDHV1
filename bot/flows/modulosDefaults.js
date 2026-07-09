@@ -34,6 +34,7 @@ const DEFAULT_OFF = [
     'contabilidad_activo',
     // RRHH/nómina — módulo opcional (una pyme sin RH opera igual sin él)
     'rrhh_activo',
+    'nomina_fiscal_activo',
 ];
 
 // Dependencias entre módulos (idea Odoo): activar la llave exige que sus

@@ -1116,3 +1116,7 @@ BEGIN SELECT RAISE(ABORT, 'El kardex es inmutable: registra el movimiento contra
 CREATE TRIGGER IF NOT EXISTS trg_kardex_no_delete BEFORE DELETE ON inventario_movimientos
 WHEN COALESCE((SELECT valor FROM configuracion WHERE clave='mantenimiento_bd'),'0') != '1'
 BEGIN SELECT RAISE(ABORT, 'El kardex es inmutable: registra el movimiento contrario'); END;
+
+-- 0033: nómina fiscal — expediente + desglose (columnas añadidas a empleados/nominas)
+-- empleados += fecha_alta, departamento, comision_pct, metodo_pago, username, contacto_emergencia
+-- nominas   += horas_extra, comisiones
