@@ -26,7 +26,8 @@ Lo de abajo (plan histórico) queda como referencia — NO seguirlo directo.
 - [x] 2026-07-09 — **Cadena de documento navegable** (SAP): ERP > Rastro de documento — folio → pedido/pagos/kardex/asientos/devoluciones (sin cambio de schema: el folio ya ligaba todo)
 - [x] 2026-07-09 — **Filtros que se recuerdan** (NetSuite, versión lean): Pedidos gana filtro por estatus + búsqueda folio/cliente, persistidos por usuario (localStorage); filtros con nombre múltiple solo si un cliente lo pide
 - [x] 2026-07-09 — **Bitácora por pedido** (Odoo chatter): botón Historial en Pedidos — línea de tiempo creación/pagos/kardex/repartidor/devoluciones/cancelación (GET /api/pedidos/:id/historial, área operación)
-- [ ] Comprobante de transferencia por FOTO en el bot (estado PAGO_COMPROBANTE) + adjuntar foto de devolución a la notificación del asesor
+- [x] 2026-07-09 — Comprobante de transferencia por FOTO (S.PAGO_COMPROBANTE): el bot pide la foto al elegir transferencia, la liga al folio y escala a Cola de atención para validar
+- [ ] Adjuntar la FOTO de la devolución a la notificación WhatsApp del asesor (hoy se guarda pero solo se ve en el panel)
 - [ ] Guiones de venta V1-V12 restantes (psicología/conversión) — revisar cuáles faltan realmente
 - [ ] Datos demo POR MÓDULO (idea Odoo): extender demoMetricas para sembrar/revertir por módulo — *solo cuando haga falta para vender*
 
