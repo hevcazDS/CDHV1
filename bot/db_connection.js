@@ -12,8 +12,10 @@ let db;
 try {
     db = new Database(DB_PATH, { readonly: false });
 } catch (e) {
+    // Log del código y RETHROW (no exit): pm2 registra el crash con el
+    // código y los tests pueden interceptar el módulo como siempre
     console.error('[HS-101] Base de datos inaccesible (' + (process.env.DB_PATH || 'DB_PATH sin definir') + '): ' + e.message);
-    process.exit(1);
+    throw e;
 }
 
 // WAL mode para mejor rendimiento concurrente
