@@ -27,7 +27,7 @@ Lo de abajo (plan histórico) queda como referencia — NO seguirlo directo.
 - [x] 2026-07-09 — **Filtros que se recuerdan** (NetSuite, versión lean): Pedidos gana filtro por estatus + búsqueda folio/cliente, persistidos por usuario (localStorage); filtros con nombre múltiple solo si un cliente lo pide
 - [x] 2026-07-09 — **Bitácora por pedido** (Odoo chatter): botón Historial en Pedidos — línea de tiempo creación/pagos/kardex/repartidor/devoluciones/cancelación (GET /api/pedidos/:id/historial, área operación)
 - [x] 2026-07-09 — Comprobante de transferencia por FOTO (S.PAGO_COMPROBANTE): el bot pide la foto al elegir transferencia, la liga al folio y escala a Cola de atención para validar
-- [ ] Adjuntar la FOTO de la devolución a la notificación WhatsApp del asesor (hoy se guarda pero solo se ve en el panel)
+- [x] 2026-07-09 — Circuito completo de devolución con decisión del ASESOR: la foto se REENVÍA al WhatsApp del asesor al instante (evidencia y comprobante de transferencia), queda ligada como evidencia_url visible en el panel ("Ver foto"), el asesor decide aprobar/rechazar/resolver (con PIN para roles operativos), queda registrado QUIÉN decidió y el cliente recibe el veredicto por WhatsApp
 - [ ] Guiones de venta V1-V12 restantes (psicología/conversión) — revisar cuáles faltan realmente
 - [ ] Datos demo POR MÓDULO (idea Odoo): extender demoMetricas para sembrar/revertir por módulo — *solo cuando haga falta para vender*
 

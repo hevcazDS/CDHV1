@@ -237,7 +237,21 @@ async function handle(ctx) {
         // ── Paso 3: Foto ──────────────────────────────────────────
         if (_paso === 'pedir_foto') {
             const _tieneFoto = isImage || action === '1';
-            sessionManager.updateSession(userId, S.DEVOLUCION, { ...data, paso: 'pedir_donde_compro', tieneFoto: _tieneFoto });
+            let _evidencia = null;
+            if (isImage) {
+                _evidencia = (global.__ultimaImagenPorTel || {})[tel] || null;
+                // Reenviar la foto DIRECTO al WhatsApp del asesor (antes solo
+                // se guardaba y el asesor tenía que ir al panel a buscarla)
+                try {
+                    const _op = getValor('operador_telefono', process.env.ASESOR_WHATSAPP);
+                    if (_op && message.downloadMedia) {
+                        const _media = await message.downloadMedia();
+                        if (_media) await client.sendMessage(_op.replace(/\D/g, '') + '@c.us', _media,
+                            { caption: '📸 Evidencia de devolución — pedido ' + (data.idPedido || 's/folio') + ' · cliente ' + tel });
+                    }
+                } catch (e) { log.debug('No se pudo reenviar evidencia al asesor: ' + e.message); }
+            }
+            sessionManager.updateSession(userId, S.DEVOLUCION, { ...data, paso: 'pedir_donde_compro', tieneFoto: _tieneFoto, evidencia: _evidencia });
             return (
                 (_tieneFoto ? '\uD83D\uDCF8 Foto recibida, gracias. ' : 'Sin problema. ') +
                 '\u00bfD\u00f3nde realizaste la compra?\n\n' +

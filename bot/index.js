@@ -971,6 +971,10 @@ client.on('message', async msg => {
                                     const _webp = require('../services/imagenWebp').convertirAWebp(_path.join(_imgDir, _fname));
                                     if (_webp) _fnameGuardado = _webp;
                                 } catch (_) {}
+                                // ponytail: mapa global última-imagen-por-tel — los flujos
+                                // (devolución/comprobante) lo leen para ligar evidencia_url
+                                global.__ultimaImagenPorTel = global.__ultimaImagenPorTel || {};
+                                global.__ultimaImagenPorTel[_tel] = _fnameGuardado;
                             } else {
                                 log.warn('Cuota diaria de imágenes alcanzada, no se guarda en disco', { userId });
                             }

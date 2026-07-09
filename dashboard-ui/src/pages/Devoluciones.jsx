@@ -63,16 +63,20 @@ export default function Devoluciones() {
         </Group>
         <div className="table-wrap">
           <Table highlightOnHover verticalSpacing="xs">
-            <thead><tr><th>Pedido</th><th>Cliente</th><th>Motivo</th><th>Estatus</th><th>Fecha</th><th>Cambiar estatus</th></tr></thead>
+            <thead><tr><th>Pedido</th><th>Cliente</th><th>Motivo</th><th>Foto</th><th>Estatus</th><th>Fecha</th><th>Decisión del asesor</th></tr></thead>
             <tbody>
-              {rows === undefined && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
-              {rows?.length === 0 && <tr><td colSpan={6} className="empty">Sin devoluciones</td></tr>}
+              {rows === undefined && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
+              {rows?.length === 0 && <tr><td colSpan={7} className="empty">Sin devoluciones</td></tr>}
               {rows?.map(r => (
                 <tr key={r.id}>
                   <td><code>{r.folio || `#${r.id_pedido}`}</code></td>
                   <td>{r.cliente || '-'}</td>
                   <td style={{ fontSize: 12 }}>{r.motivo || '-'}</td>
-                  <td><Badge value={r.estatus} map="devolucion" /></td>
+                  <td>{r.evidencia_url
+                    ? <a href={'/api/imagenes_clientes/' + encodeURIComponent(r.evidencia_url)} target="_blank" rel="noreferrer" className="btn btn-sm">Ver foto</a>
+                    : <span className="text-muted" style={{ fontSize: 11 }}>—</span>}</td>
+                  <td><Badge value={r.estatus} map="devolucion" />
+                    {r.autorizada_por && <div className="text-muted" style={{ fontSize: 10 }}>por {r.autorizada_por}</div>}</td>
                   <td className="text-muted" style={{ fontSize: 11 }}>{fdate(r.creada_en)}</td>
                   <td>
                     <Select size="xs" data={ESTATUS} value={r.estatus} onChange={v => v && cambiarEstatus(r.id, v)} comboboxProps={{ withinPortal: true }} />

@@ -358,7 +358,8 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
         const _u = new URL('http://x' + req.url);
         const estatusF = (_u.searchParams.get('estatus') || '').trim();
         let sql = `
-            SELECT d.*, p.folio, p.cliente, c.telefono
+            SELECT d.*, p.folio, p.cliente, c.telefono,
+                   (SELECT username FROM usuarios u WHERE u.id = d.id_usuario_autoriza) autorizada_por
             FROM devoluciones d
             LEFT JOIN pedidos p  ON p.id_pedido = d.id_pedido
             LEFT JOIN clientes c ON c.id = p.id_cliente OR c.nombre = p.cliente
@@ -388,9 +389,9 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                 const terminal = estatus !== 'solicitada';
                 db.prepare(
                     "UPDATE devoluciones SET estatus=?, notas=COALESCE(?,notas)" +
-                    (terminal ? ", resuelta_en=datetime('now','localtime')" : "") +
+                    (terminal ? ", resuelta_en=datetime('now','localtime'), id_usuario_autoriza=(SELECT id FROM usuarios WHERE username=? LIMIT 1)" : "") +
                     " WHERE id=?"
-                ).run(estatus, notas || null, id);
+                ).run(...(terminal ? [estatus, notas || null, _sesDev.username, id] : [estatus, notas || null, id]));
 
                 const dev = db.prepare(`
                     SELECT d.*, p.folio, p.cliente, c.telefono
