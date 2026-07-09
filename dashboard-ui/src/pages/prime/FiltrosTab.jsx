@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Title, Group, ActionIcon, Table, Badge, Switch, Select, TextInput, NumberInput, Button } from '@mantine/core';
+import { Play, Pause, Trash2 } from 'lucide-react';
 import { api } from '../../api';
 
 const CATEGORIAS_FILTRO = [
@@ -133,7 +134,7 @@ export default function FiltrosTab() {
                   {p.origen === 'dashboard' && (
                     <Group gap={4} wrap="nowrap">
                       <ActionIcon variant="default" title={p.activo ? 'Desactivar' : 'Activar'} onClick={() => togglePalabra(p.id, !p.activo)}>
-                        {p.activo ? '⏸' : '▶'}
+                        {p.activo ? <Pause size={16} strokeWidth={1.75} /> : <Play size={16} strokeWidth={1.75} />}
                       </ActionIcon>
                       <ActionIcon variant="default" color="red" title="Borrar" onClick={() => eliminarPalabra(p.id)}><Trash2 size={16} strokeWidth={1.75} /></ActionIcon>
                     </Group>

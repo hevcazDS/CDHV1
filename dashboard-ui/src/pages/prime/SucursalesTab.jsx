@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from '@mantine/form';
 import { Card, Title, Group, ActionIcon, Table, Badge, TextInput, Button } from '@mantine/core';
+import { Pencil, Play, Pause, Trash2 } from 'lucide-react';
 import { api } from '../../api';
 import Modal from '../../components/Modal';
 
@@ -107,7 +108,7 @@ export default function SucursalesTab() {
                   <Group gap={4} wrap="nowrap">
                     <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionSucursal(s)}><Pencil size={16} strokeWidth={1.75} /></ActionIcon>
                     <ActionIcon variant="default" title={s.activa ? 'Desactivar' : 'Activar'} onClick={() => toggleSucursal(s.id, !s.activa)}>
-                      {s.activa ? '⏸' : '▶'}
+                      {s.activa ? <Pause size={16} strokeWidth={1.75} /> : <Play size={16} strokeWidth={1.75} />}
                     </ActionIcon>
                     <ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarSucursal(s.id)}><Trash2 size={16} strokeWidth={1.75} /></ActionIcon>
                   </Group>

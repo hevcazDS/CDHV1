@@ -4,12 +4,14 @@ import ProveedoresTab from './erp/ProveedoresTab';
 import ComprasTab from './erp/ComprasTab';
 import CxpTab from './erp/CxpTab';
 import ContabilidadTab from './erp/ContabilidadTab';
+import GastosImpuestosTab from './erp/GastosImpuestosTab';
 
 const TABS = [
   { key: 'proveedores', label: 'Proveedores', Componente: ProveedoresTab },
   { key: 'compras', label: 'Órdenes de compra', Componente: ComprasTab },
   { key: 'cxp', label: 'Cuentas por pagar', Componente: CxpTab },
   { key: 'contabilidad', label: 'Contabilidad', Componente: ContabilidadTab },
+  { key: 'gastos', label: 'Gastos e impuestos', Componente: GastosImpuestosTab },
 ];
 
 export default function Erp() {

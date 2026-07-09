@@ -7,7 +7,8 @@ const { permite } = require('../permisos');
 module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
-    if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')) {
+    if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')
+        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos')) {
         const ses = requireSession(req, res);
         if (!ses) return;
         if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
@@ -38,6 +39,48 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/erp/libro-mayor' && req.method === 'GET') {
         const { desde, hasta } = _rango();
         return json(res, { desde, hasta, cuentas: conta.libroMayor(desde, hasta) });
+    }
+
+    // Registro de GASTOS directos (renta, luz, papelería) → asiento 601
+    // (+119 si trae IVA) contra Caja/Bancos. Requiere módulo contabilidad ON.
+    if (p === '/api/erp/gastos' && req.method === 'POST') {
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const monto = Number(d.monto);
+                if (!String(d.concepto || '').trim() || !(monto > 0)) return json(res, { ok: false, error: 'Faltan concepto o monto' }, 400);
+                if (!conta.activo()) return json(res, { ok: false, error: 'Activa el módulo Contabilidad en Módulos para registrar gastos' }, 400);
+                const id = conta.asientoGasto(String(d.concepto).trim(), monto, d.metodo === 'bancos' ? 'bancos' : 'caja', !!d.con_iva);
+                return json(res, { ok: true, id_asiento: id });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+    if (p === '/api/erp/gastos' && req.method === 'GET') {
+        const { desde, hasta } = _rango();
+        const gastos = db.prepare(`
+            SELECT a.id, a.fecha, a.concepto, COALESCE(SUM(d.haber), 0) total
+            FROM asientos a JOIN asientos_detalle d ON d.id_asiento = a.id
+            WHERE a.referencia_tipo='gasto' AND a.fecha >= ? AND a.fecha <= ?
+            GROUP BY a.id ORDER BY a.id DESC LIMIT 200`).all(desde, hasta);
+        return json(res, gastos);
+    }
+
+    // Reporte de IMPUESTOS del periodo: IVA trasladado (209, cobrado en
+    // ventas) vs acreditable (119, pagado en compras/gastos) = por pagar/favor
+    if (p === '/api/erp/impuestos' && req.method === 'GET') {
+        const { desde, hasta } = _rango();
+        const cuentas = conta.libroMayor(desde, hasta);
+        const de = (cod) => cuentas.find(c => c.cuenta === cod) || { debe: 0, haber: 0 };
+        const trasladado = Math.round((de('209').haber - de('209').debe) * 100) / 100;
+        const acreditable = Math.round((de('119').debe - de('119').haber) * 100) / 100;
+        return json(res, {
+            desde, hasta,
+            ventas_base: Math.round((de('401').haber - de('401').debe) * 100) / 100,
+            gastos: Math.round((de('601').debe - de('601').haber) * 100) / 100,
+            iva_trasladado: trasladado,
+            iva_acreditable: acreditable,
+            iva_resultado: Math.round((trasladado - acreditable) * 100) / 100, // >0 = por pagar, <0 = a favor
+        });
     }
 
     // Asiento manual (ajustes, capital inicial, gastos) — es la herramienta

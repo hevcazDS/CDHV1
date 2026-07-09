@@ -326,7 +326,7 @@ export default function Notificaciones() {
 
           <Card withBorder radius="md" p="lg">
             <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 12, minHeight: 50, display: 'flex', alignItems: 'center' }}>
-              {!clienteSel && <span style={{ color: 'var(--text-mute)', fontSize: 13 }}>← Selecciona un cliente</span>}
+              {!clienteSel && <span style={{ color: 'var(--text-mute)', fontSize: 13 }}>Selecciona un cliente</span>}
               {clienteSel && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%' }}>
                   <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
@@ -366,7 +366,7 @@ export default function Notificaciones() {
 
             {clienteSel && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>↩ Regresar al bot</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Regresar al bot</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                   <Button variant="light" size="xs" disabled={reanudarBotMutation.isPending} onClick={() => reanudarBot('confirmar_direccion')}>
                     {txt('📮 Pedir confirmación de dirección')}

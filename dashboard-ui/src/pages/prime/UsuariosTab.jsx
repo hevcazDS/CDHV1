@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from '@mantine/form';
 import { Card, Title, Group, ActionIcon, Table, TextInput, PasswordInput, Select, Button } from '@mantine/core';
 import { api } from '../../api';
+import { Trash2 } from 'lucide-react';
 import Modal from '../../components/Modal';
 
 const ROLES_OPCIONES = [

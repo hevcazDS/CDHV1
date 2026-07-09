@@ -90,10 +90,10 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
                 const r = db.prepare('INSERT INTO cuentas_pagar (id_proveedor, monto, vence_en, referencia) VALUES (?,?,?,?)')
                     .run(prov.id, cfdi.total, vence, cfdi.uuid || [cfdi.serie, cfdi.folio].filter(Boolean).join('-') || null);
                 try {
-                    conta.registrarAsiento({
+                    conta.asientoCompra('cfdi:' + (cfdi.uuid || r.lastInsertRowid), cfdi.total, {
+                        cuentaCargo: d.es_mercancia ? '115' : '601',
+                        base: cfdi.subtotal, // subtotal exacto del CFDI → IVA acreditable real
                         concepto: 'CFDI ' + (cfdi.serie || '') + (cfdi.folio || cfdi.uuid || '') + ' — ' + prov.nombre,
-                        referencia_tipo: 'compra', referencia_id: 'cfdi:' + (cfdi.uuid || r.lastInsertRowid),
-                        partidas: [{ cuenta: d.es_mercancia ? '115' : '601', debe: cfdi.total }, { cuenta: '201', haber: cfdi.total }],
                     });
                 } catch (e) { if (conta.activo()) log.warn('Asiento CFDI falló: ' + e.message); }
 
@@ -152,10 +152,9 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
                 const r = db.prepare('INSERT INTO cuentas_pagar (id_proveedor, monto, vence_en, referencia) VALUES (?,?,?,?)')
                     .run(d.id_proveedor, Math.round(monto * 100) / 100, vence, String(d.referencia || '').trim() || null);
                 try {
-                    conta.registrarAsiento({
+                    conta.asientoCompra('fact:' + r.lastInsertRowid, monto, {
+                        cuentaCargo: d.es_mercancia ? '115' : '601',
                         concepto: 'Factura ' + (d.referencia || r.lastInsertRowid) + ' — ' + prov.nombre,
-                        referencia_tipo: 'compra', referencia_id: 'fact:' + r.lastInsertRowid,
-                        partidas: [{ cuenta: d.es_mercancia ? '115' : '601', debe: monto }, { cuenta: '201', haber: monto }],
                     });
                 } catch (e) { if (conta.activo()) log.warn('Asiento de factura falló: ' + e.message); }
                 return json(res, { ok: true, id: r.lastInsertRowid, vence_en: vence });

@@ -65,13 +65,33 @@ function asientoCostoVenta(idPedido) {
     });
 }
 
-// Compra recibida: cargo Inventario, abono Proveedores
-function asientoCompra(folioOC, total) {
+// Compra: desglosa el IVA ACREDITABLE (119) simétrico a asientoVenta con el
+// trasladado (209) — sin esto el reporte de impuestos infla el IVA por pagar.
+// opts: { cuentaCargo: '115'|'601', base: subtotal exacto (CFDI), concepto }.
+// El total capturado se asume CON IVA (como la factura real del proveedor).
+function asientoCompra(folioOC, total, opts = {}) {
     if (!activo() || !(total > 0)) return null;
+    const iva = parseFloat(getValor('iva_pct', '0')) || 0;
+    const base = opts.base > 0 ? _r2(opts.base) : (iva > 0 ? _r2(total / (1 + iva / 100)) : _r2(total));
+    const partidas = [{ cuenta: opts.cuentaCargo || '115', debe: base }];
+    if (total - base > 0.005) partidas.push({ cuenta: '119', debe: _r2(total - base) });
+    partidas.push({ cuenta: '201', haber: total });
     return registrarAsiento({
-        concepto: 'Compra ' + folioOC, referencia_tipo: 'compra', referencia_id: folioOC,
-        partidas: [{ cuenta: '115', debe: total }, { cuenta: '201', haber: total }],
+        concepto: opts.concepto || 'Compra ' + folioOC, referencia_tipo: 'compra', referencia_id: folioOC,
+        partidas,
     });
+}
+
+// Gasto directo (renta, luz, papelería): cargo Gastos (+119 si trae IVA),
+// abono Caja/Bancos. Es el registro diario del contador.
+function asientoGasto(concepto, total, metodo, conIva) {
+    if (!activo() || !(total > 0)) return null;
+    const iva = conIva ? (parseFloat(getValor('iva_pct', '0')) || 0) : 0;
+    const base = iva > 0 ? _r2(total / (1 + iva / 100)) : _r2(total);
+    const partidas = [{ cuenta: '601', debe: base }];
+    if (total - base > 0.005) partidas.push({ cuenta: '119', debe: _r2(total - base) });
+    partidas.push({ cuenta: metodo === 'bancos' ? '102' : '101', haber: total });
+    return registrarAsiento({ concepto: 'Gasto: ' + concepto, referencia_tipo: 'gasto', referencia_id: null, partidas });
 }
 
 // Devolución de mercancía: la pieza vuelve al inventario a su costo promedio
@@ -145,4 +165,4 @@ function libroMayor(desde, hasta) {
 function _setDb(x) { db = x; }            // solo tests
 function _setActivo(f) { _activoFn = f; } // solo tests
 
-module.exports = { activo, registrarAsiento, asientoVenta, asientoCostoVenta, asientoCompra, asientoPagoCxP, asientoDevolucion, asientoEntradaContado, asientoReversa, libroMayor, _setDb, _setActivo };
+module.exports = { activo, registrarAsiento, asientoVenta, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoEntradaContado, asientoReversa, libroMayor, _setDb, _setActivo };

@@ -96,7 +96,9 @@ export default function Layout() {
         : true;
       return pasaRol &&
         (!e.area || permite(user?.rol, e.area)) &&
-        (!e.moduloRequerido || modulosActivos[e.moduloRequerido]);
+        (!e.moduloRequerido || modulosActivos[e.moduloRequerido] ||
+          // rh/contabilidad SIEMPRE ven su link de RRHH; la página avisa si el módulo está apagado
+          (e.moduloRequerido === 'rrhh_activo' && ['rh', 'contabilidad'].includes(user?.rol)));
     }) }))
     .filter(g => g.enlaces.length > 0);
 

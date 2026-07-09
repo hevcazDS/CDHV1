@@ -15,7 +15,9 @@ export default function Rrhh() {
   const hace14 = new Date(Date.now() - 13 * 86400000).toISOString().slice(0, 10);
   const [periodo, setPeriodo] = useState({ desde: hace14, hasta: hoy });
 
-  const { data: empleados = [] } = useQuery({ queryKey: ['rrhh-emp'], queryFn: () => api.get('/api/rrhh/empleados') });
+  const { data: modulo } = useQuery({ queryKey: ['modulo-rrhh'], queryFn: () => api.get('/api/modulo/rrhh_activo').catch(() => null) });
+  const moduloApagado = modulo && !modulo.error && !modulo.activo;
+  const { data: empleados = [] } = useQuery({ queryKey: ['rrhh-emp'], queryFn: () => api.get('/api/rrhh/empleados'), enabled: !moduloApagado });
   const { data: nominas = [] } = useQuery({ queryKey: ['rrhh-nom'], queryFn: () => api.get('/api/rrhh/nomina') });
 
   const crearEmp = useMutation({
@@ -52,6 +54,11 @@ export default function Rrhh() {
     <div>
       <div className="page-title">Recursos Humanos</div>
       <div className="page-sub">Empleados, horarios y nómina · cálculo aproximado — valida impuestos con tu contador</div>
+      {moduloApagado && (
+        <div className="banner-alerta" style={{ marginBottom: 14 }}>
+          El módulo Recursos Humanos está desactivado — pide al administrador encenderlo en Módulos para operar aquí.
+        </div>
+      )}
       <Tabs value={tab} onChange={setTab} mb="md">
         <Tabs.List>
           <Tabs.Tab value="empleados">Empleados y horarios</Tabs.Tab>
