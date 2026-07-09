@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Bike, Check, ReceiptText, RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Table, Select, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
@@ -127,7 +128,7 @@ export default function Pedidos() {
           <Title order={4}>{txt('📦 Pedidos recientes')}</Title>
           <Group gap="xs">
             <Button variant="default" size="xs" onClick={exportarCSV}>{txt('⬇️ CSV')}</Button>
-            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+            <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
         </Group>
         <div className="table-wrap">
@@ -152,12 +153,12 @@ export default function Pedidos() {
                   <td>
                     <Group gap={4} wrap="nowrap">
                       {r.pago_estatus === 'generado' && r.id_link_pago && (
-                        <ActionIcon variant="light" color="teal" title="Confirmar pago recibido" onClick={() => setPagoModal(r.id_link_pago)}>✅</ActionIcon>
+                        <ActionIcon variant="light" color="teal" title="Confirmar pago recibido" onClick={() => setPagoModal(r.id_link_pago)}><Check size={16} strokeWidth={1.75} /></ActionIcon>
                       )}
                       {repartidorActivo && (
-                        <ActionIcon variant="light" color="orange" title={r.repartidor_nombre ? `Repartidor: ${r.repartidor_nombre}` : 'Asignar repartidor'} onClick={() => abrirRepartidor(r)}>🛵</ActionIcon>
+                        <ActionIcon variant="light" color="orange" title={r.repartidor_nombre ? `Repartidor: ${r.repartidor_nombre}` : 'Asignar repartidor'} onClick={() => abrirRepartidor(r)}><Bike size={16} strokeWidth={1.75} /></ActionIcon>
                       )}
-                      <ActionIcon variant="default" title="Ver ticket" onClick={() => abrirTicket(r.id_pedido)}>🧾</ActionIcon>
+                      <ActionIcon variant="default" title="Ver ticket" onClick={() => abrirTicket(r.id_pedido)}><ReceiptText size={16} strokeWidth={1.75} /></ActionIcon>
                     </Group>
                   </td>
                 </tr>
@@ -201,7 +202,7 @@ export default function Pedidos() {
               <Button size="xs" disabled={guardarFacturacionMutation.isPending} onClick={guardarFacturacion}>Guardar</Button>
               {(razonSocial.trim() || rfc.trim()) && (
                 <div style={{ marginTop: 12, padding: 10, border: '1px dashed var(--border)', borderRadius: 6, fontSize: 12 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>🧾 Comprobante para facturación</div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Comprobante para facturación</div>
                   <div>Referencia: <strong>{ticket.pedido.folio || '#' + ticket.pedido.id_pedido}</strong></div>
                   {razonSocial.trim() && <div>Razón social: {razonSocial}</div>}
                   {rfc.trim() && <div>RFC: {rfc}</div>}
@@ -214,7 +215,7 @@ export default function Pedidos() {
       )}
 
       {repModal && (
-        <Modal title={`🛵 Repartidor — ${repModal.folio || '#' + repModal.id_pedido}`} onClose={() => setRepModal(null)}
+        <Modal title={`Repartidor — ${repModal.folio || '#' + repModal.id_pedido}`} onClose={() => setRepModal(null)}
           actions={<Button variant="default" onClick={() => setRepModal(null)}>Cerrar</Button>}>
           <p className="page-sub" style={{ margin: '0 0 12px' }}>Asigna al repartidor y avisa al cliente desde el WhatsApp del negocio.</p>
           <TextInput label="Nombre del repartidor" placeholder="Ej. Juan" value={repNombre} onChange={e => setRepNombre(e.target.value)}
@@ -227,8 +228,8 @@ export default function Pedidos() {
             <Button size="xs" variant="default" disabled={!repNombre.trim() || repMutation.isPending} onClick={asignarRepartidor}>Guardar repartidor</Button>
           </Group>
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-            <Button size="xs" color="orange" disabled={repMutation.isPending} onClick={() => repAccion('en_camino')}>🛵 En camino</Button>
-            <Button size="xs" color="teal" disabled={repMutation.isPending} onClick={() => repAccion('entregado')}>✅ Entregado</Button>
+            <Button size="xs" color="orange" disabled={repMutation.isPending} onClick={() => repAccion('en_camino')}>En camino</Button>
+            <Button size="xs" color="teal" disabled={repMutation.isPending} onClick={() => repAccion('entregado')}>Entregado</Button>
           </div>
           <p className="text-muted" style={{ fontSize: 11, marginTop: 10 }}>El cliente recibe el aviso por el WhatsApp del negocio (no hace falta otro número).</p>
         </Modal>

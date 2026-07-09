@@ -29,7 +29,7 @@ export default function WhatsAppQR({ qr, pantallaCompleta = false }) {
         maxWidth: pantallaCompleta ? 360 : undefined,
       }}
     >
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>{emoji('📱')}WhatsApp desconectado — escanea el QR para vincular</div>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{emoji('')}WhatsApp desconectado — escanea el QR para vincular</div>
       <div style={{ opacity: 0.7, fontSize: 13, marginBottom: 16 }}>
         Se actualiza solo cada {Math.round(QR_POLL_MS / 1000)}s mientras no se escanee. Si el teléfono pierde la
         vinculación más adelante, este QR vuelve a aparecer automáticamente.

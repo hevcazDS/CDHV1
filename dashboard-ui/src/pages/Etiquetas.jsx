@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Select, Button, TextInput, SimpleGrid, Badge, Text } from '@mantine/core';
 import { api } from '../api';
@@ -56,7 +57,7 @@ export default function Etiquetas() {
           <Title order={4}>{txt('🏷️ Fotos por revisar')}</Title>
           <Group gap="xs">
             <Select size="xs" w={140} data={ESTADO_OPTS} value={estado} onChange={v => setEstado(v ?? estado)} comboboxProps={{ withinPortal: true }} />
-            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+            <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
         </Group>
 

@@ -214,8 +214,8 @@ export default function CatalogoTab() {
                   <td>{p.stock_cedis}</td>
                   <td>
                     <Group gap={4} wrap="nowrap">
-                      <ActionIcon variant="light" color="teal" title="Recibir mercancía (entrada de stock)" onClick={() => abrirEntrada(p)}>📥</ActionIcon>
-                      <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionProducto(p)}>✏️</ActionIcon>
+                      <ActionIcon variant="light" color="teal" title="Recibir mercancía (entrada de stock)" onClick={() => abrirEntrada(p)}><Inbox size={16} strokeWidth={1.75} /></ActionIcon>
+                      <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionProducto(p)}><Pencil size={16} strokeWidth={1.75} /></ActionIcon>
                     </Group>
                   </td>
                 </tr>
@@ -242,7 +242,7 @@ export default function CatalogoTab() {
       )}
 
       {entradaProd && (
-        <Modal title={`📥 Recibir mercancía — ${entradaProd.name}`} onClose={() => setEntradaProd(null)}
+        <Modal title={`Recibir mercancía — ${entradaProd.name}`} onClose={() => setEntradaProd(null)}
           actions={<>
             <Button variant="default" onClick={() => setEntradaProd(null)}>Cerrar</Button>
             <Button onClick={guardarEntrada} disabled={entradaMutation.isPending}>Registrar entrada</Button>

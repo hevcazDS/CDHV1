@@ -36,7 +36,7 @@ export default function ContabilidadTab() {
           <div className="card-header">
             <h3>Libro mayor</h3>
             <Text size="xs" c={Math.abs(totalDebe - totalHaber) < 0.01 ? 'dimmed' : 'red'}>
-              {Math.abs(totalDebe - totalHaber) < 0.01 ? '✓ Balanza cuadrada' : '⚠ Descuadre: revisa asientos'}
+              {Math.abs(totalDebe - totalHaber) < 0.01 ? 'Balanza cuadrada' : 'Descuadre: revisa asientos'}
             </Text>
           </div>
           <div className="table-wrap">

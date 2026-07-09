@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Title, ActionIcon, Group, Button, PasswordInput, TextInput, Table } from '@mantine/core';
 import { api } from '../api';
@@ -18,8 +19,8 @@ export default function Beta() {
     if (!window.confirm('¿Eliminar todos los datos de prueba de este número?')) return;
     try {
       const r = await api.post('/api/beta/limpiar', { codigo, telefono });
-      setMsg(r.ok ? { ok: true, texto: '✅ Datos eliminados correctamente' } : { ok: false, texto: '❌ ' + r.error });
-    } catch (e) { setMsg({ ok: false, texto: '❌ ' + e.message }); }
+      setMsg(r.ok ? { ok: true, texto: 'Datos eliminados correctamente' } : { ok: false, texto: '' + r.error });
+    } catch (e) { setMsg({ ok: false, texto: '' + e.message }); }
   };
 
   const verHealth = async () => {
@@ -63,7 +64,7 @@ export default function Beta() {
       <Card withBorder radius="md" p="lg" mt={14}>
         <Group justify="space-between" mb="md">
           <Title order={4}>{txt('🪵 Errores registrados')}</Title>
-          <ActionIcon variant="default" onClick={() => refetchErrores()}>🔄</ActionIcon>
+          <ActionIcon variant="default" onClick={() => refetchErrores()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
         </Group>
         <div className="table-wrap">
           <Table highlightOnHover verticalSpacing="xs">

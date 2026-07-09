@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Table, TextInput } from '@mantine/core';
 import { api } from '../api';
@@ -29,7 +30,7 @@ export default function Clientes() {
           <Title order={4}>{txt('👥 Clientes')}</Title>
           <Group gap="xs">
             <TextInput size="xs" placeholder="Buscar..." value={q} onChange={e => setQ(e.target.value)} w={200} />
-            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+            <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
         </Group>
         <div className="table-wrap">

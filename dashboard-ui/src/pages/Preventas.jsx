@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
@@ -30,11 +31,11 @@ export default function Preventas() {
   const crearMutation = useMutation({
     mutationFn: (body) => api.post('/api/preventas', body),
     onSuccess: () => {
-      setMsg({ ok: true, texto: '✅ Preventa creada' });
+      setMsg({ ok: true, texto: 'Preventa creada' });
       setIdProducto(''); setNombre(''); setFechaEst(''); setPrecio(''); setStock('50'); setAnticipo('50');
       queryClient.invalidateQueries({ queryKey: ['preventas'] });
     },
-    onError: (e) => setMsg({ ok: false, texto: '❌ ' + e.message }),
+    onError: (e) => setMsg({ ok: false, texto: '' + e.message }),
   });
   const crear = () => {
     const body = {
@@ -70,7 +71,7 @@ export default function Preventas() {
         <Card withBorder radius="md" p="lg">
           <Group justify="space-between" mb="md">
             <Title order={4}>{txt('📅 Preventas activas')}</Title>
-            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+            <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
           {rows === undefined && <div className="empty">Cargando...</div>}
           {rows?.length === 0 && <div className="empty">Sin preventas activas</div>}

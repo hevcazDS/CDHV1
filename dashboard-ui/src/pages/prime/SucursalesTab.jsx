@@ -105,11 +105,11 @@ export default function SucursalesTab() {
                 <td><Badge color={s.activa ? 'teal' : 'red'} variant="light">{s.activa ? 'sí' : 'no'}</Badge></td>
                 <td>
                   <Group gap={4} wrap="nowrap">
-                    <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionSucursal(s)}>✏️</ActionIcon>
+                    <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionSucursal(s)}><Pencil size={16} strokeWidth={1.75} /></ActionIcon>
                     <ActionIcon variant="default" title={s.activa ? 'Desactivar' : 'Activar'} onClick={() => toggleSucursal(s.id, !s.activa)}>
-                      {s.activa ? '⏸️' : '▶️'}
+                      {s.activa ? '⏸' : '▶'}
                     </ActionIcon>
-                    <ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarSucursal(s.id)}>🗑️</ActionIcon>
+                    <ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarSucursal(s.id)}><Trash2 size={16} strokeWidth={1.75} /></ActionIcon>
                   </Group>
                 </td>
               </tr>

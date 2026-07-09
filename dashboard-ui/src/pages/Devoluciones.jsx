@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Table, Select, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
@@ -57,7 +58,7 @@ export default function Devoluciones() {
           <Title order={4}>{txt('↩️ Devoluciones')}</Title>
           <Group gap="xs">
             <Select size="xs" w={140} data={FILTRO_OPTS} value={filtro} onChange={v => setFiltro(v ?? '')} comboboxProps={{ withinPortal: true }} />
-            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+            <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
         </Group>
         <div className="table-wrap">

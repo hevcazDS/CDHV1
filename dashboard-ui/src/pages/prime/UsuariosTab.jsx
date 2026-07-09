@@ -126,8 +126,8 @@ export default function UsuariosTab() {
                 <td>{u.creado_en}</td>
                 <td>
                   <Group gap={4} wrap="nowrap">
-                    <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionUsuario(u)}>✏️</ActionIcon>
-                    <ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarUsuario(u.id)}>🗑️</ActionIcon>
+                    <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionUsuario(u)}><Pencil size={16} strokeWidth={1.75} /></ActionIcon>
+                    <ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarUsuario(u.id)}><Trash2 size={16} strokeWidth={1.75} /></ActionIcon>
                   </Group>
                 </td>
               </tr>

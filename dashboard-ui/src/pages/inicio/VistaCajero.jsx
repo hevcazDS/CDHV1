@@ -25,7 +25,7 @@ export default function VistaCajero() {
           Ir al mostrador
         </Button>
         <Text size="xs" c="dimmed" ta="center">
-          {yaCerro ? '✓ Ya cerraste tu corte de hoy' : 'Al terminar tu turno, cierra tu corte desde el mostrador'}
+          {yaCerro ? 'Ya cerraste tu corte de hoy' : 'Al terminar tu turno, cierra tu corte desde el mostrador'}
         </Text>
       </Card>
     </div>

@@ -18,7 +18,7 @@ export default function MovimientosTab() {
     mutationFn: (id) => api.post(`/api/erp/ordenes-compra/${id}/recibir`),
     onSuccess: (r) => {
       if (!r.ok) return handleApiError(new Error(r.error));
-      alert('✓ Mercancía recibida: inventario, costo promedio y CxP actualizados');
+      alert('Mercancía recibida: inventario, costo promedio y CxP actualizados');
       qc.invalidateQueries({ queryKey: ['erp-ocs'] });
       qc.invalidateQueries({ queryKey: ['almacen-prods'] });
     },
@@ -35,7 +35,7 @@ export default function MovimientosTab() {
     },
     onSuccess: (r) => {
       if (!r.ok) return handleApiError(new Error(r.error));
-      alert('✓ Movimiento registrado con kardex');
+      alert('Movimiento registrado con kardex');
       qc.invalidateQueries({ queryKey: ['almacen-prods'] });
       qc.invalidateQueries({ queryKey: ['kardex'] });
     },
@@ -86,7 +86,7 @@ export default function MovimientosTab() {
                 costo: costo !== null && costo !== '' ? Number(costo) : undefined, proveedor: f.motivo || undefined,
               });
               if (!r.ok) throw new Error(r.error);
-              alert(`✓ Entrada registrada: ${r.stock_anterior} → ${r.stock_nuevo}`);
+              alert(`Entrada registrada: ${r.stock_anterior} → ${r.stock_nuevo}`);
               qc.invalidateQueries({ queryKey: ['almacen-prods'] });
               qc.invalidateQueries({ queryKey: ['kardex'] });
             } catch (e) { handleApiError(e); }

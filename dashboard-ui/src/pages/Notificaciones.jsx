@@ -23,16 +23,16 @@ function insertarEnCursor(ref, valorActual, setValor, textoInsertar) {
 }
 
 const PLANTILLAS_IND = {
-  pedido_listo: 'Hola {nombre} 👋\n\nTe informamos que tu pedido está listo para enviarse. En breve recibirás tu guía de rastreo. ¡Gracias por tu compra! 🧸',
-  guia_generada: 'Hola {nombre} 🚚\n\nTu pedido ya está en camino. Puedes rastrear tu envío en la página de Estafeta. ¡Que lo disfrutes! 🎁',
-  pago_pendiente: 'Hola {nombre} 💳\n\nRecordamos que tienes un pago pendiente. ¿Necesitas ayuda? Responde este mensaje.',
-  seguimiento: 'Hola {nombre} 👋\n\n¿Cómo estás? Queremos saber si todo llegó bien con tu pedido. 🧸',
+  pedido_listo: 'Hola {nombre} \n\nTe informamos que tu pedido está listo para enviarse. En breve recibirás tu guía de rastreo. ¡Gracias por tu compra! ',
+  guia_generada: 'Hola {nombre} \n\nTu pedido ya está en camino. Puedes rastrear tu envío en la página de Estafeta. ¡Que lo disfrutes! ',
+  pago_pendiente: 'Hola {nombre} \n\nRecordamos que tienes un pago pendiente. ¿Necesitas ayuda? Responde este mensaje.',
+  seguimiento: 'Hola {nombre} \n\n¿Cómo estás? Queremos saber si todo llegó bien con tu pedido. ',
 };
 
 const PLANTILLAS_MAS = {
-  promocion: 'Hola {nombre} 🏷️\n\nTenemos ofertas especiales esta semana en Julio Cepeda Jugueterías. ¡Escríbenos para conocer los descuentos! 🧸',
-  reactivacion: 'Hola {nombre} 👋\n\n¡Hace tiempo no nos visitas! Te extrañamos. Tenemos productos nuevos que te van a encantar. 🎁',
-  novedad: 'Hola {nombre} ✨\n\nAcabamos de recibir productos nuevos que creemos te van a interesar. Escríbenos para verlos. 🧸',
+  promocion: 'Hola {nombre} \n\nTenemos ofertas especiales esta semana en Julio Cepeda Jugueterías. ¡Escríbenos para conocer los descuentos! ',
+  reactivacion: 'Hola {nombre} \n\n¡Hace tiempo no nos visitas! Te extrañamos. Tenemos productos nuevos que te van a encantar. ',
+  novedad: 'Hola {nombre} \n\nAcabamos de recibir productos nuevos que creemos te van a interesar. Escríbenos para verlos. ',
 };
 
 function capitalizar(nombre) {
@@ -109,7 +109,7 @@ export default function Notificaciones() {
     refetchInterval: 5000,
   });
 
-  // ?cliente=<id> en la URL (llega desde el botón "💬 Chatear" de Cola de
+  // ?cliente=<id> en la URL (llega desde el botón "Chatear" de Cola de
   // Atención) preselecciona ese cliente en cuanto carga la lista completa.
   useEffect(() => {
     const idParam = searchParams.get('cliente');
@@ -129,10 +129,10 @@ export default function Notificaciones() {
   const reanudarBotMutation = useMutation({
     mutationFn: (paso) => api.put(`/api/clientes/${clienteSel.id}/reanudar-bot`, { paso }),
     onSuccess: (r) => {
-      if (r.ok) setMsgReanudar({ ok: true, texto: '✅ Conversación regresada al bot (' + r.paso + ')' });
-      else setMsgReanudar({ ok: false, texto: '❌ ' + r.error });
+      if (r.ok) setMsgReanudar({ ok: true, texto: 'Conversación regresada al bot (' + r.paso + ')' });
+      else setMsgReanudar({ ok: false, texto: '' + r.error });
     },
-    onError: (e) => setMsgReanudar({ ok: false, texto: '❌ ' + e.message }),
+    onError: (e) => setMsgReanudar({ ok: false, texto: '' + e.message }),
   });
   const reanudarBot = (paso) => {
     if (!clienteSel) return;
@@ -165,12 +165,12 @@ export default function Notificaciones() {
     mutationFn: () => api.post('/api/notificar', { telefono: clienteSel.telefono, mensaje: msgInd }),
     onSuccess: (r) => {
       if (r.ok) {
-        setRespInd({ ok: true, texto: '✅ Enviado a ' + capitalizar(clienteSel.nombre) });
+        setRespInd({ ok: true, texto: 'Enviado a ' + capitalizar(clienteSel.nombre) });
         setMsgInd('');
         queryClient.invalidateQueries({ queryKey: ['mensajes-cliente', clienteSel.id] });
-      } else setRespInd({ ok: false, texto: '❌ ' + r.error });
+      } else setRespInd({ ok: false, texto: '' + r.error });
     },
-    onError: (e) => setRespInd({ ok: false, texto: '❌ ' + e.message }),
+    onError: (e) => setRespInd({ ok: false, texto: '' + e.message }),
   });
   const enviarIndividual = () => {
     if (!clienteSel) { setRespInd({ ok: false, texto: 'Selecciona un cliente' }); return; }
@@ -200,11 +200,11 @@ export default function Notificaciones() {
     },
     onSuccess: (r) => {
       if (r.ok) {
-        setRespPos({ ok: true, texto: '✅ Venta previa enviada (folio ' + r.folio + ')' });
+        setRespPos({ ok: true, texto: 'Venta previa enviada (folio ' + r.folio + ')' });
         setPosCarrito([]); setPosResultados([]); setPosQ('');
-      } else setRespPos({ ok: false, texto: '❌ ' + r.error });
+      } else setRespPos({ ok: false, texto: '' + r.error });
     },
-    onError: (e) => setRespPos({ ok: false, texto: '❌ ' + e.message }),
+    onError: (e) => setRespPos({ ok: false, texto: '' + e.message }),
   });
   const enviarVentaPrevia = () => {
     if (!clienteSel) { setRespPos({ ok: false, texto: 'Selecciona un cliente' }); return; }
@@ -237,13 +237,13 @@ export default function Notificaciones() {
     mutationFn: (body) => api.post('/api/masivo', body),
     onSuccess: (r) => {
       if (r.ok) {
-        setRespMasivo({ ok: true, texto: r.programado ? `✅ ${r.encolados} mensajes programados para ${new Date(r.enviar_en).toLocaleString('es-MX')}` : `✅ ${r.encolados} mensajes encolados` });
+        setRespMasivo({ ok: true, texto: r.programado ? `${r.encolados} mensajes programados para ${new Date(r.enviar_en).toLocaleString('es-MX')}` : `${r.encolados} mensajes encolados` });
         setMsgMasivo('');
         setCuando('ahora');
         queryClient.invalidateQueries({ queryKey: ['audiencia-masivo'] });
-      } else setRespMasivo({ ok: false, texto: '❌ ' + r.error });
+      } else setRespMasivo({ ok: false, texto: '' + r.error });
     },
-    onError: (e) => setRespMasivo({ ok: false, texto: '❌ ' + e.message }),
+    onError: (e) => setRespMasivo({ ok: false, texto: '' + e.message }),
   });
   const enviarMasivo = async () => {
     if (!msgMasivo.trim()) { setRespMasivo({ ok: false, texto: 'Escribe el mensaje primero' }); return; }
@@ -269,9 +269,9 @@ export default function Notificaciones() {
           codigo: flashCodigo, tipo: 'porcentaje', valor: parseFloat(flashValor),
           minutos_validez: parseInt(flashMinutos || 10), usos_max: parseInt(flashUsosMax || 10),
         });
-        if (!r.ok) { setRespMasivo({ ok: false, texto: '❌ Cupón flash: ' + r.error }); return; }
+        if (!r.ok) { setRespMasivo({ ok: false, texto: 'Cupón flash: ' + r.error }); return; }
         if (!mensajeFinal.includes(r.codigo)) mensajeFinal += `\n\nUsa el código ${r.codigo} — válido solo por ${flashMinutos} minutos.`;
-      } catch (e) { setRespMasivo({ ok: false, texto: '❌ Cupón flash: ' + e.message }); return; }
+      } catch (e) { setRespMasivo({ ok: false, texto: 'Cupón flash: ' + e.message }); return; }
     }
 
     enviarMasivoMutation.mutate({
@@ -337,7 +337,7 @@ export default function Notificaciones() {
                     <div style={{ fontSize: 11, color: 'var(--text-mute)', fontFamily: 'monospace' }}>{soloTelefono(clienteSel.telefono)}</div>
                     {clienteSel.codigo_referido && (
                       <div style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'monospace' }} title="Código de referido — puedes mencionárselo al cliente en esta venta">
-                        <Emoji>🤝 </Emoji>{clienteSel.codigo_referido}
+                        <Emoji></Emoji>{clienteSel.codigo_referido}
                       </div>
                     )}
                   </div>
@@ -366,7 +366,7 @@ export default function Notificaciones() {
 
             {clienteSel && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>↩️ Regresar al bot</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>↩ Regresar al bot</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                   <Button variant="light" size="xs" disabled={reanudarBotMutation.isPending} onClick={() => reanudarBot('confirmar_direccion')}>
                     {txt('📮 Pedir confirmación de dirección')}
@@ -421,7 +421,7 @@ export default function Notificaciones() {
                 {posCarrito.length === 0 ? 'Carrito vacío' : posCarrito.map(it => (
                   <div key={it.id_producto} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
                     <span style={{ flex: 1 }}>{it.nombre} ×{it.cantidad}</span>
-                    <Button variant="default" size="xs" onClick={() => quitarProductoPOS(it.id_producto)}>✕</Button>
+                    <Button variant="default" size="xs" onClick={() => quitarProductoPOS(it.id_producto)}></Button>
                   </div>
                 ))}
               </div>
@@ -532,7 +532,7 @@ export default function Notificaciones() {
             )}
 
             <Button fullWidth disabled={enviarMasivoMutation.isPending} onClick={enviarMasivo}>
-              <Emoji>📣 </Emoji>Enviar a {audiencia?.length || 0} clientes
+              <Emoji></Emoji>Enviar a {audiencia?.length || 0} clientes
             </Button>
             {respMasivo && <div className={respMasivo.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respMasivo.texto)}</div>}
           </Card>

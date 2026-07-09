@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Pencil, RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Table, Select, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
@@ -49,7 +50,7 @@ export default function Guias() {
         <Card withBorder radius="md" p="lg">
           <Group justify="space-between" mb="md">
             <Title order={4}>{txt('🚚 Guías activas')}</Title>
-            <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+            <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
           <div className="table-wrap">
             <Table highlightOnHover verticalSpacing="xs">
@@ -64,7 +65,7 @@ export default function Guias() {
                     <td className="text-muted">{r.dest_ciudad || r.ciudad_envio || '-'}</td>
                     <td><Badge value={r.estatus} map="guia" /></td>
                     <td className="text-muted">{r.fecha_entrega_est || '-'}</td>
-                    <td><ActionIcon variant="default" onClick={() => editarRapido(r.numero_guia)}>✏️</ActionIcon></td>
+                    <td><ActionIcon variant="default" onClick={() => editarRapido(r.numero_guia)}><Pencil size={16} strokeWidth={1.75} /></ActionIcon></td>
                   </tr>
                 ))}
               </tbody>

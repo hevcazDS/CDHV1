@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Table, Tabs, Button } from '@mantine/core';
@@ -9,9 +10,9 @@ import Badge from '../components/Badge';
 import { useTextoEmoji } from '../context/EmojiContext';
 
 const TABS = [
-  { key: 'en_espera', label: '🚨 En espera' },
-  { key: 'atendida', label: '🗣️ Atendidas' },
-  { key: 'resuelta', label: '✅ Resueltas' },
+  { key: 'en_espera', label: 'En espera' },
+  { key: 'atendida', label: 'Atendidas' },
+  { key: 'resuelta', label: 'Resueltas' },
 ];
 
 export default function ColaAtencion() {
@@ -48,7 +49,7 @@ export default function ColaAtencion() {
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between" mb="md">
           <Title order={4}>{txt('🚨 Cola de atención humana')}</Title>
-          <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+          <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
         </Group>
         <div className="table-wrap">
           <Table highlightOnHover verticalSpacing="xs">

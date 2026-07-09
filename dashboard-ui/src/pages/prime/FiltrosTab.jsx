@@ -133,9 +133,9 @@ export default function FiltrosTab() {
                   {p.origen === 'dashboard' && (
                     <Group gap={4} wrap="nowrap">
                       <ActionIcon variant="default" title={p.activo ? 'Desactivar' : 'Activar'} onClick={() => togglePalabra(p.id, !p.activo)}>
-                        {p.activo ? '⏸️' : '▶️'}
+                        {p.activo ? '⏸' : '▶'}
                       </ActionIcon>
-                      <ActionIcon variant="default" color="red" title="Borrar" onClick={() => eliminarPalabra(p.id)}>🗑️</ActionIcon>
+                      <ActionIcon variant="default" color="red" title="Borrar" onClick={() => eliminarPalabra(p.id)}><Trash2 size={16} strokeWidth={1.75} /></ActionIcon>
                     </Group>
                   )}
                 </td>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Select, Button, TextInput, NumberInput } from '@mantine/core';
 import { api } from '../api';
@@ -59,12 +60,12 @@ export default function Cupones() {
   const crearMutation = useMutation({
     mutationFn: (body) => api.post('/api/promociones', body),
     onSuccess: () => {
-      setMsg({ ok: true, texto: '✅ Cupón creado' });
+      setMsg({ ok: true, texto: 'Cupón creado' });
       setCodigo(''); setDescripcion(''); setValor(''); setIdProducto(''); setIdCategoria('');
       setBrand(''); setEdadMin(''); setEdadMax(''); setFechaInicio(''); setFechaFin('');
       queryClient.invalidateQueries({ queryKey: ['promociones'] });
     },
-    onError: (e) => setMsg({ ok: false, texto: '❌ ' + e.message }),
+    onError: (e) => setMsg({ ok: false, texto: '' + e.message }),
   });
   const crear = () => {
     const body = {
@@ -104,7 +105,7 @@ export default function Cupones() {
             <Title order={4}>{txt('🎟️ Cupones / Promociones')}</Title>
             <Group gap="xs">
               <Select size="xs" w={120} data={FILTRO_OPTS} value={filtro} onChange={v => setFiltro(v ?? '')} comboboxProps={{ withinPortal: true }} />
-              <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+              <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
             </Group>
           </Group>
           {rows === undefined && <div className="empty">Cargando...</div>}
@@ -126,7 +127,7 @@ export default function Cupones() {
                   variant="light" color={r.activa ? 'red' : 'teal'} size="xs" mt={7}
                   onClick={() => r.activa ? setBajando({ id: r.id }) : activar(r.id)}
                 >
-                  {txt(r.activa ? '🚫 Desactivar' : '✅ Activar')}
+                  {txt(r.activa ? 'Desactivar' : 'Activar')}
                 </Button>
               </div>
             );

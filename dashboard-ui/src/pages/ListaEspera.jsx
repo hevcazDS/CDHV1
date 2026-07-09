@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { RefreshCw } from 'lucide-react';
 import { Card, Group, Title, ActionIcon, Table, Button } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
@@ -36,7 +37,7 @@ export default function ListaEspera() {
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between" mb="md">
           <Title order={4}>{txt('🔔 Lista de espera')}</Title>
-          <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+          <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
         </Group>
         <div className="table-wrap">
           <Table highlightOnHover verticalSpacing="xs">

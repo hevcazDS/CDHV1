@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Table, Tabs, Button } from '@mantine/core';
 import { api } from '../api';
@@ -9,8 +10,8 @@ import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 const TABS = [
   { key: 'pendientes', label: '⏳ Pendientes' },
-  { key: 'programados', label: '🗓️ Programados' },
-  { key: 'historial', label: '📋 Historial' },
+  { key: 'programados', label: 'Programados' },
+  { key: 'historial', label: 'Historial' },
 ];
 
 export default function ColaEnvios() {
@@ -78,14 +79,14 @@ export default function ColaEnvios() {
           <Group justify="space-between" mb="md">
             <Title order={4}>{txt('⏳ Mensajes en cola')}</Title>
             <Group gap="xs">
-              <ActionIcon variant="default" onClick={() => refetchCola()}>🔄</ActionIcon>
+              <ActionIcon variant="default" onClick={() => refetchCola()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
               <Button variant="light" color="red" size="xs" onClick={() => reintentarTodoMutation.mutate()}>{txt('♻️ Reintentar')}</Button>
             </Group>
           </Group>
           {cola && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               <span className="badge badge-amarillo"><Emoji>⏳ </Emoji>{cola.pendientes || 0} pendientes</span>
-              <span className="badge badge-rojo"><Emoji>❌ </Emoji>{cola.fallidas || 0} fallidas</span>
+              <span className="badge badge-rojo"><Emoji></Emoji>{cola.fallidas || 0} fallidas</span>
             </div>
           )}
           <div className="table-wrap">
@@ -102,7 +103,7 @@ export default function ColaEnvios() {
                     <td><Badge value={r.estatus} map="notif" /></td>
                     <td style={{ textAlign: 'center' }}>{r.intentos || 0}</td>
                     <td className="text-muted" style={{ fontSize: 11 }}>{fdate(r.creada_en)}</td>
-                    <td><ActionIcon variant="default" onClick={() => reintentarUnoMutation.mutate(r.id)}>♻️</ActionIcon></td>
+                    <td><ActionIcon variant="default" onClick={() => reintentarUnoMutation.mutate(r.id)}></ActionIcon></td>
                   </tr>
                 ))}
               </tbody>
@@ -115,7 +116,7 @@ export default function ColaEnvios() {
         <Card withBorder radius="md" p="lg">
           <Group justify="space-between" mb="md">
             <Title order={4}>{txt('🗓️ Campañas programadas')}</Title>
-            <ActionIcon variant="default" onClick={() => refetchProgramados()}>🔄</ActionIcon>
+            <ActionIcon variant="default" onClick={() => refetchProgramados()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
           {programados === undefined && <div className="empty">Cargando...</div>}
           {programados?.length === 0 && <div className="empty">No hay campañas programadas</div>}
@@ -124,7 +125,7 @@ export default function ColaEnvios() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>{r.asunto || 'Sin asunto'}</div>
-                  <div className="text-muted"><Emoji>📅 </Emoji>{r.enviar_despues_de ? fdate(r.enviar_despues_de) : '-'} · <Emoji>👥 </Emoji>{r.total || 0} mensajes</div>
+                  <div className="text-muted"><Emoji></Emoji>{r.enviar_despues_de ? fdate(r.enviar_despues_de) : '-'} · <Emoji></Emoji>{r.total || 0} mensajes</div>
                   <div style={{ fontSize: 12, background: 'var(--panel-2)', padding: 6, borderRadius: 5, marginTop: 6, fontFamily: 'monospace' }}>
                     {(r.cuerpo_muestra || '').slice(0, 80)}
                   </div>
@@ -140,7 +141,7 @@ export default function ColaEnvios() {
         <Card withBorder radius="md" p="lg">
           <Group justify="space-between" mb="md">
             <Title order={4}>{txt('📋 Historial')}</Title>
-            <ActionIcon variant="default" onClick={() => refetchHistorial()}>🔄</ActionIcon>
+            <ActionIcon variant="default" onClick={() => refetchHistorial()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
           <div className="table-wrap">
             <Table highlightOnHover verticalSpacing="xs">

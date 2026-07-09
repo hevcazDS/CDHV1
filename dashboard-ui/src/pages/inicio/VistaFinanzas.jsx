@@ -45,7 +45,7 @@ export default function VistaFinanzas() {
           <Kpi Icono={Landmark} color="var(--accent)" label="Cortes cerrados hoy">{(corte?.cortes || []).length}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
-          <Kpi Icono={Scale} color={cuadrada ? 'var(--green)' : 'var(--red)'} label="Balanza (30 días)">{cuentas.length ? (cuadrada ? '✓' : '✗') : '—'}</Kpi>
+          <Kpi Icono={Scale} color={cuadrada ? 'var(--green)' : 'var(--red)'} label="Balanza (30 días)">{cuentas.length ? (cuadrada ? 'Cuadrada' : 'DESCUADRE') : '—'}</Kpi>
         </Card>
       </div>
 

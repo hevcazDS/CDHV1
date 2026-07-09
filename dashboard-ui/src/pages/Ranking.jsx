@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import { RefreshCw } from 'lucide-react';
 import { Card, Group, Title, ActionIcon, Table } from '@mantine/core';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { useEmojisActivos, useTextoEmoji } from '../context/EmojiContext';
 
-const MEDALLA = ['🥇', '🥈', '🥉'];
+const MEDALLA = ['', '', ''];
 
 export default function Ranking() {
   const txt = useTextoEmoji();
@@ -24,7 +25,7 @@ export default function Ranking() {
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between" mb="md">
           <Title order={4}>{txt('🏆 Top clientes por puntos')}</Title>
-          <ActionIcon variant="default" onClick={() => refetch()}>🔄</ActionIcon>
+          <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
         </Group>
         <div className="table-wrap">
           <Table highlightOnHover verticalSpacing="xs">

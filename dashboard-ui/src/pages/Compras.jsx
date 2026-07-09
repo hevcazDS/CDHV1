@@ -29,7 +29,7 @@ export default function Compras() {
   });
   const crearFac = useMutation({
     mutationFn: () => api.post('/api/compras/factura', { ...fac, id_proveedor: Number(fac.id_proveedor), monto: Number(fac.monto) }),
-    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); alert('✓ Factura registrada — vence ' + r.vence_en); setFac({ id_proveedor: null, monto: 0, referencia: '', es_mercancia: true }); },
+    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); alert('Factura registrada — vence ' + r.vence_en); setFac({ id_proveedor: null, monto: 0, referencia: '', es_mercancia: true }); },
     onError: handleApiError,
   });
 
@@ -72,8 +72,8 @@ export default function Compras() {
                   if (!window.confirm('¿Registrar la factura → proveedor + cuenta por pagar + asiento?')) return;
                   const r = await api.post('/api/compras/factura-xml', { xml: String(rd.result || ''), es_mercancia: esM, cargar_conceptos: cargar });
                   if (!r.ok) throw new Error(r.error);
-                  alert(`✓ Registrada: ${r.proveedor} · $${r.total} · vence ${r.vence_en}` +
-                    (r.carga?.entradas ? `\n📦 ${r.carga.entradas} entradas al inventario (${r.carga.creados} productos nuevos inactivos)` : ''));
+                  alert(`Registrada: ${r.proveedor} · $${r.total} · vence ${r.vence_en}` +
+                    (r.carga?.entradas ? `\n${r.carga.entradas} entradas al inventario (${r.carga.creados} productos nuevos inactivos)` : ''));
                 } catch (err) { handleApiError(err); }
               };
               rd.readAsText(f);

@@ -34,7 +34,7 @@ function MetodosPagoCard({ txt }) {
       {metodos?.map(m => (
         <div key={m.id} className="toggle-row">
           <div className="info">
-            <h4 style={{ textTransform: 'capitalize' }}>{m.nombre}{m.requiere_link ? ' 🔗' : ''}</h4>
+            <h4 style={{ textTransform: 'capitalize' }}>{m.nombre}{m.requiere_link ? ' ' : ''}</h4>
             {m.nombre === 'transferencia' && m.activo
               ? <TextInput size="xs" placeholder="CLABE a mostrar al cliente" style={{ marginTop: 4, maxWidth: 260 }}
                   defaultValue={clabeDe(m)}
@@ -58,7 +58,7 @@ function PinCard({ txt }) {
     try {
       const r = await api.put('/api/autorizacion/pin', { pin });
       if (!r.ok) throw new Error(r.error);
-      alert('✓ PIN actualizado'); setPin('');
+      alert('PIN actualizado'); setPin('');
     } catch (e) { handleApiError(e); }
   };
   return (
@@ -66,7 +66,7 @@ function PinCard({ txt }) {
       <div className="card-header"><h3>{txt('🔐 PIN de autorización')}</h3></div>
       <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 10 }}>
         Cajeros/operadores lo teclean para cancelar ventas o devolver; almacén para sacar/trasladar mercancía.
-        {data?.configurado ? ' Estado: configurado ✓' : ' Estado: SIN configurar — esas operaciones estarán bloqueadas para los roles operativos.'}
+        {data?.configurado ? ' Estado: configurado ' : ' Estado: SIN configurar — esas operaciones estarán bloqueadas para los roles operativos.'}
       </p>
       <div style={{ display: 'flex', gap: 8 }}>
         <TextInput type="password" placeholder="Nuevo PIN (4-12 caracteres)" value={pin} onChange={e => setPin(e.target.value)} style={{ flex: 1 }} />
@@ -77,29 +77,29 @@ function PinCard({ txt }) {
 }
 
 const MODULOS = [
-  { key: 'puntos_activo', titulo: '⭐ Puntos de Lealtad', desc: 'Clientes acumulan puntos automáticamente por compra o por referido' },
-  { key: 'ofertas_activo', titulo: '🏷️ Ofertas y Descuentos', desc: 'Bot muestra ofertas activas' },
-  { key: 'upselling_activo', titulo: '💡 Upselling en carrito', desc: 'Sugerencias de productos complementarios' },
-  { key: 'lista_espera_activo', titulo: '🔔 Lista de espera', desc: 'Notifica cuando llega stock esperado' },
-  { key: 'carritos_activo', titulo: '🛒 Carritos abandonados', desc: 'Mensaje automático 2h después' },
-  { key: 'vision_activo', titulo: '📸 Búsqueda por imagen', desc: 'Vision API para búsqueda con fotos' },
-  { key: 'referidos_activo', titulo: '🤝 Programa de referidos', desc: 'Código de referido y puntos en la primera compra' },
-  { key: 'pago_multimetodo_activo', titulo: '💳 Pago multi-método', desc: 'El bot ofrece efectivo/contra entrega, transferencia y link (no solo link)' },
-  { key: 'entrega_pickup_activo', titulo: '🏪 Recoger en sucursal', desc: 'El bot ofrece pickup en tienda' },
-  { key: 'entrega_paqueteria_activo', titulo: '📦 Envío por paquetería', desc: 'El bot ofrece envío a domicilio por paquetería (Estafeta)' },
-  { key: 'entrega_repartidor_activo', titulo: '🛵 Repartidor propio', desc: 'Entrega local con tu repartidor; el negocio avisa "va en camino"' },
-  { key: 'pos_activo', titulo: '🧾 Punto de venta (mostrador)', desc: 'Cobrar ventas presenciales y hacer corte de caja' },
-  { key: 'facturacion_activo', titulo: '📄 Facturación', desc: 'Comprobante con datos fiscales y referencia (no todos los negocios facturan)' },
-  { key: 'emojis_dashboard_activo', titulo: '🙂 Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
-  { key: 'contabilidad_activo', titulo: '🏛️ Contabilidad (ERP)', desc: 'Asientos automáticos de cada venta/compra/pago en el libro mayor (ver ERP / Finanzas)' },
-  { key: 'rrhh_activo', titulo: '🪪 Recursos Humanos', desc: 'Empleados, horarios por Excel y nómina MX (con/sin impuestos)' },
+  { key: 'puntos_activo', titulo: 'Puntos de Lealtad', desc: 'Clientes acumulan puntos automáticamente por compra o por referido' },
+  { key: 'ofertas_activo', titulo: 'Ofertas y Descuentos', desc: 'Bot muestra ofertas activas' },
+  { key: 'upselling_activo', titulo: 'Upselling en carrito', desc: 'Sugerencias de productos complementarios' },
+  { key: 'lista_espera_activo', titulo: 'Lista de espera', desc: 'Notifica cuando llega stock esperado' },
+  { key: 'carritos_activo', titulo: 'Carritos abandonados', desc: 'Mensaje automático 2h después' },
+  { key: 'vision_activo', titulo: 'Búsqueda por imagen', desc: 'Vision API para búsqueda con fotos' },
+  { key: 'referidos_activo', titulo: 'Programa de referidos', desc: 'Código de referido y puntos en la primera compra' },
+  { key: 'pago_multimetodo_activo', titulo: 'Pago multi-método', desc: 'El bot ofrece efectivo/contra entrega, transferencia y link (no solo link)' },
+  { key: 'entrega_pickup_activo', titulo: 'Recoger en sucursal', desc: 'El bot ofrece pickup en tienda' },
+  { key: 'entrega_paqueteria_activo', titulo: 'Envío por paquetería', desc: 'El bot ofrece envío a domicilio por paquetería (Estafeta)' },
+  { key: 'entrega_repartidor_activo', titulo: 'Repartidor propio', desc: 'Entrega local con tu repartidor; el negocio avisa "va en camino"' },
+  { key: 'pos_activo', titulo: 'Punto de venta (mostrador)', desc: 'Cobrar ventas presenciales y hacer corte de caja' },
+  { key: 'facturacion_activo', titulo: 'Facturación', desc: 'Comprobante con datos fiscales y referencia (no todos los negocios facturan)' },
+  { key: 'emojis_dashboard_activo', titulo: 'Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
+  { key: 'contabilidad_activo', titulo: 'Contabilidad (ERP)', desc: 'Asientos automáticos de cada venta/compra/pago en el libro mayor (ver ERP / Finanzas)' },
+  { key: 'rrhh_activo', titulo: 'Recursos Humanos', desc: 'Empleados, horarios por Excel y nómina MX (con/sin impuestos)' },
 ];
 
 const TONOS = [
-  { id: 'A', titulo: '👔 Formal', desc: 'Trato de usted, lenguaje corporativo. Para clientes mayores o B2B.', ejemplo: 'Bienvenido a Julio Cepeda Jugueterías. Es un gusto atenderle.' },
-  { id: 'B', titulo: '😎 Casual', desc: 'Directo y breve. Mensajes cortos para respuestas rápidas.', ejemplo: '¡Hola! Soy el bot de Julio Cepeda. ¿Qué necesitas?' },
-  { id: 'C', titulo: '🧸 Amigable', desc: 'Cálido y con emojis. Tono por defecto, equilibrado para todo público.', ejemplo: '¡Hola! Bienvenido a Julio Cepeda Jugueterías 🎉' },
-  { id: 'D', titulo: '🎯 Ventas (23-40)', desc: 'Beneficio primero, urgencia honesta. Optimizado para conversión.', ejemplo: 'Llegaste a Julio Cepeda, 600 juguetes con entrega hoy mismo.' },
+  { id: 'A', titulo: 'Formal', desc: 'Trato de usted, lenguaje corporativo. Para clientes mayores o B2B.', ejemplo: 'Bienvenido a Julio Cepeda Jugueterías. Es un gusto atenderle.' },
+  { id: 'B', titulo: 'Casual', desc: 'Directo y breve. Mensajes cortos para respuestas rápidas.', ejemplo: '¡Hola! Soy el bot de Julio Cepeda. ¿Qué necesitas?' },
+  { id: 'C', titulo: 'Amigable', desc: 'Cálido y con emojis. Tono por defecto, equilibrado para todo público.', ejemplo: '¡Hola! Bienvenido a Julio Cepeda Jugueterías ' },
+  { id: 'D', titulo: 'Ventas (23-40)', desc: 'Beneficio primero, urgencia honesta. Optimizado para conversión.', ejemplo: 'Llegaste a Julio Cepeda, 600 juguetes con entrega hoy mismo.' },
 ];
 
 export default function Modulos() {
@@ -170,7 +170,7 @@ export default function Modulos() {
           {estado?.map(r => (
             <div key={r.key} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
               <code style={{ fontSize: 12 }}>{r.key}</code>
-              <span className={`badge badge-${r.activo ? 'verde' : 'rojo'}`}>{txt(r.activo ? '✅ Activo' : '⛔ Inactivo')}</span>
+              <span className={`badge badge-${r.activo ? 'verde' : 'rojo'}`}>{txt(r.activo ? 'Activo' : 'Inactivo')}</span>
             </div>
           ))}
         </div>
@@ -194,8 +194,8 @@ export default function Modulos() {
             </div>
           ))}
         </div>
-        {cambiarTonoMutation.isSuccess && <div className="card" style={{ marginTop: 12 }}>✅ Modo actualizado. Aplica en menos de 60 segundos.</div>}
-        {cambiarTonoMutation.isError && <div className="login-error" style={{ marginTop: 12 }}>❌ {cambiarTonoMutation.error.message}</div>}
+        {cambiarTonoMutation.isSuccess && <div className="card" style={{ marginTop: 12 }}>Modo actualizado. Aplica en menos de 60 segundos.</div>}
+        {cambiarTonoMutation.isError && <div className="login-error" style={{ marginTop: 12 }}>{cambiarTonoMutation.error.message}</div>}
       </div>
     </div>
   );

@@ -191,7 +191,7 @@ export default function GeneralTab() {
           {msgReconexion && <div className="login-error" style={{ marginBottom: 12 }}>{msgReconexion}</div>}
           <Group gap="sm">
             <Switch checked={reconexionAuto} onChange={toggleReconexionAuto} color="blue" />
-            <Badge color={reconexionAuto ? 'teal' : 'red'} variant="light">{txt(reconexionAuto ? '✅ Activa' : '⛔ Inactiva')}</Badge>
+            <Badge color={reconexionAuto ? 'teal' : 'red'} variant="light">{txt(reconexionAuto ? 'Activa' : 'Inactiva')}</Badge>
           </Group>
         </Card>
 

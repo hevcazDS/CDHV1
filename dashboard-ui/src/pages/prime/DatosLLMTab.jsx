@@ -16,11 +16,11 @@ export default function DatosLLMTab() {
     try {
       const d = await api.post('/api/prime/exportar-llm', {});
       if (d.ok) {
-        setMsg(`✅ Enviado a ${d.destino} — ${d.conversaciones} conversaciones, ${d.mensajes} mensajes, ${d.fallbacks} fallback (${Math.round(d.bytes / 1024)} KB).`);
+        setMsg(`Enviado a ${d.destino} — ${d.conversaciones} conversaciones, ${d.mensajes} mensajes, ${d.fallbacks} fallback (${Math.round(d.bytes / 1024)} KB).`);
       } else {
-        setMsg(`⚠️ ${d.error || 'No se pudo exportar.'}`);
+        setMsg(`${d.error || 'No se pudo exportar.'}`);
       }
-    } catch (e) { setMsg(`⚠️ ${e.message}`); }
+    } catch (e) { setMsg(`${e.message}`); }
     finally { setExportando(false); }
   };
 

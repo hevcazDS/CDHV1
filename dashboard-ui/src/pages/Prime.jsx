@@ -21,13 +21,13 @@ import FiltrosTab from './prime/FiltrosTab';
 // sucursales/inventario/catálogo/filtros (operación del catálogo), coherente
 // con los permisos del backend.
 const TABS = [
-  { key: 'general', label: '⚙️ General', soloPrime: true, Componente: GeneralTab },
-  { key: 'sucursales', label: '🏬 Sucursales', Componente: SucursalesTab },
-  { key: 'inventario', label: '📊 Inventario', Componente: InventarioTab },
-  { key: 'catalogo', label: '🧸 Catálogo', Componente: CatalogoTab },
-  { key: 'usuarios', label: '👤 Usuarios', soloPrime: false, Componente: UsuariosTab },
-  { key: 'datos', label: '🤖 Datos LLM', soloPrime: true, Componente: DatosLLMTab },
-  { key: 'filtros', label: '🚫 Filtros', Componente: FiltrosTab },
+  { key: 'general', label: 'General', soloPrime: true, Componente: GeneralTab },
+  { key: 'sucursales', label: 'Sucursales', Componente: SucursalesTab },
+  { key: 'inventario', label: 'Inventario', Componente: InventarioTab },
+  { key: 'catalogo', label: 'Catálogo', Componente: CatalogoTab },
+  { key: 'usuarios', label: 'Usuarios', soloPrime: false, Componente: UsuariosTab },
+  { key: 'datos', label: 'Datos LLM', soloPrime: true, Componente: DatosLLMTab },
+  { key: 'filtros', label: 'Filtros', Componente: FiltrosTab },
 ];
 
 export default function Prime() {

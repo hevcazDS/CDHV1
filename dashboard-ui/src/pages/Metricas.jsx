@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, BarChart, Bar,
@@ -61,11 +62,11 @@ export default function Metricas() {
     mutationFn: (destino) => api.post('/api/reporte', { destino }),
     onSuccess: (r) => {
       if (r.ok) {
-        setReporteMsg({ ok: true, texto: '✅ ' + r.msg });
+        setReporteMsg({ ok: true, texto: '' + r.msg });
         if (r.preview) setPreview(r.preview.replace(/\*/g, '').replace(/_/g, ''));
-      } else setReporteMsg({ ok: false, texto: '❌ ' + r.error });
+      } else setReporteMsg({ ok: false, texto: '' + r.error });
     },
-    onError: (e) => setReporteMsg({ ok: false, texto: '❌ ' + e.message }),
+    onError: (e) => setReporteMsg({ ok: false, texto: '' + e.message }),
   });
 
   return (
@@ -126,10 +127,10 @@ export default function Metricas() {
       <div className="kpi-grid" style={{ marginBottom: 16 }}>
         <Card withBorder radius="md" p="lg">
           <Group justify="space-between" mb="md" wrap="wrap">
-            <Title order={4}><Emoji>📈 </Emoji>Pedidos últimos 7 días {conv && <span className="badge badge-azul">Conversión: {conv.tasa_conversion}</span>}</Title>
+            <Title order={4}><Emoji></Emoji>Pedidos últimos 7 días {conv && <span className="badge badge-azul">Conversión: {conv.tasa_conversion}</span>}</Title>
             <Group gap="xs">
               <PuntosGrafica opciones={ESTILOS_CHART} valor={chartTipo} onChange={cambiarChartTipo} />
-              <ActionIcon variant="default" onClick={cargar}>🔄</ActionIcon>
+              <ActionIcon variant="default" onClick={cargar}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
             </Group>
           </Group>
           {dias.length === 0

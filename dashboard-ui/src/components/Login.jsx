@@ -57,7 +57,7 @@ export default function Login() {
                 background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4,
               }}
             >
-              {verPassword ? '🙈' : '👁️'}
+              {verPassword ? '' : ''}
             </button>
           </div>
         </div>

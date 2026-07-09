@@ -5,7 +5,7 @@ import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 
 // RRHH: empleados, horarios por plantilla (CSV que Excel abre nativo) y
-// nómina MX con/sin impuestos. ⚠ El ISR/IMSS es aproximado — validar con
+// nómina MX con/sin impuestos. El ISR/IMSS es aproximado — validar con
 // contador; el CFDI de nómina es upgrade aparte (PAC).
 export default function Rrhh() {
   const qc = useQueryClient();
@@ -31,7 +31,7 @@ export default function Rrhh() {
       try {
         const res = await api.post('/api/rrhh/horarios/importar', { csv: String(r.result || '') });
         if (!res.ok) throw new Error(res.error);
-        alert(`✓ ${res.importadas} horarios importados` + (res.errores.length ? `\n⚠ Errores:\n${res.errores.join('\n')}` : ''));
+        alert(`${res.importadas} horarios importados` + (res.errores.length ? `\nErrores:\n${res.errores.join('\n')}` : ''));
       } catch (err) { handleApiError(err); }
     };
     r.readAsText(f);
@@ -44,7 +44,7 @@ export default function Rrhh() {
   });
   const pagar = useMutation({
     mutationFn: () => api.post('/api/rrhh/nomina/pagar', periodo),
-    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); alert(`✓ ${r.pagadas} nóminas pagadas · $${(r.total || 0).toFixed(2)}`); qc.invalidateQueries({ queryKey: ['rrhh-nom'] }); },
+    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); alert(`${r.pagadas} nóminas pagadas · $${(r.total || 0).toFixed(2)}`); qc.invalidateQueries({ queryKey: ['rrhh-nom'] }); },
     onError: handleApiError,
   });
 

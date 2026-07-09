@@ -89,14 +89,14 @@ export default function Sustitutos() {
                 {relacionados?.map(r => (
                   <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
                     <div><strong>{r.name}</strong><br /><span className="text-muted">${fmt(r.price)} · Score {r.score || 0}</span></div>
-                    <ActionIcon variant="light" color="red" size="sm" onClick={() => eliminar(r.id)}>✕</ActionIcon>
+                    <ActionIcon variant="light" color="red" size="sm" onClick={() => eliminar(r.id)}></ActionIcon>
                   </div>
                 ))}
               </div>
               <TextInput placeholder="Buscar producto a vincular..." value={qVincular} onChange={e => setQVincular(e.target.value)} mt="sm" />
               {resultadosVincular?.map(r => (
                 <div key={r.id} onClick={() => vincularMutation.mutate(r.id)} style={{ padding: '5px 9px', cursor: 'pointer', fontSize: 12, borderRadius: 4 }}>
-                  <Emoji>➕ </Emoji>{r.name} - ${fmt(r.price)}
+                  <Emoji></Emoji>{r.name} - ${fmt(r.price)}
                 </div>
               ))}
             </>

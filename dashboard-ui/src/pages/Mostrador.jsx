@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Group, Title, Table, Button, TextInput, NumberInput, Select, ActionIcon } from '@mantine/core';
 import { api } from '../api';
@@ -92,7 +93,7 @@ export default function Mostrador() {
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.4fr 1fr', alignItems: 'start' }}>
         <Card withBorder radius="md" p="lg">
           <Title order={4} mb="sm">{txt('🛒 Venta')}</Title>
-          <TextInput placeholder="🔫 Escanear código de barras (Enter agrega)" autoFocus onKeyDown={escanear} mb="xs"
+          <TextInput placeholder="Escanear código de barras (Enter agrega)" autoFocus onKeyDown={escanear} mb="xs"
             styles={{ input: { borderColor: 'var(--accent)', fontFamily: 'monospace' } }} />
           <TextInput placeholder="…o buscar por nombre o SKU" value={busqueda} onChange={e => buscar(e.target.value)} mb="xs" />
           {resultados.length > 0 && (
@@ -120,7 +121,7 @@ export default function Mostrador() {
                   <td>{i.name}<br /><span className="text-muted" style={{ fontSize: 11 }}>${fmt(i.price)} c/u</span></td>
                   <td><NumberInput size="xs" min={1} value={i.cantidad} onChange={v => setCantidad(i.id, Number(v) || 1)} /></td>
                   <td style={{ textAlign: 'right' }}>${fmt(i.price * i.cantidad)}</td>
-                  <td><ActionIcon variant="subtle" color="red" onClick={() => quitar(i.id)}>🗑️</ActionIcon></td>
+                  <td><ActionIcon variant="subtle" color="red" onClick={() => quitar(i.id)}><Trash2 size={16} strokeWidth={1.75} /></ActionIcon></td>
                 </tr>
               ))}
             </tbody>
@@ -142,7 +143,7 @@ export default function Mostrador() {
           <TextInput label="Nombre del cliente (opcional)" value={clienteNombre} onChange={e => setClienteNombre(e.target.value)} mb="sm" />
           {config?.facturacion && (
             <div style={{ border: '1px dashed var(--border)', borderRadius: 6, padding: 10, marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6 }}>📄 ¿Va a facturar? (opcional)</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6 }}>¿Va a facturar? (opcional)</div>
               <TextInput placeholder="Razón social" value={razonSocial} onChange={e => setRazonSocial(e.target.value)} mb="xs" size="xs" />
               <TextInput placeholder="RFC" value={rfc} onChange={e => setRfc(e.target.value)} size="xs" />
             </div>
@@ -153,7 +154,7 @@ export default function Mostrador() {
 
           {ticket && (
             <div className="card" style={{ marginTop: 14, fontSize: 13 }}>
-              <strong>✅ Venta {ticket.folio}</strong>
+              <strong>Venta {ticket.folio}</strong>
               <div style={{ marginTop: 6 }}>
                 {ticket.items.map((it, i) => <div key={i}>{it.cantidad}× {it.name} — ${fmt(it.subtotal)}</div>)}
               </div>
@@ -161,7 +162,7 @@ export default function Mostrador() {
               {ticket.cambio !== null && <div>Cambio: <strong>${fmt(ticket.cambio)}</strong></div>}
               {(ticket.razon_social || ticket.rfc) && (
                 <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
-                  <div style={{ fontWeight: 600 }}>🧾 Comprobante para facturación</div>
+                  <div style={{ fontWeight: 600 }}>Comprobante para facturación</div>
                   <div>Referencia: <strong>{ticket.folio}</strong></div>
                   {ticket.razon_social && <div>Razón social: {ticket.razon_social}</div>}
                   {ticket.rfc && <div>RFC: {ticket.rfc}</div>}

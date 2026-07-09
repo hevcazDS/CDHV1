@@ -45,7 +45,7 @@ export default function ConteoTab() {
     try {
       const r = await api.post('/api/almacen/conteo/aplicar', { sucursal: resultado.sucursal, ajustes: conDiferencia, pin });
       if (!r.ok) throw new Error(r.error);
-      alert(`✓ ${r.aplicados} ajuste(s) aplicados con kardex`);
+      alert(`${r.aplicados} ajuste(s) aplicados con kardex`);
       setResultado(null); setTexto('');
     } catch (e) { handleApiError(e); }
   };
@@ -79,7 +79,7 @@ export default function ConteoTab() {
               <table>
                 <thead><tr><th>Producto</th><th>Sistema</th><th>Físico</th><th>Diferencia</th></tr></thead>
                 <tbody>
-                  {difs.length === 0 && <tr><td colSpan={4} className="empty">✓ Todo cuadra — sin diferencias</td></tr>}
+                  {difs.length === 0 && <tr><td colSpan={4} className="empty">Todo cuadra — sin diferencias</td></tr>}
                   {difs.map(x => (
                     <tr key={x.id_producto}>
                       <td><strong>{x.name}</strong> <span className="text-muted" style={{ fontSize: 11 }}>{x.upc}</span></td>

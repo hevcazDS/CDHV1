@@ -50,10 +50,10 @@ export default function Onboarding({ estado }) {
   };
 
   const TONOS = [
-    { id: 'A', label: '👔 Formal' },
-    { id: 'B', label: '😎 Casual' },
-    { id: 'C', label: '🧸 Amigable' },
-    { id: 'D', label: '🎯 Ventas' },
+    { id: 'A', label: 'Formal' },
+    { id: 'B', label: 'Casual' },
+    { id: 'C', label: 'Amigable' },
+    { id: 'D', label: 'Ventas' },
   ];
 
   return (
@@ -131,7 +131,7 @@ export default function Onboarding({ estado }) {
               required style={{ width: '100%', paddingRight: 36, boxSizing: 'border-box' }} />
             <button type="button" onClick={() => setVerPass(v => !v)}
               style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>
-              {verPass ? '🙈' : '👁️'}
+              {verPass ? '' : ''}
             </button>
           </div>
         </div>
