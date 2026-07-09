@@ -71,6 +71,18 @@ async function handle(ctx) {
         const cpNum = raw.replace(/\D/g, '').slice(0, 5);
         if (cpNum.length < 5) return `El código postal debe tener 5 dígitos. Ejemplo: *78000*`;
 
+        // Cobertura por zona (ISP/servicio local): solo aplica si el negocio
+        // cargó zonas — tabla vacía o ausente = sin restricción (fail-open)
+        try {
+            const _hayZonas = db.prepare('SELECT COUNT(*) c FROM zonas_cobertura WHERE activa=1').get().c;
+            if (_hayZonas > 0 && !db.prepare('SELECT 1 FROM zonas_cobertura WHERE cp=? AND activa=1').get(cpNum)) {
+                return `😞 Por ahora *no tenemos cobertura* en el CP ${cpNum}.
+
+` +
+                    `Escribe *asesor* para dejar tus datos — te avisamos en cuanto lleguemos a tu zona.`;
+            }
+        } catch (_) {}
+
         const carrito = (data.carrito && data.carrito.length)
             ? data.carrito
             : (data.selectedProduct ? [{ ...data.selectedProduct, cantidad:1 }] : []);

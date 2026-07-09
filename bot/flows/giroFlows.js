@@ -28,6 +28,7 @@ const _CITAS = [require('./citasFlow')];
 const GIRO_FLOWS = {
     // restaurante: [ require('./restauranteFlow') ],
     servicios:     _CITAS,
+    isp:           _CITAS,
     mantenimiento: _CITAS,
     barberia:      _CITAS,
     tatuajes:      _CITAS,

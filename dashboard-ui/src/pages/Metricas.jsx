@@ -23,6 +23,31 @@ const MOTIVO_LABEL = { precio: 'Precio', envio: 'Envío', otro: 'Otro' };
 const TONO_LABEL = { A: 'A · Formal', B: 'B · Casual', C: 'C · Amigable', D: 'D · Ventas', sin_dato: 'Sin dato (anterior a esta métrica)' };
 const TONO_COLOR = { A: 'azul', B: 'verde', C: 'amarillo', D: 'rojo', sin_dato: 'azul' };
 
+function ComisionesCard() {
+  const { data } = useQuery({ queryKey: ['comisiones'], queryFn: () => api.get('/api/comisiones').catch(() => null) });
+  if (!data || !data.filas?.length) return null;
+  return (
+    <Card withBorder radius="md" p="lg" className="card" style={{ marginTop: 16 }}>
+      <Group justify="space-between" mb="sm">
+        <Title order={4}>Comisiones por vendedor (mes en curso · {data.comision_pct}%)</Title>
+      </Group>
+      <div className="table-wrap tabla-compacta">
+        <table>
+          <thead><tr><th>Vendedor</th><th>Ventas</th><th>Cobrado</th><th>Comisión</th></tr></thead>
+          <tbody>
+            {data.filas.map(f => (
+              <tr key={f.vendedor}>
+                <td><strong>{f.vendedor}</strong></td><td>{f.ventas}</td>
+                <td>${fmt(f.total)}</td><td style={{ fontWeight: 700 }}>${fmt(f.comision)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
 export default function Metricas() {
   const txt = useTextoEmoji();
   const [reporteMsg, setReporteMsg] = useState(null);
@@ -280,6 +305,7 @@ export default function Metricas() {
         {preview && <pre style={{ background: 'var(--panel-2)', borderRadius: 7, padding: 10, fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 250, overflowY: 'auto' }}>{preview}</pre>}
         {reporteMsg && <div className={reporteMsg.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(reporteMsg.texto)}</div>}
       </Card>
+      <ComisionesCard />
     </div>
   );
 }

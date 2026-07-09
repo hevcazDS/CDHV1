@@ -57,6 +57,11 @@ const GIROS = {
         vocab: { item: 'producto', items: 'productos', emoji: '🔧' },
         frases: {},
     },
+    isp: {
+        label: '📡 Internet / TV (planes)',
+        vocab: { item: 'plan', items: 'planes', emoji: '📡' },
+        frases: {},
+    },
     servicios: {
         label: '🛠️ Servicios',
         vocab: { item: 'servicio', items: 'servicios', emoji: '🛠️' },
@@ -124,6 +129,7 @@ const MENU_GIRO = {
     carniceria:    _MENU_SIN_WIZARD,
     ferreteria:    _MENU_SIN_WIZARD,
     servicios:     _MENU_SERVICIO,
+    isp:           _MENU_SERVICIO,
     mantenimiento: _MENU_SERVICIO,
     barberia:      _MENU_SERVICIO,
     tatuajes:      _MENU_SERVICIO,

@@ -42,6 +42,55 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         } catch(_) { return json(res, { clave, activo: true }); }
     }
 
+    // ── Zonas de cobertura (ISP/servicio local, gerente+) ──────────────
+    // Lista de CPs donde el negocio SÍ llega; vacía = sin restricción.
+    if (p === '/api/zonas-cobertura' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
+        return json(res, db.prepare('SELECT * FROM zonas_cobertura ORDER BY cp').all());
+    }
+    if (p === '/api/zonas-cobertura' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return;
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const cps = [...new Set((Array.isArray(d.cps) ? d.cps : []).map(x => String(x).replace(/\D/g, '').slice(0, 5)).filter(x => x.length === 5))];
+                db.transaction(() => {
+                    db.prepare('DELETE FROM zonas_cobertura').run();
+                    const ins = db.prepare('INSERT INTO zonas_cobertura (cp) VALUES (?)');
+                    for (const cp of cps) ins.run(cp);
+                })();
+                return json(res, { ok: true, zonas: cps.length });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
+    // ── Comisiones por vendedor (quien cobró la venta) — gerente+ ───────
+    if (p === '/api/comisiones' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
+        const sp = new URL(req.url, 'http://x').searchParams;
+        const hoy = new Date().toISOString().slice(0, 10);
+        const desde = (sp.get('desde') || hoy.slice(0, 8) + '01').slice(0, 10);
+        const hasta = (sp.get('hasta') || hoy).slice(0, 10);
+        const pct = parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='comision_pct'").get()?.valor || '0') || 0;
+        const filas = db.prepare(`
+            SELECT COALESCE(p2.cobrado_por, '(sin registrar)') vendedor,
+                   COUNT(*) ventas, ROUND(SUM(lp.monto), 2) total
+            FROM links_pago lp JOIN pedidos p2 ON p2.id_pedido = lp.id_pedido
+            WHERE lp.estatus='pagado' AND date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?
+            GROUP BY COALESCE(p2.cobrado_por, '(sin registrar)') ORDER BY total DESC`).all(desde, hasta);
+        return json(res, { desde, hasta, comision_pct: pct, filas: filas.map(f => ({ ...f, comision: Math.round(f.total * pct) / 100 })) });
+    }
+    if (p === '/api/comisiones/config' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return;
+        return readBody(req, body => {
+            try {
+                const pct = Math.max(0, Math.min(50, Number(JSON.parse(body || '{}').pct) || 0));
+                db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('comision_pct', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(String(pct));
+                return json(res, { ok: true, pct });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
     // ── Editor del bot (prime): personalizar las respuestas por instancia ──
     // GET lista cada frase editable con su texto EFECTIVO (tono+giro actuales)
     // y el override propio si existe; PUT guarda/borra el override en
