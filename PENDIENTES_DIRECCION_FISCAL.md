@@ -28,8 +28,8 @@ Notas:
 |---|-----------|-----------------|----------|
 | B1 | ⚠️ **ANDAMIADO** — CFDI timbrado vía PAC | Gasto no deducible; multa por no timbrar. | Credenciales configurables desde Prime > General (`/api/prime/pac`), `services/pacService.js` (hook inerte), `POST /api/erp/timbrar/:id` (wiring), `pedidos.cfdi_uuid` (0043). commit 9c0cf20. **Falta:** conectar el API del proveedor (Facturama/Finkok/…) en `pacService.timbrar()`. |
 | B2 | ✅ **HECHO** — IMSS patronal | Refleja el costo patronal. | ~17.5% (config `imss_patronal_pct`), columna en nómina. commit 26d3f37 |
-| B3 | ⚠️ **PARCIAL** — Prima dominical HECHA; falta séptimo día | Demanda laboral; auditoría IMSS. | Prima dominical 25% desde horarios (commit 26d3f37). Séptimo día requiere modelar el día de descanso obligatorio. |
-| B4 | **Incapacidades IMSS** | Antigüedad/finiquito mal calculados; subsidio no reflejado. | Medio (requiere schema: tabla incapacidades) |
+| B3 | ✅ **HECHO** — Prima dominical + séptimo día | Demanda laboral; auditoría IMSS. | Prima dominical 25% (26d3f37) + séptimo día por semana Lun-Dom de 6+ días (055d23b). |
+| B4 | ✅ **HECHO** — Incapacidades IMSS | Días no pagados como salario normal (subsidio IMSS). | Tabla + endpoints + UI en RRHH; la nómina fiscal excluye esos días. commit 055d23b |
 | B5 | ✅ **HECHO** — Tipo de baja | Indemniza según causa (LFT). | Select renuncia/despido just./injust./jubilación + `tipo_baja`/`fecha_baja` (0041). commit 2f529f0 |
 | B6 | ✅ **HECHO** — Config de régimen fiscal | Documenta el régimen y la congruencia del IVA base flujo de efectivo. | `/api/regimen-fiscal` + tarjeta Prime > General. commit d158cbf |
 | B7 | ✅ **HECHO** — Constancia de crédito | Documento de reconocimiento de adeudo. | Botón "Constancia" imprimible por cliente en la página Fiados. commit 9c0cf20 |
@@ -54,9 +54,10 @@ citas/mesas/link/recompra/crédito), cartera de fiado. Pendientes menores:
 
 ---
 
-**Estado (actualizado):** HECHOS A1–A5 (dirección completa), B2, B5, B6, B7 y
-la prima dominical de B3. **B1 andamiado** (solo falta conectar el API del PAC
-en `pacService.timbrar()`). PENDIENTES REALES: conectar el proveedor PAC,
-B3-séptimo día, B4 (incapacidades).
+**Estado (actualizado):** HECHOS A1–A5 (dirección completa) y B2–B7 (fiscal/RH).
+El **único pendiente real** es conectar el API del proveedor PAC en
+`pacService.timbrar()` (B1) — el resto del timbrado ya está andamiado
+(credenciales cifrables desde Prime, wiring, columnas CFDI). Requiere
+credenciales/contrato con el PAC, es trabajo de integración externa.
 
 _Generado del 2º comité multidisciplinario sobre v1.08._
