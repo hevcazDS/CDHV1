@@ -367,6 +367,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
     cobrado_por     TEXT,                          -- migrations/0023: quién cobró (corte por usuario)
     repartidor_nombre   TEXT,                      -- migrations/0015 (dato del pedido, NO un usuario)
     repartidor_telefono TEXT,                      -- migrations/0015
+    a_credito       INTEGER DEFAULT 0,             -- migrations/0036 (venta a crédito/fiado)
     creado_en       TEXT DEFAULT (datetime('now','localtime')),
     actualizado_en  TEXT
 );
@@ -958,6 +959,7 @@ INSERT OR IGNORE INTO plan_cuentas (codigo, nombre, tipo) VALUES
     ('115', 'Inventario', 'activo'),
     ('119', 'IVA acreditable', 'activo'),
     ('201', 'Proveedores (por pagar)', 'pasivo'),
+    ('208', 'IVA trasladado no cobrado', 'pasivo'),
     ('209', 'IVA trasladado', 'pasivo'),
     ('301', 'Capital', 'capital'),
     ('401', 'Ventas', 'ingreso'),

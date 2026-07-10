@@ -308,9 +308,14 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                 if (!lp) return json(res, { ok:false, error:'Link de pago no encontrado' }, 404);
                 db.prepare("UPDATE links_pago SET estatus='pagado', pagado_en=datetime('now','localtime'), referencia_pago=? WHERE id=?").run(referencia_pago, id);
 
+                // Venta a crédito (fiado): la mercancía ya salió y se asentó al
+                // vender; ahora solo se cobra la CxC → NO se descuenta inventario
+                // otra vez ni se re-reconoce el ingreso.
+                const _esCred = db.prepare('SELECT a_credito FROM pedidos WHERE id_pedido=?').get(lp.id_pedido)?.a_credito == 1;
+
                 // Pago confirmado: descontar inventario con KARDEX (los
                 // productos tipo 'servicio' no llevan stock)
-                const items = db.prepare(`
+                const items = _esCred ? [] : db.prepare(`
                     SELECT d.id_producto, d.cantidad, d.sucursal_origen, COALESCE(pr.tipo,'fisico') AS tipo
                     FROM pedido_detalle d LEFT JOIN productos pr ON pr.id = d.id_producto
                     WHERE d.id_pedido=?`).all(lp.id_pedido);
@@ -327,11 +332,19 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                 // Si el pedido nació de una venta previa/recompra (canal asesor),
                 // marca la conversión de recompra (CRO: mide ROI de recompra)
                 try { if (ped?.canal_creacion === 'asesor') db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('recompra_convertida','whatsapp',?,?)").run(String(lp.monto || ''), ped?.telefono || null); } catch (_) {}
-                // Asientos contables automáticos (módulo contabilidad_activo)
+                // Asientos contables automáticos (módulo contabilidad_activo).
+                // Fiado: solo el COBRO (salda 105, IVA 208→209); el ingreso y el
+                // costo ya se asentaron al vender. Contado: venta + costo.
                 try {
                     const _conta = require('../../services/contabilidadService');
+                    if (_esCred) {
+                        _conta.asientoCobroCredito(lp.id_pedido, Number(lp.monto || 0), ped?.metodo_pago);
+                        // Puntos diferidos del fiado: se otorgan al cobrar.
+                        try { require('../bot/handlers/puntosService').otorgarPuntosPorCompra(lp.id_pedido); } catch (_) {}
+                    } else {
                     _conta.asientoVenta(lp.id_pedido, Number(lp.monto || 0), ped?.metodo_pago);
                     _conta.asientoCostoVenta(lp.id_pedido);
+                    }
                 } catch (e) { log.debug('Asientos de venta no registrados: ' + e.message); }
                 if (ped && /pendiente/i.test(ped.estatus || '')) {
                     db.prepare("UPDATE pedidos SET estatus='confirmado', actualizado_en=datetime('now','localtime') WHERE id_pedido=?").run(ped.id_pedido);

@@ -41,6 +41,10 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
             return !r || r.valor !== '0'; // default ON
         } catch (_) { return true; }
     }
+    function creditoActivo() {
+        try { return db.prepare("SELECT valor FROM configuracion WHERE clave='ventas_credito_activo' LIMIT 1").get()?.valor === '1'; }
+        catch (_) { return false; }
+    }
     function sucursalDefault() {
         try {
             const row = db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default' LIMIT 1").get();
@@ -58,7 +62,7 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
         try { metodos = db.prepare('SELECT nombre FROM metodos_pago WHERE activo=1 ORDER BY id').all().map(m => m.nombre); } catch (_) {}
         let facturacion = false;
         try { const r = db.prepare("SELECT valor FROM configuracion WHERE clave='facturacion_activo' LIMIT 1").get(); facturacion = !!r && (r.valor === '1' || r.valor === 'true'); } catch (_) {}
-        return json(res, { sucursal: sucursalDefault(), metodos, facturacion });
+        return json(res, { sucursal: sucursalDefault(), metodos, facturacion, credito: creditoActivo() });
     }
 
     // ── GET /api/pos/productos?q= — búsqueda ligera para el mostrador ──────
@@ -109,8 +113,13 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                 const items = Array.isArray(d.items) ? d.items : [];
                 if (!items.length) return json(res, { ok: false, error: 'Agrega al menos un producto' }, 400);
                 const metodoPago = String(d.metodo_pago || 'efectivo').trim();
+                const esCredito = !!d.a_credito && creditoActivo();
                 const sucursal = String(d.sucursal || '').trim() || sucursalDefault();
                 if (!sucursal) return json(res, { ok: false, error: 'No hay sucursal de facturación configurada (Prime > General)' }, 400);
+                // Fiado: sin cliente no sabemos a quién cobrarle después.
+                if (esCredito && !(d.cliente && (d.cliente.telefono || d.cliente.nombre))) {
+                    return json(res, { ok: false, error: 'Una venta a crédito (fiado) requiere identificar al cliente' }, 400);
+                }
 
                 // Armar carrito desde los productos reales (precio del producto,
                 // salvo override explícito desde el mostrador).
@@ -170,10 +179,17 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     const rs = String(d.razon_social || '').trim();
                     const rfc = String(d.rfc || '').trim();
                     if (rs || rfc) db.prepare('UPDATE pedidos SET razon_social=?, rfc=? WHERE id_pedido=?').run(rs || null, rfc || null, pedidoRowid);
-                    // Pago ya cobrado en el mostrador → links_pago pagado.
+                    // Contado → links_pago pagado. Fiado (crédito) → 'generado'
+                    // (queda como CxC; se salda luego con marcar-pagado).
                     const met = db.prepare('SELECT id FROM metodos_pago WHERE nombre=?').get(metodoPago);
-                    db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
-                      .run(pedidoRowid, met ? met.id : null, subtotal);
+                    if (esCredito) {
+                        db.prepare('UPDATE pedidos SET a_credito=1 WHERE id_pedido=?').run(pedidoRowid);
+                        db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, fecha_expiracion, creado_en) VALUES (?,?,?,'MXN','generado',NULL,datetime('now','localtime'))")
+                          .run(pedidoRowid, met ? met.id : null, subtotal);
+                    } else {
+                        db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
+                          .run(pedidoRowid, met ? met.id : null, subtotal);
+                    }
                     // Descontar inventario con KARDEX; los servicios no llevan
                     // stock; y si el negocio no controla inventario, tampoco.
                     for (const it of carrito) {
@@ -184,15 +200,18 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     db.prepare('UPDATE pedidos SET cobrado_por=? WHERE id_pedido=?').run(req._ses?.username || null, pedidoRowid);
                     return { pedidoRowid, subtotal };
                 })();
-                try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('pago_confirmado','mostrador',?,?)").run(String(resultado.subtotal), (d.cliente && d.cliente.telefono) || null); } catch (_) {}
+                try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES (?,'mostrador',?,?)").run(esCredito ? 'venta_credito' : 'pago_confirmado', String(resultado.subtotal), (d.cliente && d.cliente.telefono) || null); } catch (_) {}
                 try {
                     const _conta = require('../../services/contabilidadService');
-                    _conta.asientoVenta(resultado.pedidoRowid, resultado.subtotal, metodoPago);
+                    // Fiado: devengado (105/401/208) + costo al entregar. Contado:
+                    // asiento de venta normal (caja/401/209) + costo.
+                    if (esCredito) _conta.asientoVentaCredito(resultado.pedidoRowid, resultado.subtotal);
+                    else _conta.asientoVenta(resultado.pedidoRowid, resultado.subtotal, metodoPago);
                     _conta.asientoCostoVenta(resultado.pedidoRowid);
                 } catch (e) { log.debug('Asientos de venta POS no registrados: ' + e.message); }
 
-                // Puntos por la compra (si hay cliente y el módulo está activo).
-                try { puntosService.otorgarPuntosPorCompra(resultado.pedidoRowid); } catch (_) {}
+                // Puntos: contado ahora; fiado hasta que se cobre (marcar-pagado).
+                if (!esCredito) { try { puntosService.otorgarPuntosPorCompra(resultado.pedidoRowid); } catch (_) {} }
 
                 const total = resultado.subtotal;
                 const efectivo = (d.efectivo_recibido !== undefined && d.efectivo_recibido !== null && d.efectivo_recibido !== '') ? Number(d.efectivo_recibido) : null;
@@ -203,6 +222,7 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     razon_social: String(d.razon_social || '').trim() || null,
                     rfc: String(d.rfc || '').trim() || null,
                     items: carrito.map(i => ({ name: i.name, cantidad: i.cantidad, price: i.price, subtotal: i.price * i.cantidad })),
+                    a_credito: esCredito,
                 });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });

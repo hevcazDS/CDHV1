@@ -73,6 +73,33 @@ function asientoVenta(idPedido, monto, metodoPago) {
     return registrarAsiento({ concepto: 'Venta pedido ' + idPedido, referencia_tipo: 'venta', referencia_id: idPedido, partidas });
 }
 
+// VENTA A CRÉDITO (fiado) — capa de DEVENGADO. El ingreso se reconoce YA
+// (cargo 105 Clientes, abono 401 Ventas), pero el IVA aún NO es exigible en
+// México hasta cobrarlo → se causa en 208 (IVA trasladado no cobrado). El
+// costo de venta se reconoce aparte (asientoCostoVenta) al entregar. Idempotente.
+function asientoVentaCredito(idPedido, monto) {
+    if (!activo() || !(monto > 0)) return null;
+    if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='venta_credito' AND referencia_id=? LIMIT 1").get(String(idPedido))) return null;
+    const iva = parseFloat(getValor('iva_pct', '0')) || 0;
+    const base = iva > 0 ? _r2(monto / (1 + iva / 100)) : _r2(monto);
+    const partidas = [{ cuenta: '105', debe: monto }, { cuenta: '401', haber: base }];
+    if (iva > 0) partidas.push({ cuenta: '208', haber: _r2(monto - base) });
+    return registrarAsiento({ concepto: 'Venta a crédito pedido ' + idPedido, referencia_tipo: 'venta_credito', referencia_id: idPedido, partidas });
+}
+
+// COBRO de una venta a crédito: entra el dinero (cargo Caja/Bancos, abono 105
+// Clientes) y el IVA se vuelve exigible (cargo 208, abono 209). NO re-reconoce
+// ingreso ni costo (ya se hizo al vender). Idempotente.
+function asientoCobroCredito(idPedido, monto, metodoPago) {
+    if (!activo() || !(monto > 0)) return null;
+    if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='cobro_credito' AND referencia_id=? LIMIT 1").get(String(idPedido))) return null;
+    const iva = parseFloat(getValor('iva_pct', '0')) || 0;
+    const base = iva > 0 ? _r2(monto / (1 + iva / 100)) : _r2(monto);
+    const partidas = [{ cuenta: _cuentaCobro(metodoPago), debe: monto }, { cuenta: '105', haber: monto }];
+    if (iva > 0) { const _i = _r2(monto - base); partidas.push({ cuenta: '208', debe: _i }, { cuenta: '209', haber: _i }); }
+    return registrarAsiento({ concepto: 'Cobro venta a crédito pedido ' + idPedido, referencia_tipo: 'cobro_credito', referencia_id: idPedido, partidas });
+}
+
 // Costo de lo vendido: cargo Costo de ventas, abono Inventario (costo promedio)
 function asientoCostoVenta(idPedido) {
     if (!activo()) return null;
@@ -189,4 +216,4 @@ function libroMayor(desde, hasta) {
 function _setDb(x) { db = x; }            // solo tests
 function _setActivo(f) { _activoFn = f; } // solo tests
 
-module.exports = { activo, mesCerradoDe, registrarAsiento, asientoVenta, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoEntradaContado, asientoReversa, libroMayor, _setDb, _setActivo };
+module.exports = { activo, mesCerradoDe, registrarAsiento, asientoVenta, asientoVentaCredito, asientoCobroCredito, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoEntradaContado, asientoReversa, libroMayor, _setDb, _setActivo };

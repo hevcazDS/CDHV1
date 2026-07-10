@@ -88,6 +88,7 @@ const MODULOS = [
   { key: 'recompra_activo', titulo: '🔁 Recompra', desc: 'Compras: reordenar a proveedores desde el historial. Cliente: el bot recuerda recomprar consumibles' },
   { key: 'pago_link_activo', titulo: '🔗 Link de pago', desc: 'Enviar por WhatsApp un link de pago (tu Clip/Mercado Pago/PayPal, o un gateway) desde el bot y el POS' },
   { key: 'recordatorio_pago_activo', titulo: '⏰ Recordatorio de link por vencer', desc: 'El bot recuerda al cliente su link de pago sin pagar ~12h antes de que expire (una sola vez, por la cola anti-baneo)' },
+  { key: 'ventas_credito_activo', titulo: '📒 Ventas a crédito (fiado)', desc: 'Permite vender fiado en el mostrador: entrega la mercancía y la registra como cuenta por cobrar. Contablemente reconoce el ingreso al vender y el IVA solo al cobrar (devengado, como pide el SAT). Requiere el módulo Contabilidad para el asiento' },
   { key: 'pago_multimetodo_activo', titulo: 'Pago multi-método', desc: 'El bot ofrece efectivo/contra entrega, transferencia y link (no solo link)' },
   { key: 'entrega_pickup_activo', titulo: 'Recoger en sucursal', desc: 'El bot ofrece pickup en tienda' },
   { key: 'entrega_paqueteria_activo', titulo: 'Envío por paquetería', desc: 'El bot ofrece envío a domicilio por paquetería (Estafeta)' },

@@ -37,6 +37,9 @@ const DEFAULT_OFF = [
     // RRHH/nómina — módulo opcional (una pyme sin RH opera igual sin él)
     'rrhh_activo',
     'nomina_fiscal_activo',
+    // Ventas a crédito (fiado): capa de devengado/CxC sobre el motor de flujo
+    // de efectivo. Off = todos venden de contado (comportamiento actual).
+    'ventas_credito_activo',
 ];
 
 // Dependencias entre módulos (idea Odoo): activar la llave exige que sus

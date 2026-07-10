@@ -86,5 +86,22 @@ let agDup = false;
 try { nomina.pagarAguinaldo(emp, 2025, 6000); } catch (_) { agDup = true; }
 ok(agDup, 'aguinaldo idempotente (no se paga dos veces el mismo año)');
 
+// 8. Venta a crédito (fiado): devengado (105/401/208) al vender; cobro que
+//    salda 105 y pasa el IVA de 208 (no cobrado) a 209 (por pagar).
+db.exec("INSERT OR IGNORE INTO plan_cuentas (codigo,nombre,tipo) VALUES ('208','IVA trasladado no cobrado','pasivo')");
+const vc = conta.asientoVentaCredito(1001, 116); // IVA 16% → base 100 + iva 16
+ok(Number.isInteger(vc), 'venta a crédito asienta (105 Clientes / 401 Ventas + 208 IVA no cobrado)');
+ok(conta.asientoVentaCredito(1001, 116) === null, 'venta a crédito idempotente');
+const cc = conta.asientoCobroCredito(1001, 116, 'efectivo');
+ok(Number.isInteger(cc), 'cobro de crédito asienta (101 Caja / 105 + 208 / 209)');
+ok(conta.asientoCobroCredito(1001, 116, 'efectivo') === null, 'cobro de crédito idempotente');
+const may2 = conta.libroMayor('2000-01-01', '2999-12-31');
+const saldo = (c) => { const r = may2.find(x => x.cuenta === c); return r ? r.saldo : 0; };
+ok(Math.abs(saldo('105')) < 0.01, 'CxC (105) queda saldada tras el cobro');
+ok(Math.abs(saldo('208')) < 0.01, 'IVA no cobrado (208) queda en cero tras el cobro');
+ok(Math.abs(saldo('209') - (-16)) < 0.01, 'IVA por pagar (209) = 16 tras el cobro');
+const debe2 = may2.reduce((s, c) => s + c.debe, 0), haber2 = may2.reduce((s, c) => s + c.haber, 0);
+ok(Math.abs(debe2 - haber2) < 0.01, 'libro mayor sigue cuadrado con el flujo de crédito');
+
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);

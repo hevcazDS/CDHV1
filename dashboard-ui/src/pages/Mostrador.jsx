@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Group, Title, Table, Button, TextInput, NumberInput, Select, ActionIcon } from '@mantine/core';
+import { Card, Group, Title, Table, Button, TextInput, NumberInput, Select, ActionIcon, Checkbox } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +21,7 @@ export default function Mostrador() {
   const [resultados, setResultados] = useState([]);
   const [carrito, setCarrito] = useState([]);
   const [metodoPago, setMetodoPago] = useState('efectivo');
+  const [aCredito, setACredito] = useState(false);
   const [clienteTel, setClienteTel] = useState('');
   const [clienteNombre, setClienteNombre] = useState('');
   const [efectivo, setEfectivo] = useState('');
@@ -78,6 +79,7 @@ export default function Mostrador() {
       const armarVenta = (pin) => api.post('/api/pos/venta', {
         items: carrito.map(i => ({ id_producto: i.id, cantidad: i.cantidad, precio: i.price, id_variante: i.id_variante || undefined })),
         metodo_pago: metodoPago,
+        a_credito: aCredito || undefined,
         cliente: (clienteTel || clienteNombre) ? { telefono: clienteTel || undefined, nombre: clienteNombre || undefined } : undefined,
         efectivo_recibido: efectivo === '' ? undefined : Number(efectivo),
         razon_social: razonSocial || undefined,
@@ -94,7 +96,7 @@ export default function Mostrador() {
       if (r && r.ok === false) throw new Error(r.error || 'No se pudo cobrar');
       setTicket(r);
       try { localStorage.setItem('pos-ultimo-ticket', JSON.stringify(r)); } catch (_) {}
-      setCarrito([]); setEfectivo(''); setClienteTel(''); setClienteNombre(''); setRazonSocial(''); setRfc('');
+      setCarrito([]); setEfectivo(''); setClienteTel(''); setClienteNombre(''); setRazonSocial(''); setRfc(''); setACredito(false);
     } catch (e) { setMsg({ ok: false, t: e.message }); }
     finally { setCobrando(false); }
   };
@@ -166,8 +168,14 @@ export default function Mostrador() {
               {cambio !== null && <div style={{ fontSize: 14, marginBottom: 8 }}>Cambio: <strong>${fmt(cambio)}</strong></div>}
             </>
           )}
-          <TextInput label="Teléfono del cliente (opcional, para puntos)" value={clienteTel} onChange={e => setClienteTel(e.target.value)} mb="xs" />
+          <TextInput label={aCredito ? 'Teléfono del cliente (requerido para fiado)' : 'Teléfono del cliente (opcional, para puntos)'} value={clienteTel} onChange={e => setClienteTel(e.target.value)} mb="xs" />
           <TextInput label="Nombre del cliente (opcional)" value={clienteNombre} onChange={e => setClienteNombre(e.target.value)} mb="sm" />
+          {config?.credito && (
+            <div style={{ border: '1px dashed var(--border)', borderRadius: 6, padding: 10, marginBottom: 12 }}>
+              <Checkbox label="Vender a crédito (fiado) — se cobra después" checked={aCredito} onChange={e => setACredito(e.currentTarget.checked)} />
+              {aCredito && <div style={{ fontSize: 11, color: 'var(--text-mute)', marginTop: 6 }}>Se entrega la mercancía y queda como cuenta por cobrar. Cóbralo luego desde Pedidos (marcar pagado). Requiere identificar al cliente.</div>}
+            </div>
+          )}
           {config?.facturacion && (
             <div style={{ border: '1px dashed var(--border)', borderRadius: 6, padding: 10, marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6 }}>¿Va a facturar? (opcional)</div>
@@ -175,8 +183,9 @@ export default function Mostrador() {
               <TextInput placeholder="RFC" value={rfc} onChange={e => setRfc(e.target.value)} size="xs" />
             </div>
           )}
-          <Button fullWidth size="md" disabled={!carrito.length || cobrando} onClick={cobrar}>
-            {cobrando ? 'Cobrando…' : `Cobrar $${fmt(total)}`}
+          <Button fullWidth size="md" color={aCredito ? 'orange' : undefined}
+            disabled={!carrito.length || cobrando || (aCredito && !clienteTel && !clienteNombre)} onClick={cobrar}>
+            {cobrando ? (aCredito ? 'Registrando…' : 'Cobrando…') : aCredito ? `Registrar fiado $${fmt(total)}` : `Cobrar $${fmt(total)}`}
           </Button>
 
           {ticket && (
