@@ -4,7 +4,7 @@
 const conta = require('../../services/contabilidadService');
 const costeo = require('../../services/costeoService');
 const kardexService = require('../../services/kardexService');
-const { permite, rangoDe } = require('../permisos');
+const { permite, rangoDe, esAdminOMas } = require('../permisos');
 
 // Matchea un concepto de CFDI contra el catálogo: NoIdentificacion vs
 // upc/sku, o descripción exacta vs nombre. null = no encontrado.
@@ -66,11 +66,11 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');
-                const _pend = conta.mesPendienteDeCierre();
-                if (!d.solo_preview && _pend && !(ses.rol === 'prime' && d.override_cierre)) {
-                    return json(res, { ok: false, error: 'Cierra primero el período ' + _pend + '. Solo Prime autoriza la excepción.', requiere_cierre: _pend, override_prime: ses.rol === 'prime' }, 409);
+                const _cerr = d.solo_preview ? null : conta.mesCerradoDe(null);
+                if (_cerr && !esAdminOMas(ses.rol)) {
+                    return json(res, { ok: false, error: 'El período ' + _cerr + ' está cerrado. Solo un Administrador o Prime puede autorizar la captura en meses cerrados.', mes_cerrado: _cerr }, 409);
                 }
-                if (!d.solo_preview && _pend && d.override_cierre) require('../../services/configAudit').logCambio(db, 'override_cierre_factura', _pend, ses.username);
+                if (_cerr) require('../../services/configAudit').logCambio(db, 'factura_mes_cerrado', _cerr, ses.username);
                 const cfdi = require('../../services/cfdiService').parsearCFDI(d.xml);
                 if (d.solo_preview) {
                     // Preview con matcheo de conceptos contra el catálogo
@@ -98,6 +98,7 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
                     conta.asientoCompra('cfdi:' + (cfdi.uuid || r.lastInsertRowid), cfdi.total, {
                         cuentaCargo: d.es_mercancia ? '115' : '601',
                         base: cfdi.subtotal, // subtotal exacto del CFDI → IVA acreditable real
+                        override: !!_cerr,
                         concepto: 'CFDI ' + (cfdi.serie || '') + (cfdi.folio || cfdi.uuid || '') + ' — ' + prov.nombre,
                     });
                 } catch (e) { if (conta.activo()) log.warn('Asiento CFDI falló: ' + e.message); }
@@ -151,11 +152,11 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
                 if (!Number.isInteger(d.id_proveedor) || !(monto > 0)) {
                     return json(res, { ok: false, error: 'Faltan proveedor/monto' }, 400);
                 }
-                const _pend = conta.mesPendienteDeCierre();
-                if (_pend && !(ses.rol === 'prime' && d.override_cierre)) {
-                    return json(res, { ok: false, error: 'Cierra primero el período ' + _pend + '. Solo Prime autoriza la excepción.', requiere_cierre: _pend, override_prime: ses.rol === 'prime' }, 409);
+                const _cerr = conta.mesCerradoDe(null);
+                if (_cerr && !esAdminOMas(ses.rol)) {
+                    return json(res, { ok: false, error: 'El período ' + _cerr + ' está cerrado. Solo un Administrador o Prime puede autorizar la captura en meses cerrados.', mes_cerrado: _cerr }, 409);
                 }
-                if (_pend && d.override_cierre) require('../../services/configAudit').logCambio(db, 'override_cierre_factura', _pend, ses.username);
+                if (_cerr) require('../../services/configAudit').logCambio(db, 'factura_mes_cerrado', _cerr, ses.username);
                 const prov = db.prepare('SELECT * FROM proveedores WHERE id=?').get(d.id_proveedor);
                 if (!prov) return json(res, { ok: false, error: 'Proveedor no encontrado' }, 404);
                 const dias = Number.isInteger(d.dias_credito) ? d.dias_credito : (prov.dias_credito || 0);
@@ -165,6 +166,7 @@ module.exports = function comprasRoutes(req, res, p, u, ctx, next) {
                 try {
                     conta.asientoCompra('fact:' + r.lastInsertRowid, monto, {
                         cuentaCargo: d.es_mercancia ? '115' : '601',
+                        override: !!_cerr,
                         concepto: 'Factura ' + (d.referencia || r.lastInsertRowid) + ' — ' + prov.nombre,
                     });
                 } catch (e) { if (conta.activo()) log.warn('Asiento de factura falló: ' + e.message); }

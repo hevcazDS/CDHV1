@@ -148,6 +148,41 @@ function pagar(desde, hasta) {
     return { pagadas: filas.length, total };
 }
 
+// Registra el PAGO de aguinaldo con asiento (601 Gasto / 102 Bancos) para que
+// no quede fuera de libros. Idempotente por (empleado, año) vía la referencia
+// del asiento. Requiere contabilidad activa (es donde vive el registro).
+function pagarAguinaldo(empleado, anio, monto) {
+    const conta = require('./contabilidadService');
+    if (!conta.activo()) throw new Error('Activa el módulo Contabilidad para registrar el pago (si no llevas libros, el aguinaldo no se asienta)');
+    if (!(monto > 0)) throw new Error('El aguinaldo calculado es cero');
+    const ref = 'aguinaldo_' + empleado.id + '_' + anio;
+    if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='aguinaldo' AND referencia_id=? LIMIT 1").get(ref))
+        throw new Error('El aguinaldo ' + anio + ' de ' + empleado.nombre + ' ya está registrado');
+    const id = conta.registrarAsiento({
+        concepto: 'Aguinaldo ' + anio + ' — ' + empleado.nombre, referencia_tipo: 'aguinaldo', referencia_id: ref,
+        partidas: [{ cuenta: '601', debe: _r2(monto) }, { cuenta: '102', haber: _r2(monto) }],
+    });
+    return { id_asiento: id, total: _r2(monto) };
+}
+
+// Registra el PAGO de finiquito con asiento y da de baja al empleado.
+// Idempotente por empleado.
+function pagarFiniquito(empleado, fechaBaja, fin) {
+    const conta = require('./contabilidadService');
+    if (!conta.activo()) throw new Error('Activa el módulo Contabilidad para registrar el pago (si no llevas libros, el finiquito no se asienta)');
+    const total = _r2(fin.total || 0);
+    if (!(total > 0)) throw new Error('El finiquito calculado es cero');
+    const ref = 'finiquito_' + empleado.id;
+    if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='finiquito' AND referencia_id=? LIMIT 1").get(ref))
+        throw new Error('El finiquito de ' + empleado.nombre + ' ya está registrado');
+    const id = conta.registrarAsiento({
+        concepto: 'Finiquito ' + empleado.nombre + ' (baja ' + fechaBaja + ')', referencia_tipo: 'finiquito', referencia_id: ref,
+        partidas: [{ cuenta: '601', debe: total }, { cuenta: '102', haber: total }],
+    });
+    db.prepare('UPDATE empleados SET activo=0 WHERE id=?').run(empleado.id);
+    return { id_asiento: id, total };
+}
+
 function _setDb(x) { db = x; } // solo tests
 
-module.exports = { calcular, pagar, isrMensual, antiguedadAnios, diasVacacionesLey, aguinaldo, primaVacacional, finiquito, _setDb };
+module.exports = { calcular, pagar, isrMensual, antiguedadAnios, diasVacacionesLey, aguinaldo, primaVacacional, finiquito, pagarAguinaldo, pagarFiniquito, _setDb };

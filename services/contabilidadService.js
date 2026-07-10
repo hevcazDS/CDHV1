@@ -15,26 +15,29 @@ const _r2 = (n) => Math.round(Number(n) * 100) / 100;
 let _activoFn = () => moduloActivo('contabilidad_activo');
 function activo() { return _activoFn(); }
 
-// Cierre forzado: en los días 1-3 del mes, si el mes anterior NO está
-// cerrado, devuelve ese mes ('YYYY-MM') — las rutas de gastos/facturas lo
-// usan para bloquear. Fuera de la ventana o ya cerrado → null.
-function mesPendienteDeCierre() {
-    const hoy = new Date();
-    if (hoy.getDate() > 3) return null; // solo los primeros 3 días
-    const ant = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
-    const mesAnt = ant.toISOString().slice(0, 7);
-    const cerrado = getValor('periodo_cerrado', '');
-    return (cerrado && cerrado >= mesAnt) ? null : mesAnt;
+// ¿Está cerrado el mes de esta fecha? El cierre es TOTAL (el contador cierra
+// 'YYYY-MM' explícitamente), ya no por días 1-3: un mes <= periodo_cerrado
+// está cerrado. Devuelve el 'YYYY-MM' cerrado o null.
+function mesCerradoDe(fecha) {
+    // Se lee del db del servicio (no de la cache de _config) para reflejar un
+    // cierre/reapertura al instante y honrar _setDb en tests.
+    let cerrado = '';
+    try { cerrado = db.prepare("SELECT valor FROM configuracion WHERE clave='periodo_cerrado'").get()?.valor || ''; } catch (_) {}
+    const mes = String(fecha || new Date().toISOString().slice(0, 10)).slice(0, 7);
+    return (cerrado && mes <= cerrado) ? cerrado : null;
 }
 
-// partidas: [{ cuenta, debe?, haber? }] — debe cuadrar (±1 centavo)
-function registrarAsiento({ concepto, referencia_tipo = 'manual', referencia_id = null, partidas }) {
+// partidas: [{ cuenta, debe?, haber? }] — debe cuadrar (±1 centavo).
+// fecha: 'YYYY-MM-DD' opcional (permite capturar en meses pasados).
+// override: true deja asentar en un mes CERRADO (el que llama ya validó rol
+// y dejó la huella de quién autorizó).
+function registrarAsiento({ concepto, referencia_tipo = 'manual', referencia_id = null, partidas, fecha = null, override = false }) {
     if (!Array.isArray(partidas) || partidas.length < 2) throw new Error('Un asiento requiere al menos 2 partidas');
-    // CIERRE DE PERÍODO (idea SAP): si el mes en curso ya está cerrado por
-    // el contador ('periodo_cerrado' = 'YYYY-MM'), no entra ningún asiento.
-    const cerrado = getValor('periodo_cerrado', '');
-    if (cerrado && new Date().toISOString().slice(0, 7) <= cerrado) {
-        throw new Error('Período contable CERRADO hasta ' + cerrado + ' — reabre el período en ERP > Contabilidad para asentar');
+    // CIERRE DE PERÍODO (idea SAP): si el mes del asiento está cerrado por el
+    // contador, no entra — salvo override autorizado (gerente/prime, con huella).
+    const cerrado = mesCerradoDe(fecha);
+    if (cerrado && !override) {
+        throw new Error('Período contable CERRADO hasta ' + cerrado + ' — un Administrador o Prime puede autorizar la captura en meses cerrados (queda registrado quién)');
     }
     let debe = 0, haber = 0;
     for (const pa of partidas) {
@@ -45,8 +48,11 @@ function registrarAsiento({ concepto, referencia_tipo = 'manual', referencia_id 
         throw new Error(`Asiento descuadrado: debe ${_r2(debe)} vs haber ${_r2(haber)}`);
     }
     const t = db.transaction(() => {
-        const a = db.prepare('INSERT INTO asientos (concepto, referencia_tipo, referencia_id) VALUES (?,?,?)')
-            .run(String(concepto).slice(0, 200), referencia_tipo, referencia_id != null ? String(referencia_id) : null);
+        const a = fecha
+            ? db.prepare('INSERT INTO asientos (fecha, concepto, referencia_tipo, referencia_id) VALUES (?,?,?,?)')
+                .run(fecha, String(concepto).slice(0, 200), referencia_tipo, referencia_id != null ? String(referencia_id) : null)
+            : db.prepare('INSERT INTO asientos (concepto, referencia_tipo, referencia_id) VALUES (?,?,?)')
+                .run(String(concepto).slice(0, 200), referencia_tipo, referencia_id != null ? String(referencia_id) : null);
         const ins = db.prepare('INSERT INTO asientos_detalle (id_asiento, cuenta, debe, haber) VALUES (?,?,?,?)');
         for (const pa of partidas) ins.run(a.lastInsertRowid, pa.cuenta, _r2(pa.debe || 0), _r2(pa.haber || 0));
         return a.lastInsertRowid;
@@ -96,20 +102,20 @@ function asientoCompra(folioOC, total, opts = {}) {
     partidas.push({ cuenta: '201', haber: total });
     return registrarAsiento({
         concepto: opts.concepto || 'Compra ' + folioOC, referencia_tipo: 'compra', referencia_id: folioOC,
-        partidas,
+        partidas, fecha: opts.fecha || null, override: !!opts.override,
     });
 }
 
 // Gasto directo (renta, luz, papelería): cargo Gastos (+119 si trae IVA),
 // abono Caja/Bancos. Es el registro diario del contador.
-function asientoGasto(concepto, total, metodo, conIva) {
+function asientoGasto(concepto, total, metodo, conIva, opts = {}) {
     if (!activo() || !(total > 0)) return null;
     const iva = conIva ? (parseFloat(getValor('iva_pct', '0')) || 0) : 0;
     const base = iva > 0 ? _r2(total / (1 + iva / 100)) : _r2(total);
     const partidas = [{ cuenta: '601', debe: base }];
     if (total - base > 0.005) partidas.push({ cuenta: '119', debe: _r2(total - base) });
     partidas.push({ cuenta: metodo === 'bancos' ? '102' : '101', haber: total });
-    return registrarAsiento({ concepto: 'Gasto: ' + concepto, referencia_tipo: 'gasto', referencia_id: null, partidas });
+    return registrarAsiento({ concepto: 'Gasto: ' + concepto, referencia_tipo: 'gasto', referencia_id: null, partidas, fecha: opts.fecha || null, override: !!opts.override });
 }
 
 // Devolución de mercancía: la pieza vuelve al inventario a su costo promedio
@@ -183,4 +189,4 @@ function libroMayor(desde, hasta) {
 function _setDb(x) { db = x; }            // solo tests
 function _setActivo(f) { _activoFn = f; } // solo tests
 
-module.exports = { activo, mesPendienteDeCierre, registrarAsiento, asientoVenta, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoEntradaContado, asientoReversa, libroMayor, _setDb, _setActivo };
+module.exports = { activo, mesCerradoDe, registrarAsiento, asientoVenta, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoEntradaContado, asientoReversa, libroMayor, _setDb, _setActivo };

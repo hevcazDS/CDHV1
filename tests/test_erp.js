@@ -62,5 +62,29 @@ conta.asientoReversa('venta', 99);
 const reversas = db.prepare("SELECT COUNT(*) c FROM asientos WHERE concepto LIKE 'REVERSA%'").get().c;
 ok(reversas === 1, 'reversa idempotente (1 sola aunque se llame 2 veces)');
 
+// 6. Cierre TOTAL de período: un asiento en un mes cerrado se rechaza sin
+//    override, y entra con override (backdate a fecha del mes cerrado).
+db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('periodo_cerrado','2025-01') ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run();
+let cerroBloqueo = false;
+try { conta.registrarAsiento({ concepto: 'Gasto ene', fecha: '2025-01-15', partidas: [{ cuenta: '601', debe: 50 }, { cuenta: '101', haber: 50 }] }); }
+catch (_) { cerroBloqueo = true; }
+ok(cerroBloqueo, 'mes cerrado bloquea sin override');
+const idOv = conta.registrarAsiento({ concepto: 'Gasto ene autorizado', fecha: '2025-01-15', override: true, partidas: [{ cuenta: '601', debe: 50 }, { cuenta: '101', haber: 50 }] });
+ok(Number.isInteger(idOv), 'mes cerrado admite override autorizado');
+ok(db.prepare('SELECT fecha FROM asientos WHERE id=?').get(idOv).fecha === '2025-01-15', 'backdate respeta la fecha capturada');
+// un mes NO cerrado (posterior) entra sin override
+const idAbierto = conta.registrarAsiento({ concepto: 'Gasto feb', fecha: '2025-02-15', partidas: [{ cuenta: '601', debe: 10 }, { cuenta: '101', haber: 10 }] });
+ok(Number.isInteger(idAbierto), 'mes abierto no requiere override');
+db.prepare("DELETE FROM configuracion WHERE clave='periodo_cerrado'").run();
+
+// 7. Aguinaldo: asiento 601/102 idempotente por (empleado, año)
+const nomina = require('../services/nominaService'); nomina._setDb(db);
+const emp = { id: 7, nombre: 'Ana', salario_diario: 400 };
+const ag = nomina.pagarAguinaldo(emp, 2025, 6000);
+ok(Number.isInteger(ag.id_asiento) && ag.total === 6000, 'aguinaldo asienta el monto');
+let agDup = false;
+try { nomina.pagarAguinaldo(emp, 2025, 6000); } catch (_) { agDup = true; }
+ok(agDup, 'aguinaldo idempotente (no se paga dos veces el mismo año)');
+
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);

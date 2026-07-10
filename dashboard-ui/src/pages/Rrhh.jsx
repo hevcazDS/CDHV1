@@ -68,6 +68,7 @@ export default function Rrhh() {
         <Tabs.List>
           <Tabs.Tab value="empleados">Empleados y horarios</Tabs.Tab>
           <Tabs.Tab value="nomina">Nómina</Tabs.Tab>
+          <Tabs.Tab value="liquidaciones">Aguinaldo / Finiquito</Tabs.Tab>
         </Tabs.List>
       </Tabs>
 
@@ -183,6 +184,100 @@ export default function Rrhh() {
           </div>
         </Card>
       )}
+
+      {tab === 'liquidaciones' && <Liquidaciones empleados={empleados} />}
+    </div>
+  );
+}
+
+// Aguinaldo y finiquito: preview (cálculo) + pago que deja ASIENTO contable y
+// huella de quién autorizó (PIN si el rol lo exige). Cierra el hueco de "pago
+// fuera de libros" del re-review (Oxford/RH).
+function Liquidaciones({ empleados }) {
+  const [sel, setSel] = useState('');
+  const [anio, setAnio] = useState(new Date().getFullYear());
+  const [fin, setFin] = useState({ fecha_baja: new Date().toISOString().slice(0, 10), dias_pendientes: 0, despido_injustificado: false });
+  const [prevFin, setPrevFin] = useState(null);
+  const empId = sel ? Number(sel) : null;
+
+  // Paga reintentando con PIN si el backend lo exige (roles especialistas).
+  const pagarConPin = async (url, body) => {
+    let r = await api.post(url, body).catch(e => ({ ok: false, error: e.message }));
+    if (!r.ok && r.pin_requerido) {
+      const pin = await prompt({ titulo: 'PIN de autorización', tipo: 'password', mensaje: 'Esta operación requiere el PIN de autorización:' });
+      if (!pin) return null;
+      r = await api.post(url, { ...body, pin }).catch(e => ({ ok: false, error: e.message }));
+    }
+    return r;
+  };
+
+  const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
+
+  const pagarAguinaldo = async () => {
+    if (!empId) return;
+    const prev = await api.get(`/api/rrhh/aguinaldo/${empId}?anio=${anio}`).catch(() => null);
+    if (!prev?.ok) return handleApiError(new Error(prev?.error || 'No se pudo calcular'));
+    if (prev.pagado) return alertar({ titulo: 'Ya registrado', mensaje: `El aguinaldo ${anio} de ${prev.empleado} ya está asentado.` });
+    if (!await confirmar({ titulo: 'Pagar aguinaldo', mensaje: `${prev.empleado} · ${anio}\nAguinaldo: ${money(prev.aguinaldo)}\n\nSe registrará como asiento contable (601/102) y quedará la huella de quién autorizó. ¿Continuar?`, textoOk: 'Pagar y asentar' })) return;
+    const r = await pagarConPin(`/api/rrhh/aguinaldo/${empId}/pagar`, { anio });
+    if (!r) return;
+    if (!r.ok) return handleApiError(new Error(r.error));
+    toastOk(`Aguinaldo pagado · ${money(r.total)} · asiento #${r.id_asiento}`);
+  };
+
+  const calcularFin = async () => {
+    if (!empId) return;
+    const r = await api.post(`/api/rrhh/finiquito/${empId}`, fin).catch(e => ({ ok: false, error: e.message }));
+    if (!r.ok) return handleApiError(new Error(r.error));
+    setPrevFin(r);
+  };
+  const pagarFin = async () => {
+    if (!empId || !prevFin) return;
+    if (prevFin.pagado) return alertar({ titulo: 'Ya registrado', mensaje: `El finiquito de ${prevFin.empleado} ya está asentado.` });
+    if (!await confirmar({ titulo: 'Pagar finiquito', mensaje: `${prevFin.empleado} · baja ${fin.fecha_baja}\nTotal: ${money(prevFin.total)}\n\nSe registrará el asiento contable, se dará de BAJA al empleado y quedará la huella de quién autorizó. ¿Continuar?`, peligro: true, textoOk: 'Pagar y dar de baja' })) return;
+    const r = await pagarConPin(`/api/rrhh/finiquito/${empId}/pagar`, fin);
+    if (!r) return;
+    if (!r.ok) return handleApiError(new Error(r.error));
+    toastOk(`Finiquito pagado · ${money(r.total)} · asiento #${r.id_asiento}`);
+    setPrevFin(null);
+  };
+
+  return (
+    <div>
+      <Select label="Empleado" placeholder="Elige un empleado" searchable value={sel} onChange={setSel} mb="md"
+        data={empleados.map(e => ({ value: String(e.id), label: `#${e.id} ${e.nombre}` }))} style={{ maxWidth: 360 }} />
+      <Text size="xs" c="dimmed" mb="md">Cálculo aproximado (LFT) — el CFDI de nómina y el definitivo los hace tu contador. El pago deja asiento contable (requiere el módulo Contabilidad activo).</Text>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+        <Card withBorder radius="md" p="lg" className="card">
+          <div className="card-header"><h3>Aguinaldo</h3></div>
+          <NumberInput label="Año" value={anio} onChange={v => setAnio(v || new Date().getFullYear())} min={2020} max={2100} mb="md" style={{ maxWidth: 160 }} />
+          <Button onClick={pagarAguinaldo} disabled={!empId}>Calcular y pagar aguinaldo</Button>
+        </Card>
+
+        <Card withBorder radius="md" p="lg" className="card">
+          <div className="card-header"><h3>Finiquito</h3></div>
+          <Group grow mb="sm">
+            <TextInput type="date" label="Fecha de baja" value={fin.fecha_baja} onChange={e => setFin({ ...fin, fecha_baja: e.target.value })} />
+            <NumberInput label="Días pendientes de pago" min={0} value={fin.dias_pendientes} onChange={v => setFin({ ...fin, dias_pendientes: v || 0 })} />
+          </Group>
+          <Checkbox label="Despido injustificado (indemniza 90 días + 20/año)" checked={fin.despido_injustificado} onChange={e => setFin({ ...fin, despido_injustificado: e.currentTarget.checked })} mb="md" />
+          <Group>
+            <Button variant="default" onClick={calcularFin} disabled={!empId}>Calcular</Button>
+            <Button color="red" onClick={pagarFin} disabled={!prevFin}>Pagar y dar de baja</Button>
+          </Group>
+          {prevFin && (
+            <table style={{ width: '100%', marginTop: 14 }}><tbody>
+              <tr><td className="text-muted" style={{ padding: '3px 0' }}>Antigüedad</td><td style={{ textAlign: 'right' }}>{prevFin.antiguedad_anios} año(s)</td></tr>
+              <tr><td className="text-muted" style={{ padding: '3px 0' }}>Aguinaldo prop.</td><td style={{ textAlign: 'right' }}>{money(prevFin.aguinaldo)}</td></tr>
+              <tr><td className="text-muted" style={{ padding: '3px 0' }}>Vacaciones prop.</td><td style={{ textAlign: 'right' }}>{money(prevFin.vacaciones_proporcional)}</td></tr>
+              <tr><td className="text-muted" style={{ padding: '3px 0' }}>Prima vacacional</td><td style={{ textAlign: 'right' }}>{money(prevFin.prima_vacacional)}</td></tr>
+              <tr><td className="text-muted" style={{ padding: '3px 0' }}>Días pendientes</td><td style={{ textAlign: 'right' }}>{money(prevFin.dias_pendientes)}</td></tr>
+              {prevFin.indemnizacion > 0 && <tr><td className="text-muted" style={{ padding: '3px 0' }}>Indemnización</td><td style={{ textAlign: 'right' }}>{money(prevFin.indemnizacion)}</td></tr>}
+              <tr style={{ borderTop: '1px solid var(--border)' }}><td style={{ padding: '6px 0', fontWeight: 700 }}>Total</td><td style={{ textAlign: 'right', fontWeight: 700 }}>{money(prevFin.total)}</td></tr>
+            </tbody></table>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

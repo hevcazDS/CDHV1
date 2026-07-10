@@ -13,17 +13,21 @@ export default function GastosImpuestosTab() {
   const hoy = new Date().toISOString().slice(0, 10);
   const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const [rango, setRango] = useState({ desde: hace30, hasta: hoy });
-  const [g, setG] = useState({ concepto: '', monto: 0, metodo: 'caja', con_iva: true });
+  const [g, setG] = useState({ concepto: '', monto: 0, metodo: 'caja', con_iva: true, fecha: hoy });
 
   const q = `?desde=${rango.desde}&hasta=${rango.hasta}`;
   const { data: gastos = [] } = useQuery({ queryKey: ['erp-gastos', rango], queryFn: () => api.get('/api/erp/gastos' + q) });
   const { data: imp } = useQuery({ queryKey: ['erp-impuestos', rango], queryFn: () => api.get('/api/erp/impuestos' + q) });
+  const { data: cierre } = useQuery({ queryKey: ['erp-periodo-cierre'], queryFn: () => api.get('/api/erp/periodo-cierre') });
+
+  // Mes seleccionado vs período cerrado (idem backend: mes <= cerrado = cerrado).
+  const mesCerrado = !!(cierre?.cerrado && (g.fecha || hoy).slice(0, 7) <= cierre.cerrado);
 
   const crear = useMutation({
     mutationFn: () => api.post('/api/erp/gastos', g),
     onSuccess: (r) => {
       if (!r.ok) return handleApiError(new Error(r.error));
-      setG({ concepto: '', monto: 0, metodo: 'caja', con_iva: true });
+      setG({ concepto: '', monto: 0, metodo: 'caja', con_iva: true, fecha: hoy });
       qc.invalidateQueries({ queryKey: ['erp-gastos'] });
       qc.invalidateQueries({ queryKey: ['erp-impuestos'] });
     },
@@ -47,8 +51,16 @@ export default function GastosImpuestosTab() {
             <Select label="Pagado con" allowDeselect={false} value={g.metodo} onChange={v => setG({ ...g, metodo: v })}
               data={[{ value: 'caja', label: 'Caja (efectivo)' }, { value: 'bancos', label: 'Bancos' }]} />
           </Group>
+          <TextInput type="date" label="Fecha del gasto" description="Puedes capturar en meses pasados" max={hoy} value={g.fecha} onChange={e => setG({ ...g, fecha: e.target.value })} mb="sm" />
           <Checkbox label="Trae IVA (factura — desglosa el acreditable)" checked={g.con_iva} onChange={e => setG({ ...g, con_iva: e.currentTarget.checked })} mb="md" />
-          <Button fullWidth onClick={() => crear.mutate()} disabled={!g.concepto.trim() || !(g.monto > 0)}>Registrar → asiento contable</Button>
+          {mesCerrado && (
+            <Text size="xs" mb="sm" style={{ color: 'var(--yellow)' }}>
+              ⚠️ El período <strong>{cierre.cerrado}</strong> está cerrado. Solo un Administrador o Prime puede capturar aquí, y quedará registrado quién lo autorizó.
+            </Text>
+          )}
+          <Button fullWidth onClick={() => crear.mutate()} disabled={!g.concepto.trim() || !(g.monto > 0)}>
+            {mesCerrado ? 'Autorizar y registrar en mes cerrado' : 'Registrar → asiento contable'}
+          </Button>
         </Card>
 
         <Card withBorder radius="md" p="lg" className="card">

@@ -2,7 +2,7 @@
 // ERP Fase 6: plan de cuentas, asientos (diario) y libro mayor.
 // Consultas gerente+; asiento manual solo prime.
 const conta = require('../../services/contabilidadService');
-const { permite } = require('../permisos');
+const { permite, esAdminOMas } = require('../permisos');
 
 module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
@@ -229,15 +229,19 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
                 const d = JSON.parse(body || '{}');
                 const monto = Number(d.monto);
                 if (!String(d.concepto || '').trim() || !(monto > 0)) return json(res, { ok: false, error: 'Faltan concepto o monto' }, 400);
-                // Cierre forzado: bloquea si el mes anterior no está cerrado (días 1-3)
-                const _pend = conta.mesPendienteDeCierre();
-                if (_pend && !(sesG.rol === 'prime' && d.override_cierre)) {
-                    return json(res, { ok: false, error: 'Cierra primero el período ' + _pend + ' (ERP > Contabilidad). Solo Prime puede autorizar la excepción.', requiere_cierre: _pend, override_prime: sesG.rol === 'prime' }, 409);
-                }
-                if (_pend && d.override_cierre) require('../../services/configAudit').logCambio(db, 'override_cierre_gasto', _pend, sesG.username);
                 if (!conta.activo()) return json(res, { ok: false, error: 'Activa el módulo Contabilidad en Módulos para registrar gastos' }, 400);
-                const id = conta.asientoGasto(String(d.concepto).trim(), monto, d.metodo === 'bancos' ? 'bancos' : 'caja', !!d.con_iva);
-                return json(res, { ok: true, id_asiento: id });
+                // Fecha opcional (capturar en meses pasados). Si el mes está
+                // cerrado, solo Administrador/Prime puede, y queda la huella.
+                const fecha = /^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '') ? d.fecha : null;
+                const mesCerrado = conta.mesCerradoDe(fecha);
+                if (mesCerrado) {
+                    if (!esAdminOMas(sesG.rol)) {
+                        return json(res, { ok: false, error: 'El período ' + mesCerrado + ' está cerrado. Solo un Administrador o Prime puede autorizar la captura en meses cerrados.', mes_cerrado: mesCerrado }, 409);
+                    }
+                    require('../../services/configAudit').logCambio(db, 'gasto_mes_cerrado', (fecha || '').slice(0, 7) + ' · ' + String(d.concepto).trim() + ' $' + monto, sesG.username);
+                }
+                const id = conta.asientoGasto(String(d.concepto).trim(), monto, d.metodo === 'bancos' ? 'bancos' : 'caja', !!d.con_iva, { fecha, override: !!mesCerrado });
+                return json(res, { ok: true, id_asiento: id, en_mes_cerrado: !!mesCerrado });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });
     }
