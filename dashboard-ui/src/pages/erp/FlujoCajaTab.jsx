@@ -8,6 +8,7 @@ const money = (n) => n == null ? '—' : '$' + Number(n || 0).toLocaleString('es
 
 export default function FlujoCajaTab() {
   const { data } = useQuery({ queryKey: ['erp-flujo-caja'], queryFn: () => api.get('/api/erp/flujo-caja') });
+  const { data: salud } = useQuery({ queryKey: ['erp-salud'], queryFn: () => api.get('/api/erp/salud-financiera').catch(() => null) });
   if (!data) return <div className="empty">Cargando…</div>;
   const { saldo_actual, por_cobrar, por_pagar, proyeccion, conta_activa } = data;
   const cols = [['vencido', 'Vencido'], ['d0_30', '0–30 días'], ['d31_60', '31–60 días'], ['d61mas', '61+ días'], ['sin_fecha', 'Sin fecha']];
@@ -58,6 +59,21 @@ export default function FlujoCajaTab() {
         </div>
         <Text size="xs" c="dimmed" mt="sm">Entradas = fiado por cobrar (por fecha de vencimiento). Salidas = cuentas por pagar a proveedores. La causa #1 de quiebra de PYMEs es quedarse sin caja aunque el P&L dé positivo.</Text>
       </Card>
+
+      {salud?.conta_activa && (
+        <Card withBorder radius="md" p="lg" className="card" style={{ marginTop: 16 }}>
+          <div className="card-header"><h3>Salud financiera (liquidez y ciclo de efectivo)</h3></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14 }}>
+            <div><Text size="xs" c="dimmed">Ciclo de efectivo (CCC)</Text><Text fw={700} size="lg" c={salud.ciclo_efectivo > 45 ? 'red' : undefined}>{salud.ciclo_efectivo ?? '—'} días</Text></div>
+            <div><Text size="xs" c="dimmed">Días de inventario</Text><Text fw={600}>{salud.dias_inventario ?? '—'}</Text></div>
+            <div><Text size="xs" c="dimmed">Días de cobro</Text><Text fw={600}>{salud.dias_cobro ?? '—'}</Text></div>
+            <div><Text size="xs" c="dimmed">Días de pago</Text><Text fw={600}>{salud.dias_pago ?? '—'}</Text></div>
+            <div><Text size="xs" c="dimmed">Razón corriente</Text><Text fw={700} c={salud.razon_corriente != null && salud.razon_corriente < 1 ? 'red' : 'teal'}>{salud.razon_corriente ?? '—'}</Text></div>
+            <div><Text size="xs" c="dimmed">Prueba ácida</Text><Text fw={700} c={salud.prueba_acida != null && salud.prueba_acida < 1 ? 'red' : undefined}>{salud.prueba_acida ?? '—'}</Text></div>
+          </div>
+          <Text size="xs" c="dimmed" mt="sm">CCC = días de inventario + días de cobro − días de pago (cuánto tardas en volver a tener el dinero). Razón corriente = activo circulante ÷ pasivo circulante (&lt;1 = riesgo). Prueba ácida excluye el inventario.</Text>
+        </Card>
+      )}
     </div>
   );
 }

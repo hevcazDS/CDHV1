@@ -8,7 +8,7 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
     if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')
-        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos') || p.startsWith('/api/erp/rentabilidad-clientes') || p.startsWith('/api/erp/rentabilidad-vendedores') || p.startsWith('/api/erp/flujo-caja')) {
+        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos') || p.startsWith('/api/erp/rentabilidad-clientes') || p.startsWith('/api/erp/rentabilidad-vendedores') || p.startsWith('/api/erp/flujo-caja') || p.startsWith('/api/erp/salud-financiera')) {
         const ses = requireSession(req, res);
         if (!ses) return;
         if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
@@ -288,6 +288,38 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
             filas.forEach(f => { f.fiado_pendiente = mapF[f.vendedor] || 0; });
         } catch (_) {}
         return json(res, { desde, hasta, comision_pct: parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='comision_pct'").get()?.valor || '0') || 0, vendedores: filas });
+    }
+
+    // GET /api/erp/salud-financiera — ciclo de conversión de efectivo (CCC) y
+    // ratios de liquidez, desde los saldos contables (requiere Contabilidad).
+    if (p === '/api/erp/salud-financiera' && req.method === 'GET') {
+        if (!conta.activo()) return json(res, { conta_activa: false });
+        const { desde, hasta } = _rango();
+        const dias = Math.max(1, Math.round((new Date(hasta) - new Date(desde)) / 86400000) + 1);
+        const per = conta.libroMayor(desde, hasta);
+        const pc = (code) => { const r = per.find(x => x.cuenta === code); return r || { debe: 0, haber: 0 }; };
+        const ventas = r2(pc('401').haber - pc('401').debe);
+        const cogs = r2(pc('501').debe - pc('501').haber);
+        const acum = conta.libroMayor('1900-01-01', hasta);
+        const s = (code) => { const r = acum.find(x => x.cuenta === code); return r ? r.saldo : 0; }; // saldo = debe - haber
+        const caja = r2(s('101') + s('102'));
+        const cxc = r2(s('105'));
+        const inv = r2(s('115'));
+        const cxp = r2(-s('201'));            // pasivo: saldo acreedor → -saldo
+        const ivaPorPagar = r2(-s('209'));
+        const dio = cogs > 0 ? r2(inv / (cogs / dias)) : null;                  // días de inventario
+        const dso = ventas > 0 ? r2(cxc / (ventas / dias)) : null;             // días de cobro
+        const dpo = cogs > 0 ? r2(cxp / (cogs / dias)) : null;                 // días de pago (compras≈COGS)
+        const ccc = (dio != null && dso != null && dpo != null) ? r2(dio + dso - dpo) : null;
+        const activoCirc = r2(caja + cxc + inv);
+        const pasivoCirc = r2(cxp + Math.max(0, ivaPorPagar));
+        return json(res, {
+            desde, hasta, dias, conta_activa: true,
+            dias_inventario: dio, dias_cobro: dso, dias_pago: dpo, ciclo_efectivo: ccc,
+            activo_circulante: activoCirc, pasivo_circulante: pasivoCirc,
+            razon_corriente: pasivoCirc > 0 ? r2(activoCirc / pasivoCirc) : null,
+            prueba_acida: pasivoCirc > 0 ? r2((activoCirc - inv) / pasivoCirc) : null,
+        });
     }
 
     // GET /api/erp/flujo-caja — proyección: ¿tendré dinero aunque el P&L dé
