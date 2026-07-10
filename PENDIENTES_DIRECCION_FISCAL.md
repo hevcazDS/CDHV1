@@ -10,9 +10,9 @@ Los datos base ya se capturan salvo donde se indique "requiere schema".
 
 | # | Pendiente | Qué responde | Datos / esfuerzo |
 |---|-----------|--------------|------------------|
-| A1 | **Punto de equilibrio** | ¿Cuánto debo vender al mes para no perder? | Clasificar gastos fijos vs variables (601). `Q = gastos_fijos / margen_contribución`. ~1 día |
+| A1 | ✅ **HECHO** — Punto de equilibrio | ¿Cuánto debo vender para no perder? | En el tablero (commit e29455c): ventas de equilibrio + holgura. |
 | A2 | **Flujo de caja proyectado (30/60/90d)** | ¿Tendré dinero para renta/nómina aunque el P&L dé positivo? | Entradas: `links_pago` por cobrar + fiado `fiado_vence_en`. Salidas: `cuentas_pagar.vence_en` + nómina. ~2 días |
-| A3 | **Rentabilidad por cliente** | ¿Quién es rentable y quién es "tóxico" (mucho volumen, bajo margen o moroso)? | JOIN `pedidos`+`links_pago`+margen − devoluciones. Identifica el 20% que da el 80%. ~1 día |
+| A3 | ✅ **HECHO** — Rentabilidad por cliente | ¿Quién es rentable y quién "tóxico"? | Pestaña ERP + `/api/erp/rentabilidad-clientes` (margen + adeudo de fiado). commit e29455c |
 | A4 | **Rentabilidad por vendedor** (más allá de comisión) | ¿Vende con margen sano o deja devoluciones/fiado incobrable? | `cobrado_por` × margen − devoluciones − fiado no cobrado. ~1 día |
 | A5 | **Ciclo de conversión de efectivo + ratios de liquidez** | ¿Cuántos días entre pagar al proveedor y cobrar al cliente? | Días inventario + días CxC − días CxP. Razón corriente/ácida. ~1 día |
 
@@ -30,9 +30,9 @@ Notas:
 | B2 | **IMSS patronal** (~17–20% aparte de la cuota obrera 2.775%) | Pasivo patronal no reflejado; recargos retroactivos. | Medio |
 | B3 | **Prima dominical (25%) y séptimo día** | Demanda laboral; auditoría IMSS. Hoy `nominaService` no los calcula. | Medio (requiere marcar días domingo/descanso) |
 | B4 | **Incapacidades IMSS** | Antigüedad/finiquito mal calculados; subsidio no reflejado. | Medio (requiere schema: tabla incapacidades) |
-| B5 | **Tipo de baja** (renuncia / despido justificado / injustificado / cese / jubilación) | Indemnización mal pagada (de más o de menos). Hoy solo hay flag `despido_injustificado`. | Bajo (campo `tipo_baja` + fecha_baja en empleados) |
+| B5 | ✅ **HECHO** — Tipo de baja | Indemniza según causa (LFT). | Select renuncia/despido just./injust./jubilación + `tipo_baja`/`fecha_baja` (0041). commit 2f529f0 |
 | B6 | **Config de régimen fiscal** (RESICO / general / PF) + congruencia | El sistema calcula sin saber el régimen; asientos podrían no ser congruentes ante el SAT. | Bajo (config `regimen_fiscal` en Prime > General) |
-| B7 | **Contrato/términos del crédito (fiado)** | Sin documento con plazo/términos, la deuda es difícil de cobrar judicialmente. | Bajo (constancia con `fiado_vence_en` + términos) |
+| B7 | **Contrato/términos del crédito (fiado)** — PARCIAL | Sin documento con plazo/términos, la deuda es difícil de cobrar judicialmente. | Ya hay `fiado_vence_en` (0039); falta la constancia imprimible con términos. |
 
 Notas:
 - Los **cálculos LFT que SÍ existen** (aguinaldo 15d, finiquito 90+20/año, vacaciones,
