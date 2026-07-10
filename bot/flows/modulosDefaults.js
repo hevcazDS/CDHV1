@@ -24,6 +24,7 @@ const DEFAULT_OFF = [
     'facturacion_activo',
     'pago_link_activo',
     'recompra_activo',
+    'mesas_activo',
     'citas_activo',
     'llm_activo',
     // Look minimalista: el panel arranca sin emojis (iconos de línea);

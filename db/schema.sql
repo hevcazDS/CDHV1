@@ -1120,3 +1120,25 @@ BEGIN SELECT RAISE(ABORT, 'El kardex es inmutable: registra el movimiento contra
 -- 0033: nómina fiscal — expediente + desglose (columnas añadidas a empleados/nominas)
 -- empleados += fecha_alta, departamento, comision_pct, metodo_pago, username, contacto_emergencia
 -- nominas   += horas_extra, comisiones
+-- 0034 (espejo): mesas de restaurante (módulo mesas_activo). Abrir mesa, agregar
+-- platillos con comentario libre, preticket a cocina, cerrar → cobro en POS.
+CREATE TABLE IF NOT EXISTS mesas (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    numero     TEXT NOT NULL,
+    estatus    TEXT NOT NULL DEFAULT 'abierta' CHECK(estatus IN ('abierta','cobrada')),
+    id_pedido  INTEGER,
+    abierta_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    cerrada_en TEXT
+);
+CREATE TABLE IF NOT EXISTS mesa_items (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_mesa        INTEGER NOT NULL,
+    id_producto    INTEGER,
+    nombre         TEXT NOT NULL,
+    precio         REAL NOT NULL DEFAULT 0,
+    cantidad       INTEGER NOT NULL DEFAULT 1,
+    comentario     TEXT,
+    enviado_cocina INTEGER NOT NULL DEFAULT 0,
+    creado_en      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_mesa_items_mesa ON mesa_items(id_mesa);

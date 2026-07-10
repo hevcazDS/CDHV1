@@ -39,6 +39,7 @@ const Almacen = lazy(() => import('./pages/Almacen'));
 const Compras = lazy(() => import('./pages/Compras'));
 const Rrhh = lazy(() => import('./pages/Rrhh'));
 const Citas = lazy(() => import('./pages/Citas'));
+const Mesas = lazy(() => import('./pages/Mesas'));
 
 export default function App() {
   const { user, cargando } = useAuth();
@@ -95,6 +96,7 @@ export default function App() {
         {(permite(user.rol, 'almacen') || permite(user.rol, 'almacen_lectura')) && <Route path="/almacen" element={<Almacen />} />}
         {permite(user.rol, 'rrhh') && <Route path="/rrhh" element={<Rrhh />} />}
               {permite(user.rol, 'operacion') && <Route path="/citas" element={<Citas />} />}
+              {(permite(user.rol, 'pos') || permite(user.rol, 'operacion')) && <Route path="/mesas" element={<Mesas />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

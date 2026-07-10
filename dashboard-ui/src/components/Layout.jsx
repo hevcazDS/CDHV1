@@ -22,6 +22,7 @@ const GRUPOS = [
   { titulo: 'Operación diaria', enlaces: [
     { to: '/', label: 'Inicio', Icono: Home },
     { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo', area: 'pos' },
+      { to: '/mesas', label: 'Mesas', area: 'pos', moduloRequerido: 'mesas_activo' },
     { to: '/pedidos', area: 'operacion', label: 'Pedidos', Icono: Package },
     { to: '/devoluciones', area: 'operacion', label: 'Devoluciones', Icono: Undo2 },
     { to: '/cola', area: 'operacion', label: 'Cola de atención', Icono: MessagesSquare },
@@ -86,7 +87,15 @@ export default function Layout() {
     queryKey: ['modulo', 'rrhh_activo'],
     queryFn: () => api.get('/api/modulo/rrhh_activo').then(r => !!r.activo).catch(() => false),
   });
-  const modulosActivos = { pos_activo: posActivo, rrhh_activo: rrhhActivo };
+  const { data: mesasActivo } = useQuery({
+    queryKey: ['modulo', 'mesas_activo'],
+    queryFn: () => api.get('/api/modulo/mesas_activo').then(r => !!r.activo).catch(() => false),
+  });
+  const { data: citasActivo } = useQuery({
+    queryKey: ['modulo', 'citas_activo'],
+    queryFn: () => api.get('/api/modulo/citas_activo').then(r => !!r.activo).catch(() => false),
+  });
+  const modulosActivos = { pos_activo: posActivo, rrhh_activo: rrhhActivo, mesas_activo: mesasActivo, citas_activo: citasActivo };
   // rolRequerido es rango mínimo, no match exacto
   const grupos = GRUPOS
     .map(g => ({ ...g, enlaces: g.enlaces.filter(e => {

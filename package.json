@@ -1,6 +1,6 @@
 {
   "name": "julio-cepeda-bot",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "WhatsApp Bot + Dashboard para Julio Cepeda Jugueterías",
   "main": "bot/index.js",
   "type": "commonjs",

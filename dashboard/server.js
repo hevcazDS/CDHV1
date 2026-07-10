@@ -540,6 +540,7 @@ const ROUTE_MODULES = [
     require('./routes/compras'),
     require('./routes/rrhh'),
     require('./routes/citas'),
+    require('./routes/mesas'),
 ];
 
 function handleAPI(req, res) {
