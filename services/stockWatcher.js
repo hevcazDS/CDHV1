@@ -715,6 +715,40 @@ function checkLinksPagoPorVencer() {
     return total;
 }
 
+// ── Vigilancia del reloj del sistema ─────────────────────────────────────
+// La app no puede impedir que un admin cambie el reloj del SO, pero SÍ puede
+// detectar que retroceda (el vector para evadir el cierre contable / backdatear
+// asientos). Guarda el máximo timestamp visto; si el reloj cae >10 min por
+// debajo (tolerancia para NTP/DST), lo registra en la bitácora forense y
+// alerta a Prime (una vez al día). No baja el máximo, así el retroceso sigue
+// marcado hasta que el tiempo real lo alcance.
+function checkRelojSistema() {
+    const ahora = Date.now();
+    const ultimo = parseInt(db.prepare("SELECT valor FROM configuracion WHERE clave='reloj_ultimo_visto'").get()?.valor || '0', 10) || 0;
+    if (ultimo && ahora < ultimo - 10 * 60 * 1000) {
+        const ya = db.prepare("SELECT id FROM cola_emails WHERE tipo='alerta_reloj' AND date(creada_en)=date('now','localtime') LIMIT 1").get();
+        if (!ya) {
+            const det = 'de ' + new Date(ultimo).toISOString() + ' a ' + new Date(ahora).toISOString();
+            log.error('[reloj] El reloj del sistema RETROCEDIÓ ' + det + ' — posible manipulación de fecha');
+            try {
+                db.prepare('INSERT INTO configuracion_log (clave, valor_anterior, valor_nuevo, usuario) VALUES (?,?,?,?)')
+                  .run('reloj_retrocedido', new Date(ultimo).toISOString(), new Date(ahora).toISOString(), 'sistema');
+            } catch (_) {}
+            const dest = process.env.EMAIL_PERSONAL || process.env.EMAIL_CEDIS || process.env.EMAIL_USER;
+            if (dest) {
+                try {
+                    db.prepare("INSERT INTO cola_emails (destinatarios, asunto, html_body, estatus, tipo) VALUES (?, 'Alerta: el reloj del sistema retrocedió', ?, 'pendiente', 'alerta_reloj')")
+                      .run(JSON.stringify([dest]), '<p>El reloj del servidor retrocedió ' + det + '.</p><p>Esto puede indicar una manipulación de la fecha para backdatear operaciones. Verifica el reloj/NTP del servidor.</p>');
+                } catch (_) {}
+            }
+        }
+    }
+    if (ahora > ultimo) {
+        try { db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('reloj_ultimo_visto', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(String(ahora)); } catch (_) {}
+    }
+    return 0;
+}
+
 async function runAll() {
     try {
         // Solo ejecutar checks costosos si hay datos relevantes
@@ -741,6 +775,7 @@ async function runAll() {
         _runCheck(checkRecompraConsumibles, 'checkRecompraConsumibles');
         _runCheck(checkLinksPagoPorVencer, 'checkLinksPagoPorVencer');
         _runCheck(checkBackupReciente, 'checkBackupReciente');
+        _runCheck(checkRelojSistema, 'checkRelojSistema');
         _runCheck(purgarImagenesAntiguas, 'purgarImagenesAntiguas');
         _runCheck(actualizarLeadScores, 'actualizarLeadScores');
         _runCheck(actualizarComprasDesdeEventos, 'actualizarComprasDesdeEventos');

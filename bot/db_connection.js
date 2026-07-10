@@ -41,4 +41,17 @@ db.pragma('journal_mode = WAL');
 db.pragma('busy_timeout = 5000');   // espera hasta 5s ante un lock en vez de tirar SQLITE_BUSY
 db.pragma('foreign_keys = ON');
 
+// ── Zona horaria del negocio ───────────────────────────────────────────────
+// SIEMPRE por defecto MÉXICO CENTRO (America/Mexico_City), aunque el servidor
+// (Docker/Ubuntu) corra en UTC — así datetime('now','localtime') de SQLite y
+// new Date() de Node coinciden con la hora local del negocio. Precedencia:
+//   env TZ (deploy)  >  configuracion.zona_horaria (solo Prime)  >  México Centro.
+// Se fija aquí (dependencia común de todos los procesos) antes de cualquier
+// operación de fecha. Cambiar la config requiere reiniciar para tomar efecto.
+if (!process.env.TZ) {
+    let _zona = 'America/Mexico_City';
+    try { _zona = db.prepare("SELECT valor FROM configuracion WHERE clave='zona_horaria'").get()?.valor || _zona; } catch (_) {}
+    process.env.TZ = _zona;
+}
+
 module.exports = db;

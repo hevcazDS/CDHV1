@@ -124,6 +124,32 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
             WHERE lp.estatus='pagado' AND p2.cobrado_por = ? AND date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?`).get(ses.username, desde, hasta);
         return json(res, { desde, hasta, comision_pct: pct, vendedor: ses.username, ventas: row.ventas || 0, total: row.total || 0, comision: Math.round((row.total || 0) * pct) / 100 });
     }
+    // ── Zona horaria del negocio (candado: solo Prime) ──────────────────
+    // Por defecto México Centro. Cambiarla queda en la bitácora forense y
+    // requiere reiniciar los procesos para tomar efecto (la TZ se fija al
+    // abrir la BD). El reloj del SO no lo controla la app (es del sistema);
+    // stockWatcher.checkRelojSistema vigila que no retroceda.
+    if (p === '/api/zona-horaria' && req.method === 'GET') {
+        const ses = requireSession(req, res);
+        if (!ses) return;
+        const configurada = db.prepare("SELECT valor FROM configuracion WHERE clave='zona_horaria'").get()?.valor || null;
+        return json(res, { configurada, default: 'America/Mexico_City', efectiva: process.env.TZ || 'America/Mexico_City' });
+    }
+    if (p === '/api/zona-horaria' && req.method === 'PUT') {
+        const ses = requireSession(req, res, ['prime']);
+        if (!ses) return;
+        return readBody(req, body => {
+            try {
+                const v = String(JSON.parse(body || '{}').zona || '').trim();
+                if (!v) return json(res, { ok: false, error: 'Falta la zona horaria (ej. America/Mexico_City)' }, 400);
+                try { new Intl.DateTimeFormat('en-US', { timeZone: v }); }
+                catch (_) { return json(res, { ok: false, error: 'Zona horaria inválida. Usa formato IANA, ej. America/Mexico_City' }, 400); }
+                require('../../services/configAudit').logCambio(db, 'zona_horaria', v, ses.username);
+                db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('zona_horaria', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(v);
+                return json(res, { ok: true, zona: v, requiere_reinicio: true });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
     if (p === '/api/comisiones/config' && req.method === 'POST') {
         if (!requireSession(req, res, ['gerente'])) return;
         return readBody(req, body => {
