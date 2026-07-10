@@ -8,7 +8,7 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
     if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')
-        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos') || p.startsWith('/api/erp/rentabilidad-clientes') || p.startsWith('/api/erp/rentabilidad-vendedores') || p.startsWith('/api/erp/flujo-caja') || p.startsWith('/api/erp/salud-financiera')) {
+        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos') || p.startsWith('/api/erp/rentabilidad-clientes') || p.startsWith('/api/erp/rentabilidad-vendedores') || p.startsWith('/api/erp/flujo-caja') || p.startsWith('/api/erp/salud-financiera') || p.startsWith('/api/erp/timbrar')) {
         const ses = requireSession(req, res);
         if (!ses) return;
         if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
@@ -288,6 +288,16 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
             filas.forEach(f => { f.fiado_pendiente = mapF[f.vendedor] || 0; });
         } catch (_) {}
         return json(res, { desde, hasta, comision_pct: parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='comision_pct'").get()?.valor || '0') || 0, vendedores: filas });
+    }
+
+    // POST /api/erp/timbrar/:id — timbra el CFDI de un pedido vía el PAC.
+    // Punto de wiring: hoy pacService está inerte (pendiente:true) hasta que se
+    // integre el proveedor; el endpoint ya queda listo.
+    if (req.method === 'POST' && p.match(/^\/api\/erp\/timbrar\/\d+$/)) {
+        const idPed = parseInt(p.split('/')[4]);
+        return require('../../services/pacService').timbrar(db, idPed)
+            .then(r => json(res, r.ok ? r : { ok: false, ...r }, r.ok ? 200 : 400))
+            .catch(e => json(res, { ok: false, error: e.message }, 500));
     }
 
     // GET /api/erp/salud-financiera — ciclo de conversión de efectivo (CCC) y

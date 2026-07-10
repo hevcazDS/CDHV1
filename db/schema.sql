@@ -370,6 +370,8 @@ CREATE TABLE IF NOT EXISTS pedidos (
     repartidor_telefono TEXT,                      -- migrations/0015
     a_credito       INTEGER DEFAULT 0,             -- migrations/0036 (venta a crédito/fiado)
     fiado_vence_en  TEXT,                          -- migrations/0039 (vencimiento del fiado)
+    cfdi_uuid       TEXT,                          -- migrations/0043 (folio fiscal del CFDI timbrado)
+    cfdi_estatus    TEXT,                          -- migrations/0043 (timbrado|cancelado)
     creado_en       TEXT DEFAULT (datetime('now','localtime')),
     actualizado_en  TEXT
 );

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useForm } from '@mantine/form';
 import {
-  Card, Title, Group, Badge, Switch, SimpleGrid,
+  Card, Title, Group, Badge, Switch, SimpleGrid, Text,
   TextInput, NumberInput, PasswordInput, Select, Button, Fieldset, SegmentedControl,
 } from '@mantine/core';
 import { api } from '../../api';
@@ -305,6 +305,7 @@ export default function GeneralTab() {
       <ZonasComisiones />
       <LinkPagoBase />
       <RegimenFiscal />
+      <PacConfig />
       <ZonaHoraria />
       <CifradoBackup />
       <ZonaPeligro />
@@ -379,6 +380,68 @@ function RegimenFiscal() {
         <Button onClick={guardar} disabled={!reg}>Guardar</Button>
       </Group>
       {msg && <p style={{ fontSize: 12, marginTop: 10, color: msg.ok ? 'var(--green)' : 'var(--red)' }}>{msg.t}</p>}
+    </Card>
+  );
+}
+
+// Credenciales del PAC (timbrado CFDI) — solo Prime. Queda armado para que al
+// integrar el proveedor solo falte rellenar. Los secretos (contraseñas, .cer,
+// .key) no se muestran de vuelta: solo un indicador "cargado".
+const PACS = [
+  { value: 'facturama', label: 'Facturama' },
+  { value: 'finkok', label: 'Finkok' },
+  { value: 'interfactura', label: 'Interfactura' },
+  { value: 'otro', label: 'Otro' },
+];
+function PacConfig() {
+  const [c, setC] = useState({ proveedor: '', rfc: '', ambiente: 'sandbox', usuario: '', serie: '' });
+  const [sec, setSec] = useState({ password: '', csd_pass: '' });
+  const [flags, setFlags] = useState({});
+  const [msg, setMsg] = useState(null);
+  const cargar = () => api.get('/api/prime/pac').then(r => { setC({ proveedor: r.proveedor || '', rfc: r.rfc || '', ambiente: r.ambiente || 'sandbox', usuario: r.usuario || '', serie: r.serie || '' }); setFlags(r); }).catch(() => {});
+  useEffect(() => { cargar(); }, []);
+  const subirArchivo = (campo) => (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => { const b64 = String(rd.result).split(',').pop(); guardar({ [campo]: b64 }); };
+    rd.readAsDataURL(f); e.target.value = '';
+  };
+  const guardar = async (extra = {}) => {
+    setMsg(null);
+    const body = { ...c, ...(sec.password ? { password: sec.password } : {}), ...(sec.csd_pass ? { csd_pass: sec.csd_pass } : {}), ...extra };
+    const r = await api.put('/api/prime/pac', body).catch(e => ({ ok: false, error: e.message }));
+    if (!r.ok) return setMsg({ ok: false, t: r.error });
+    setSec({ password: '', csd_pass: '' });
+    setMsg({ ok: true, t: r.activo ? 'PAC configurado y activo' : r.configurado ? 'Guardado. Activa el módulo Facturación para timbrar.' : 'Guardado (faltan datos para timbrar)' });
+    cargar();
+  };
+  const cargado = (b) => b ? <span className="chip" style={{ background: 'var(--green)', color: '#fff' }}>cargado</span> : <span className="chip">falta</span>;
+  return (
+    <Card withBorder radius="md" p="lg" className="card" style={{ marginTop: 14 }}>
+      <div className="card-header"><h3>Facturación electrónica — PAC (solo Prime)</h3></div>
+      <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 10 }}>
+        Credenciales para timbrar CFDI. Se guardan en esta instancia; los secretos (contraseñas, certificado .cer y llave .key) no se vuelven a mostrar. {flags.activo ? '✅ Listo para timbrar.' : flags.configurado ? 'Completo — activa el módulo Facturación.' : 'Rellena los datos para dejarlo listo.'}
+      </p>
+      <Group grow mb="sm">
+        <Select label="Proveedor (PAC)" data={PACS} value={c.proveedor} onChange={v => setC({ ...c, proveedor: v || '' })} clearable />
+        <SegmentedControl value={c.ambiente} onChange={v => setC({ ...c, ambiente: v })} data={[{ label: 'Pruebas', value: 'sandbox' }, { label: 'Producción', value: 'produccion' }]} />
+      </Group>
+      <Group grow mb="sm">
+        <TextInput label="RFC emisor" value={c.rfc} onChange={e => setC({ ...c, rfc: e.target.value })} />
+        <TextInput label="Serie (opcional)" value={c.serie} onChange={e => setC({ ...c, serie: e.target.value })} />
+      </Group>
+      <Group grow mb="sm">
+        <TextInput label="Usuario / API key" value={c.usuario} onChange={e => setC({ ...c, usuario: e.target.value })} />
+        <PasswordInput label={'Contraseña / API secret ' + (flags.tiene_password ? '(cargada)' : '')} placeholder={flags.tiene_password ? '•••••• (dejar vacío para conservar)' : ''} value={sec.password} onChange={e => setSec({ ...sec, password: e.target.value })} />
+      </Group>
+      <Group mb="sm" gap="lg">
+        <div><Text size="xs" mb={4}>Certificado .cer {cargado(flags.tiene_csd_cer)}</Text><Button size="xs" variant="default" component="label">Subir .cer<input hidden type="file" accept=".cer,.pem" onChange={subirArchivo('csd_cer')} /></Button></div>
+        <div><Text size="xs" mb={4}>Llave .key {cargado(flags.tiene_csd_key)}</Text><Button size="xs" variant="default" component="label">Subir .key<input hidden type="file" accept=".key,.pem" onChange={subirArchivo('csd_key')} /></Button></div>
+        <PasswordInput label={'Contraseña de la llave ' + (flags.tiene_csd_pass ? '(cargada)' : '')} value={sec.csd_pass} onChange={e => setSec({ ...sec, csd_pass: e.target.value })} style={{ flex: 1 }} />
+      </Group>
+      <Button onClick={() => guardar()}>Guardar credenciales del PAC</Button>
+      {msg && <p style={{ fontSize: 12, marginTop: 10, color: msg.ok ? 'var(--green)' : 'var(--red)' }}>{msg.t}</p>}
+      <Text size="xs" c="dimmed" mt="sm">El timbrado real se conecta al integrar el proveedor; las credenciales ya quedan guardadas y el módulo listo.</Text>
     </Card>
   );
 }

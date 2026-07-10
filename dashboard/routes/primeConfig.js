@@ -361,6 +361,46 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // GET/PUT /api/prime/pac — credenciales del PAC (timbrado CFDI). Prime.
+    // GET no devuelve secretos (cer/key/passwords): solo flags "cargado".
+    if (p === '/api/prime/pac' && req.method === 'GET') {
+        if (!requireSession(req, res, ['prime'])) return;
+        const g = (k) => db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(k)?.valor || '';
+        const pac = require('../../services/pacService');
+        return json(res, {
+            proveedor: g('pac_proveedor'), rfc: g('pac_rfc'), ambiente: g('pac_ambiente') || 'sandbox',
+            usuario: g('pac_usuario'), serie: g('pac_serie'),
+            tiene_password: !!g('pac_password'), tiene_csd_cer: !!g('pac_csd_cer'),
+            tiene_csd_key: !!g('pac_csd_key'), tiene_csd_pass: !!g('pac_csd_pass'),
+            configurado: pac.estaConfigurado(db), activo: pac.activo(db),
+        });
+    }
+    if (p === '/api/prime/pac' && req.method === 'PUT') {
+        const _sesPac = requireSession(req, res, ['prime']);
+        if (!_sesPac) return;
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                const set = (k, v) => db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES (?, ?, datetime('now','localtime'))").run(k, String(v));
+                // No-secretos: se guardan siempre que vengan definidos.
+                if (d.proveedor !== undefined) set('pac_proveedor', String(d.proveedor).trim());
+                if (d.rfc !== undefined) set('pac_rfc', String(d.rfc).trim().toUpperCase());
+                if (d.ambiente !== undefined) set('pac_ambiente', d.ambiente === 'produccion' ? 'produccion' : 'sandbox');
+                if (d.usuario !== undefined) set('pac_usuario', String(d.usuario).trim());
+                if (d.serie !== undefined) set('pac_serie', String(d.serie).trim());
+                // Secretos: solo se sobreescriben si vienen NO vacíos (para no
+                // borrarlos al reguardar el formulario).
+                for (const [campo, clave] of [['password', 'pac_password'], ['csd_cer', 'pac_csd_cer'], ['csd_key', 'pac_csd_key'], ['csd_pass', 'pac_csd_pass']]) {
+                    if (d[campo] && String(d[campo]).trim()) set(clave, String(d[campo]).trim());
+                }
+                // Huella SIN secretos (solo qué proveedor/ambiente).
+                require('../../services/configAudit').logCambio(db, 'pac_config', (d.proveedor || '') + '/' + (d.ambiente || ''), _sesPac.username);
+                const pac = require('../../services/pacService');
+                return json(res, { ok: true, configurado: pac.estaConfigurado(db), activo: pac.activo(db) });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
     // GET/PUT /api/prime/sucursal-facturacion-default — qué sucursal de la
     // tabla `sucursales` se usa como default de facturación: Prime > General
     // la elige una vez (Select); Fase 3 la usa en dos lugares -- el modal
