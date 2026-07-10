@@ -324,6 +324,9 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                 const ped = db.prepare("SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR (p.id_cliente IS NULL AND c.nombre=p.cliente) WHERE p.id_pedido=? LIMIT 1").get(lp.id_pedido);
                 // Evento de funnel: cierre real de la venta
                 try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('pago_confirmado','whatsapp',?,?)").run(String(lp.monto || ''), ped?.telefono || null); } catch (_) {}
+                // Si el pedido nació de una venta previa/recompra (canal asesor),
+                // marca la conversión de recompra (CRO: mide ROI de recompra)
+                try { if (ped?.canal_creacion === 'asesor') db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('recompra_convertida','whatsapp',?,?)").run(String(lp.monto || ''), ped?.telefono || null); } catch (_) {}
                 // Asientos contables automáticos (módulo contabilidad_activo)
                 try {
                     const _conta = require('../../services/contabilidadService');

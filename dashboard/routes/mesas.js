@@ -88,6 +88,23 @@ module.exports = function mesasRoutes(req, res, p, u, ctx, next) {
         return json(res, { ok: true, mesa: mesa?.numero, comanda: pend.map(i => ({ cantidad: i.cantidad, nombre: i.nombre, comentario: i.comentario })) });
     }
 
+    // GET /api/mesas/:id/sugeridos — complementos para subir el ticket. En
+    // restaurante el upsell NO es por similitud (sugeriría otro plato igual),
+    // sino por CATEGORÍA de complemento (bebida/postre/entrada). Heurística de
+    // keywords, configurable por 'mesas_complemento_cats'; excluye lo que ya
+    // está en la mesa. Sin config usable = default de restaurante.
+    if (req.method === 'GET' && p.match(/^\/api\/mesas\/\d+\/sugeridos$/)) {
+        const idMesa = parseInt(p.split('/')[3]);
+        const raw = db.prepare("SELECT valor FROM configuracion WHERE clave='mesas_complemento_cats'").get()?.valor
+            || 'bebida,refresco,agua,cerveza,vino,cafe,café,jugo,postre,entrada,guarnici,botana,snack';
+        const kw = raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        if (!kw.length) return json(res, { items: [] });
+        const enMesa = new Set(db.prepare('SELECT id_producto FROM mesa_items WHERE id_mesa=?').all(idMesa).map(r => r.id_producto).filter(Boolean));
+        const like = kw.map(() => "LOWER(COALESCE(cat,'')) LIKE ?").join(' OR ');
+        const rows = db.prepare(`SELECT id, name, price FROM productos WHERE tipo!='servicio' AND (${like}) ORDER BY price ASC LIMIT 12`).all(...kw.map(k => '%' + k + '%'));
+        return json(res, { items: rows.filter(r => !enMesa.has(r.id)).slice(0, 4) });
+    }
+
     // POST /api/mesas/:id/cerrar — cobrar la mesa (crea el pedido + pago) y
     // libera la mesa. Reusa la misma maquinaria que el POS de mostrador.
     if (req.method === 'POST' && p.match(/^\/api\/mesas\/\d+\/cerrar$/)) {

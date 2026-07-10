@@ -15,9 +15,15 @@ export default function Mesas() {
 
   const { data: mesas = [] } = useQuery({ queryKey: ['mesas'], queryFn: () => api.get('/api/mesas'), refetchInterval: 20000 });
   const { data: productos = [] } = useQuery({ queryKey: ['pos-prods-mesas'], queryFn: () => api.get('/api/pos/productos?q=').then(r => r.items || []).catch(() => []) });
+  const { data: sugeridos } = useQuery({ queryKey: ['mesa-sugeridos', sel], enabled: !!sel, queryFn: () => api.get(`/api/mesas/${sel}/sugeridos`).then(r => r.items || []).catch(() => []) });
   const mesaSel = mesas.find(m => m.id === sel);
 
-  const refrescar = () => qc.invalidateQueries({ queryKey: ['mesas'] });
+  const refrescar = () => { qc.invalidateQueries({ queryKey: ['mesas'] }); qc.invalidateQueries({ queryKey: ['mesa-sugeridos'] }); };
+  const agregarSugerido = async (s) => {
+    const r = await api.post(`/api/mesas/${sel}/item`, { id_producto: s.id, cantidad: 1 }).catch(e => ({ ok: false, error: e.message }));
+    if (!r.ok) return handleApiError(new Error(r.error));
+    refrescar();
+  };
   const abrir = useMutation({
     mutationFn: () => api.post('/api/mesas', { numero: nuevaMesa }),
     onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); setNuevaMesa(''); refrescar(); },
@@ -113,6 +119,18 @@ export default function Mesas() {
               <TextInput placeholder="Comentario (sin chile, mitad, término medio…)" size="xs" mb="xs"
                 value={item.comentario} onChange={e => setItem({ ...item, comentario: e.target.value })} />
               <Button fullWidth size="xs" onClick={agregar} disabled={!item.nombre.trim()}>Agregar a la mesa</Button>
+              {sugeridos?.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <Text size="xs" c="dimmed" mb={6}>¿Agregar también?</Text>
+                  <Group gap={6}>
+                    {sugeridos.map(s => (
+                      <Button key={s.id} size="compact-xs" variant="light" onClick={() => agregarSugerido(s)}>
+                        + {s.name} · ${Number(s.price).toFixed(0)}
+                      </Button>
+                    ))}
+                  </Group>
+                </div>
+              )}
             </>
           )}
         </Card>
