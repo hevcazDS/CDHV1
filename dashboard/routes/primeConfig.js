@@ -372,6 +372,7 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
             usuario: g('pac_usuario'), serie: g('pac_serie'),
             tiene_password: !!g('pac_password'), tiene_csd_cer: !!g('pac_csd_cer'),
             tiene_csd_key: !!g('pac_csd_key'), tiene_csd_pass: !!g('pac_csd_pass'),
+            cifrado_activo: pac.cifradoActivo(db),
             configurado: pac.estaConfigurado(db), activo: pac.activo(db),
         });
     }
@@ -381,22 +382,27 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');
+                const pac = require('../../services/pacService');
                 const set = (k, v) => db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES (?, ?, datetime('now','localtime'))").run(k, String(v));
+                // Toggle de cifrado (cliente que no quiere tanta seguridad lo apaga).
+                if (d.cifrado_activo !== undefined) set('pac_cifrado_activo', d.cifrado_activo ? '1' : '0');
+                const cifra = (d.cifrado_activo !== undefined ? !!d.cifrado_activo : pac.cifradoActivo(db)); // valor efectivo
                 // No-secretos: se guardan siempre que vengan definidos.
                 if (d.proveedor !== undefined) set('pac_proveedor', String(d.proveedor).trim());
                 if (d.rfc !== undefined) set('pac_rfc', String(d.rfc).trim().toUpperCase());
                 if (d.ambiente !== undefined) set('pac_ambiente', d.ambiente === 'produccion' ? 'produccion' : 'sandbox');
                 if (d.usuario !== undefined) set('pac_usuario', String(d.usuario).trim());
                 if (d.serie !== undefined) set('pac_serie', String(d.serie).trim());
-                // Secretos: solo se sobreescriben si vienen NO vacíos (para no
-                // borrarlos al reguardar el formulario).
+                // Secretos: solo si vienen NO vacíos. Se cifran si el toggle está on.
                 for (const [campo, clave] of [['password', 'pac_password'], ['csd_cer', 'pac_csd_cer'], ['csd_key', 'pac_csd_key'], ['csd_pass', 'pac_csd_pass']]) {
-                    if (d[campo] && String(d[campo]).trim()) set(clave, String(d[campo]).trim());
+                    if (d[campo] && String(d[campo]).trim()) {
+                        const val = String(d[campo]).trim();
+                        set(clave, cifra ? pac.cifrarSecreto(val) : val);
+                    }
                 }
                 // Huella SIN secretos (solo qué proveedor/ambiente).
                 require('../../services/configAudit').logCambio(db, 'pac_config', (d.proveedor || '') + '/' + (d.ambiente || ''), _sesPac.username);
-                const pac = require('../../services/pacService');
-                return json(res, { ok: true, configurado: pac.estaConfigurado(db), activo: pac.activo(db) });
+                return json(res, { ok: true, configurado: pac.estaConfigurado(db), activo: pac.activo(db), cifrado_activo: cifra });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });
     }

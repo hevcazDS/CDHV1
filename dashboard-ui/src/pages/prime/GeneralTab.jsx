@@ -396,9 +396,10 @@ const PACS = [
 function PacConfig() {
   const [c, setC] = useState({ proveedor: '', rfc: '', ambiente: 'sandbox', usuario: '', serie: '' });
   const [sec, setSec] = useState({ password: '', csd_pass: '' });
+  const [cifrado, setCifrado] = useState(true);
   const [flags, setFlags] = useState({});
   const [msg, setMsg] = useState(null);
-  const cargar = () => api.get('/api/prime/pac').then(r => { setC({ proveedor: r.proveedor || '', rfc: r.rfc || '', ambiente: r.ambiente || 'sandbox', usuario: r.usuario || '', serie: r.serie || '' }); setFlags(r); }).catch(() => {});
+  const cargar = () => api.get('/api/prime/pac').then(r => { setC({ proveedor: r.proveedor || '', rfc: r.rfc || '', ambiente: r.ambiente || 'sandbox', usuario: r.usuario || '', serie: r.serie || '' }); setCifrado(r.cifrado_activo !== false); setFlags(r); }).catch(() => {});
   useEffect(() => { cargar(); }, []);
   const subirArchivo = (campo) => (e) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -408,7 +409,7 @@ function PacConfig() {
   };
   const guardar = async (extra = {}) => {
     setMsg(null);
-    const body = { ...c, ...(sec.password ? { password: sec.password } : {}), ...(sec.csd_pass ? { csd_pass: sec.csd_pass } : {}), ...extra };
+    const body = { ...c, cifrado_activo: cifrado, ...(sec.password ? { password: sec.password } : {}), ...(sec.csd_pass ? { csd_pass: sec.csd_pass } : {}), ...extra };
     const r = await api.put('/api/prime/pac', body).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return setMsg({ ok: false, t: r.error });
     setSec({ password: '', csd_pass: '' });
@@ -439,6 +440,9 @@ function PacConfig() {
         <div><Text size="xs" mb={4}>Llave .key {cargado(flags.tiene_csd_key)}</Text><Button size="xs" variant="default" component="label">Subir .key<input hidden type="file" accept=".key,.pem" onChange={subirArchivo('csd_key')} /></Button></div>
         <PasswordInput label={'Contraseña de la llave ' + (flags.tiene_csd_pass ? '(cargada)' : '')} value={sec.csd_pass} onChange={e => setSec({ ...sec, csd_pass: e.target.value })} style={{ flex: 1 }} />
       </Group>
+      <Switch mt="md" mb="sm" checked={cifrado} onChange={e => setCifrado(e.currentTarget.checked)}
+        label="Cifrar las credenciales guardadas (recomendado)"
+        description="Cifra contraseñas y el .cer/.key en la base con la clave de esta instancia. Apágalo si no quieres tanta seguridad; los secretos quedarán en claro." />
       <Button onClick={() => guardar()}>Guardar credenciales del PAC</Button>
       {msg && <p style={{ fontSize: 12, marginTop: 10, color: msg.ok ? 'var(--green)' : 'var(--red)' }}>{msg.t}</p>}
       <Text size="xs" c="dimmed" mt="sm">El timbrado real se conecta al integrar el proveedor; las credenciales ya quedan guardadas y el módulo listo.</Text>
