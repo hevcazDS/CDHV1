@@ -311,7 +311,10 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
 
                 const lp = db.prepare('SELECT * FROM links_pago WHERE id=?').get(id);
                 if (!lp) return json(res, { ok:false, error:'Link de pago no encontrado' }, 404);
-                db.prepare("UPDATE links_pago SET estatus='pagado', pagado_en=datetime('now','localtime'), referencia_pago=? WHERE id=?").run(referencia_pago, id);
+                // Idempotencia: evita re-procesar un pago ya registrado (POST
+                // duplicado/retry) — no re-descuenta inventario ni re-notifica.
+                if (lp.estatus === 'pagado') return json(res, { ok:false, error:'Este pago ya fue registrado', estatus:'pagado' }, 409);
+                db.prepare("UPDATE links_pago SET estatus='pagado', pagado_en=datetime('now','localtime'), referencia_pago=? WHERE id=? AND estatus!='pagado'").run(referencia_pago, id);
 
                 // Venta a crédito (fiado): la mercancía ya salió y se asentó al
                 // vender; ahora solo se cobra la CxC → NO se descuenta inventario

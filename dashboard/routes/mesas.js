@@ -3,6 +3,7 @@
 // agregar platillos con comentario libre, preticket a cocina, y cerrar →
 // cobro reusando la maquinaria del POS (_shared.insertarPedidoConCarrito).
 const shared = require('../../bot/flows/_shared');
+const kardexService = require('../../services/kardexService');
 const { permite } = require('../permisos');
 
 module.exports = function mesasRoutes(req, res, p, u, ctx, next) {
@@ -134,6 +135,15 @@ module.exports = function mesasRoutes(req, res, p, u, ctx, next) {
                     db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
                       .run(pedidoRowid, met ? met.id : null, subtotal);
                     db.prepare("UPDATE mesas SET estatus='cobrada', id_pedido=?, cerrada_en=datetime('now','localtime') WHERE id=?").run(pedidoRowid, idMesa);
+                    // Descontar inventario (igual que el POS): platillos del
+                    // catálogo con id_producto y sucursal; los de texto libre
+                    // (sin id) y los servicios no llevan stock.
+                    const invActivo = db.prepare("SELECT valor FROM configuracion WHERE clave='inventario_activo'").get()?.valor !== '0';
+                    if (invActivo && sucursal) for (const it of items) {
+                        if (!it.id_producto) continue;
+                        if (db.prepare('SELECT tipo FROM productos WHERE id=?').get(it.id_producto)?.tipo === 'servicio') continue;
+                        try { kardexService.movimiento({ id_producto: it.id_producto, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Mesa ' + mesa.numero, usuario: ses.username }); } catch (_) {}
+                    }
                     try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor) VALUES ('mesa_cobrada','mostrador',?)").run(String(subtotal)); } catch (_) {}
                     return { pedidoRowid, subtotal, folio };
                 })();

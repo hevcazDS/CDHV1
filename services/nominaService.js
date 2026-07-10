@@ -156,30 +156,41 @@ function calcular(desde, hasta) {
                       horas=excluded.horas, horas_extra=excluded.horas_extra, comisiones=excluded.comisiones,
                       bruto=excluded.bruto, isr=excluded.isr, imss=excluded.imss, neto=excluded.neto,
                       prima_dominical=excluded.prima_dominical, imss_patronal=excluded.imss_patronal, septimo_dia=excluded.septimo_dia`)
-          .run(e.id, desde, hasta, horasTot, horasExtra, comisiones, bruto, isr, imss, neto, primaDominical, imssPatronal, septimoDia);
-        resultados.push({ id_empleado: e.id, nombre: e.nombre, horas: horasTot, horas_extra: horasExtra, comisiones, bruto, isr, imss, neto, prima_dominical: primaDominical, imss_patronal: imssPatronal, septimo_dia: septimoDia, con_impuestos: !!e.con_impuestos, metodo_pago: e.metodo_pago });
+          .run(e.id, desde, hasta, _r2(horasNormales + horasExtra), horasExtra, comisiones, bruto, isr, imss, neto, primaDominical, imssPatronal, septimoDia);
+        resultados.push({ id_empleado: e.id, nombre: e.nombre, horas: _r2(horasNormales + horasExtra), horas_extra: horasExtra, comisiones, bruto, isr, imss, neto, prima_dominical: primaDominical, imss_patronal: imssPatronal, septimo_dia: septimoDia, con_impuestos: !!e.con_impuestos, metodo_pago: e.metodo_pago });
     }
     return resultados;
 }
 
-// Marca pagada la nómina del periodo y (si contabilidad activa) asienta:
-// cargo Gastos generales, abono Bancos por el neto total + retenciones como
-// pasivo no modelado (van al gasto — simplificación documentada).
+// Marca pagada la nómina del periodo y (si contabilidad activa) asienta el
+// gasto completo con sus contrapartidas reales: al banco solo sale el NETO; las
+// retenciones (ISR + IMSS obrero) quedan como pasivo por pagar (211); y el
+// IMSS PATRONAL es gasto adicional del negocio que se debe al IMSS (210).
+//   Debe 601 = brutos + IMSS patronal
+//   Haber 102 = netos ; Haber 211 = retenciones ; Haber 210 = IMSS patronal
+// (cuadra; para nómina sin impuestos queda 601/102 por el bruto, como antes).
 function pagar(desde, hasta) {
     const filas = db.prepare("SELECT * FROM nominas WHERE desde=? AND hasta=? AND estatus='calculada'").all(desde, hasta);
     if (!filas.length) return { pagadas: 0, total: 0 };
-    const total = _r2(filas.reduce((s, f) => s + f.bruto, 0));
+    const bruto = _r2(filas.reduce((s, f) => s + (f.bruto || 0), 0));
+    const retenciones = _r2(filas.reduce((s, f) => s + (f.isr || 0) + (f.imss || 0), 0));
+    const patronal = _r2(filas.reduce((s, f) => s + (f.imss_patronal || 0), 0));
+    const neto = _r2(bruto - retenciones);
     db.prepare("UPDATE nominas SET estatus='pagada', pagada_en=datetime('now','localtime') WHERE desde=? AND hasta=? AND estatus='calculada'")
       .run(desde, hasta);
     try {
         const conta = require('./contabilidadService');
-        conta.registrarAsiento && conta.activo() && conta.registrarAsiento({
-            concepto: `Nómina ${desde} a ${hasta} (${filas.length} empleados)`,
-            referencia_tipo: 'nomina', referencia_id: desde + '_' + hasta,
-            partidas: [{ cuenta: '601', debe: total }, { cuenta: '102', haber: total }],
-        });
+        if (conta.registrarAsiento && conta.activo()) {
+            const partidas = [{ cuenta: '601', debe: _r2(bruto + patronal) }, { cuenta: '102', haber: neto }];
+            if (retenciones > 0) partidas.push({ cuenta: '211', haber: retenciones });
+            if (patronal > 0) partidas.push({ cuenta: '210', haber: patronal });
+            conta.registrarAsiento({
+                concepto: `Nómina ${desde} a ${hasta} (${filas.length} empleados)`,
+                referencia_tipo: 'nomina', referencia_id: desde + '_' + hasta, partidas,
+            });
+        }
     } catch (_) {}
-    return { pagadas: filas.length, total };
+    return { pagadas: filas.length, total: bruto };
 }
 
 // Registra el PAGO de aguinaldo. SIEMPRE queda asentado en nomina_extraordinaria

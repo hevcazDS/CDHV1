@@ -965,6 +965,8 @@ INSERT OR IGNORE INTO plan_cuentas (codigo, nombre, tipo) VALUES
     ('119', 'IVA acreditable', 'activo'),
     ('201', 'Proveedores (por pagar)', 'pasivo'),
     ('208', 'IVA trasladado no cobrado', 'pasivo'),
+    ('210', 'IMSS patronal por pagar', 'pasivo'),
+    ('211', 'Retenciones por pagar (ISR/IMSS)', 'pasivo'),
     ('209', 'IVA trasladado', 'pasivo'),
     ('301', 'Capital', 'capital'),
     ('401', 'Ventas', 'ingreso'),

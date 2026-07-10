@@ -130,5 +130,17 @@ db.prepare("INSERT INTO incapacidades_empleado (id_empleado,tipo,desde,hasta) VA
 const nom2 = nomina.calcular('2026-07-06', '2026-07-12').find(x => x.id_empleado === 50);
 ok(nom2.bruto === 1600 && nom2.septimo_dia === 0, 'incapacidad excluye 2 días (bruto 1600, séptimo 0; dio ' + nom2.bruto + '/' + nom2.septimo_dia + ')');
 
+// 10. Asiento de nómina con retenciones + IMSS patronal (601/102/211/210) cuadra
+db.exec("INSERT OR IGNORE INTO plan_cuentas (codigo,nombre,tipo) VALUES ('210','IMSS patronal','pasivo'),('211','Retenciones','pasivo')");
+db.prepare("INSERT INTO empleados (id,nombre,salario_diario,con_impuestos) VALUES (51,'Fis',400,1)").run();
+for (const f of ['2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16', '2026-07-17']) // Lun-Vie
+    db.prepare("INSERT INTO horarios_empleado (id_empleado,fecha,horas) VALUES (51,?,8)").run(f);
+nomina.calcular('2026-07-13', '2026-07-17');
+nomina.pagar('2026-07-13', '2026-07-17');
+const mayN = conta.libroMayor('2000-01-01', '2999-12-31');
+const dN = mayN.reduce((s, c) => s + c.debe, 0), hN = mayN.reduce((s, c) => s + c.haber, 0);
+ok(Math.abs(dN - hN) < 0.01, 'libro mayor cuadra tras asentar nómina con retenciones/patronal');
+ok(!!mayN.find(x => x.cuenta === '210') && !!mayN.find(x => x.cuenta === '211'), 'asiento de nómina usa 210 (IMSS patronal) y 211 (retenciones)');
+
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);
