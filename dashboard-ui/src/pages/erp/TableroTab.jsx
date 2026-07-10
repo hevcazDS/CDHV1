@@ -18,7 +18,7 @@ export default function TableroTab() {
   });
 
   if (!data) return <div className="empty">Cargando tablero...</div>;
-  const { pyl, balance, aging, inventario, categorias, ticket } = data;
+  const { pyl, balance, aging, inventario, categorias, ticket, punto_equilibrio: pe } = data;
   const Fila = ({ label, val, fuerte, color }) => (
     <tr style={fuerte ? { borderTop: '1px solid var(--border)' } : undefined}>
       <td style={{ padding: '5px 0', fontWeight: fuerte ? 700 : 400 }}>{label}</td>
@@ -52,6 +52,21 @@ export default function TableroTab() {
             <Fila label="= Utilidad operativa" val={pyl.utilidad_operativa} fuerte color={pyl.utilidad_operativa >= 0 ? 'var(--green)' : 'var(--red)'} />
           </tbody></table>
           <Text size="xs" c="dimmed" mt="xs">Margen bruto {pyl.margen_bruto_pct}% · requiere el módulo Contabilidad activo</Text>
+          {pe && (
+            <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+              <Text size="sm" fw={600} mb={4}>Punto de equilibrio</Text>
+              {pe.ventas_equilibrio == null
+                ? <Text size="xs" c="dimmed">Sin margen suficiente en el período para calcularlo.</Text>
+                : <>
+                    <table style={{ width: '100%' }}><tbody>
+                      <Fila label="Ventas para no perder" val={pe.ventas_equilibrio} fuerte />
+                      <Fila label="Ventas del período" val={pe.ventas_periodo} />
+                      <Fila label={pe.holgura >= 0 ? '= Holgura sobre el equilibrio' : '= Faltante para el equilibrio'} val={pe.holgura} color={pe.holgura >= 0 ? 'var(--green)' : 'var(--red)'} />
+                    </tbody></table>
+                    <Text size="xs" c="dimmed" mt={4}>Gastos fijos {money(pe.gastos_fijos)} · margen de contribución {pe.margen_contribucion_pct}%. Los gastos operativos (601) se toman como fijos.</Text>
+                  </>}
+            </div>
+          )}
         </Card>
 
         <Card withBorder radius="md" p="lg" className="card">

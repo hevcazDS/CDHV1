@@ -8,7 +8,7 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
     if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')
-        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos')) {
+        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos') || p.startsWith('/api/erp/rentabilidad-clientes')) {
         const ses = requireSession(req, res);
         if (!ses) return;
         if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
@@ -119,6 +119,19 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
             margen_bruto_pct: ingresos ? r2(utilidad_bruta / ingresos * 100) : 0,
             margen_neto_pct: ingresos ? r2(utilidad_operativa / ingresos * 100) : 0 };
 
+        // — Punto de equilibrio (en $ de venta) — trata los gastos operativos
+        // (601) como FIJOS y el COGS como variable (simplificación documentada):
+        // ventas_equilibrio = gastos_fijos / margen_de_contribución.
+        const margenContrib = ingresos > 0 ? (ingresos - cogs) / ingresos : 0;
+        const puntoEquilibrio = {
+            gastos_fijos: gastos,
+            margen_contribucion_pct: r2(margenContrib * 100),
+            ventas_equilibrio: margenContrib > 0 ? r2(gastos / margenContrib) : null,
+            ventas_periodo: ingresos,
+            // cuánto por encima (o debajo) del equilibrio va el período
+            holgura: margenContrib > 0 ? r2(ingresos - gastos / margenContrib) : null,
+        };
+
         // — Balance general (acumulado hasta 'hasta') —
         const acum = conta.libroMayor('1900-01-01', hasta);
         const porTipo = { activo: 0, pasivo: 0, capital: 0, ingreso: 0, costo: 0, gasto: 0 };
@@ -194,7 +207,7 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
         // El P&L/balance salen de asientos; sin el módulo Contabilidad no se
         // asienta nada y todo da $0 — la UI muestra un aviso para que no se
         // lea como "no vendí" (Harvard/PO del re-review).
-        return json(res, { desde, hasta, pyl, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo() });
+        return json(res, { desde, hasta, pyl, punto_equilibrio: puntoEquilibrio, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo() });
     }
 
     // Cierre de período contable (idea SAP): 'YYYY-MM' — nada se asienta en
@@ -217,6 +230,36 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
                 return json(res, { ok: true, cerrado: v || null });
             } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }
         });
+    }
+
+    // GET /api/erp/rentabilidad-clientes — quién deja más margen (ventas
+    // pagadas − costo) y cuánto te debe en fiado. Identifica el 20% que da el
+    // 80% y a los "tóxicos" (mucho volumen, bajo margen o mucha deuda).
+    if (p === '/api/erp/rentabilidad-clientes' && req.method === 'GET') {
+        const { desde, hasta } = _rango();
+        let filas = [];
+        try {
+            filas = db.prepare(`
+                SELECT COALESCE(c.id, p2.cliente) AS id_cliente, COALESCE(c.nombre, p2.cliente) AS nombre, c.telefono,
+                       COUNT(DISTINCT p2.id_pedido) AS pedidos,
+                       ROUND(SUM(d.precio_unitario * d.cantidad), 2) AS ventas,
+                       ROUND(SUM(COALESCE(pr.costo, 0) * d.cantidad), 2) AS costo
+                FROM pedido_detalle d
+                JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
+                JOIN productos pr ON pr.id = d.id_producto
+                JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
+                LEFT JOIN clientes c ON c.id = p2.id_cliente
+                WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?
+                GROUP BY COALESCE(c.id, p2.cliente)
+                ORDER BY (SUM(d.precio_unitario * d.cantidad) - SUM(COALESCE(pr.costo,0) * d.cantidad)) DESC
+                LIMIT 100`).all(desde, hasta)
+                .map(r => ({ ...r, margen: r2(r.ventas - r.costo), margen_pct: r.ventas ? r2((r.ventas - r.costo) / r.ventas * 100) : 0 }));
+            // Adeudo de fiado por cliente (independiente del período)
+            const deuda = db.prepare("SELECT p.id_cliente, ROUND(SUM(lp.monto),2) adeudo FROM pedidos p JOIN links_pago lp ON lp.id_pedido=p.id_pedido AND lp.estatus='generado' WHERE p.a_credito=1 GROUP BY p.id_cliente").all();
+            const mapDeuda = {}; deuda.forEach(x => { mapDeuda[x.id_cliente] = x.adeudo; });
+            filas.forEach(f => { f.adeudo_fiado = mapDeuda[f.id_cliente] || 0; });
+        } catch (_) {}
+        return json(res, { desde, hasta, clientes: filas });
     }
 
     // Registro de GASTOS directos (renta, luz, papelería) → asiento 601
