@@ -15,7 +15,8 @@ const TARIFA_ISR_MENSUAL = [
     [31236.50, 5004.12, 23.52], [49233.01, 9236.89, 30.00], [93993.91, 22665.17, 32.00],
     [125325.21, 32691.18, 34.00], [375975.62, 117912.32, 35.00],
 ];
-const IMSS_OBRERO_PCT = 2.775; // aprox. cuota obrera sobre salario base
+const IMSS_OBRERO_PCT = 2.775;    // aprox. cuota obrera (se retiene al trabajador)
+const IMSS_PATRONAL_PCT = 17.5;   // aprox. cuota patronal (gasto del negocio, NO se retiene)
 
 function isrMensual(baseMensual) {
     let fila = TARIFA_ISR_MENSUAL[0];
@@ -99,13 +100,16 @@ function calcular(desde, hasta) {
         const horasTot = horasDe.get(e.id, desde, hasta)?.h || 0;
         if (!(horasTot > 0)) continue;
         const tarifaHora = e.salario_diario / 8;
-        let horasNormales = horasTot, horasExtra = 0, comisiones = 0;
+        let horasNormales = horasTot, horasExtra = 0, comisiones = 0, horasDomingo = 0;
         if (fiscal) {
             // horas extra = lo que pasa de 8h POR DÍA, pagadas al doble (LFT)
             horasNormales = 0;
             for (const d of porDia.all(e.id, desde, hasta)) {
                 horasNormales += Math.min(d.horas, 8);
                 horasExtra    += Math.max(0, d.horas - 8);
+                // prima dominical (LFT 71): 25% extra por lo trabajado en domingo.
+                // Se evalúa a mediodía local para no cruzar el límite de día.
+                if (new Date(d.fecha + 'T12:00:00').getDay() === 0) horasDomingo += Math.min(d.horas, 8);
             }
             // comisiones = % sobre lo COBRADO por el empleado (liga por username)
             if (e.comision_pct > 0 && e.username) {
@@ -113,20 +117,25 @@ function calcular(desde, hasta) {
                 comisiones = _r2(ventas * (e.comision_pct / 100));
             }
         }
-        const bruto = _r2(horasNormales * tarifaHora + horasExtra * tarifaHora * 2 + comisiones);
+        const primaDominical = _r2(horasDomingo * tarifaHora * 0.25);
+        const bruto = _r2(horasNormales * tarifaHora + horasExtra * tarifaHora * 2 + comisiones + primaDominical);
         let isr = 0, imss = 0;
         if (e.con_impuestos) {
             isr = _r2(isrMensual(bruto * factorMes) / factorMes);
             imss = _r2(bruto * (IMSS_OBRERO_PCT / 100));
         }
+        // Cuota PATRONAL de IMSS: gasto del negocio, NO se descuenta al trabajador.
+        const pctPat = parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='imss_patronal_pct'").get()?.valor) || IMSS_PATRONAL_PCT;
+        const imssPatronal = e.con_impuestos ? _r2(bruto * (pctPat / 100)) : 0;
         const neto = _r2(bruto - isr - imss);
-        db.prepare(`INSERT INTO nominas (id_empleado, desde, hasta, horas, horas_extra, comisiones, bruto, isr, imss, neto)
-                    VALUES (?,?,?,?,?,?,?,?,?,?)
+        db.prepare(`INSERT INTO nominas (id_empleado, desde, hasta, horas, horas_extra, comisiones, bruto, isr, imss, neto, prima_dominical, imss_patronal)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(id_empleado, desde, hasta) DO UPDATE SET
                       horas=excluded.horas, horas_extra=excluded.horas_extra, comisiones=excluded.comisiones,
-                      bruto=excluded.bruto, isr=excluded.isr, imss=excluded.imss, neto=excluded.neto`)
-          .run(e.id, desde, hasta, horasTot, horasExtra, comisiones, bruto, isr, imss, neto);
-        resultados.push({ id_empleado: e.id, nombre: e.nombre, horas: horasTot, horas_extra: horasExtra, comisiones, bruto, isr, imss, neto, con_impuestos: !!e.con_impuestos, metodo_pago: e.metodo_pago });
+                      bruto=excluded.bruto, isr=excluded.isr, imss=excluded.imss, neto=excluded.neto,
+                      prima_dominical=excluded.prima_dominical, imss_patronal=excluded.imss_patronal`)
+          .run(e.id, desde, hasta, horasTot, horasExtra, comisiones, bruto, isr, imss, neto, primaDominical, imssPatronal);
+        resultados.push({ id_empleado: e.id, nombre: e.nombre, horas: horasTot, horas_extra: horasExtra, comisiones, bruto, isr, imss, neto, prima_dominical: primaDominical, imss_patronal: imssPatronal, con_impuestos: !!e.con_impuestos, metodo_pago: e.metodo_pago });
     }
     return resultados;
 }

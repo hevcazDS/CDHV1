@@ -1058,6 +1058,8 @@ CREATE TABLE IF NOT EXISTS nominas (
     isr          REAL NOT NULL DEFAULT 0,
     imss         REAL NOT NULL DEFAULT 0,
     neto         REAL NOT NULL DEFAULT 0,
+    prima_dominical REAL NOT NULL DEFAULT 0,        -- migrations/0042
+    imss_patronal   REAL NOT NULL DEFAULT 0,        -- migrations/0042 (costo del patrón)
     estatus      TEXT NOT NULL DEFAULT 'calculada',
     pagada_en    TEXT,
     creada_en    TEXT DEFAULT (datetime('now','localtime')),

@@ -165,17 +165,18 @@ export default function Rrhh() {
           </div>
           <div className="table-wrap" style={{ maxHeight: 460, overflow: 'auto' }}>
             <table>
-              <thead><tr><th>Empleado</th><th>Periodo</th><th>Horas</th>{fiscal && <th>H.Extra</th>}{fiscal && <th>Comis.</th>}<th>Bruto</th><th>ISR</th><th>IMSS</th><th>Neto</th><th>Estatus</th></tr></thead>
+              <thead><tr><th>Empleado</th><th>Periodo</th><th>Horas</th>{fiscal && <th>H.Extra</th>}{fiscal && <th>Prima dom.</th>}{fiscal && <th>Comis.</th>}<th>Bruto</th><th>ISR</th><th>IMSS</th><th>Neto</th>{fiscal && <th title="Cuota patronal — costo del negocio, no se descuenta">IMSS patrón</th>}<th>Estatus</th></tr></thead>
               <tbody>
-                {nominas.length === 0 && <tr><td colSpan={8} className="empty">Calcula un periodo para ver la nómina</td></tr>}
+                {nominas.length === 0 && <tr><td colSpan={fiscal ? 12 : 8} className="empty">Calcula un periodo para ver la nómina</td></tr>}
                 {nominas.map(n => (
                   <tr key={n.id}>
                     <td><strong>{n.nombre}</strong></td>
                     <td className="text-muted" style={{ fontSize: 11 }}>{n.desde} → {n.hasta}</td>
-                    <td>{n.horas}</td>{fiscal && <td>{n.horas_extra ?? 0}</td>}{fiscal && <td>${(n.comisiones ?? 0).toFixed(2)}</td>}<td>${n.bruto.toFixed(2)}</td>
+                    <td>{n.horas}</td>{fiscal && <td>{n.horas_extra ?? 0}</td>}{fiscal && <td>{n.prima_dominical > 0 ? '$' + n.prima_dominical.toFixed(2) : '—'}</td>}{fiscal && <td>${(n.comisiones ?? 0).toFixed(2)}</td>}<td>${n.bruto.toFixed(2)}</td>
                     <td>{n.isr > 0 ? '$' + n.isr.toFixed(2) : '—'}</td>
                     <td>{n.imss > 0 ? '$' + n.imss.toFixed(2) : '—'}</td>
                     <td style={{ fontWeight: 700 }}>${n.neto.toFixed(2)}</td>
+                    {fiscal && <td className="text-muted">{n.imss_patronal > 0 ? '$' + n.imss_patronal.toFixed(2) : '—'}</td>}
                     <td><span className={`badge ${n.estatus === 'pagada' ? 'badge-verde' : 'badge-amarillo'}`}>{n.estatus}</span></td>
                   </tr>
                 ))}
