@@ -140,7 +140,7 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
         const anio = parseInt(new URL(req.url, 'http://x').searchParams.get('anio'), 10) || new Date().getFullYear();
         // días trabajados = días con horario registrado en el año (aprox)
         const dias = db.prepare("SELECT COUNT(DISTINCT fecha) n FROM horarios_empleado WHERE id_empleado=? AND fecha>=? AND fecha<=?").get(id, anio + '-01-01', anio + '-12-31')?.n || 0;
-        const pagado = !!db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='aguinaldo' AND referencia_id=?").get('aguinaldo_' + id + '_' + anio);
+        const pagado = !!db.prepare('SELECT 1 FROM nomina_extraordinaria WHERE referencia=?').get('aguinaldo_' + id + '_' + anio);
         return json(res, { ok: true, empleado: e.nombre, anio, dias_trabajados: dias, aguinaldo: nominaService.aguinaldo(e.salario_diario, dias), pagado });
     }
     // Pagar aguinaldo: asiento contable + PIN + huella de quién autorizó
@@ -156,7 +156,7 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
                 const anio = parseInt(d.anio, 10) || new Date().getFullYear();
                 const dias = db.prepare("SELECT COUNT(DISTINCT fecha) n FROM horarios_empleado WHERE id_empleado=? AND fecha>=? AND fecha<=?").get(id, anio + '-01-01', anio + '-12-31')?.n || 0;
                 const monto = nominaService.aguinaldo(e.salario_diario, dias);
-                const r = nominaService.pagarAguinaldo(e, anio, monto);
+                const r = nominaService.pagarAguinaldo(e, anio, monto, ses.username);
                 require('../../services/configAudit').logCambio(db, 'aguinaldo_pagado', e.nombre + ' ' + anio + ' $' + r.total, ses.username);
                 return json(res, { ok: true, empleado: e.nombre, anio, ...r });
             } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }
@@ -172,7 +172,7 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
                 if (!e) return json(res, { ok: false, error: 'Empleado no encontrado' }, 404);
                 const fecha = /^\d{4}-\d{2}-\d{2}$/.test(d.fecha_baja || '') ? d.fecha_baja : new Date().toISOString().slice(0, 10);
                 const fin = nominaService.finiquito(e, fecha, { dias_pendientes: d.dias_pendientes, despido_injustificado: !!d.despido_injustificado });
-                const pagado = !!db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='finiquito' AND referencia_id=?").get('finiquito_' + id);
+                const pagado = !!db.prepare('SELECT 1 FROM nomina_extraordinaria WHERE referencia=?').get('finiquito_' + id);
                 return json(res, { ok: true, empleado: e.nombre, fecha_baja: fecha, pagado, ...fin });
             } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }
         });
@@ -189,7 +189,7 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
                 if (errF) return json(res, { ok: false, error: errF, pin_requerido: true }, 403);
                 const fecha = /^\d{4}-\d{2}-\d{2}$/.test(d.fecha_baja || '') ? d.fecha_baja : new Date().toISOString().slice(0, 10);
                 const fin = nominaService.finiquito(e, fecha, { dias_pendientes: d.dias_pendientes, despido_injustificado: !!d.despido_injustificado });
-                const r = nominaService.pagarFiniquito(e, fecha, fin);
+                const r = nominaService.pagarFiniquito(e, fecha, fin, ses.username);
                 require('../../services/configAudit').logCambio(db, 'finiquito_pagado', e.nombre + ' baja ' + fecha + ' $' + r.total, ses.username);
                 return json(res, { ok: true, empleado: e.nombre, fecha_baja: fecha, ...fin, ...r });
             } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }

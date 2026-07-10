@@ -219,7 +219,7 @@ function Liquidaciones({ empleados }) {
     const prev = await api.get(`/api/rrhh/aguinaldo/${empId}?anio=${anio}`).catch(() => null);
     if (!prev?.ok) return handleApiError(new Error(prev?.error || 'No se pudo calcular'));
     if (prev.pagado) return alertar({ titulo: 'Ya registrado', mensaje: `El aguinaldo ${anio} de ${prev.empleado} ya está asentado.` });
-    if (!await confirmar({ titulo: 'Pagar aguinaldo', mensaje: `${prev.empleado} · ${anio}\nAguinaldo: ${money(prev.aguinaldo)}\n\nSe registrará como asiento contable (601/102) y quedará la huella de quién autorizó. ¿Continuar?`, textoOk: 'Pagar y asentar' })) return;
+    if (!await confirmar({ titulo: 'Pagar aguinaldo', mensaje: `${prev.empleado} · ${anio}\nAguinaldo: ${money(prev.aguinaldo)}\n\nQueda registrado (y asentado 601/102 si Contabilidad está activo), con la huella de quién autorizó. ¿Continuar?`, textoOk: 'Pagar y registrar' })) return;
     const r = await pagarConPin(`/api/rrhh/aguinaldo/${empId}/pagar`, { anio });
     if (!r) return;
     if (!r.ok) return handleApiError(new Error(r.error));
@@ -235,7 +235,7 @@ function Liquidaciones({ empleados }) {
   const pagarFin = async () => {
     if (!empId || !prevFin) return;
     if (prevFin.pagado) return alertar({ titulo: 'Ya registrado', mensaje: `El finiquito de ${prevFin.empleado} ya está asentado.` });
-    if (!await confirmar({ titulo: 'Pagar finiquito', mensaje: `${prevFin.empleado} · baja ${fin.fecha_baja}\nTotal: ${money(prevFin.total)}\n\nSe registrará el asiento contable, se dará de BAJA al empleado y quedará la huella de quién autorizó. ¿Continuar?`, peligro: true, textoOk: 'Pagar y dar de baja' })) return;
+    if (!await confirmar({ titulo: 'Pagar finiquito', mensaje: `${prevFin.empleado} · baja ${fin.fecha_baja}\nTotal: ${money(prevFin.total)}\n\nQueda registrado (y asentado si Contabilidad está activo), se dará de BAJA al empleado y quedará la huella de quién autorizó. ¿Continuar?`, peligro: true, textoOk: 'Pagar y dar de baja' })) return;
     const r = await pagarConPin(`/api/rrhh/finiquito/${empId}/pagar`, fin);
     if (!r) return;
     if (!r.ok) return handleApiError(new Error(r.error));

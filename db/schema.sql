@@ -1059,6 +1059,20 @@ CREATE TABLE IF NOT EXISTS nominas (
     UNIQUE(id_empleado, desde, hasta)
 );
 
+-- 0038: pagos extraordinarios (aguinaldo/finiquito). Registro permanente
+-- aunque no haya contabilidad; asiento (id_asiento) solo si el módulo está on.
+CREATE TABLE IF NOT EXISTS nomina_extraordinaria (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    referencia  TEXT NOT NULL UNIQUE,
+    id_empleado INTEGER NOT NULL,
+    tipo        TEXT NOT NULL,
+    anio        INTEGER,
+    monto       REAL NOT NULL,
+    id_asiento  INTEGER,
+    usuario     TEXT,
+    creado_en   TEXT DEFAULT (datetime('now','localtime'))
+);
+
 -- 0026: citas (giros de servicio — bot agenda, dashboard opera, watcher recuerda 24h antes)
 CREATE TABLE IF NOT EXISTS citas (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,

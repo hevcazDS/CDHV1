@@ -12,6 +12,7 @@ CREATE TABLE productos (id INTEGER PRIMARY KEY, name TEXT, price REAL, costo REA
 CREATE TABLE inventarios (id_producto INTEGER, sucursal TEXT, stock INTEGER);
 CREATE TABLE pedido_detalle (id INTEGER PRIMARY KEY, id_pedido INTEGER, id_producto INTEGER, cantidad INTEGER);
 CREATE TABLE configuracion (clave TEXT PRIMARY KEY, valor TEXT);
+CREATE TABLE nomina_extraordinaria (id INTEGER PRIMARY KEY AUTOINCREMENT, referencia TEXT UNIQUE, id_empleado INTEGER, tipo TEXT, anio INTEGER, monto REAL, id_asiento INTEGER, usuario TEXT, creado_en TEXT);
 INSERT INTO configuracion VALUES ('contabilidad_activo','1'), ('iva_pct','16');
 `);
 db.prepare('INSERT INTO productos VALUES (1, \'Prod\', 100, 40)').run();
@@ -80,11 +81,18 @@ db.prepare("DELETE FROM configuracion WHERE clave='periodo_cerrado'").run();
 // 7. Aguinaldo: asiento 601/102 idempotente por (empleado, año)
 const nomina = require('../services/nominaService'); nomina._setDb(db);
 const emp = { id: 7, nombre: 'Ana', salario_diario: 400 };
-const ag = nomina.pagarAguinaldo(emp, 2025, 6000);
-ok(Number.isInteger(ag.id_asiento) && ag.total === 6000, 'aguinaldo asienta el monto');
+const ag = nomina.pagarAguinaldo(emp, 2025, 6000, 'gerente1');
+ok(Number.isInteger(ag.id_asiento) && ag.total === 6000, 'aguinaldo asienta el monto (contabilidad on)');
+ok(db.prepare("SELECT usuario FROM nomina_extraordinaria WHERE referencia='aguinaldo_7_2025'").get().usuario === 'gerente1', 'aguinaldo deja registro permanente con usuario');
 let agDup = false;
-try { nomina.pagarAguinaldo(emp, 2025, 6000); } catch (_) { agDup = true; }
+try { nomina.pagarAguinaldo(emp, 2025, 6000, 'gerente1'); } catch (_) { agDup = true; }
 ok(agDup, 'aguinaldo idempotente (no se paga dos veces el mismo año)');
+// Sin contabilidad: NO se bloquea, queda registrado con id_asiento NULL
+conta._setActivo(() => false);
+const ag2 = nomina.pagarAguinaldo({ id: 8, nombre: 'Beto', salario_diario: 300 }, 2025, 4500, 'prime1');
+ok(ag2.id_asiento === null && ag2.asentado_contable === false && ag2.total === 4500, 'aguinaldo sin contabilidad: pagado y registrado, sin asiento');
+ok(!!db.prepare("SELECT 1 FROM nomina_extraordinaria WHERE referencia='aguinaldo_8_2025'").get(), 'aguinaldo sin contabilidad queda en nomina_extraordinaria');
+conta._setActivo(() => true);
 
 // 8. Venta a crédito (fiado): devengado (105/401/208) al vender; cobro que
 //    salda 105 y pasa el IVA de 208 (no cobrado) a 209 (por pagar).
