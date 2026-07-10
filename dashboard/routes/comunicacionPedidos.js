@@ -463,7 +463,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                 if (dev?.telefono) {
                     const msgs = {
                         aprobada:  '✅ Tu devolución (pedido *' + (dev.folio||'') + '*) fue *aprobada*. Pronto te contactamos para el reembolso o cambio.',
-                        rechazada: '❌ Revisamos tu devolución (pedido *' + (dev.folio||'') + '*) y no pudo ser aprobada' + (notas ? ': ' + notas : '.') + ' Si tienes dudas, escríbenos.',
+                        rechazada: '❌ Revisamos tu devolución (pedido *' + (dev.folio||'') + '*) y no pudo ser aprobada' + (notas ? ': ' + notas + '.' : '.') + ' Si tienes dudas, escríbenos.',
                         resuelta:  '✅ Tu devolución (pedido *' + (dev.folio||'') + '*) quedó *resuelta*. ¡Gracias por tu paciencia!',
                     };
                     if (msgs[estatus]) {

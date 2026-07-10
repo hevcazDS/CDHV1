@@ -191,7 +191,10 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
                 variacion_pct: tPrev ? r2((tAct - tPrev) / tPrev * 100) : null };
         } catch (_) {}
 
-        return json(res, { desde, hasta, pyl, balance, aging, inventario, categorias, ticket });
+        // El P&L/balance salen de asientos; sin el módulo Contabilidad no se
+        // asienta nada y todo da $0 — la UI muestra un aviso para que no se
+        // lea como "no vendí" (Harvard/PO del re-review).
+        return json(res, { desde, hasta, pyl, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo() });
     }
 
     // Cierre de período contable (idea SAP): 'YYYY-MM' — nada se asienta en

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, TextInput, NumberInput, Group, Text, Select } from '@mantine/core';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
+import { toastOk, alertar, prompt } from '../lib/ui';
 
 // Mesas de restaurante: abrir mesa → agregar platillos con comentario →
 // preticket a cocina → cobrar (pasa al POS). Módulo mesas_activo.
@@ -33,15 +34,18 @@ export default function Mesas() {
     const r = await api.post(`/api/mesas/${sel}/cocina`).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return handleApiError(new Error(r.error));
     const txt = r.comanda.map(c => `${c.cantidad}× ${c.nombre}${c.comentario ? ' — ' + c.comentario : ''}`).join('\n');
-    alert('COMANDA — Mesa ' + r.mesa + '\n\n' + txt + '\n\n(enviada a cocina)');
+    await alertar({ titulo: 'Comanda — Mesa ' + r.mesa + ' (solo pantalla)', mensaje: txt + '\n\nMuéstrala en cocina; no se imprime.' });
     refrescar();
   };
   const cobrar = async () => {
-    const metodo_pago = window.prompt('Método de pago (efectivo/tarjeta/transferencia):', 'efectivo');
+    const metodo_pago = await prompt({
+      titulo: 'Cobrar mesa', mensaje: 'Método de pago:', valorInicial: 'efectivo',
+      opciones: [{ value: 'efectivo', label: 'Efectivo' }, { value: 'tarjeta', label: 'Tarjeta' }, { value: 'transferencia', label: 'Transferencia' }],
+    });
     if (!metodo_pago) return;
     const r = await api.post(`/api/mesas/${sel}/cerrar`, { metodo_pago }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return handleApiError(new Error(r.error));
-    alert(`Mesa cobrada. Folio ${r.folio} · Total $${Number(r.total).toFixed(2)}`);
+    toastOk(`Mesa cobrada · Folio ${r.folio} · $${Number(r.total).toFixed(2)}`);
     setSel(null); refrescar();
   };
 

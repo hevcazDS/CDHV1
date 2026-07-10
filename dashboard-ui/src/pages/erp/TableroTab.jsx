@@ -33,6 +33,13 @@ export default function TableroTab() {
         <TextInput type="date" label="Hasta" value={r.hasta} onChange={e => setR({ ...r, hasta: e.target.value })} />
       </Group>
 
+      {data.conta_activa === false && (
+        <Card withBorder radius="md" p="md" mb="md" style={{ borderColor: 'var(--yellow)', background: 'rgba(234,179,8,0.08)' }}>
+          <Text size="sm" fw={600}>⚠️ Módulo Contabilidad apagado</Text>
+          <Text size="xs" c="dimmed">El estado de resultados y el balance salen de los asientos contables. Sin el módulo activo no se registra ninguno, así que verás $0 — no significa que no hayas vendido. Actívalo en <strong>Módulos → Contabilidad</strong> para que las ventas empiecen a asentarse. El aging de CxC, el margen por categoría y el ticket promedio sí funcionan sin él.</Text>
+        </Card>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Estado de resultados</h3>

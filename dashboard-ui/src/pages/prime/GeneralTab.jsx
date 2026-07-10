@@ -11,6 +11,7 @@ import {
 import { api } from '../../api';
 import { useTextoEmoji } from '../../context/EmojiContext';
 import { guardarPreferenciasFuente } from '../../lib/fontPrefs';
+import { alertar, prompt } from '../../lib/ui';
 
 export default function GeneralTab() {
   const txt = useTextoEmoji();
@@ -356,10 +357,10 @@ function ZonaPeligro() {
     try { const r = await fn(); setMsg({ ok: r.ok !== false, t: nombre + ': ' + (r.ok !== false ? (r.nota || 'listo') : r.error) }); }
     catch (e) { setMsg({ ok: false, t: nombre + ': ' + e.message }); }
   };
-  const pedir = (titulo) => {
-    const password = window.prompt(titulo + '\n\nTu contraseña de Prime:');
+  const pedir = async (titulo) => {
+    const password = await prompt({ titulo: 'Confirmar', mensaje: titulo + '\n\nTu contraseña de Prime:', tipo: 'password' });
     if (!password) return null;
-    const confirmacion = window.prompt("Escribe BORRAR para confirmar:");
+    const confirmacion = await prompt({ titulo: 'Confirmar', mensaje: 'Escribe BORRAR para confirmar:' });
     if (confirmacion !== 'BORRAR') return null;
     return { password, confirmacion };
   };
@@ -370,14 +371,14 @@ function ZonaPeligro() {
         <button className="btn" onClick={() => correr('Respaldo', () => api.post('/api/prime/respaldo-manual'))}>
           Respaldo manual ahora
         </button>
-        <button className="btn" style={{ borderColor: 'var(--yellow)' }} onClick={() => {
-          const d = pedir('BORRAR SESIÓN DE WHATSAPP (HS-503): desvincula el número; el siguiente arranque pide QR limpio. Úsalo si el bridge quedó en conflicto.');
+        <button className="btn" style={{ borderColor: 'var(--yellow)' }} onClick={async () => {
+          const d = await pedir('BORRAR SESIÓN DE WHATSAPP (HS-503): desvincula el número; el siguiente arranque pide QR limpio. Úsalo si el bridge quedó en conflicto.');
           if (d) correr('Purga WhatsApp', () => api.post('/api/prime/whatsapp/purgar-sesion', d));
         }}>
           Borrar sesión de WhatsApp
         </button>
-        <button className="btn btn-danger" onClick={() => {
-          const d = pedir('RESET DE INSTANCIA: borra TODA la operación (pedidos, clientes, inventario) y reabre el onboarding. Solo sobreviven los usuarios Prime.');
+        <button className="btn btn-danger" onClick={async () => {
+          const d = await pedir('RESET DE INSTANCIA: borra TODA la operación (pedidos, clientes, inventario) y reabre el onboarding. Solo sobreviven los usuarios Prime.');
           if (d) correr('Reset', () => api.post('/api/prime/reset-instancia', d));
         }}>
           Resetear instancia (borrar todo)
@@ -400,7 +401,7 @@ function CifradoBackup() {
     setMsg(null); setClaveMostrada('');
     let body = { modo };
     if (modo === 'alto') {
-      const master = window.prompt('CIFRADO ALTO — define tu contraseña MAESTRA (mín. 8). No se guarda: se derivará una clave que deberás APUNTAR/fotografiar. Si la pierdes junto con la maestra, los respaldos serán irrecuperables.');
+      const master = await prompt({ titulo: 'Cifrado ALTO', tipo: 'password', mensaje: 'Define tu contraseña MAESTRA (mín. 8). No se guarda: se derivará una clave que deberás APUNTAR/fotografiar.\n\n⚠️ Si la pierdes junto con la maestra, los respaldos serán IRRECUPERABLES.' });
       if (!master) return;
       body.master = master;
     }
@@ -413,7 +414,7 @@ function CifradoBackup() {
     } catch (e) { setMsg({ ok: false, t: e.message }); }
   };
   const armar = async () => {
-    const master = window.prompt('Ingresa la contraseña maestra para armar la clave de cifrado:');
+    const master = await prompt({ titulo: 'Armar clave', tipo: 'password', mensaje: 'Ingresa la contraseña maestra para armar la clave de cifrado:' });
     if (!master) return;
     const r = await api.post('/api/prime/backup-cifrado/armar', { master });
     setMsg(r.ok ? { ok: true, t: 'Clave armada' } : { ok: false, t: r.error });
@@ -423,17 +424,17 @@ function CifradoBackup() {
     const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.enc,.gz,.db';
     inp.onchange = async () => {
       const f = inp.files?.[0]; if (!f) return;
-      const password = window.prompt('Tu contraseña de Prime:'); if (!password) return;
+      const password = await prompt({ titulo: 'Restaurar BD', tipo: 'password', mensaje: 'Tu contraseña de Prime:' }); if (!password) return;
       const b64 = btoa(String.fromCharCode(...new Uint8Array(await f.arrayBuffer())));
       let clave_hex, master;
       if (!f.name.endsWith('.gz')) {
-        clave_hex = window.prompt('Clave de descifrado (la clave_hex que apuntaste). Deja vacío para usar la contraseña maestra:') || undefined;
-        if (!clave_hex) master = window.prompt('Contraseña maestra:') || undefined;
+        clave_hex = await prompt({ titulo: 'Restaurar BD', mensaje: 'Clave de descifrado (la clave_hex que apuntaste). Deja vacío para usar la contraseña maestra:' }) || undefined;
+        if (!clave_hex) master = await prompt({ titulo: 'Restaurar BD', tipo: 'password', mensaje: 'Contraseña maestra:' }) || undefined;
       }
       try {
         const r = await api.post('/api/prime/restaurar-bd', { archivo_base64: b64, password, clave_hex, master });
         if (!r.ok) throw new Error(r.error);
-        alert(r.msg + '\n\nReinicia el sistema (o el bridge) para aplicar la restauración.');
+        await alertar({ titulo: 'Restauración lista', mensaje: r.msg + '\n\nReinicia el sistema (o el bridge) para aplicar la restauración.' });
       } catch (e) { setMsg({ ok: false, t: e.message }); }
     };
     inp.click();

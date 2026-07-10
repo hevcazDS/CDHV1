@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, TextInput, NumberInput, Checkbox, Group, Text, Tabs, Select } from '@mantine/core';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
+import { toastOk, alertar, confirmar, prompt } from '../lib/ui';
 
 // RRHH: empleados, horarios por plantilla (CSV que Excel abre nativo) y
 // nómina MX con/sin impuestos. El ISR/IMSS es aproximado — validar con
@@ -36,7 +37,8 @@ export default function Rrhh() {
       try {
         const res = await api.post('/api/rrhh/horarios/importar', { csv: String(r.result || '') });
         if (!res.ok) throw new Error(res.error);
-        alert(`${res.importadas} horarios importados` + (res.errores.length ? `\nErrores:\n${res.errores.join('\n')}` : ''));
+        if (res.errores.length) await alertar({ titulo: `${res.importadas} horarios importados`, mensaje: 'Errores:\n' + res.errores.join('\n') });
+        else toastOk(`${res.importadas} horarios importados`);
       } catch (err) { handleApiError(err); }
     };
     r.readAsText(f);
@@ -49,7 +51,7 @@ export default function Rrhh() {
   });
   const pagar = useMutation({
     mutationFn: () => api.post('/api/rrhh/nomina/pagar', periodo),
-    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); alert(`${r.pagadas} nóminas pagadas · $${(r.total || 0).toFixed(2)}`); qc.invalidateQueries({ queryKey: ['rrhh-nom'] }); },
+    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); toastOk(`${r.pagadas} nóminas pagadas · $${(r.total || 0).toFixed(2)}`); qc.invalidateQueries({ queryKey: ['rrhh-nom'] }); },
     onError: handleApiError,
   });
 
@@ -125,13 +127,13 @@ export default function Rrhh() {
                       <td><span className={`badge ${e.con_impuestos ? 'badge-azul' : 'badge-amarillo'}`}>{e.con_impuestos ? 'Con impuestos' : 'Sin impuestos'}</span></td>
                       <td><Group gap={4} wrap="nowrap">
                         <Button size="xs" variant="default" onClick={async () => {
-                          const s = window.prompt('Nuevo salario diario para ' + e.nombre + ':', e.salario_diario);
+                          const s = await prompt({ titulo: 'Salario diario', mensaje: 'Nuevo salario diario para ' + e.nombre + ':', valorInicial: String(e.salario_diario), tipo: 'text' });
                           if (!s) return;
                           const r = await api.put(`/api/rrhh/empleados/${e.id}`, { salario_diario: Number(s) });
                           if (r.ok) qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); else handleApiError(new Error(r.error));
                         }}>Salario</Button>
                         {!!e.activo && <Button size="xs" variant="light" color="red" onClick={async () => {
-                          if (!window.confirm('¿Dar de BAJA a ' + e.nombre + '? (deja de aparecer en nómina)')) return;
+                          if (!await confirmar({ titulo: 'Dar de baja', mensaje: '¿Dar de BAJA a ' + e.nombre + '? Deja de aparecer en nómina.', peligro: true, textoOk: 'Dar de baja' })) return;
                           const r = await api.put(`/api/rrhh/empleados/${e.id}`, { activo: false });
                           if (r.ok) qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); else handleApiError(new Error(r.error));
                         }}>Baja</Button>}
@@ -157,7 +159,7 @@ export default function Rrhh() {
               <TextInput type="date" size="xs" value={periodo.desde} onChange={e => setPeriodo({ ...periodo, desde: e.target.value })} />
               <TextInput type="date" size="xs" value={periodo.hasta} onChange={e => setPeriodo({ ...periodo, hasta: e.target.value })} />
               <Button size="xs" onClick={() => calcular.mutate()}>Calcular</Button>
-              <Button size="xs" variant="light" color="teal" onClick={() => { if (window.confirm("El ISR/IMSS es APROXIMADO para gestión interna. El cálculo fiscal definitivo y el CFDI de nómina los hace tu contador/PAC. ¿Pagar el periodo?")) pagar.mutate(); }}>Pagar periodo</Button>
+              <Button size="xs" variant="light" color="teal" onClick={async () => { if (await confirmar({ titulo: 'Pagar periodo', mensaje: 'El ISR/IMSS es APROXIMADO para gestión interna. El cálculo fiscal definitivo y el CFDI de nómina los hace tu contador/PAC.\n\n¿Pagar el periodo?', textoOk: 'Pagar' })) pagar.mutate(); }}>Pagar periodo</Button>
             </Group>
           </div>
           <div className="table-wrap" style={{ maxHeight: 460, overflow: 'auto' }}>
