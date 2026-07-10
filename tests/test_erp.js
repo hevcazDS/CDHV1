@@ -111,5 +111,24 @@ ok(Math.abs(saldo('209') - (-16)) < 0.01, 'IVA por pagar (209) = 16 tras el cobr
 const debe2 = may2.reduce((s, c) => s + c.debe, 0), haber2 = may2.reduce((s, c) => s + c.haber, 0);
 ok(Math.abs(debe2 - haber2) < 0.01, 'libro mayor sigue cuadrado con el flujo de crédito');
 
+// 9. Nómina fiscal: séptimo día (semana de 6 días) e incapacidad excluye días
+db.exec(`
+CREATE TABLE empleados (id INTEGER PRIMARY KEY, nombre TEXT, salario_diario REAL, con_impuestos INTEGER DEFAULT 0, comision_pct REAL DEFAULT 0, username TEXT, activo INTEGER DEFAULT 1, fecha_alta TEXT);
+CREATE TABLE horarios_empleado (id INTEGER PRIMARY KEY AUTOINCREMENT, id_empleado INTEGER, fecha TEXT, horas REAL);
+CREATE TABLE incapacidades_empleado (id INTEGER PRIMARY KEY AUTOINCREMENT, id_empleado INTEGER, tipo TEXT, desde TEXT, hasta TEXT, folio_imss TEXT);
+CREATE TABLE nominas (id INTEGER PRIMARY KEY AUTOINCREMENT, id_empleado INTEGER, desde TEXT, hasta TEXT, horas REAL, horas_extra REAL, comisiones REAL, bruto REAL, isr REAL, imss REAL, neto REAL, prima_dominical REAL DEFAULT 0, imss_patronal REAL DEFAULT 0, septimo_dia REAL DEFAULT 0, estatus TEXT DEFAULT 'calculada', pagada_en TEXT, UNIQUE(id_empleado, desde, hasta));
+`);
+db.prepare("INSERT INTO configuracion (clave,valor) VALUES ('nomina_fiscal_activo','1')").run();
+db.prepare("INSERT INTO empleados (id,nombre,salario_diario,con_impuestos) VALUES (50,'Caro',400,0)").run();
+for (const f of ['2026-07-06', '2026-07-07', '2026-07-08', '2026-07-09', '2026-07-10', '2026-07-11']) // Lun–Sáb (6 días)
+    db.prepare("INSERT INTO horarios_empleado (id_empleado,fecha,horas) VALUES (50,?,8)").run(f);
+const nom = nomina.calcular('2026-07-06', '2026-07-12').find(x => x.id_empleado === 50);
+ok(nom && nom.septimo_dia === 400, 'séptimo día = 1 salario por semana de 6 días (dio ' + (nom && nom.septimo_dia) + ')');
+ok(nom.prima_dominical === 0, 'sin domingo trabajado → prima dominical 0');
+ok(nom.bruto === 2800, 'bruto = 6×día + séptimo día (esperado 2800, dio ' + nom.bruto + ')');
+db.prepare("INSERT INTO incapacidades_empleado (id_empleado,tipo,desde,hasta) VALUES (50,'enfermedad_general','2026-07-06','2026-07-07')").run();
+const nom2 = nomina.calcular('2026-07-06', '2026-07-12').find(x => x.id_empleado === 50);
+ok(nom2.bruto === 1600 && nom2.septimo_dia === 0, 'incapacidad excluye 2 días (bruto 1600, séptimo 0; dio ' + nom2.bruto + '/' + nom2.septimo_dia + ')');
+
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);

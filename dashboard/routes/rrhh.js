@@ -102,6 +102,33 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // Incapacidades IMSS — registrar/listar. Los días quedan fuera del salario
+    // normal en la nómina fiscal (el subsidio lo paga el IMSS).
+    if (p === '/api/rrhh/incapacidades' && req.method === 'GET') {
+        const idEmp = parseInt(new URL(req.url, 'http://x').searchParams.get('id_empleado'), 10);
+        const rows = idEmp
+            ? db.prepare('SELECT * FROM incapacidades_empleado WHERE id_empleado=? ORDER BY desde DESC').all(idEmp)
+            : db.prepare('SELECT i.*, e.nombre FROM incapacidades_empleado i JOIN empleados e ON e.id=i.id_empleado ORDER BY i.desde DESC LIMIT 200').all();
+        return json(res, rows);
+    }
+    if (p === '/api/rrhh/incapacidades' && req.method === 'POST') {
+        return readBody(req, body => {
+            try {
+                const d = JSON.parse(body || '{}');
+                if (!Number.isInteger(d.id_empleado)) return json(res, { ok: false, error: 'Falta empleado' }, 400);
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(d.desde || '') || !/^\d{4}-\d{2}-\d{2}$/.test(d.hasta || '')) return json(res, { ok: false, error: 'Fechas inválidas (AAAA-MM-DD)' }, 400);
+                if (d.hasta < d.desde) return json(res, { ok: false, error: 'La fecha final es anterior a la inicial' }, 400);
+                const r = db.prepare('INSERT INTO incapacidades_empleado (id_empleado, tipo, desde, hasta, folio_imss) VALUES (?,?,?,?,?)')
+                    .run(d.id_empleado, String(d.tipo || 'enfermedad_general'), d.desde, d.hasta, String(d.folio_imss || '').trim() || null);
+                return json(res, { ok: true, id: r.lastInsertRowid });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+    if (req.method === 'DELETE' && p.match(/^\/api\/rrhh\/incapacidades\/\d+$/)) {
+        db.prepare('DELETE FROM incapacidades_empleado WHERE id=?').run(parseInt(p.split('/').pop()));
+        return json(res, { ok: true });
+    }
+
     // Nómina: calcular el periodo y consultarla; pagar (asiento si contabilidad)
     if (p === '/api/rrhh/nomina/calcular' && req.method === 'POST') {
         return readBody(req, body => {

@@ -8,6 +8,16 @@ let db = require('../bot/db_connection');
 
 const _r2 = (n) => Math.round(Number(n) * 100) / 100;
 
+// Lunes de la semana de 'fecha' (clave de semana calendario Lun-Dom) para
+// contar los días trabajados por semana (séptimo día). Mediodía local evita
+// cruzar el límite de día.
+function _lunesDe(fecha) {
+    const d = new Date(fecha + 'T12:00:00');
+    const off = (d.getDay() + 6) % 7; // 0 = lunes
+    d.setDate(d.getDate() - off);
+    return d.toISOString().slice(0, 10);
+}
+
 // Tarifa ISR MENSUAL (límite inferior, cuota fija, % excedente)
 const TARIFA_ISR_MENSUAL = [
     [0.01, 0, 1.92], [746.05, 14.32, 6.40], [6332.06, 371.83, 10.88],
@@ -100,17 +110,29 @@ function calcular(desde, hasta) {
         const horasTot = horasDe.get(e.id, desde, hasta)?.h || 0;
         if (!(horasTot > 0)) continue;
         const tarifaHora = e.salario_diario / 8;
-        let horasNormales = horasTot, horasExtra = 0, comisiones = 0, horasDomingo = 0;
+        let horasNormales = horasTot, horasExtra = 0, comisiones = 0, horasDomingo = 0, septimoDia = 0;
         if (fiscal) {
             // horas extra = lo que pasa de 8h POR DÍA, pagadas al doble (LFT)
             horasNormales = 0;
+            // Incapacidades IMSS que traslapan el período: esos días NO se
+            // pagan como salario normal (el subsidio lo cubre el IMSS).
+            let incaps = [];
+            try { incaps = db.prepare('SELECT desde, hasta FROM incapacidades_empleado WHERE id_empleado=? AND NOT (hasta < ? OR desde > ?)').all(e.id, desde, hasta); } catch (_) {}
+            const enIncapacidad = (f) => incaps.some(x => f >= x.desde && f <= x.hasta);
+            const semanas = {}; // días trabajados por semana (bucket de 7 días)
             for (const d of porDia.all(e.id, desde, hasta)) {
+                if (enIncapacidad(d.fecha)) continue; // día cubierto por el IMSS
                 horasNormales += Math.min(d.horas, 8);
                 horasExtra    += Math.max(0, d.horas - 8);
                 // prima dominical (LFT 71): 25% extra por lo trabajado en domingo.
                 // Se evalúa a mediodía local para no cruzar el límite de día.
                 if (new Date(d.fecha + 'T12:00:00').getDay() === 0) horasDomingo += Math.min(d.horas, 8);
+                if (d.horas > 0) { const wk = _lunesDe(d.fecha); semanas[wk] = (semanas[wk] || 0) + 1; }
             }
+            // séptimo día (LFT 69): por cada semana con 6+ días trabajados se paga
+            // 1 día de descanso obligatorio.
+            for (const wk in semanas) if (semanas[wk] >= 6) septimoDia += e.salario_diario;
+            septimoDia = _r2(septimoDia);
             // comisiones = % sobre lo COBRADO por el empleado (liga por username)
             if (e.comision_pct > 0 && e.username) {
                 const ventas = db.prepare("SELECT COALESCE(SUM(lp.monto),0) v FROM links_pago lp JOIN pedidos p ON p.id_pedido=lp.id_pedido WHERE lp.estatus='pagado' AND p.cobrado_por=? AND date(lp.pagado_en)>=? AND date(lp.pagado_en)<=?").get(e.username, desde, hasta)?.v || 0;
@@ -118,7 +140,7 @@ function calcular(desde, hasta) {
             }
         }
         const primaDominical = _r2(horasDomingo * tarifaHora * 0.25);
-        const bruto = _r2(horasNormales * tarifaHora + horasExtra * tarifaHora * 2 + comisiones + primaDominical);
+        const bruto = _r2(horasNormales * tarifaHora + horasExtra * tarifaHora * 2 + comisiones + primaDominical + septimoDia);
         let isr = 0, imss = 0;
         if (e.con_impuestos) {
             isr = _r2(isrMensual(bruto * factorMes) / factorMes);
@@ -128,14 +150,14 @@ function calcular(desde, hasta) {
         const pctPat = parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='imss_patronal_pct'").get()?.valor) || IMSS_PATRONAL_PCT;
         const imssPatronal = e.con_impuestos ? _r2(bruto * (pctPat / 100)) : 0;
         const neto = _r2(bruto - isr - imss);
-        db.prepare(`INSERT INTO nominas (id_empleado, desde, hasta, horas, horas_extra, comisiones, bruto, isr, imss, neto, prima_dominical, imss_patronal)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        db.prepare(`INSERT INTO nominas (id_empleado, desde, hasta, horas, horas_extra, comisiones, bruto, isr, imss, neto, prima_dominical, imss_patronal, septimo_dia)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(id_empleado, desde, hasta) DO UPDATE SET
                       horas=excluded.horas, horas_extra=excluded.horas_extra, comisiones=excluded.comisiones,
                       bruto=excluded.bruto, isr=excluded.isr, imss=excluded.imss, neto=excluded.neto,
-                      prima_dominical=excluded.prima_dominical, imss_patronal=excluded.imss_patronal`)
-          .run(e.id, desde, hasta, horasTot, horasExtra, comisiones, bruto, isr, imss, neto, primaDominical, imssPatronal);
-        resultados.push({ id_empleado: e.id, nombre: e.nombre, horas: horasTot, horas_extra: horasExtra, comisiones, bruto, isr, imss, neto, prima_dominical: primaDominical, imss_patronal: imssPatronal, con_impuestos: !!e.con_impuestos, metodo_pago: e.metodo_pago });
+                      prima_dominical=excluded.prima_dominical, imss_patronal=excluded.imss_patronal, septimo_dia=excluded.septimo_dia`)
+          .run(e.id, desde, hasta, horasTot, horasExtra, comisiones, bruto, isr, imss, neto, primaDominical, imssPatronal, septimoDia);
+        resultados.push({ id_empleado: e.id, nombre: e.nombre, horas: horasTot, horas_extra: horasExtra, comisiones, bruto, isr, imss, neto, prima_dominical: primaDominical, imss_patronal: imssPatronal, septimo_dia: septimoDia, con_impuestos: !!e.con_impuestos, metodo_pago: e.metodo_pago });
     }
     return resultados;
 }

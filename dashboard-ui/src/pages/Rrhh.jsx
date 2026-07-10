@@ -165,14 +165,14 @@ export default function Rrhh() {
           </div>
           <div className="table-wrap" style={{ maxHeight: 460, overflow: 'auto' }}>
             <table>
-              <thead><tr><th>Empleado</th><th>Periodo</th><th>Horas</th>{fiscal && <th>H.Extra</th>}{fiscal && <th>Prima dom.</th>}{fiscal && <th>Comis.</th>}<th>Bruto</th><th>ISR</th><th>IMSS</th><th>Neto</th>{fiscal && <th title="Cuota patronal — costo del negocio, no se descuenta">IMSS patrón</th>}<th>Estatus</th></tr></thead>
+              <thead><tr><th>Empleado</th><th>Periodo</th><th>Horas</th>{fiscal && <th>H.Extra</th>}{fiscal && <th>Prima dom.</th>}{fiscal && <th>7º día</th>}{fiscal && <th>Comis.</th>}<th>Bruto</th><th>ISR</th><th>IMSS</th><th>Neto</th>{fiscal && <th title="Cuota patronal — costo del negocio, no se descuenta">IMSS patrón</th>}<th>Estatus</th></tr></thead>
               <tbody>
-                {nominas.length === 0 && <tr><td colSpan={fiscal ? 12 : 8} className="empty">Calcula un periodo para ver la nómina</td></tr>}
+                {nominas.length === 0 && <tr><td colSpan={fiscal ? 13 : 8} className="empty">Calcula un periodo para ver la nómina</td></tr>}
                 {nominas.map(n => (
                   <tr key={n.id}>
                     <td><strong>{n.nombre}</strong></td>
                     <td className="text-muted" style={{ fontSize: 11 }}>{n.desde} → {n.hasta}</td>
-                    <td>{n.horas}</td>{fiscal && <td>{n.horas_extra ?? 0}</td>}{fiscal && <td>{n.prima_dominical > 0 ? '$' + n.prima_dominical.toFixed(2) : '—'}</td>}{fiscal && <td>${(n.comisiones ?? 0).toFixed(2)}</td>}<td>${n.bruto.toFixed(2)}</td>
+                    <td>{n.horas}</td>{fiscal && <td>{n.horas_extra ?? 0}</td>}{fiscal && <td>{n.prima_dominical > 0 ? '$' + n.prima_dominical.toFixed(2) : '—'}</td>}{fiscal && <td>{n.septimo_dia > 0 ? '$' + n.septimo_dia.toFixed(2) : '—'}</td>}{fiscal && <td>${(n.comisiones ?? 0).toFixed(2)}</td>}<td>${n.bruto.toFixed(2)}</td>
                     <td>{n.isr > 0 ? '$' + n.isr.toFixed(2) : '—'}</td>
                     <td>{n.imss > 0 ? '$' + n.imss.toFixed(2) : '—'}</td>
                     <td style={{ fontWeight: 700 }}>${n.neto.toFixed(2)}</td>
@@ -200,7 +200,17 @@ function Liquidaciones({ empleados }) {
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [fin, setFin] = useState({ fecha_baja: new Date().toISOString().slice(0, 10), dias_pendientes: 0, tipo_baja: 'renuncia' });
   const [prevFin, setPrevFin] = useState(null);
+  const [inc, setInc] = useState({ tipo: 'enfermedad_general', desde: new Date().toISOString().slice(0, 10), hasta: new Date().toISOString().slice(0, 10), folio_imss: '' });
   const empId = sel ? Number(sel) : null;
+  const qc2 = useQueryClient();
+  const { data: incaps = [] } = useQuery({ queryKey: ['rrhh-incap', empId], enabled: !!empId, queryFn: () => api.get('/api/rrhh/incapacidades?id_empleado=' + empId).catch(() => []) });
+  const registrarIncap = async () => {
+    if (!empId) return;
+    const r = await api.post('/api/rrhh/incapacidades', { id_empleado: empId, ...inc }).catch(e => ({ ok: false, error: e.message }));
+    if (!r.ok) return handleApiError(new Error(r.error));
+    toastOk('Incapacidad registrada'); qc2.invalidateQueries({ queryKey: ['rrhh-incap'] });
+  };
+  const borrarIncap = async (id) => { await api.del('/api/rrhh/incapacidades/' + id).catch(() => {}); qc2.invalidateQueries({ queryKey: ['rrhh-incap'] }); };
 
   // Paga reintentando con PIN si el backend lo exige (roles especialistas).
   const pagarConPin = async (url, body) => {
@@ -286,6 +296,32 @@ function Liquidaciones({ empleados }) {
           )}
         </Card>
       </div>
+
+      {empId && (
+        <Card withBorder radius="md" p="lg" className="card" mt="lg">
+          <div className="card-header"><h3>Incapacidades (IMSS)</h3></div>
+          <Text size="xs" c="dimmed" mb="sm">Los días registrados quedan fuera del salario normal en la nómina fiscal (el subsidio lo paga el IMSS; el contador lo concilia).</Text>
+          <Group align="end" mb="sm">
+            <Select label="Tipo" allowDeselect={false} value={inc.tipo} onChange={v => setInc({ ...inc, tipo: v })} style={{ width: 190 }}
+              data={[{ value: 'enfermedad_general', label: 'Enfermedad general' }, { value: 'riesgo_trabajo', label: 'Riesgo de trabajo' }, { value: 'maternidad', label: 'Maternidad' }]} />
+            <TextInput type="date" label="Desde" value={inc.desde} onChange={e => setInc({ ...inc, desde: e.target.value })} />
+            <TextInput type="date" label="Hasta" value={inc.hasta} onChange={e => setInc({ ...inc, hasta: e.target.value })} />
+            <TextInput label="Folio IMSS" value={inc.folio_imss} onChange={e => setInc({ ...inc, folio_imss: e.target.value })} />
+            <Button onClick={registrarIncap}>Registrar</Button>
+          </Group>
+          <div className="table-wrap tabla-compacta">
+            <table><tbody>
+              {incaps.length === 0 && <tr><td className="empty">Sin incapacidades registradas</td></tr>}
+              {incaps.map(x => (
+                <tr key={x.id}>
+                  <td>{x.tipo?.replace('_', ' ')}</td><td>{x.desde} → {x.hasta}</td><td className="text-muted">{x.folio_imss || '—'}</td>
+                  <td><Button size="compact-xs" variant="subtle" color="red" onClick={() => borrarIncap(x.id)}>Quitar</Button></td>
+                </tr>
+              ))}
+            </tbody></table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

@@ -1062,11 +1062,24 @@ CREATE TABLE IF NOT EXISTS nominas (
     neto         REAL NOT NULL DEFAULT 0,
     prima_dominical REAL NOT NULL DEFAULT 0,        -- migrations/0042
     imss_patronal   REAL NOT NULL DEFAULT 0,        -- migrations/0042 (costo del patrón)
+    septimo_dia     REAL NOT NULL DEFAULT 0,        -- migrations/0044 (día de descanso pagado)
     estatus      TEXT NOT NULL DEFAULT 'calculada',
     pagada_en    TEXT,
     creada_en    TEXT DEFAULT (datetime('now','localtime')),
     UNIQUE(id_empleado, desde, hasta)
 );
+
+-- 0044: incapacidades IMSS (los días quedan fuera del salario normal)
+CREATE TABLE IF NOT EXISTS incapacidades_empleado (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_empleado INTEGER NOT NULL REFERENCES empleados(id),
+    tipo        TEXT,
+    desde       TEXT NOT NULL,
+    hasta       TEXT NOT NULL,
+    folio_imss  TEXT,
+    creado_en   TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_incap_emp ON incapacidades_empleado(id_empleado, desde, hasta);
 
 -- 0038: pagos extraordinarios (aguinaldo/finiquito). Registro permanente
 -- aunque no haya contabilidad; asiento (id_asiento) solo si el módulo está on.
