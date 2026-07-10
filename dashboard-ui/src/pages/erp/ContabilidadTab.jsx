@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, Text, TextInput, Group } from '@mantine/core';
 import { api } from '../../api';
 import { Button } from '@mantine/core';
+import { confirmar } from '../../lib/ui';
 import { exportarCSV } from '../../lib/csv';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -115,8 +116,8 @@ function PeriodoCierre() {
         {data?.cerrado ? `Período CERRADO hasta ${data.cerrado}` : 'Período abierto'}
       </Text>
       {!data?.cerrado
-        ? <Button size="xs" variant="default" onClick={() => window.confirm(`¿Cerrar el período hasta ${mesPasado}? Nada podrá asentarse en esos meses.`) && mut.mutate(mesPasado)}>Cerrar hasta {mesPasado}</Button>
-        : <Button size="xs" variant="light" color="red" onClick={() => window.confirm('¿REABRIR el período? (queda registrado)') && mut.mutate('')}>Reabrir</Button>}
+        ? <Button size="xs" variant="default" onClick={async () => { if (await confirmar({ titulo: 'Cerrar período', mensaje: `¿Cerrar el período hasta ${mesPasado}? Nada podrá asentarse en esos meses (salvo autorización de un Administrador).`, textoOk: 'Cerrar período' })) mut.mutate(mesPasado); }}>Cerrar hasta {mesPasado}</Button>
+        : <Button size="xs" variant="light" color="red" onClick={async () => { if (await confirmar({ titulo: 'Reabrir período', mensaje: '¿Reabrir el período? Queda registrado quién lo hizo.', peligro: true, textoOk: 'Reabrir' })) mut.mutate(''); }}>Reabrir</Button>}
     </Group>
   );
 }

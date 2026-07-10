@@ -175,7 +175,7 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                         const _totalVenta = carrito.reduce((s, i) => s + i.price * i.cantidad, 0);
                         const saldo = db.prepare("SELECT COALESCE(SUM(lp.monto),0) s FROM pedidos p JOIN links_pago lp ON lp.id_pedido=p.id_pedido WHERE p.id_cliente=? AND p.a_credito=1 AND lp.estatus='generado'").get(idCliente).s;
                         if (saldo + _totalVenta > limite + 0.005) {
-                            return json(res, { ok: false, error: `El cliente supera su límite de crédito ($${limite.toFixed(2)}). Ya debe $${saldo.toFixed(2)} y esta venta suma $${_totalVenta.toFixed(2)}. Cobra un abono o sube el límite.`, limite_credito: limite, saldo_fiado: saldo }, 409);
+                            return json(res, { ok: false, error: `El cliente supera su límite de crédito ($${limite.toFixed(2)}). Ya debe $${saldo.toFixed(2)} y esta venta suma $${_totalVenta.toFixed(2)}. Regístrale un abono, o pide a un Administrador que suba el límite en Fiados.`, limite_credito: limite, saldo_fiado: saldo }, 409);
                         }
                     }
                 }

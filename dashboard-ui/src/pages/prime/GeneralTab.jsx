@@ -175,7 +175,7 @@ export default function GeneralTab() {
           <Title order={4} mb={4}>Días de entrega Estafeta</Title>
           <p className="page-sub" style={{ margin: '4px 0 16px' }}>
             Días hábiles que se suman para estimar la fecha de entrega. Sube este número en
-            fechas como navidad si los pedidos se van a retrasar más de lo normal.
+            fechas como Navidad si los pedidos se van a retrasar más de lo normal.
           </p>
           <NumberInput min={1} max={30} value={diasEntrega === '' ? '' : Number(diasEntrega)} onChange={v => setDiasEntrega(v === '' ? '' : String(v))} mb="sm" />
           <Button onClick={guardarDiasEntrega}>Guardar</Button>
@@ -421,7 +421,7 @@ function PacConfig() {
     <Card withBorder radius="md" p="lg" className="card" style={{ marginTop: 14 }}>
       <div className="card-header"><h3>Facturación electrónica — PAC (solo Prime)</h3></div>
       <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 10 }}>
-        Credenciales para timbrar CFDI. Se guardan en esta instancia; los secretos (contraseñas, certificado .cer y llave .key) no se vuelven a mostrar. {flags.activo ? '✅ Listo para timbrar.' : flags.configurado ? 'Completo — activa el módulo Facturación.' : 'Rellena los datos para dejarlo listo.'}
+        Credenciales para timbrar CFDI. Se guardan en esta instancia; los secretos (contraseñas, certificado .cer y llave .key) no se vuelven a mostrar. {flags.activo ? '✅ Credenciales completas — el timbrado se conectará al integrar el proveedor (aún no timbra).' : flags.configurado ? 'Completo — activa el módulo Facturación.' : 'Rellena los datos para dejarlo listo.'}
       </p>
       <Group grow mb="sm">
         <Select label="Proveedor (PAC)" data={PACS} value={c.proveedor} onChange={v => setC({ ...c, proveedor: v || '' })} clearable />

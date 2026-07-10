@@ -134,7 +134,7 @@ export default function Rrhh() {
                           if (r.ok) qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); else handleApiError(new Error(r.error));
                         }}>Salario</Button>
                         {!!e.activo && <Button size="xs" variant="light" color="red" onClick={async () => {
-                          if (!await confirmar({ titulo: 'Dar de baja', mensaje: '¿Dar de BAJA a ' + e.nombre + '? Deja de aparecer en nómina.', peligro: true, textoOk: 'Dar de baja' })) return;
+                          if (!await confirmar({ titulo: 'Dar de baja', mensaje: '¿Dar de baja a ' + e.nombre + '? Deja de aparecer en nómina.', peligro: true, textoOk: 'Dar de baja' })) return;
                           const r = await api.put(`/api/rrhh/empleados/${e.id}`, { activo: false });
                           if (r.ok) qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); else handleApiError(new Error(r.error));
                         }}>Baja</Button>}
@@ -246,7 +246,7 @@ function Liquidaciones({ empleados }) {
   const pagarFin = async () => {
     if (!empId || !prevFin) return;
     if (prevFin.pagado) return alertar({ titulo: 'Ya registrado', mensaje: `El finiquito de ${prevFin.empleado} ya está asentado.` });
-    if (!await confirmar({ titulo: 'Pagar finiquito', mensaje: `${prevFin.empleado} · baja ${fin.fecha_baja}\nTotal: ${money(prevFin.total)}\n\nQueda registrado (y asentado si Contabilidad está activo), se dará de BAJA al empleado y quedará la huella de quién autorizó. ¿Continuar?`, peligro: true, textoOk: 'Pagar y dar de baja' })) return;
+    if (!await confirmar({ titulo: 'Pagar finiquito', mensaje: `${prevFin.empleado} · baja ${fin.fecha_baja}\nTotal: ${money(prevFin.total)}\n\nQueda registrado (y asentado si Contabilidad está activo), se dará de baja al empleado y quedará la huella de quién autorizó. ¿Continuar?`, peligro: true, textoOk: 'Pagar y dar de baja' })) return;
     const r = await pagarConPin(`/api/rrhh/finiquito/${empId}/pagar`, fin);
     if (!r) return;
     if (!r.ok) return handleApiError(new Error(r.error));

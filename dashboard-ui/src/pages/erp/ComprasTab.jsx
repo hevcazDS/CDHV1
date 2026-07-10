@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, Select, NumberInput, Group, Text, TextInput } from '@mantine/core';
+import { confirmar, toastOk } from '../../lib/ui';
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
 import Badge from '../../components/Badge';
@@ -88,9 +89,9 @@ export default function ComprasTab() {
                     <>
                     <Button size="xs" variant="default" onClick={() => recibir.mutate(oc.id)} disabled={recibir.isPending}>Recibir</Button>
                         <Button size="xs" variant="light" color="red" ml={6} onClick={async () => {
-                          if (!window.confirm('¿Cancelar esta OC? (solo se cancelan abiertas, no mueve inventario)')) return;
+                          if (!await confirmar({ titulo: 'Cancelar OC', mensaje: '¿Cancelar esta orden de compra? Solo se cancelan las abiertas; no mueve inventario.', peligro: true, textoOk: 'Cancelar OC' })) return;
                           const r = await api.post(`/api/erp/ordenes-compra/${oc.id}/cancelar`);
-                          if (r.ok) qc.invalidateQueries(); else alert(r.error);
+                          if (r.ok) { toastOk('OC cancelada'); qc.invalidateQueries(); } else handleApiError(new Error(r.error));
                         }}>Cancelar</Button>
                     </>
                   )}</td>

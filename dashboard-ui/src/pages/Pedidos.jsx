@@ -83,7 +83,7 @@ export default function Pedidos() {
   };
 
   const confirmarPagoMutation = useMutation({
-    mutationFn: () => api.post(`/api/pagos/${pagoModal}/marcar-pagado`, { referencia_pago: referencia }),
+    mutationFn: () => api.post(`/api/pagos/${pagoModal.id_link_pago}/marcar-pagado`, { referencia_pago: referencia }),
     onSuccess: () => {
       setPagoModal(null); setReferencia('');
       queryClient.invalidateQueries({ queryKey: ['pedidos'] });
@@ -180,7 +180,7 @@ export default function Pedidos() {
                   <td>
                     <Group gap={4} wrap="nowrap">
                       {r.pago_estatus === 'generado' && r.id_link_pago && (
-                        <ActionIcon variant="light" color="teal" title="Confirmar pago recibido" onClick={() => setPagoModal(r.id_link_pago)}><Check size={16} strokeWidth={1.75} /></ActionIcon>
+                        <ActionIcon variant="light" color="teal" title="Confirmar pago recibido" onClick={() => setPagoModal(r)}><Check size={16} strokeWidth={1.75} /></ActionIcon>
                       )}
                       {repartidorActivo && (
                         <ActionIcon variant="light" color="orange" title={r.repartidor_nombre ? `Repartidor: ${r.repartidor_nombre}` : 'Asignar repartidor'} onClick={() => abrirRepartidor(r)}><Bike size={16} strokeWidth={1.75} /></ActionIcon>
@@ -275,6 +275,10 @@ export default function Pedidos() {
             <Button variant="default" onClick={() => { setPagoModal(null); setReferencia(''); }}>Cancelar</Button>
             <Button onClick={confirmarPago}>Confirmar</Button>
           </>}>
+          <div style={{ background: 'var(--panel-2)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13 }}>
+            <div><strong>{pagoModal.cliente || '—'}</strong> · {pagoModal.folio || '#' + pagoModal.id_pedido}</div>
+            <div>Monto: <strong>${fmt(pagoModal.total)}</strong>{!!pagoModal.a_credito && <span> · fiado{pagoModal.fiado_vence_en ? ' vence ' + pagoModal.fiado_vence_en : ''}</span>}</div>
+          </div>
           <p className="page-sub" style={{ margin: '0 0 12px' }}>Captura la referencia del pago (efectivo, transferencia, etc.)</p>
           <TextInput autoFocus placeholder="Ej: TRANSF-00123" value={referencia} onChange={e => setReferencia(e.target.value)} />
         </Modal>
