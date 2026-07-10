@@ -11,9 +11,11 @@ import FacturacionTab from './erp/FacturacionTab';
 import VentasProductoTab from './erp/VentasProductoTab';
 import RentabilidadClientesTab from './erp/RentabilidadClientesTab';
 import RentabilidadVendedoresTab from './erp/RentabilidadVendedoresTab';
+import FlujoCajaTab from './erp/FlujoCajaTab';
 
 const TABS = [
   { key: 'tablero', label: 'Tablero de dirección', Componente: TableroTab },
+  { key: 'flujo-caja', label: 'Flujo de caja', Componente: FlujoCajaTab },
   { key: 'proveedores', label: 'Proveedores', Componente: ProveedoresTab },
   { key: 'compras', label: 'Órdenes de compra', Componente: ComprasTab },
   { key: 'cxp', label: 'Cuentas por pagar', Componente: CxpTab },

@@ -8,7 +8,7 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
     if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')
-        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos') || p.startsWith('/api/erp/rentabilidad-clientes') || p.startsWith('/api/erp/rentabilidad-vendedores')) {
+        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos') || p.startsWith('/api/erp/rentabilidad-clientes') || p.startsWith('/api/erp/rentabilidad-vendedores') || p.startsWith('/api/erp/flujo-caja')) {
         const ses = requireSession(req, res);
         if (!ses) return;
         if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
@@ -288,6 +288,45 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
             filas.forEach(f => { f.fiado_pendiente = mapF[f.vendedor] || 0; });
         } catch (_) {}
         return json(res, { desde, hasta, comision_pct: parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='comision_pct'").get()?.valor || '0') || 0, vendedores: filas });
+    }
+
+    // GET /api/erp/flujo-caja — proyección: ¿tendré dinero aunque el P&L dé
+    // positivo? Saldo actual (caja+bancos) + lo por COBRAR (fiado por
+    // vencimiento) − lo por PAGAR (cuentas por pagar por vencimiento), en
+    // franjas vencido / 0-30 / 31-60 / 61+ días.
+    if (p === '/api/erp/flujo-caja' && req.method === 'GET') {
+        const bucket = (col) => `CASE WHEN ${col} IS NULL THEN 'sin_fecha'
+            WHEN ${col} < date('now','localtime') THEN 'vencido'
+            WHEN ${col} <= date('now','localtime','+30 days') THEN 'd0_30'
+            WHEN ${col} <= date('now','localtime','+60 days') THEN 'd31_60'
+            ELSE 'd61mas' END`;
+        const vacio = () => ({ vencido: 0, d0_30: 0, d31_60: 0, d61mas: 0, sin_fecha: 0 });
+        const llenar = (rows) => { const o = vacio(); rows.forEach(r => { o[r.bucket] = r.monto || 0; }); o.total = r2(o.vencido + o.d0_30 + o.d31_60 + o.d61mas + o.sin_fecha); return o; };
+        let saldo_actual = null, por_cobrar = vacio(), por_pagar = vacio();
+        try {
+            if (conta.activo()) {
+                const may = conta.libroMayor('1900-01-01', new Date().toISOString().slice(0, 10));
+                const s = (c) => { const r = may.find(x => x.cuenta === c); return r ? r.saldo : 0; };
+                saldo_actual = r2(s('101') + s('102'));
+            }
+            por_cobrar = llenar(db.prepare(`
+                SELECT ${bucket('p.fiado_vence_en')} AS bucket, ROUND(SUM(lp.monto),2) AS monto
+                FROM pedidos p JOIN links_pago lp ON lp.id_pedido=p.id_pedido AND lp.estatus='generado'
+                WHERE p.a_credito=1 GROUP BY bucket`).all());
+            por_pagar = llenar(db.prepare(`
+                SELECT ${bucket('vence_en')} AS bucket, ROUND(SUM(monto),2) AS monto
+                FROM cuentas_pagar WHERE estatus='pendiente' GROUP BY bucket`).all());
+        } catch (_) {}
+        // Proyección acumulada del saldo si cobras/pagas lo de cada franja
+        const base = saldo_actual || 0;
+        const neto = (b) => r2((por_cobrar[b] || 0) - (por_pagar[b] || 0));
+        const proyeccion = {
+            hoy: saldo_actual,
+            en_30d: r2(base + neto('vencido') + neto('d0_30')),
+            en_60d: r2(base + neto('vencido') + neto('d0_30') + neto('d31_60')),
+            en_90d: r2(base + neto('vencido') + neto('d0_30') + neto('d31_60') + neto('d61mas')),
+        };
+        return json(res, { saldo_actual, por_cobrar, por_pagar, proyeccion, conta_activa: conta.activo() });
     }
 
     // Registro de GASTOS directos (renta, luz, papelería) → asiento 601
