@@ -1036,6 +1036,8 @@ CREATE TABLE IF NOT EXISTS empleados (
     curp           TEXT,
     nss            TEXT,
     activo         INTEGER NOT NULL DEFAULT 1,
+    tipo_baja      TEXT,                              -- migrations/0041 (renuncia|despido_*|jubilacion)
+    fecha_baja     TEXT,                              -- migrations/0041
     creado_en      TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE TABLE IF NOT EXISTS horarios_empleado (

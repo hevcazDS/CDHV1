@@ -171,7 +171,7 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
                 const e = db.prepare('SELECT * FROM empleados WHERE id=?').get(id);
                 if (!e) return json(res, { ok: false, error: 'Empleado no encontrado' }, 404);
                 const fecha = /^\d{4}-\d{2}-\d{2}$/.test(d.fecha_baja || '') ? d.fecha_baja : new Date().toISOString().slice(0, 10);
-                const fin = nominaService.finiquito(e, fecha, { dias_pendientes: d.dias_pendientes, despido_injustificado: !!d.despido_injustificado });
+                const fin = nominaService.finiquito(e, fecha, { dias_pendientes: d.dias_pendientes, tipo_baja: d.tipo_baja, despido_injustificado: !!d.despido_injustificado });
                 const pagado = !!db.prepare('SELECT 1 FROM nomina_extraordinaria WHERE referencia=?').get('finiquito_' + id);
                 return json(res, { ok: true, empleado: e.nombre, fecha_baja: fecha, pagado, ...fin });
             } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }
@@ -188,7 +188,7 @@ module.exports = function rrhhRoutes(req, res, p, u, ctx, next) {
                 const errF = autorizacion.exigirAutorizacion(db, ses, d.pin, rangoDe);
                 if (errF) return json(res, { ok: false, error: errF, pin_requerido: true }, 403);
                 const fecha = /^\d{4}-\d{2}-\d{2}$/.test(d.fecha_baja || '') ? d.fecha_baja : new Date().toISOString().slice(0, 10);
-                const fin = nominaService.finiquito(e, fecha, { dias_pendientes: d.dias_pendientes, despido_injustificado: !!d.despido_injustificado });
+                const fin = nominaService.finiquito(e, fecha, { dias_pendientes: d.dias_pendientes, tipo_baja: d.tipo_baja, despido_injustificado: !!d.despido_injustificado });
                 const r = nominaService.pagarFiniquito(e, fecha, fin, ses.username);
                 require('../../services/configAudit').logCambio(db, 'finiquito_pagado', e.nombre + ' baja ' + fecha + ' $' + r.total, ses.username);
                 return json(res, { ok: true, empleado: e.nombre, fecha_baja: fecha, ...fin, ...r });

@@ -67,14 +67,17 @@ function finiquito(empleado, fechaBaja, opts = {}) {
     const vacProp = _r2(sd * diasVac * Math.min(1, diasAnio / 365));
     const primaVac = _r2(vacProp * 0.25);
     const diasPend = _r2(sd * (Number(opts.dias_pendientes) || 0));
+    // Tipo de baja (LFT): solo el despido injustificado indemniza (90 días +
+    // 20/año). Renuncia, despido justificado y jubilación = solo proporcionales.
+    const tipo = opts.tipo_baja || (opts.despido_injustificado ? 'despido_injustificado' : 'renuncia');
     let indemnizacion = 0;
-    if (opts.despido_injustificado) {
+    if (tipo === 'despido_injustificado') {
         indemnizacion = _r2(sd * 90 + sd * 20 * anios); // 3 meses + 20 días/año
     }
     const total = _r2(diasPend + ag + vacProp + primaVac + indemnizacion);
     return { antiguedad_anios: anios, dias_aguinaldo: 15, aguinaldo: ag,
         dias_vacaciones: diasVac, vacaciones_proporcional: vacProp, prima_vacacional: primaVac,
-        dias_pendientes: diasPend, indemnizacion, total };
+        dias_pendientes: diasPend, indemnizacion, tipo_baja: tipo, total };
 }
 
 // Calcula la nómina de TODOS los empleados activos en el rango [desde, hasta]
@@ -184,7 +187,7 @@ function pagarFiniquito(empleado, fechaBaja, fin, usuario) {
     });
     db.prepare('INSERT INTO nomina_extraordinaria (referencia, id_empleado, tipo, anio, monto, id_asiento, usuario) VALUES (?,?,?,?,?,?,?)')
       .run(ref, empleado.id, 'finiquito', null, total, idAsiento, usuario || null);
-    db.prepare('UPDATE empleados SET activo=0 WHERE id=?').run(empleado.id);
+    db.prepare('UPDATE empleados SET activo=0, fecha_baja=?, tipo_baja=? WHERE id=?').run(fechaBaja, fin.tipo_baja || null, empleado.id);
     return { id_asiento: idAsiento, total, asentado_contable: !!idAsiento };
 }
 

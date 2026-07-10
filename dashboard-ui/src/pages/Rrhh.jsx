@@ -197,7 +197,7 @@ export default function Rrhh() {
 function Liquidaciones({ empleados }) {
   const [sel, setSel] = useState('');
   const [anio, setAnio] = useState(new Date().getFullYear());
-  const [fin, setFin] = useState({ fecha_baja: new Date().toISOString().slice(0, 10), dias_pendientes: 0, despido_injustificado: false });
+  const [fin, setFin] = useState({ fecha_baja: new Date().toISOString().slice(0, 10), dias_pendientes: 0, tipo_baja: 'renuncia' });
   const [prevFin, setPrevFin] = useState(null);
   const empId = sel ? Number(sel) : null;
 
@@ -261,7 +261,13 @@ function Liquidaciones({ empleados }) {
             <TextInput type="date" label="Fecha de baja" value={fin.fecha_baja} onChange={e => setFin({ ...fin, fecha_baja: e.target.value })} />
             <NumberInput label="Días pendientes de pago" min={0} value={fin.dias_pendientes} onChange={v => setFin({ ...fin, dias_pendientes: v || 0 })} />
           </Group>
-          <Checkbox label="Despido injustificado (indemniza 90 días + 20/año)" checked={fin.despido_injustificado} onChange={e => setFin({ ...fin, despido_injustificado: e.currentTarget.checked })} mb="md" />
+          <Select label="Tipo de baja" allowDeselect={false} value={fin.tipo_baja} onChange={v => setFin({ ...fin, tipo_baja: v })} mb="md"
+            data={[
+              { value: 'renuncia', label: 'Renuncia (sin indemnización)' },
+              { value: 'despido_justificado', label: 'Despido justificado (sin indemnización)' },
+              { value: 'despido_injustificado', label: 'Despido injustificado (90 días + 20/año)' },
+              { value: 'jubilacion', label: 'Jubilación (sin indemnización)' },
+            ]} />
           <Group>
             <Button variant="default" onClick={calcularFin} disabled={!empId}>Calcular</Button>
             <Button color="red" onClick={pagarFin} disabled={!prevFin}>Pagar y dar de baja</Button>
