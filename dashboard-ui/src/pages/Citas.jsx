@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, TextInput, Group, Text, Select } from '@mantine/core';
+import { Card, Button, TextInput, Group, Text, Select, SegmentedControl } from '@mantine/core';
 import { CalendarDays } from 'lucide-react';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
+import Calendario from '../components/Calendario';
 
 const ESTATUS_BADGE = { pendiente: 'badge-amarillo', confirmada: 'badge-azul', completada: 'badge-verde', cancelada: 'badge-rojo', no_asistio: 'badge-rojo' };
+const ESTATUS_COLOR = { pendiente: '#eab308', confirmada: '#4aa8ff', completada: 'var(--green)', cancelada: 'var(--red)', no_asistio: 'var(--red)' };
 
 // Agenda del día/semana: el bot agenda solo (módulo Citas), aquí se opera
 // (confirmar/completar/cancelar) y se agenda manual por teléfono.
@@ -14,6 +16,7 @@ export default function Citas() {
   const hoy = new Date().toISOString().slice(0, 10);
   const en7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
   const [rango, setRango] = useState({ desde: hoy, hasta: en7 });
+  const [modo, setModo] = useState('calendario');
   const [nueva, setNueva] = useState({ telefono: '', nombre: '', servicio: '', fecha: hoy, hora: '10:00' });
 
   const { data: citas = [] } = useQuery({
@@ -65,10 +68,19 @@ export default function Citas() {
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header">
             <h3><CalendarDays size={16} strokeWidth={1.75} style={{ verticalAlign: '-3px', marginRight: 7 }} />Agenda</h3>
-            <Text size="xs" c="dimmed">{citas.length} cita{citas.length === 1 ? '' : 's'}</Text>
+            <SegmentedControl size="xs" value={modo} onChange={setModo} data={[{ label: 'Calendario', value: 'calendario' }, { label: 'Lista', value: 'lista' }]} />
           </div>
-          {citas.length === 0 && <div className="empty">Sin citas en el rango — el bot las irá llenando</div>}
-          {Object.entries(porDia).map(([fecha, lista]) => (
+
+          {modo === 'calendario' && (
+            <Calendario
+              eventos={citas.map(c => ({ fecha: c.fecha, hora: c.hora, titulo: c.nombre || c.telefono, sub: c.servicio, color: ESTATUS_COLOR[c.estatus] }))}
+              onRango={(desde, hasta) => setRango({ desde, hasta })}
+              onClickDia={(f) => { setRango({ desde: f, hasta: f }); setModo('lista'); }}
+            />
+          )}
+
+          {modo === 'lista' && citas.length === 0 && <div className="empty">Sin citas en el rango — el bot las irá llenando</div>}
+          {modo === 'lista' && Object.entries(porDia).map(([fecha, lista]) => (
             <div key={fecha} style={{ marginBottom: 16 }}>
               <Text size="sm" fw={700} mb={6}>{fecha === hoy ? 'HOY · ' + fecha : fecha}</Text>
               <div className="table-wrap">

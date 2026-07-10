@@ -15,6 +15,30 @@ module.exports = function almacenRoutes(req, res, p, u, ctx, next) {
     const escritura = permite(sesion.rol, 'almacen');
     if (!lectura) return json(res, { ok: false, error: 'Tu rol no tiene acceso a almacén' }, 403);
 
+    // GET /api/almacen/calendario?desde=&hasta= — mercancía proyectada:
+    // ENTRADAS (preventas por llegar) y SALIDAS (envíos con guía por salir).
+    if (p === '/api/almacen/calendario' && req.method === 'GET') {
+        const sp = new URL(req.url, 'http://x').searchParams;
+        const desde = (sp.get('desde') || new Date().toISOString().slice(0, 8) + '01').slice(0, 10);
+        const hasta = (sp.get('hasta') || new Date(Date.now() + 31 * 86400000).toISOString().slice(0, 10)).slice(0, 10);
+        const entradas = db.prepare(`
+            SELECT pv.fecha_llegada_est AS fecha, COALESCE(pr.name, pv.nombre_preventa) AS titulo, pv.cantidad
+            FROM preventas pv LEFT JOIN productos pr ON pr.id = pv.id_producto
+            WHERE pv.activa = 1 AND pv.fecha_llegada_real IS NULL
+              AND pv.fecha_llegada_est BETWEEN ? AND ?`).all(desde, hasta);
+        const salidas = db.prepare(`
+            SELECT g.fecha_envio_est AS fecha, p.folio AS titulo, p.cliente
+            FROM guias_estafeta g JOIN pedidos p ON p.id_pedido = g.id_pedido
+            WHERE g.fecha_envio_est BETWEEN ? AND ? AND g.fecha_entrega_real IS NULL
+              AND COALESCE(g.estatus_entrega,'') != 'entregada'`).all(desde, hasta);
+        return json(res, {
+            eventos: [
+                ...entradas.map(e => ({ fecha: e.fecha, tipo: 'entrada', titulo: '📥 ' + e.titulo, sub: e.cantidad ? e.cantidad + ' pz' : '' })),
+                ...salidas.map(s => ({ fecha: s.fecha, tipo: 'salida', titulo: '📤 ' + s.titulo, sub: s.cliente || '' })),
+            ],
+        });
+    }
+
     // Inventario en lectura (almacén, compras, administrador+)
     if (p === '/api/almacen/inventario' && req.method === 'GET') {
         const q = ((new URL(req.url, 'http://x')).searchParams.get('q') || '').trim();

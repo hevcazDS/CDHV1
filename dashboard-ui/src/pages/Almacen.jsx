@@ -6,6 +6,7 @@ import InventarioTab from './almacen/InventarioTab';
 import ConteoTab from './almacen/ConteoTab';
 import MovimientosTab from './almacen/MovimientosTab';
 import KardexTab from './almacen/KardexTab';
+import CalendarioTab from './almacen/CalendarioTab';
 
 export default function Almacen() {
   const { user } = useAuth();
@@ -15,6 +16,7 @@ export default function Almacen() {
   const opera = !soloLectura;
   const TABS = [
     { key: 'inventario', label: 'Inventario y ubicaciones', C: InventarioTab },
+    { key: 'calendario', label: 'Calendario de mercancía', C: CalendarioTab },
     ...(opera ? [
       { key: 'conteo', label: 'Conteo físico', C: ConteoTab },
       { key: 'movimientos', label: 'Traslados / Salidas / Entradas', C: MovimientosTab },
