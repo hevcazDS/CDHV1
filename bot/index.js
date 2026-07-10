@@ -932,7 +932,7 @@ client.on('message', async msg => {
         };
         if (!bodyRaw && _MEDIA_MSG[msg.type]) {
             _enProceso.delete(userId);
-            return await sendSafe(client, userId, _MEDIA_MSG[msg.type]);
+            return await sendSafe(userId, _MEDIA_MSG[msg.type]);
         }
 
         // ── 4. PREPROCESSOR DE IMAGEN ─────────────────────────────────────
