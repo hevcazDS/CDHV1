@@ -74,8 +74,14 @@ export default function Metricas() {
     queryKey: ['metricas-abandono-motivos'],
     queryFn: () => api.get('/api/metricas/abandono-motivos').catch(() => []),
   });
+  const { data: canales = [], refetch: refetchCanales } = useQuery({
+    queryKey: ['metricas-canales'],
+    queryFn: () => api.get('/api/metricas/canales').catch(() => []),
+  });
 
-  const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); };
+  const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); refetchCanales(); };
+  const canalLabel = (c) => c === 'directo' ? 'Directo' : c === 'whatsapp' ? 'WhatsApp' : c.startsWith('promo:') ? '🔗 ' + c.slice(6) : c;
+  const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
   const dias = d?.por_dia || [];
   const porEstatus = d?.por_estatus || [];
@@ -294,6 +300,29 @@ export default function Metricas() {
           )}
         </Card>
       </div>
+
+      <Card withBorder radius="md" p="lg" style={{ marginBottom: 16 }}>
+        <Title order={4} mb="md">{txt('📡 Atribución por canal')}</Title>
+        {canales.length === 0 && <div className="empty">Sin datos todavía — se llena con el canal de origen del primer mensaje de cada cliente (WhatsApp o un link promo:CÓDIGO).</div>}
+        {canales.length > 0 && (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Canal</th><th>Clientes</th><th>Pedidos</th><th>Ingresos</th><th>Ticket prom.</th></tr></thead>
+              <tbody>
+                {canales.map((c, i) => (
+                  <tr key={i}>
+                    <td><strong>{canalLabel(c.canal)}</strong></td>
+                    <td>{c.clientes}</td>
+                    <td>{c.pedidos}</td>
+                    <td style={{ fontWeight: 600 }}>{money(c.ingresos)}</td>
+                    <td>{money(c.ticket_promedio)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
       <Card withBorder radius="md" p="lg">
         <Title order={4} mb="md">{txt('📤 Reporte al supervisor')}</Title>

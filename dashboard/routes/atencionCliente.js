@@ -217,6 +217,28 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
         } catch (_) { return json(res, []); }
     }
 
+    // GET /api/metricas/canales — atribución por canal_origen (whatsapp o
+    // promo:CÓDIGO del primer mensaje): clientes, pedidos, ingresos y ticket
+    // por canal. Usa datos YA capturados en clientes.canal_origen.
+    if (p === '/api/metricas/canales' && req.method === 'GET') {
+        try {
+            const sp = new URL(req.url, 'http://x').searchParams;
+            const desde = (sp.get('desde') || '2000-01-01').slice(0, 10);
+            const rows = db.prepare(`
+                SELECT COALESCE(NULLIF(c.canal_origen,''), 'directo') AS canal,
+                       COUNT(DISTINCT c.id) AS clientes,
+                       COUNT(DISTINCT p.id_pedido) AS pedidos,
+                       ROUND(COALESCE(SUM(lp.monto), 0), 2) AS ingresos
+                FROM clientes c
+                LEFT JOIN pedidos p ON p.id_cliente = c.id
+                LEFT JOIN links_pago lp ON lp.id_pedido = p.id_pedido AND lp.estatus='pagado'
+                WHERE date(c.creado_en) >= ?
+                GROUP BY canal ORDER BY ingresos DESC, clientes DESC
+            `).all(desde);
+            return json(res, rows.map(r => ({ ...r, ticket_promedio: r.pedidos ? Math.round((r.ingresos / r.pedidos) * 100) / 100 : 0 })));
+        } catch (_) { return json(res, []); }
+    }
+
     // GET /api/metricas/abandono-motivos — por qué los clientes no terminan
     // su compra (precio/envío/otro), capturado por bot/handlers/abandonoHandler.js.
     // Defensivo: [] si `carritos_abandonados.motivo` todavía no existe.

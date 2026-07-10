@@ -24,6 +24,7 @@ const DEFAULT_OFF = [
     'facturacion_activo',
     'pago_link_activo',
     'recompra_activo',
+    'recordatorio_pago_activo',
     'mesas_activo',
     'citas_activo',
     'llm_activo',

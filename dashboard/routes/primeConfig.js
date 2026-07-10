@@ -109,6 +109,21 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
             GROUP BY COALESCE(p2.cobrado_por, '(sin registrar)') ORDER BY total DESC`).all(desde, hasta);
         return json(res, { desde, hasta, comision_pct: pct, filas: filas.map(f => ({ ...f, comision: Math.round(f.total * pct) / 100 })) });
     }
+    // Comisiones PROPIAS del que cobra (cualquier sesión ve solo las suyas)
+    if (p === '/api/comisiones/mio' && req.method === 'GET') {
+        const ses = requireSession(req, res);
+        if (!ses) return;
+        const sp = new URL(req.url, 'http://x').searchParams;
+        const hoy = new Date().toISOString().slice(0, 10);
+        const desde = (sp.get('desde') || hoy.slice(0, 8) + '01').slice(0, 10);
+        const hasta = (sp.get('hasta') || hoy).slice(0, 10);
+        const pct = parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='comision_pct'").get()?.valor || '0') || 0;
+        const row = db.prepare(`
+            SELECT COUNT(*) ventas, ROUND(COALESCE(SUM(lp.monto), 0), 2) total
+            FROM links_pago lp JOIN pedidos p2 ON p2.id_pedido = lp.id_pedido
+            WHERE lp.estatus='pagado' AND p2.cobrado_por = ? AND date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?`).get(ses.username, desde, hasta);
+        return json(res, { desde, hasta, comision_pct: pct, vendedor: ses.username, ventas: row.ventas || 0, total: row.total || 0, comision: Math.round((row.total || 0) * pct) / 100 });
+    }
     if (p === '/api/comisiones/config' && req.method === 'POST') {
         if (!requireSession(req, res, ['gerente'])) return;
         return readBody(req, body => {

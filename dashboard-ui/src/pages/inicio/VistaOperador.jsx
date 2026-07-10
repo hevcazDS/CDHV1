@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Card } from '@mantine/core';
-import { Wallet, MessageCircle, Headset, ReceiptText, TrendingUp, Package } from 'lucide-react';
+import { Wallet, MessageCircle, Headset, ReceiptText, TrendingUp, Package, BadgeDollarSign } from 'lucide-react';
 import { api } from '../../api';
 import { fmtMoneda, pillEstatus, Kpi, diasSemana } from './comunes';
 import { fdate } from '../../lib/format';
@@ -14,6 +14,7 @@ const GraficaSemana = lazy(() => import('../../components/GraficaSemana'));
 export default function VistaOperador() {
   const { data: stats } = useQuery({ queryKey: ['stats'], queryFn: () => api.get('/api/stats') });
   const { data: corte } = useQuery({ queryKey: ['mi-corte'], queryFn: () => api.get('/api/pos/corte').catch(() => null) });
+  const { data: comi } = useQuery({ queryKey: ['mi-comision'], queryFn: () => api.get('/api/comisiones/mio').catch(() => null) });
   const { data: met } = useQuery({ queryKey: ['metricas'], queryFn: () => api.get('/api/metricas').catch(() => null) });
   const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => api.get('/api/pedidos') });
 
@@ -22,10 +23,15 @@ export default function VistaOperador() {
 
   return (
     <div className="pagina-llena" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div className="kpi-grid6" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+      <div className="kpi-grid6" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq kpi-dark">
           <Kpi Icono={Wallet} color="rgba(255,255,255,0.95)" label="Mis ventas cobradas hoy">{fmtMoneda(corte?.total_sistema)}</Kpi>
         </Card>
+        {comi && comi.comision_pct > 0 && (
+          <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
+            <Kpi Icono={BadgeDollarSign} color="var(--green)" label={`Mi comisión (mes · ${comi.ventas} ventas)`}>{fmtMoneda(comi.comision)}</Kpi>
+          </Card>
+        )}
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
           <Kpi Icono={MessageCircle} color="var(--accent)" label="Chats nuevos hoy">{stats?.chats_hoy ?? 0}</Kpi>
         </Card>

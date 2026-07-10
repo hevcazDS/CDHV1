@@ -681,6 +681,40 @@ function purgarImagenesAntiguas() {
     if (borradas) log.info(`Purgadas ${borradas} imágenes de clientes ya respaldadas (>30 días)`);
 }
 
+// ── Recordatorio de link de pago por vencer (cierre asíncrono) ───────────
+// El cliente YA hizo su pedido y tiene un link sin pagar a punto de expirar;
+// se le recuerda UNA vez en las últimas ~12h de validez. Pasa por la cola
+// normal (respeta anti-baneo y "el bot no escribe primero"). Módulo
+// recordatorio_pago_activo (default off).
+function checkLinksPagoPorVencer() {
+    if (db.prepare("SELECT valor FROM configuracion WHERE clave='recordatorio_pago_activo'").get()?.valor !== '1') return 0;
+    const filas = db.prepare(`
+        SELECT lp.id, lp.id_pedido, lp.url_link, lp.monto, p.folio, c.telefono, c.nombre
+        FROM links_pago lp
+        JOIN pedidos p  ON p.id_pedido = lp.id_pedido
+        JOIN clientes c ON c.id = p.id_cliente
+        WHERE lp.estatus IN ('generado','pendiente')
+          AND lp.url_link IS NOT NULL
+          AND lp.fecha_expiracion IS NOT NULL
+          AND datetime(lp.fecha_expiracion) > datetime('now','localtime')
+          AND datetime(lp.fecha_expiracion, '-12 hours') <= datetime('now','localtime')
+          AND p.estatus NOT IN ('cancelado','entregado')
+          AND NOT EXISTS (
+              SELECT 1 FROM cola_notificaciones cn WHERE cn.asunto = 'Link de pago por vencer ' || lp.id
+          )
+    `).all();
+    let total = 0;
+    for (const f of filas) {
+        if (!f.telefono || !f.url_link) continue;
+        const nombre = (f.nombre || '').split(' ')[0] || 'Hola';
+        const cuerpo = '⏰ ' + nombre + ', tu link de pago del pedido *' + (f.folio || f.id_pedido) + '* está por vencer.\n\nSi aún quieres completar tu compra ($' + Number(f.monto || 0).toFixed(2) + '), aquí lo tienes:\n' + f.url_link + '\n\nSi ya pagaste, ignóralo. 🙌';
+        try { _insertCola(f.telefono, 'Link de pago por vencer ' + f.id, cuerpo, 'link_pago_por_vencer'); total++; }
+        catch (e) { log.debug('No se pudo encolar recordatorio de link: ' + e.message); }
+    }
+    if (total > 0) log.info('Links de pago por vencer: ' + total + ' recordatorios');
+    return total;
+}
+
 async function runAll() {
     try {
         // Solo ejecutar checks costosos si hay datos relevantes
@@ -705,6 +739,7 @@ async function runAll() {
         _runCheck(checkStockMinimo, 'checkStockMinimo');
         _runCheck(checkClientesDormidos, 'checkClientesDormidos');
         _runCheck(checkRecompraConsumibles, 'checkRecompraConsumibles');
+        _runCheck(checkLinksPagoPorVencer, 'checkLinksPagoPorVencer');
         _runCheck(checkBackupReciente, 'checkBackupReciente');
         _runCheck(purgarImagenesAntiguas, 'purgarImagenesAntiguas');
         _runCheck(actualizarLeadScores, 'actualizarLeadScores');
