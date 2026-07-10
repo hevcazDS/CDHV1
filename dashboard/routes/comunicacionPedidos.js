@@ -285,6 +285,8 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
             try { db.prepare("INSERT INTO links_pago (id_pedido, url_link, token_externo, monto, moneda, estatus) VALUES (?,?,?,?, 'MXN','generado')").run(idP, url, referencia, monto); } catch (_) {}
             const cuerpo = 'Para pagar tu pedido *' + (ped.folio || '#' + idP) + '* ($' + Number(monto).toFixed(2) + '):\n\n' + url + '\n\nReferencia: *' + referencia + '*';
             db.prepare("INSERT INTO cola_notificaciones (tipo, destinatario, asunto, cuerpo, estatus) VALUES ('whatsapp', ?, 'Link de pago', ?, 'pendiente')").run(tel, cuerpo);
+            // Embudo (CRO): distingue "link enviado" de "link pagado"
+            try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('link_pago_enviado','whatsapp',?,?)").run(String(Number(monto).toFixed(2)), tel); } catch (_) {}
             return json(res, { ok: true, url, referencia });
         } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
     }

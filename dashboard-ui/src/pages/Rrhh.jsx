@@ -182,6 +182,7 @@ export default function Rrhh() {
               </tbody>
             </table>
           </div>
+          <Text size="xs" c="dimmed" mt="sm">⚠️ ISR/IMSS aproximados para gestión interna — el cálculo fiscal definitivo y el CFDI de nómina los hace tu contador/PAC.</Text>
         </Card>
       )}
 

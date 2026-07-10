@@ -9,7 +9,7 @@
 'use strict';
 const db = require('../db_connection');
 const sessionManager = require('../sessionManager');
-const { S, getValor, vocab, moduloActivo } = require('./_shared');
+const { S, getValor, vocab, moduloActivo, logEvento } = require('./_shared');
 const log = require('../logger');
 
 const STEPS = [S.CITA_FECHA, S.CITA_HORA, S.CITA_CONFIRMA];
@@ -108,6 +108,7 @@ async function handle(ctx) {
         })();
         db.prepare('INSERT INTO citas (telefono, nombre, servicio, fecha, hora) VALUES (?,?,?,?,?)')
           .run(tel, nombre, data.cita_servicio || null, data.cita_fecha, data.cita_hora);
+        logEvento('cita_agendada', (data.cita_fecha || '') + ' ' + (data.cita_hora || '') + (data.cita_servicio ? ' · ' + data.cita_servicio : ''), tel);
         log.info(`Cita agendada ${data.cita_fecha} ${data.cita_hora}`, tel);
         sessionManager.updateSession(userId, S.MENU, {});
         const V = vocab();

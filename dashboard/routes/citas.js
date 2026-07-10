@@ -43,10 +43,17 @@ module.exports = function citasRoutes(req, res, p, u, ctx, next) {
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');
-                const cita = db.prepare('SELECT id FROM citas WHERE id=?').get(id);
+                const cita = db.prepare('SELECT id, telefono, servicio FROM citas WHERE id=?').get(id);
                 if (!cita) return json(res, { ok: false, error: 'Cita no encontrada' }, 404);
                 if (d.estatus && ['pendiente', 'confirmada', 'completada', 'cancelada', 'no_asistio'].includes(d.estatus)) {
                     db.prepare('UPDATE citas SET estatus=? WHERE id=?').run(d.estatus, id);
+                    // Embudo de citas (CRO): registra el desenlace para medir no-show
+                    if (d.estatus === 'completada' || d.estatus === 'no_asistio') {
+                        try {
+                            db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES (?, 'whatsapp', ?, ?)")
+                                .run(d.estatus === 'completada' ? 'cita_cumplida' : 'cita_no_asistio', cita.servicio || String(id), cita.telefono || null);
+                        } catch (_) {}
+                    }
                 }
                 if (/^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '') && /^\d{2}:\d{2}$/.test(d.hora || '')) {
                     db.prepare('UPDATE citas SET fecha=?, hora=?, recordatorio_enviado=0 WHERE id=?').run(d.fecha, d.hora, id);

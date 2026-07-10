@@ -75,9 +75,33 @@ function cifrarSiAplica(buf) {
         } else if (modo === 'alto') {
             if (process.env.BACKUP_KEY_HEX) key = Buffer.from(process.env.BACKUP_KEY_HEX, 'hex');
         }
-        if (!key) { console.warn('[backup] cifrado ' + modo + ' pero sin clave disponible — se envía SIN cifrar'); return { buf, ext: '.gz' }; }
+        // FAIL-CLOSED: si el usuario pidió cifrado y no hay clave, NO se envía
+        // en claro (la BD trae datos personales). En modo 'alto' la clave no
+        // se guarda a propósito, así que el respaldo automático NO puede
+        // cifrar — hay que usar el respaldo manual del panel (donde se teclea
+        // la maestra) o cambiar a modo 'bajo'.
+        if (!key) {
+            const motivo = 'cifrado "' + modo + '" activo pero sin clave disponible'
+                + (modo === 'alto' ? ' — el modo alto no guarda la clave; el respaldo automático no puede cifrar. Usa el respaldo manual del panel o cambia a modo bajo.' : ' (revisa backup_key_wrapped / .instancia_secret).');
+            return { omitir: true, motivo };
+        }
         return { buf: cb.cifrar(buf, key), ext: '.gz.enc' };
-    } catch (e) { console.warn('[backup] no se pudo cifrar: ' + e.message); return { buf, ext: '.gz' }; }
+    } catch (e) { return { omitir: true, motivo: 'error al cifrar el respaldo: ' + e.message }; }
+}
+
+// Encola un aviso (dedup por día) cuando el respaldo se OMITE por no poder
+// cifrar — para que Prime se entere el mismo día, no solo por el aviso de
+// >36h de checkBackupReciente.
+function _alertarCifradoBackup(motivo) {
+    try {
+        const db = require('../bot/db_connection');
+        const ya = db.prepare("SELECT id FROM cola_emails WHERE tipo='alerta_cifrado_backup' AND date(creada_en)=date('now','localtime') LIMIT 1").get();
+        if (ya) return;
+        const dest = process.env.EMAIL_PERSONAL || process.env.EMAIL_CEDIS || process.env.EMAIL_USER;
+        if (!dest) { console.error('[backup] sin EMAIL_* para alertar del cifrado omitido'); return; }
+        db.prepare("INSERT INTO cola_emails (destinatarios, asunto, html_body, estatus, tipo) VALUES (?, 'Respaldo NO enviado: no se pudo cifrar', ?, 'pendiente', 'alerta_cifrado_backup')")
+            .run(JSON.stringify([dest]), '<p>El respaldo automático de la base de datos <b>no se envió</b> porque el cifrado está activo pero no había clave disponible.</p><p>' + motivo + '</p>');
+    } catch (e) { console.warn('[backup] no se pudo encolar alerta de cifrado: ' + e.message); }
 }
 
 // ── Comprimir un archivo a gzip ────────────────────────────────────
@@ -224,7 +248,19 @@ async function runBackupDB() {
     if (!fs.existsSync(DB_PATH)) { console.error('[backup] DB no encontrada:', DB_PATH); return false; }
     try {
         const _gz = await comprimirArchivo(DB_PATH);
-        const { buf, ext } = cifrarSiAplica(_gz);
+        const cif = cifrarSiAplica(_gz);
+        if (cif.omitir) {
+            // Fail-closed: no mandamos la BD en claro. Registramos el fallo
+            // (checkBackupReciente alertará por >36h) y encolamos aviso YA.
+            console.error('[backup] DB NO enviada (cifrado requerido): ' + cif.motivo);
+            _alertarCifradoBackup(cif.motivo);
+            const registro = cargarRegistro();
+            registro.ultimo_backup_db = new Date().toISOString();
+            registro.ultimo_backup_db_ok = false;
+            guardarRegistro(registro);
+            return false;
+        }
+        const { buf, ext } = cif;
         console.log('[backup] DB comprimida' + (ext === '.gz.enc' ? ' + CIFRADA' : '') + ': ' + (buf.length / 1024).toFixed(0) + ' KB');
         const ok = await enviarBackup(
             [{ nombre: 'jugueteria_' + fecha + '.db' + ext, data: buf }],

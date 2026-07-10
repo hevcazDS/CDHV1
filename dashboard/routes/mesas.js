@@ -42,6 +42,7 @@ module.exports = function mesasRoutes(req, res, p, u, ctx, next) {
                     return json(res, { ok: false, error: 'Esa mesa ya está abierta' }, 400);
                 }
                 const r = db.prepare('INSERT INTO mesas (numero) VALUES (?)').run(numero);
+                try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor) VALUES ('mesa_abierta','mostrador',?)").run(String(numero)); } catch (_) {}
                 return json(res, { ok: true, id: r.lastInsertRowid, numero });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });
@@ -116,6 +117,7 @@ module.exports = function mesasRoutes(req, res, p, u, ctx, next) {
                     db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
                       .run(pedidoRowid, met ? met.id : null, subtotal);
                     db.prepare("UPDATE mesas SET estatus='cobrada', id_pedido=?, cerrada_en=datetime('now','localtime') WHERE id=?").run(pedidoRowid, idMesa);
+                    try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor) VALUES ('mesa_cobrada','mostrador',?)").run(String(subtotal)); } catch (_) {}
                     return { pedidoRowid, subtotal, folio };
                 })();
                 return json(res, { ok: true, folio: r.folio, total: r.subtotal });
