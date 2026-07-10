@@ -14,7 +14,7 @@ Los datos base ya se capturan salvo donde se indique "requiere schema".
 | A2 | ✅ **HECHO** — Flujo de caja proyectado | ¿Tendré dinero aunque el P&L dé positivo? | Pestaña ERP "Flujo de caja" + `/api/erp/flujo-caja` (por cobrar fiado − por pagar, proyección 30/60/90d). commit e4041f0 |
 | A3 | ✅ **HECHO** — Rentabilidad por cliente | ¿Quién es rentable y quién "tóxico"? | Pestaña ERP + `/api/erp/rentabilidad-clientes` (margen + adeudo de fiado). commit e29455c |
 | A4 | ✅ **HECHO** — Rentabilidad por vendedor | ¿Vende con margen sano o deja fiado incobrable? | Pestaña ERP + `/api/erp/rentabilidad-vendedores` (margen, comisión, fiado sin cobrar). commit d158cbf |
-| A5 | **Ciclo de conversión de efectivo + ratios de liquidez** | ¿Cuántos días entre pagar al proveedor y cobrar al cliente? | Días inventario + días CxC − días CxP. Razón corriente/ácida. ~1 día |
+| A5 | ✅ **HECHO** — Ciclo de conversión + ratios | ¿Cuántos días entre pagar y cobrar? ¿Liquidez? | Tarjeta "Salud financiera" (Flujo de caja) + `/api/erp/salud-financiera` (CCC, razón corriente, prueba ácida). commit 28c8d1e |
 
 Notas:
 - El **aging de CxC** del tablero ya existe; A3 es "aging + margen por cliente".
@@ -27,8 +27,8 @@ Notas:
 | # | Pendiente | Riesgo si falta | Esfuerzo |
 |---|-----------|-----------------|----------|
 | B1 | **CFDI timbrado vía PAC** (nómina y facturación) | Gasto no deducible; multa por no timbrar. Hoy solo hay "comprobante con datos fiscales + folio", NO CFDI. | Alto (integrar PAC: Interfactura/Facturama/etc.) |
-| B2 | **IMSS patronal** (~17–20% aparte de la cuota obrera 2.775%) | Pasivo patronal no reflejado; recargos retroactivos. | Medio |
-| B3 | **Prima dominical (25%) y séptimo día** | Demanda laboral; auditoría IMSS. Hoy `nominaService` no los calcula. | Medio (requiere marcar días domingo/descanso) |
+| B2 | ✅ **HECHO** — IMSS patronal | Refleja el costo patronal. | ~17.5% (config `imss_patronal_pct`), columna en nómina. commit 26d3f37 |
+| B3 | ⚠️ **PARCIAL** — Prima dominical HECHA; falta séptimo día | Demanda laboral; auditoría IMSS. | Prima dominical 25% desde horarios (commit 26d3f37). Séptimo día requiere modelar el día de descanso obligatorio. |
 | B4 | **Incapacidades IMSS** | Antigüedad/finiquito mal calculados; subsidio no reflejado. | Medio (requiere schema: tabla incapacidades) |
 | B5 | ✅ **HECHO** — Tipo de baja | Indemniza según causa (LFT). | Select renuncia/despido just./injust./jubilación + `tipo_baja`/`fecha_baja` (0041). commit 2f529f0 |
 | B6 | ✅ **HECHO** — Config de régimen fiscal | Documenta el régimen y la congruencia del IVA base flujo de efectivo. | `/api/regimen-fiscal` + tarjeta Prime > General. commit d158cbf |
@@ -54,9 +54,9 @@ citas/mesas/link/recompra/crédito), cartera de fiado. Pendientes menores:
 
 ---
 
-**Estado (actualizado):** HECHOS A1, A2, A3, A4, B5, B6. PENDIENTES:
-A5 (ciclo de conversión de efectivo + ratios), B1 (CFDI/PAC — el más grande),
-B2 (IMSS patronal), B3 (prima dominical/séptimo día), B4 (incapacidades),
-B7 (constancia imprimible del crédito; ya existe `fiado_vence_en`).
+**Estado (actualizado):** HECHOS A1, A2, A3, A4, A5, B2, B5, B6 y la prima
+dominical de B3. La capa de **dirección está completa** (A1–A5). PENDIENTES:
+B1 (CFDI/PAC — el más grande, integración externa), B3-séptimo día,
+B4 (incapacidades), B7 (constancia imprimible del crédito).
 
 _Generado del 2º comité multidisciplinario sobre v1.08._
