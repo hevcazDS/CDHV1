@@ -11,9 +11,9 @@ Los datos base ya se capturan salvo donde se indique "requiere schema".
 | # | Pendiente | Qué responde | Datos / esfuerzo |
 |---|-----------|--------------|------------------|
 | A1 | ✅ **HECHO** — Punto de equilibrio | ¿Cuánto debo vender para no perder? | En el tablero (commit e29455c): ventas de equilibrio + holgura. |
-| A2 | **Flujo de caja proyectado (30/60/90d)** | ¿Tendré dinero para renta/nómina aunque el P&L dé positivo? | Entradas: `links_pago` por cobrar + fiado `fiado_vence_en`. Salidas: `cuentas_pagar.vence_en` + nómina. ~2 días |
+| A2 | ✅ **HECHO** — Flujo de caja proyectado | ¿Tendré dinero aunque el P&L dé positivo? | Pestaña ERP "Flujo de caja" + `/api/erp/flujo-caja` (por cobrar fiado − por pagar, proyección 30/60/90d). commit e4041f0 |
 | A3 | ✅ **HECHO** — Rentabilidad por cliente | ¿Quién es rentable y quién "tóxico"? | Pestaña ERP + `/api/erp/rentabilidad-clientes` (margen + adeudo de fiado). commit e29455c |
-| A4 | **Rentabilidad por vendedor** (más allá de comisión) | ¿Vende con margen sano o deja devoluciones/fiado incobrable? | `cobrado_por` × margen − devoluciones − fiado no cobrado. ~1 día |
+| A4 | ✅ **HECHO** — Rentabilidad por vendedor | ¿Vende con margen sano o deja fiado incobrable? | Pestaña ERP + `/api/erp/rentabilidad-vendedores` (margen, comisión, fiado sin cobrar). commit d158cbf |
 | A5 | **Ciclo de conversión de efectivo + ratios de liquidez** | ¿Cuántos días entre pagar al proveedor y cobrar al cliente? | Días inventario + días CxC − días CxP. Razón corriente/ácida. ~1 día |
 
 Notas:
@@ -31,7 +31,7 @@ Notas:
 | B3 | **Prima dominical (25%) y séptimo día** | Demanda laboral; auditoría IMSS. Hoy `nominaService` no los calcula. | Medio (requiere marcar días domingo/descanso) |
 | B4 | **Incapacidades IMSS** | Antigüedad/finiquito mal calculados; subsidio no reflejado. | Medio (requiere schema: tabla incapacidades) |
 | B5 | ✅ **HECHO** — Tipo de baja | Indemniza según causa (LFT). | Select renuncia/despido just./injust./jubilación + `tipo_baja`/`fecha_baja` (0041). commit 2f529f0 |
-| B6 | **Config de régimen fiscal** (RESICO / general / PF) + congruencia | El sistema calcula sin saber el régimen; asientos podrían no ser congruentes ante el SAT. | Bajo (config `regimen_fiscal` en Prime > General) |
+| B6 | ✅ **HECHO** — Config de régimen fiscal | Documenta el régimen y la congruencia del IVA base flujo de efectivo. | `/api/regimen-fiscal` + tarjeta Prime > General. commit d158cbf |
 | B7 | **Contrato/términos del crédito (fiado)** — PARCIAL | Sin documento con plazo/términos, la deuda es difícil de cobrar judicialmente. | Ya hay `fiado_vence_en` (0039); falta la constancia imprimible con términos. |
 
 Notas:
@@ -54,6 +54,9 @@ citas/mesas/link/recompra/crédito), cartera de fiado. Pendientes menores:
 
 ---
 
-_Generado del 2º comité multidisciplinario sobre v1.08. Prioridad sugerida:
-B5/B6/B7 (baratos, reducen riesgo legal) → A1/A3 (decisiones de dirección) →
-B2/B3 (nómina fiscal) → A2 (flujo de caja) → B1 (CFDI/PAC, el más grande)._
+**Estado (actualizado):** HECHOS A1, A2, A3, A4, B5, B6. PENDIENTES:
+A5 (ciclo de conversión de efectivo + ratios), B1 (CFDI/PAC — el más grande),
+B2 (IMSS patronal), B3 (prima dominical/séptimo día), B4 (incapacidades),
+B7 (constancia imprimible del crédito; ya existe `fiado_vence_en`).
+
+_Generado del 2º comité multidisciplinario sobre v1.08._
