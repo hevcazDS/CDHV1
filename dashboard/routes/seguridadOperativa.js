@@ -180,7 +180,10 @@ module.exports = function seguridadOperativaRoutes(req, res, p, u, ctx, next) {
                 if (!yo || hashPassword(String(d.password || ''), yo.salt) !== yo.password_hash) {
                     return json(res, { ok: false, error: 'Contrasena de Prime incorrecta' }, 403);
                 }
-                let blob = Buffer.from(String(d.archivo_base64 || ''), 'base64');
+                // Anti-DoS: tope de 400 MB en el base64 ANTES de decodificar
+                const _b64 = String(d.archivo_base64 || '');
+                if (_b64.length > 400 * 1024 * 1024) return json(res, { ok: false, error: 'Archivo demasiado grande (>300 MB de BD)' }, 413);
+                let blob = Buffer.from(_b64, 'base64');
                 if (blob.length < 32) return json(res, { ok: false, error: 'Archivo vacio o invalido' }, 400);
                 const zlib = require('zlib');
                 let gz;
@@ -205,7 +208,23 @@ module.exports = function seguridadOperativaRoutes(req, res, p, u, ctx, next) {
                     return json(res, { ok: false, error: 'El archivo no es una base de datos SQLite valida' }, 400);
                 }
                 const DB_PATH = process.env.DB_PATH || require('path').join(__dirname, '..', '..', 'bot', 'jugueteria.db');
-                require('fs').writeFileSync(DB_PATH + '.restore', raw);
+                // Validar la integridad real del SQLite antes de dejarlo en staging
+                const _tmp = DB_PATH + '.verify';
+                require('fs').writeFileSync(_tmp, raw);
+                try {
+                    const Database = require('better-sqlite3');
+                    const vdb = new Database(_tmp, { readonly: true });
+                    const ok = vdb.prepare('PRAGMA integrity_check').get();
+                    vdb.close();
+                    if (!ok || String(Object.values(ok)[0]).toLowerCase() !== 'ok') {
+                        require('fs').unlinkSync(_tmp);
+                        return json(res, { ok: false, error: 'La base de datos está corrupta (integrity_check falló)' }, 400);
+                    }
+                } catch (ve) {
+                    try { require('fs').unlinkSync(_tmp); } catch (_) {}
+                    return json(res, { ok: false, error: 'No es una base de datos SQLite abrible: ' + ve.message }, 400);
+                }
+                require('fs').renameSync(_tmp, DB_PATH + '.restore');
                 require('../../services/configAudit').logCambio(db, 'restauracion_bd', new Date().toISOString(), sesR.username);
                 return json(res, { ok: true, msg: 'Respaldo validado (' + (raw.length / 1024 / 1024).toFixed(1) + ' MB). Reinicia el sistema para aplicarlo; el original se guarda como respaldo.', requiere_reinicio: true });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }

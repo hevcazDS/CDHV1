@@ -67,6 +67,8 @@ export default function App() {
   }
 
   return (
+    <>
+    <UiHost />
     <Suspense fallback={<Center style={{ minHeight: '60vh' }}><Loader /></Center>}>
     <Routes>
       <Route element={<Layout />}>

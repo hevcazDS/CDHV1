@@ -19,10 +19,15 @@ module.exports = function mesasRoutes(req, res, p, u, ctx, next) {
 
     // GET /api/mesas — mesas abiertas con sus items y total
     if (p === '/api/mesas' && req.method === 'GET') {
+        // Una mesa puede tener varios items; traigo mesas + items en 2 queries
+        // (no N+1: un solo SELECT de items de TODAS las mesas abiertas).
         const mesas = db.prepare("SELECT * FROM mesas WHERE estatus='abierta' ORDER BY numero").all();
-        const items = db.prepare('SELECT * FROM mesa_items WHERE id_mesa=? ORDER BY id');
+        if (!mesas.length) return json(res, []);
+        const ids = mesas.map(m => m.id);
+        const items = db.prepare(`SELECT * FROM mesa_items WHERE id_mesa IN (${ids.map(() => '?').join(',')}) ORDER BY id`).all(...ids);
+        const porMesa = items.reduce((m, i) => ((m[i.id_mesa] = m[i.id_mesa] || []).push(i), m), {});
         return json(res, mesas.map(m => {
-            const its = items.all(m.id);
+            const its = porMesa[m.id] || [];
             return { ...m, items: its, total: Math.round(its.reduce((s, i) => s + i.precio * i.cantidad, 0) * 100) / 100 };
         }));
     }

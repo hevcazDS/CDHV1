@@ -269,6 +269,8 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     if (req.method === 'POST' && p.match(/^\/api\/pagos\/\d+\/enviar-link$/)) {
         const sesL = requireSession(req, res);
         if (!sesL) return;
+        const { permite } = require('../permisos');
+        if (!permite(sesL.rol, 'pos') && !permite(sesL.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso para enviar links de pago' }, 403);
         const idP = parseInt(p.split('/')[3]);
         const pagoLink = require('../../services/pagoLinkService');
         if (!pagoLink.pagoLinkActivo()) return json(res, { ok: false, error: 'Activa el módulo "Link de pago" en Módulos' }, 400);
