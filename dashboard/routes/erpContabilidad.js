@@ -8,7 +8,7 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, requireSession } = ctx;
     if (!p.startsWith('/api/erp/')) return next();
     if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')
-        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos') || p.startsWith('/api/erp/rentabilidad-clientes')) {
+        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos') || p.startsWith('/api/erp/rentabilidad-clientes') || p.startsWith('/api/erp/rentabilidad-vendedores')) {
         const ses = requireSession(req, res);
         if (!ses) return;
         if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
@@ -260,6 +260,34 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
             filas.forEach(f => { f.adeudo_fiado = mapDeuda[f.id_cliente] || 0; });
         } catch (_) {}
         return json(res, { desde, hasta, clientes: filas });
+    }
+
+    // GET /api/erp/rentabilidad-vendedores — más allá de la comisión: quién
+    // vende con margen sano vs quién deja fiado sin cobrar. Por cobrado_por.
+    if (p === '/api/erp/rentabilidad-vendedores' && req.method === 'GET') {
+        const { desde, hasta } = _rango();
+        let filas = [];
+        try {
+            const pct = parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='comision_pct'").get()?.valor || '0') || 0;
+            filas = db.prepare(`
+                SELECT p2.cobrado_por AS vendedor,
+                       COUNT(DISTINCT p2.id_pedido) AS pedidos,
+                       ROUND(SUM(d.precio_unitario * d.cantidad), 2) AS ventas,
+                       ROUND(SUM(COALESCE(pr.costo, 0) * d.cantidad), 2) AS costo
+                FROM pedido_detalle d
+                JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
+                JOIN productos pr ON pr.id = d.id_producto
+                JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
+                WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ? AND p2.cobrado_por IS NOT NULL
+                GROUP BY p2.cobrado_por
+                ORDER BY (SUM(d.precio_unitario * d.cantidad) - SUM(COALESCE(pr.costo,0) * d.cantidad)) DESC`).all(desde, hasta)
+                .map(r => ({ ...r, margen: r2(r.ventas - r.costo), margen_pct: r.ventas ? r2((r.ventas - r.costo) / r.ventas * 100) : 0, comision: r2(r.ventas * pct / 100) }));
+            // Fiado pendiente que dejó cada vendedor (a_credito sin cobrar)
+            const fiado = db.prepare("SELECT p.cobrado_por, ROUND(SUM(lp.monto),2) fiado FROM pedidos p JOIN links_pago lp ON lp.id_pedido=p.id_pedido AND lp.estatus='generado' WHERE p.a_credito=1 AND p.cobrado_por IS NOT NULL GROUP BY p.cobrado_por").all();
+            const mapF = {}; fiado.forEach(x => { mapF[x.cobrado_por] = x.fiado; });
+            filas.forEach(f => { f.fiado_pendiente = mapF[f.vendedor] || 0; });
+        } catch (_) {}
+        return json(res, { desde, hasta, comision_pct: parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='comision_pct'").get()?.valor || '0') || 0, vendedores: filas });
     }
 
     // Registro de GASTOS directos (renta, luz, papelería) → asiento 601

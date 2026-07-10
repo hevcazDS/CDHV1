@@ -10,6 +10,7 @@ import TableroTab from './erp/TableroTab';
 import FacturacionTab from './erp/FacturacionTab';
 import VentasProductoTab from './erp/VentasProductoTab';
 import RentabilidadClientesTab from './erp/RentabilidadClientesTab';
+import RentabilidadVendedoresTab from './erp/RentabilidadVendedoresTab';
 
 const TABS = [
   { key: 'tablero', label: 'Tablero de dirección', Componente: TableroTab },
@@ -20,6 +21,7 @@ const TABS = [
   { key: 'gastos', label: 'Gastos e impuestos', Componente: GastosImpuestosTab },
   { key: 'ventas-prod', label: 'Ventas por producto', Componente: VentasProductoTab },
   { key: 'rent-clientes', label: 'Rentabilidad por cliente', Componente: RentabilidadClientesTab },
+  { key: 'rent-vend', label: 'Rentabilidad por vendedor', Componente: RentabilidadVendedoresTab },
   { key: 'facturacion', label: 'Facturación pendiente', Componente: FacturacionTab },
   { key: 'rastro', label: 'Rastro de documento', Componente: RastroTab },
 ];

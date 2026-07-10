@@ -339,6 +339,28 @@ module.exports = function primeConfigRoutes(req, res, p, u, ctx, next) {
         });
     }
 
+    // GET/PUT /api/regimen-fiscal — régimen del negocio (solo referencia +
+    // congruencia: el IVA base flujo de efectivo aplica a RESICO/PF). Prime.
+    if (p === '/api/regimen-fiscal' && req.method === 'GET') {
+        if (!requireSession(req, res)) return;
+        const r = db.prepare("SELECT valor FROM configuracion WHERE clave='regimen_fiscal' LIMIT 1").get();
+        return json(res, { regimen_fiscal: r ? r.valor : null });
+    }
+    if (p === '/api/regimen-fiscal' && req.method === 'PUT') {
+        const _sesRF = requireSession(req, res, ['prime']);
+        if (!_sesRF) return;
+        return readBody(req, body => {
+            try {
+                const v = String(JSON.parse(body || '{}').regimen_fiscal || '').trim();
+                const validos = ['resico', 'persona_fisica', 'persona_moral', 'otro'];
+                if (!validos.includes(v)) return json(res, { ok: false, error: 'Régimen inválido' }, 400);
+                require('../../services/configAudit').logCambio(db, 'regimen_fiscal', v, _sesRF.username);
+                db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('regimen_fiscal', ?, datetime('now','localtime'))").run(v);
+                return json(res, { ok: true, regimen_fiscal: v });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        });
+    }
+
     // GET/PUT /api/prime/sucursal-facturacion-default — qué sucursal de la
     // tabla `sucursales` se usa como default de facturación: Prime > General
     // la elige una vez (Select); Fase 3 la usa en dos lugares -- el modal
