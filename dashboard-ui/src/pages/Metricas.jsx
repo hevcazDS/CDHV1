@@ -78,8 +78,12 @@ export default function Metricas() {
     queryKey: ['metricas-canales'],
     queryFn: () => api.get('/api/metricas/canales').catch(() => []),
   });
+  const { data: oper, refetch: refetchOper } = useQuery({
+    queryKey: ['metricas-operacion'],
+    queryFn: () => api.get('/api/metricas/operacion').catch(() => null),
+  });
 
-  const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); refetchCanales(); };
+  const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); refetchCanales(); refetchOper(); };
   const canalLabel = (c) => c === 'directo' ? 'Directo' : c === 'whatsapp' ? 'WhatsApp' : c.startsWith('promo:') ? '🔗 ' + c.slice(6) : c;
   const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
@@ -300,6 +304,39 @@ export default function Metricas() {
           )}
         </Card>
       </div>
+
+      {oper && (
+        <Card withBorder radius="md" p="lg" style={{ marginBottom: 16 }}>
+          <Title order={4} mb="md">{txt('🧭 Embudos operativos (30 días)')}</Title>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+            <div>
+              <Text size="xs" c="dimmed" fw={600}>Citas</Text>
+              <Text size="sm">Agendadas: <strong>{oper.citas.agendadas}</strong> · Cumplidas: <strong>{oper.citas.cumplidas}</strong></Text>
+              <Text size="sm" c={oper.citas.tasa_no_show_pct > 20 ? 'red' : undefined}>No-show: <strong>{oper.citas.tasa_no_show_pct ?? '—'}%</strong> ({oper.citas.no_asistio})</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" fw={600}>Mesas</Text>
+              <Text size="sm">Abiertas: <strong>{oper.mesas.abiertas}</strong> · Cobradas: <strong>{oper.mesas.cobradas}</strong></Text>
+              <Text size="sm">Venta: <strong>${Number(oper.mesas.venta).toLocaleString('es-MX')}</strong> · Ticket: <strong>${Number(oper.mesas.ticket_promedio).toLocaleString('es-MX')}</strong></Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" fw={600}>Link de pago</Text>
+              <Text size="sm">Enviados: <strong>{oper.link_pago.enviados}</strong></Text>
+              <Text size="sm">Tasa de pago: <strong>{oper.link_pago.tasa_pago_pct ?? '—'}%</strong> <Text span size="xs" c="dimmed">(aprox)</Text></Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" fw={600}>Recompra</Text>
+              <Text size="sm">Convertidas: <strong>{oper.recompra.convertidas}</strong></Text>
+              <Text size="sm">Monto: <strong>${Number(oper.recompra.monto).toLocaleString('es-MX')}</strong></Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" fw={600}>Ventas a crédito</Text>
+              <Text size="sm">Fiados: <strong>{oper.credito.ventas}</strong></Text>
+              <Text size="sm">Monto: <strong>${Number(oper.credito.monto).toLocaleString('es-MX')}</strong></Text>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card withBorder radius="md" p="lg" style={{ marginBottom: 16 }}>
         <Title order={4} mb="md">{txt('📡 Atribución por canal')}</Title>

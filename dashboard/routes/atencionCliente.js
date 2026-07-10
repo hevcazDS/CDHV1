@@ -239,6 +239,34 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
         } catch (_) { return json(res, []); }
     }
 
+    // GET /api/metricas/operacion — embudos operativos que hasta ahora se
+    // capturaban en log_eventos pero nadie veía: citas (no-show), mesas
+    // (ocupación/ticket), link de pago (enviado→pagado) y recompra (ROI).
+    if (p === '/api/metricas/operacion' && req.method === 'GET') {
+        try {
+            const sp = new URL(req.url, 'http://x').searchParams;
+            const desde = (sp.get('desde') || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)).slice(0, 10);
+            const ev = db.prepare(`
+                SELECT tipo_evento, COUNT(*) n, COALESCE(SUM(CAST(valor AS REAL)), 0) monto
+                FROM log_eventos
+                WHERE date(registrado_en) >= ?
+                  AND tipo_evento IN ('cita_agendada','cita_cumplida','cita_no_asistio','mesa_abierta','mesa_cobrada','link_pago_enviado','pago_confirmado','recompra_convertida','venta_credito')
+                GROUP BY tipo_evento`).all(desde);
+            const g = {}; ev.forEach(r => { g[r.tipo_evento] = r; });
+            const n = (k) => g[k]?.n || 0, m = (k) => Math.round((g[k]?.monto || 0) * 100) / 100;
+            const pct = (a, b) => b > 0 ? Math.round((a / b) * 1000) / 10 : null;
+            const citasCerradas = n('cita_cumplida') + n('cita_no_asistio');
+            return json(res, {
+                desde,
+                citas: { agendadas: n('cita_agendada'), cumplidas: n('cita_cumplida'), no_asistio: n('cita_no_asistio'), tasa_no_show_pct: pct(n('cita_no_asistio'), citasCerradas) },
+                mesas: { abiertas: n('mesa_abierta'), cobradas: n('mesa_cobrada'), venta: m('mesa_cobrada'), ticket_promedio: n('mesa_cobrada') ? Math.round((m('mesa_cobrada') / n('mesa_cobrada')) * 100) / 100 : 0 },
+                link_pago: { enviados: n('link_pago_enviado'), pagos_confirmados: n('pago_confirmado'), tasa_pago_pct: pct(n('pago_confirmado'), n('link_pago_enviado')) },
+                recompra: { convertidas: n('recompra_convertida'), monto: m('recompra_convertida') },
+                credito: { ventas: n('venta_credito'), monto: m('venta_credito') },
+            });
+        } catch (_) { return json(res, {}); }
+    }
+
     // GET /api/metricas/abandono-motivos — por qué los clientes no terminan
     // su compra (precio/envío/otro), capturado por bot/handlers/abandonoHandler.js.
     // Defensivo: [] si `carritos_abandonados.motivo` todavía no existe.
