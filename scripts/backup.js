@@ -172,11 +172,11 @@ function enviarBackup(adjuntos, asunto) {
         '--' + boundary,
         'Content-Type: text/plain; charset=utf-8',
         '',
-        'Backup automatico del sistema Julio Cepeda Jugueterias.',
+        'Backup automático del sistema Julio Cepeda Jugueterías.',
         'Fecha: ' + new Date().toLocaleString('es-MX'),
         'Destino: ' + DEST_MAIL,
         '',
-        'Este correo fue generado automaticamente.',
+        'Este correo fue generado automáticamente.',
     ].join('\r\n');
 
     for (const adj of adjuntos) {

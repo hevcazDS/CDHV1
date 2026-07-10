@@ -65,7 +65,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
     if (p === '/api/pedidos' && req.method === 'GET') {
         const rows = db.prepare(`
             SELECT p.id_pedido, p.folio, p.cliente, p.estatus, p.ciudad_envio,
-                   p.email_notificado, p.creado_en,
+                   p.email_notificado, p.creado_en, p.a_credito, p.cobrado_por,
                    p.metodo_entrega, p.repartidor_nombre, p.repartidor_telefono,
                    lp.id AS id_link_pago, lp.monto AS total, lp.estatus AS pago_estatus, lp.url_link,
                    g.numero_guia, g.estatus AS guia_estatus,

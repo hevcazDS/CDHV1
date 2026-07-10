@@ -5,6 +5,7 @@ import { Card, Group, Title, ActionIcon, Table, Select, Button, TextInput } from
 import { api } from '../api';
 import { fmt, fdate } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
+import { confirmar, toastOk } from '../lib/ui';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -50,8 +51,8 @@ export default function Pedidos() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pedidos'] }),
     onError: (e) => { handleApiError(e); queryClient.invalidateQueries({ queryKey: ['pedidos'] }); },
   });
-  const cambiarEstatus = (id, estatus) => {
-    if (estatus === 'cancelado' && !window.confirm('¿Cancelar este pedido? Se notificará al cliente.')) { refetch(); return; }
+  const cambiarEstatus = async (id, estatus) => {
+    if (estatus === 'cancelado' && !await confirmar({ titulo: 'Cancelar pedido', mensaje: '¿Cancelar este pedido? Se notificará al cliente.', peligro: true, textoOk: 'Cancelar pedido' })) { refetch(); return; }
     cambiarEstatusMutation.mutate({ id, estatus });
   };
 
@@ -167,7 +168,10 @@ export default function Pedidos() {
                   <td><code>{r.folio || `#${r.id_pedido}`}</code></td>
                   <td>{r.cliente || '-'}</td>
                   <td><strong>${fmt(r.total)}</strong></td>
-                  <td><Badge value={r.pago_estatus} map="pago" /></td>
+                  <td>
+                    <Badge value={r.pago_estatus} map="pago" />
+                    {!!r.a_credito && r.pago_estatus === 'generado' && <span className="chip" style={{ marginLeft: 4, background: 'var(--yellow)', color: '#000' }} title={r.cobrado_por ? 'Vendió: ' + r.cobrado_por : ''}>fiado</span>}
+                  </td>
                   <td>
                     <Select size="xs" data={ESTATUS} value={r.estatus} onChange={v => v && cambiarEstatus(r.id_pedido, v)} comboboxProps={{ withinPortal: true }} />
                   </td>
@@ -186,7 +190,7 @@ export default function Pedidos() {
                       {r.pago_estatus !== 'pagado' && (
                         <ActionIcon variant="default" title="Enviar link de pago por WhatsApp" onClick={async () => {
                           const rr = await api.post(`/api/pagos/${r.id_pedido}/enviar-link`).catch(e => ({ ok: false, error: e.message }));
-                          alert(rr.ok ? 'Link de pago enviado al cliente por WhatsApp' : (rr.error || 'No se pudo'));
+                          if (rr.ok) toastOk('Link de pago enviado al cliente por WhatsApp'); else handleApiError(new Error(rr.error || 'No se pudo'));
                         }}><Link2 size={16} strokeWidth={1.75} /></ActionIcon>
                       )}
                     </Group>

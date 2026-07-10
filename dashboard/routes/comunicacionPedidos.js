@@ -298,6 +298,11 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
         const id = parseInt(p.split('/')[3]);
         const _sesPago = requireSession(req, res);
         if (!_sesPago) return;
+        // Menor privilegio (igual que enviar-link): registrar un cobro es de
+        // caja/operación, no de cualquier rol logueado.
+        const { permite: _permitePago } = require('../permisos');
+        if (!_permitePago(_sesPago.rol, 'pos') && !_permitePago(_sesPago.rol, 'operacion') && !_permitePago(_sesPago.rol, 'finanzas'))
+            return json(res, { ok: false, error: 'Sin permiso para registrar pagos' }, 403);
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body || '{}'), PagoConfirmadoSchema, res, p);

@@ -379,6 +379,7 @@ function ZonaHoraria() {
       <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 8 }}>
         Por defecto <strong>México Centro</strong>. El sistema siempre calcula la hora en esta zona, aunque el servidor esté en otra.
         Efectiva ahora: <strong>{info?.efectiva || '...'}</strong>. Solo Prime puede cambiarla y queda registrado quién lo hizo.
+        <br />La app <strong>no puede bloquear el reloj del servidor</strong> (eso es del sistema operativo): lo <strong>vigila</strong> y registra en la bitácora si retrocede.
       </p>
       <Group align="end">
         <Select label="Zona del negocio" data={ZONAS_MX} value={zona} onChange={v => setZona(v || 'America/Mexico_City')} searchable style={{ flex: 1, maxWidth: 420 }} allowDeselect={false} />
@@ -486,6 +487,11 @@ function CifradoBackup() {
         Modo actual: <strong>{estado?.modo || '...'}</strong>{estado?.modo === 'alto' && !estado?.armado && ' (sin armar — ingresa la maestra)'}.
         Alto = máxima seguridad (la maestra no se guarda). Bajo = automático (clave en la base). Off = sin cifrar.
       </p>
+      {estado?.modo === 'alto' && (
+        <p style={{ fontSize: 12, color: 'var(--yellow)', marginBottom: 8 }}>
+          ⚠️ En modo <strong>alto</strong> el respaldo <strong>automático</strong> (cron) no puede cifrar solo —la maestra no se guarda—, así que <strong>no se envía</strong> y te avisa por correo. Para respaldos cifrados automáticos usa el <strong>respaldo manual</strong> desde aquí, o cambia a modo <strong>bajo</strong>.
+        </p>
+      )}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button className="btn" onClick={() => setModo('off')}>Sin cifrar</button>
         <button className="btn" onClick={() => setModo('bajo')}>Cifrado básico</button>

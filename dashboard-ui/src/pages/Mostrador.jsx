@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, Group, Title, Table, Button, TextInput, NumberInput, Select, ActionIcon, Checkbox } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
+import { alertar, prompt } from '../lib/ui';
 import { useAuth } from '../context/AuthContext';
 import { tieneRango } from '../lib/roles';
 import { LEYENDA_FACTURACION } from '../lib/factura';
@@ -29,7 +30,7 @@ export default function Mostrador() {
   const [rfc, setRfc] = useState('');
   const [msg, setMsg] = useState(null);
   const [ticket, setTicket] = useState(null);
-  const reimprimir = () => { try { const t = JSON.parse(localStorage.getItem('pos-ultimo-ticket') || 'null'); if (t) setTicket(t); else alert('No hay ticket previo en esta caja'); } catch (_) {} };
+  const reimprimir = () => { try { const t = JSON.parse(localStorage.getItem('pos-ultimo-ticket') || 'null'); if (t) setTicket(t); else alertar({ titulo: 'Sin ticket', mensaje: 'No hay ticket previo en esta caja' }); } catch (_) {} };
   const [cobrando, setCobrando] = useState(false);
 
   useEffect(() => { if (config?.metodos?.length) setMetodoPago(config.metodos[0]); }, [config]);
@@ -89,7 +90,7 @@ export default function Mostrador() {
       let r = await armarVenta();
       if (r?.pin_requerido) {
         // el backend exige PIN (cambio de precio de lista)
-        const pin = window.prompt('Esta venta cambia un precio de lista — PIN de autorización del administrador:');
+        const pin = await prompt({ titulo: 'Autorización requerida', tipo: 'password', mensaje: 'Esta venta cambia un precio de lista. PIN de autorización del administrador:' });
         if (!pin) { setCobrando(false); return; }
         r = await armarVenta(pin);
       }

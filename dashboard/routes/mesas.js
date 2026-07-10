@@ -137,6 +137,14 @@ module.exports = function mesasRoutes(req, res, p, u, ctx, next) {
                     try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor) VALUES ('mesa_cobrada','mostrador',?)").run(String(subtotal)); } catch (_) {}
                     return { pedidoRowid, subtotal, folio };
                 })();
+                // Asientos contables FUERA de la transacción (registrarAsiento
+                // abre la suya y better-sqlite3 no anida). Igual que el POS —
+                // sin esto las ventas de mesas no entran al libro mayor.
+                try {
+                    const _conta = require('../../services/contabilidadService');
+                    _conta.asientoVenta(r.pedidoRowid, r.subtotal, metodoPago);
+                    _conta.asientoCostoVenta(r.pedidoRowid);
+                } catch (e) { /* el asiento no bloquea el cobro de la mesa */ }
                 return json(res, { ok: true, folio: r.folio, total: r.subtotal });
             } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });

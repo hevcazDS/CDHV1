@@ -983,6 +983,7 @@ CREATE TABLE IF NOT EXISTS asientos_detalle (
 );
 CREATE INDEX IF NOT EXISTS idx_asientos_fecha ON asientos(fecha);
 CREATE INDEX IF NOT EXISTS idx_asientos_det_cuenta ON asientos_detalle(cuenta);
+CREATE INDEX IF NOT EXISTS idx_asientos_referencia ON asientos(referencia_tipo, referencia_id); -- 0037
 
 CREATE TABLE IF NOT EXISTS historial_costos (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,

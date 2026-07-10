@@ -372,7 +372,7 @@ function checkStockMinimo() {
         '· ' + r.name.slice(0,40) + ' — ' + r.sucursal + ': ' + r.stock + ' (mín ' + r.stock_minimo + ')'
     ).join('\n');
     try {
-        _insertCola(asesorTel, 'Alerta stock minimo',
+        _insertCola(asesorTel, 'Alerta: stock mínimo',
             '⚠️ *ALERTA STOCK MÍNIMO*\n\nProductos por agotarse:\n\n' + resumen + '\n\nRevisar inventario urgente.',
             'alerta_stock_minimo'
         );
@@ -700,7 +700,9 @@ function checkLinksPagoPorVencer() {
           AND datetime(lp.fecha_expiracion, '-12 hours') <= datetime('now','localtime')
           AND p.estatus NOT IN ('cancelado','entregado')
           AND NOT EXISTS (
-              SELECT 1 FROM cola_notificaciones cn WHERE cn.asunto = 'Link de pago por vencer ' || lp.id
+              SELECT 1 FROM cola_notificaciones cn
+              WHERE cn.asunto = 'Link de pago por vencer ' || lp.id
+                AND cn.estatus IN ('pendiente','enviado')
           )
     `).all();
     let total = 0;
