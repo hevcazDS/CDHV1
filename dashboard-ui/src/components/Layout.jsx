@@ -23,6 +23,7 @@ const GRUPOS = [
     { to: '/', label: 'Inicio', Icono: Home },
     { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo', area: 'pos' },
       { to: '/mesas', label: 'Mesas', area: 'pos', moduloRequerido: 'mesas_activo' },
+      { to: '/fiados', label: 'Fiados', area: 'pos', moduloRequerido: 'ventas_credito_activo' },
     { to: '/pedidos', area: 'operacion', label: 'Pedidos', Icono: Package },
     { to: '/devoluciones', area: 'operacion', label: 'Devoluciones', Icono: Undo2 },
     { to: '/cola', area: 'operacion', label: 'Cola de atención', Icono: MessagesSquare },

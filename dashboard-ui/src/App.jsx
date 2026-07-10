@@ -40,6 +40,7 @@ const Compras = lazy(() => import('./pages/Compras'));
 const Rrhh = lazy(() => import('./pages/Rrhh'));
 const Citas = lazy(() => import('./pages/Citas'));
 const Mesas = lazy(() => import('./pages/Mesas'));
+const Fiados = lazy(() => import('./pages/Fiados'));
 
 export default function App() {
   const { user, cargando } = useAuth();
@@ -99,6 +100,7 @@ export default function App() {
         {permite(user.rol, 'rrhh') && <Route path="/rrhh" element={<Rrhh />} />}
               {permite(user.rol, 'operacion') && <Route path="/citas" element={<Citas />} />}
               {(permite(user.rol, 'pos') || permite(user.rol, 'operacion')) && <Route path="/mesas" element={<Mesas />} />}
+              {(permite(user.rol, 'pos') || permite(user.rol, 'finanzas')) && <Route path="/fiados" element={<Fiados />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

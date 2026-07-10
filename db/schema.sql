@@ -232,7 +232,8 @@ CREATE TABLE IF NOT EXISTS clientes (
     descuento_referido_usado INTEGER NOT NULL DEFAULT 0,
     -- opt-out de marketing (comando BAJA, migración 0020): 1 = no enviarle
     -- promociones; los mensajes transaccionales no se ven afectados.
-    marketing_opt_out INTEGER NOT NULL DEFAULT 0
+    marketing_opt_out INTEGER NOT NULL DEFAULT 0,
+    limite_credito    REAL DEFAULT 0               -- migrations/0039 (tope de fiado; 0 = sin límite)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_codigo_referido ON clientes(codigo_referido);
@@ -368,6 +369,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
     repartidor_nombre   TEXT,                      -- migrations/0015 (dato del pedido, NO un usuario)
     repartidor_telefono TEXT,                      -- migrations/0015
     a_credito       INTEGER DEFAULT 0,             -- migrations/0036 (venta a crédito/fiado)
+    fiado_vence_en  TEXT,                          -- migrations/0039 (vencimiento del fiado)
     creado_en       TEXT DEFAULT (datetime('now','localtime')),
     actualizado_en  TEXT
 );

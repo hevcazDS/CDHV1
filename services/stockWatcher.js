@@ -751,6 +751,37 @@ function checkRelojSistema() {
     return 0;
 }
 
+// ── Recordatorio de fiado vencido ────────────────────────────────────────
+// El cliente compró a crédito (fiado) y ya venció el plazo sin pagar. Se le
+// manda UN recordatorio de cobranza (cortés) por la cola normal — es su propia
+// deuda, no outreach frío. Módulo recordatorio_fiado_activo (default off).
+function checkFiadosVencidos() {
+    if (db.prepare("SELECT valor FROM configuracion WHERE clave='recordatorio_fiado_activo'").get()?.valor !== '1') return 0;
+    const filas = db.prepare(`
+        SELECT p.id_pedido, p.folio, lp.monto, c.telefono, c.nombre
+        FROM pedidos p
+        JOIN links_pago lp ON lp.id_pedido = p.id_pedido AND lp.estatus='generado'
+        JOIN clientes c ON c.id = p.id_cliente
+        WHERE p.a_credito = 1
+          AND p.fiado_vence_en IS NOT NULL
+          AND p.fiado_vence_en < date('now','localtime')
+          AND c.telefono IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM cola_notificaciones cn
+              WHERE cn.asunto = 'Fiado vencido ' || p.id_pedido AND cn.estatus IN ('pendiente','enviado')
+          )
+    `).all();
+    let total = 0;
+    for (const f of filas) {
+        const nombre = (f.nombre || '').split(' ')[0] || 'Hola';
+        const cuerpo = '👋 ' + nombre + ', te recordamos con cariño que tu compra a crédito (pedido *' + (f.folio || f.id_pedido) + '*, $' + Number(f.monto || 0).toFixed(2) + ') ya venció. Cuando gustes pásate a liquidarla. ¡Gracias! 🙏';
+        try { _insertCola(f.telefono, 'Fiado vencido ' + f.id_pedido, cuerpo, 'recordatorio_fiado'); total++; }
+        catch (e) { log.debug('No se pudo encolar recordatorio de fiado: ' + e.message); }
+    }
+    if (total > 0) log.info('Fiados vencidos: ' + total + ' recordatorios');
+    return total;
+}
+
 async function runAll() {
     try {
         // Solo ejecutar checks costosos si hay datos relevantes
@@ -776,6 +807,7 @@ async function runAll() {
         _runCheck(checkClientesDormidos, 'checkClientesDormidos');
         _runCheck(checkRecompraConsumibles, 'checkRecompraConsumibles');
         _runCheck(checkLinksPagoPorVencer, 'checkLinksPagoPorVencer');
+        _runCheck(checkFiadosVencidos, 'checkFiadosVencidos');
         _runCheck(checkBackupReciente, 'checkBackupReciente');
         _runCheck(checkRelojSistema, 'checkRelojSistema');
         _runCheck(purgarImagenesAntiguas, 'purgarImagenesAntiguas');

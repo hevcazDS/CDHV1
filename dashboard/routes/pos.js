@@ -168,6 +168,18 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     } else { nombreCliente = String(d.cliente.nombre).trim(); }
                 }
 
+                // Fiado: respetar el límite de crédito del cliente (0 = sin límite).
+                if (esCredito && idCliente) {
+                    const limite = Number(db.prepare('SELECT limite_credito FROM clientes WHERE id=?').get(idCliente)?.limite_credito) || 0;
+                    if (limite > 0) {
+                        const _totalVenta = carrito.reduce((s, i) => s + i.price * i.cantidad, 0);
+                        const saldo = db.prepare("SELECT COALESCE(SUM(lp.monto),0) s FROM pedidos p JOIN links_pago lp ON lp.id_pedido=p.id_pedido WHERE p.id_cliente=? AND p.a_credito=1 AND lp.estatus='generado'").get(idCliente).s;
+                        if (saldo + _totalVenta > limite + 0.005) {
+                            return json(res, { ok: false, error: `El cliente supera su límite de crédito ($${limite.toFixed(2)}). Ya debe $${saldo.toFixed(2)} y esta venta suma $${_totalVenta.toFixed(2)}. Cobra un abono o sube el límite.`, limite_credito: limite, saldo_fiado: saldo }, 409);
+                        }
+                    }
+                }
+                const _plazoFiado = parseInt(db.prepare("SELECT valor FROM configuracion WHERE clave='fiado_dias_plazo'").get()?.valor, 10) || 30;
                 const folio = shared.generarFolio('pedido');
                 const resultado = db.transaction(() => {
                     const { pedidoRowid, subtotal } = shared.insertarPedidoConCarrito(
@@ -183,7 +195,7 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     // (queda como CxC; se salda luego con marcar-pagado).
                     const met = db.prepare('SELECT id FROM metodos_pago WHERE nombre=?').get(metodoPago);
                     if (esCredito) {
-                        db.prepare('UPDATE pedidos SET a_credito=1 WHERE id_pedido=?').run(pedidoRowid);
+                        db.prepare("UPDATE pedidos SET a_credito=1, fiado_vence_en=date('now','localtime','+'||?||' days') WHERE id_pedido=?").run(_plazoFiado, pedidoRowid);
                         db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, fecha_expiracion, creado_en) VALUES (?,?,?,'MXN','generado',NULL,datetime('now','localtime'))")
                           .run(pedidoRowid, met ? met.id : null, subtotal);
                     } else {
@@ -303,6 +315,40 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                 if (/UNIQUE/.test(e.message)) return json(res, { ok: false, error: 'Ya cerraste tu corte de hoy — un corte por usuario por día' }, 400);
                 return json(res, { ok: false, error: e.message }, 500);
             }
+        });
+    }
+
+    // ── GET /api/pos/fiados — cartera de crédito (cuentas por cobrar del
+    // mostrador) por cliente, con adeudo, próximo vencimiento y morosidad ──
+    if (p === '/api/pos/fiados' && req.method === 'GET') {
+        const rows = db.prepare(`
+            SELECT c.id AS id_cliente, COALESCE(c.nombre, p.cliente) AS nombre, c.telefono,
+                   COALESCE(c.limite_credito, 0) AS limite_credito,
+                   COUNT(p.id_pedido) AS pedidos,
+                   ROUND(COALESCE(SUM(lp.monto), 0), 2) AS adeudo,
+                   MIN(p.fiado_vence_en) AS proximo_vence,
+                   CAST(MAX(julianday('now','localtime') - julianday(p.fiado_vence_en)) AS INT) AS dias_vencido_max
+            FROM pedidos p
+            JOIN links_pago lp ON lp.id_pedido = p.id_pedido AND lp.estatus='generado'
+            LEFT JOIN clientes c ON c.id = p.id_cliente
+            WHERE p.a_credito = 1
+            GROUP BY COALESCE(c.id, p.cliente)
+            ORDER BY dias_vencido_max DESC, adeudo DESC
+        `).all();
+        const total = rows.reduce((s, r) => s + r.adeudo, 0);
+        return json(res, { fiados: rows, total_por_cobrar: Math.round(total * 100) / 100 });
+    }
+
+    // ── PUT /api/pos/cliente/:id/limite — fijar límite de crédito (gerente+) ──
+    if (req.method === 'PUT' && p.match(/^\/api\/pos\/cliente\/\d+\/limite$/)) {
+        if (rangoDe(req._ses.rol) < 2) return json(res, { ok: false, error: 'Solo un Administrador o Prime puede fijar límites de crédito' }, 403);
+        const idc = parseInt(p.split('/')[4]);
+        return readBody(req, body => {
+            try {
+                const limite = Math.max(0, Number(JSON.parse(body || '{}').limite_credito) || 0);
+                db.prepare('UPDATE clientes SET limite_credito=? WHERE id=?').run(limite, idc);
+                return json(res, { ok: true, id_cliente: idc, limite_credito: limite });
+            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
         });
     }
 
