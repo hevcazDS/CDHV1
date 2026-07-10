@@ -75,8 +75,9 @@ module.exports = function erpProveedoresRoutes(req, res, p, u, ctx, next) {
                 const total = items.reduce((s, it) => s + parseInt(it.cantidad, 10) * Number(it.costo_unitario), 0);
                 const folio = generarFolio('oc');
                 const r = db.transaction(() => {
-                    const oc = db.prepare('INSERT INTO ordenes_compra (folio, id_proveedor, total, notas) VALUES (?,?,?,?)')
-                        .run(folio, d.id_proveedor, Math.round(total * 100) / 100, String(d.notas || '').trim() || null);
+                    const _lleg = /^\d{4}-\d{2}-\d{2}$/.test(d.fecha_llegada_est || '') ? d.fecha_llegada_est : null;
+                    const oc = db.prepare('INSERT INTO ordenes_compra (folio, id_proveedor, total, notas, fecha_llegada_est) VALUES (?,?,?,?,?)')
+                        .run(folio, d.id_proveedor, Math.round(total * 100) / 100, String(d.notas || '').trim() || null, _lleg);
                     const ins = db.prepare('INSERT INTO ordenes_compra_detalle (id_oc, id_producto, cantidad, costo_unitario) VALUES (?,?,?,?)');
                     for (const it of items) ins.run(oc.lastInsertRowid, it.id_producto, parseInt(it.cantidad, 10), Number(it.costo_unitario));
                     return oc.lastInsertRowid;

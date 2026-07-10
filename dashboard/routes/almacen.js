@@ -26,6 +26,11 @@ module.exports = function almacenRoutes(req, res, p, u, ctx, next) {
             FROM preventas pv LEFT JOIN productos pr ON pr.id = pv.id_producto
             WHERE pv.activa = 1 AND pv.fecha_llegada_real IS NULL
               AND pv.fecha_llegada_est BETWEEN ? AND ?`).all(desde, hasta);
+        // Órdenes de compra abiertas con llegada estimada (migración 0040)
+        const ocs = db.prepare(`
+            SELECT oc.fecha_llegada_est AS fecha, oc.folio, pv.nombre AS proveedor
+            FROM ordenes_compra oc LEFT JOIN proveedores pv ON pv.id = oc.id_proveedor
+            WHERE oc.estatus = 'abierta' AND oc.fecha_llegada_est BETWEEN ? AND ?`).all(desde, hasta);
         const salidas = db.prepare(`
             SELECT g.fecha_envio_est AS fecha, p.folio AS titulo, p.cliente
             FROM guias_estafeta g JOIN pedidos p ON p.id_pedido = g.id_pedido
@@ -34,6 +39,7 @@ module.exports = function almacenRoutes(req, res, p, u, ctx, next) {
         return json(res, {
             eventos: [
                 ...entradas.map(e => ({ fecha: e.fecha, tipo: 'entrada', titulo: '📥 ' + e.titulo, sub: e.cantidad ? e.cantidad + ' pz' : '' })),
+                ...ocs.map(o => ({ fecha: o.fecha, tipo: 'entrada', titulo: '📥 OC ' + o.folio, sub: o.proveedor || '' })),
                 ...salidas.map(s => ({ fecha: s.fecha, tipo: 'salida', titulo: '📤 ' + s.titulo, sub: s.cliente || '' })),
             ],
         });

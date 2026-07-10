@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, Select, NumberInput, Group, Text } from '@mantine/core';
+import { Card, Button, Select, NumberInput, Group, Text, TextInput } from '@mantine/core';
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
 import Badge from '../../components/Badge';
@@ -8,6 +8,7 @@ import Badge from '../../components/Badge';
 export default function ComprasTab() {
   const qc = useQueryClient();
   const [idProveedor, setIdProveedor] = useState(null);
+  const [llegada, setLlegada] = useState('');
   const [items, setItems] = useState([]);
   const [prodSel, setProdSel] = useState(null);
   const [cant, setCant] = useState(1);
@@ -26,10 +27,10 @@ export default function ComprasTab() {
   const total = items.reduce((s, it) => s + it.cantidad * it.costo_unitario, 0);
 
   const crear = useMutation({
-    mutationFn: () => api.post('/api/erp/ordenes-compra', { id_proveedor: Number(idProveedor), items }),
+    mutationFn: () => api.post('/api/erp/ordenes-compra', { id_proveedor: Number(idProveedor), items, fecha_llegada_est: llegada || undefined }),
     onSuccess: (r) => {
       if (!r.ok) return handleApiError(new Error(r.error));
-      setItems([]); setIdProveedor(null);
+      setItems([]); setIdProveedor(null); setLlegada('');
       qc.invalidateQueries({ queryKey: ['erp-ocs'] });
     },
     onError: handleApiError,
@@ -61,6 +62,7 @@ export default function ComprasTab() {
           <div key={i} className="modal-row"><span>{it.cantidad}× {it.name}</span><span>${(it.cantidad * it.costo_unitario).toFixed(2)}</span></div>
         ))}
         {items.length > 0 && <div className="modal-row total"><span>Total</span><span>${total.toFixed(2)}</span></div>}
+        <TextInput type="date" label="Llegada estimada (opcional)" description="Aparece en el calendario de almacén" value={llegada} onChange={e => setLlegada(e.target.value)} mt="sm" />
         <Button fullWidth mt="md" onClick={() => crear.mutate()} disabled={!idProveedor || !items.length || crear.isPending}>Crear OC</Button>
       </Card>
 

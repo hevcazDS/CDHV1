@@ -925,6 +925,7 @@ CREATE TABLE IF NOT EXISTS ordenes_compra (
     estatus      TEXT NOT NULL DEFAULT 'abierta',   -- abierta|recibida|cancelada
     total        REAL NOT NULL DEFAULT 0,
     notas        TEXT,
+    fecha_llegada_est TEXT,                          -- migrations/0040 (proyección de entrada)
     creada_en    TEXT DEFAULT (datetime('now','localtime')),
     recibida_en  TEXT
 );
