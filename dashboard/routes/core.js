@@ -84,8 +84,11 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
         return json(res, rows);
     }
 
-    // GET /api/clientes
+    // GET /api/clientes — lista con teléfono/email. La página Clientes ya es
+    // área 'operacion' en el frontend; alineamos el endpoint (defensa en
+    // profundidad): operador/usuario/gerente/prime/auditor, no almacén/rh/compras.
     if (p === '/api/clientes' && req.method === 'GET') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         const _u = new URL('http://x' + req.url);
         const q   = (_u.searchParams.get('q')  ||'').trim();
         const tag = (_u.searchParams.get('tag') ||'').trim();
