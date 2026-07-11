@@ -22,7 +22,7 @@ module.exports = function catalogoColaRoutes(req, res, p, u, ctx, next) {
     if (req.method === 'POST' && p.startsWith('/api/notificar-lista/')) {
         const idProducto = parseInt(p.split('/').pop());
         try {
-            const stockSvc = require('../services/stockService');
+            const stockSvc = require('../../services/stockService');
             const notificados = stockSvc.notificarListaEspera(idProducto);
             return json(res, { ok:true, notificados: notificados.length, telefonos: notificados });
         } catch(e) { return json(res, { ok:false, error:e.message }, 500); }

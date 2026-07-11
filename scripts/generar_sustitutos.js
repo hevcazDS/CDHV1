@@ -3,7 +3,7 @@
 // Corre una sola vez (o cuando entra nuevo catálogo).
 // Uso: node generar_sustitutos.js
 'use strict';
-const db = require('./bot/db_connection');
+const db = require('../bot/db_connection');
 
 const RANGO_PRECIO  = 0.35;   // ±35% del precio base
 const SCORE_MIN     = 3;      // score mínimo para insertar

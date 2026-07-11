@@ -125,7 +125,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
                 if (!datos) return;
                 const { numeroGuia, estatus, descripcion, ubicacion } = datos;
 
-                const estafeta = require('../services/estafetaService');
+                const estafeta = require('../../services/estafetaService');
                 const ok = estafeta.actualizarEstatusGuia(numeroGuia, estatus, descripcion, ubicacion);
                 return json(res, { ok, numeroGuia, estatus });
             } catch(e) { return json(res, { ok:false, error:e.message }, 500); }

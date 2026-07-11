@@ -348,7 +348,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                     if (_esCred) {
                         _conta.asientoCobroCredito(lp.id_pedido, Number(lp.monto || 0), ped?.metodo_pago);
                         // Puntos diferidos del fiado: se otorgan al cobrar.
-                        try { require('../bot/handlers/puntosService').otorgarPuntosPorCompra(lp.id_pedido); } catch (_) {}
+                        try { require('../../bot/handlers/puntosService').otorgarPuntosPorCompra(lp.id_pedido); } catch (_) {}
                     } else {
                     _conta.asientoVenta(lp.id_pedido, Number(lp.monto || 0), ped?.metodo_pago);
                     _conta.asientoCostoVenta(lp.id_pedido);
@@ -362,7 +362,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                     }
                     // Único disparador de puntos por compra — ya no depende de escanear
                     // ningún ticket físico, aplica a cualquier pedido pagado/confirmado.
-                    try { require('../bot/handlers/puntosService').otorgarPuntosPorCompra(ped.id_pedido); }
+                    try { require('../../bot/handlers/puntosService').otorgarPuntosPorCompra(ped.id_pedido); }
                     catch (e) { log.debug('No se pudo procesar otorgamiento de puntos por compra: ' + e.message); }
                     // Embudo (CRO): marca el carrito abandonado como convertido
                     // y registra el evento — mide ROI real de la recuperación.
@@ -371,7 +371,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                         if (conv.changes > 0) db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('carrito_convertido','whatsapp',?,?)").run(String(ped.total||''), ped.telefono || null);
                     } catch (_) {}
                     // Único disparador del programa de referidos: primera compra finalizada.
-                    try { require('../bot/handlers/referidosService').otorgarPuntosPorPrimeraCompra(ped.id_cliente); }
+                    try { require('../../bot/handlers/referidosService').otorgarPuntosPorPrimeraCompra(ped.id_cliente); }
                     catch (e) { log.debug('No se pudo procesar otorgamiento de puntos por referido: ' + e.message); }
                 }
                 return json(res, { ok:true, id, estatus:'pagado', referencia_pago });
