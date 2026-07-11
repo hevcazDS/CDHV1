@@ -89,7 +89,6 @@ function facturacionPendiente(req, res, ctx) {
 function tablero(req, res, ctx) {
     const { db, json } = ctx;
     const { desde, hasta } = _rango(req);
-    const r2 = (n) => Math.round((n || 0) * 100) / 100;
     const may = conta.libroMayor(desde, hasta);
     const cta = (c) => may.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
     const ingresos = r2(cta('401').haber - cta('401').debe);

@@ -6,16 +6,12 @@
 // explícito (áreas pos||operacion) y precondición de módulo (mesas_activo).
 const shared = require('../../bot/flows/_shared');
 const kardexService = require('../../services/kardexService');
+const { flagActivo } = require('../../services/configFlags');
+const { sucursalFacturacionDefault } = require('../../services/sucursalService');
 const construirModulo = require('./_construirModulo');
 
 // Precondición: el módulo Mesas debe estar activo (corre tras el gate de auth).
-function mesasActivo(req, res, ctx) {
-    if (ctx.db.prepare("SELECT valor FROM configuracion WHERE clave='mesas_activo'").get()?.valor !== '1') {
-        ctx.json(res, { ok: false, error: 'Activa el módulo Mesas en Módulos' }, 400);
-        return false;
-    }
-    return true;
-}
+const mesasActivo = construirModulo.precondModulo('mesas_activo', 'Activa el módulo Mesas en Módulos', 400);
 
 // GET /api/mesas — mesas abiertas con sus items y total
 function listarMesas(req, res, ctx) {
@@ -120,12 +116,7 @@ function cerrarMesa(req, res, ctx, { params, ses }) {
             if (!items.length) return json(res, { ok: false, error: 'La mesa no tiene consumo' }, 400);
             const carrito = items.map(i => ({ id: i.id_producto, name: i.nombre, price: i.precio, cantidad: i.cantidad, tipo: 'consumible' }));
             const metodoPago = d.metodo_pago || 'efectivo';
-            const sucursal = (() => {
-                const v = db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default'").get()?.valor;
-                if (!v) return '';
-                return db.prepare('SELECT nombre FROM sucursales WHERE id=?').get(Number(v))?.nombre
-                    || db.prepare('SELECT nombre FROM sucursales WHERE nombre=?').get(v)?.nombre || '';
-            })();
+            const sucursal = sucursalFacturacionDefault(db) || '';
             const folio = shared.generarFolio('pedido');
             const r = db.transaction(() => {
                 const { pedidoRowid, subtotal } = shared.insertarPedidoConCarrito(
@@ -138,7 +129,7 @@ function cerrarMesa(req, res, ctx, { params, ses }) {
                 db.prepare("UPDATE mesas SET estatus='cobrada', id_pedido=?, cerrada_en=datetime('now','localtime') WHERE id=?").run(pedidoRowid, idMesa);
                 // Descontar inventario (igual que el POS): platillos del catálogo
                 // con id_producto y sucursal; texto libre (sin id) y servicios no.
-                const invActivo = db.prepare("SELECT valor FROM configuracion WHERE clave='inventario_activo'").get()?.valor !== '0';
+                const invActivo = flagActivo(db, 'inventario_activo', true);
                 if (invActivo && sucursal) for (const it of items) {
                     if (!it.id_producto) continue;
                     if (db.prepare('SELECT tipo FROM productos WHERE id=?').get(it.id_producto)?.tipo === 'servicio') continue;

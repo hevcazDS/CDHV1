@@ -9,10 +9,11 @@
 // enviar-link/pagos/:id/regenerar → pos||operacion; marcar-pagado y
 // pagos/:id/cancelar → pos||operacion||finanzas (cancelar es el espejo inverso
 // de marcar-pagado: revierte cobro+inventario+puntos, misma exigencia).
-// devoluciones PUT pide sesión en el handler (PIN CONDICIONAL para aprobar/resolver).
+// devoluciones PUT → operacion + PIN CONDICIONAL en el handler (aprobar/resolver).
 const kardexService = require('../../services/kardexService');
 const autorizacion = require('../autorizacion');
 const { rangoDe } = require('../permisos');
+const { flagActivo } = require('../../services/configFlags');
 const construirModulo = require('./_construirModulo');
 
 // POST /api/notificar — encolar mensaje a un cliente (operacion)
@@ -258,7 +259,7 @@ function pagoMarcarPagado(req, res, ctx, { params, ses }) {
                 FROM pedido_detalle d LEFT JOIN productos pr ON pr.id = d.id_producto WHERE d.id_pedido=?`).all(lp.id_pedido);
             for (const it of items) {
                 if (it.tipo === 'servicio' || !it.sucursal_origen) continue;
-                !(db.prepare("SELECT valor FROM configuracion WHERE clave='inventario_activo'").get()?.valor === '0') && kardexService.movimiento({ id_producto: it.id_producto, sucursal: it.sucursal_origen, tipo: 'venta', delta: -it.cantidad, motivo: 'Pago pedido ' + lp.id_pedido, usuario: ses.username });
+                flagActivo(db, 'inventario_activo', true) && kardexService.movimiento({ id_producto: it.id_producto, sucursal: it.sucursal_origen, tipo: 'venta', delta: -it.cantidad, motivo: 'Pago pedido ' + lp.id_pedido, usuario: ses.username });
             }
             db.prepare('UPDATE pedidos SET cobrado_por=? WHERE id_pedido=?').run(ses.username, lp.id_pedido);
             const ped = db.prepare("SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR (p.id_cliente IS NULL AND c.nombre=p.cliente) WHERE p.id_pedido=? LIMIT 1").get(lp.id_pedido);
@@ -353,10 +354,8 @@ function devolucionesGet(req, res, ctx) {
 
 // PUT /api/devoluciones/:id — aprobar/rechazar/resolver (PIN condicional al
 // aprobar/resolver; repone inventario + asiento). Pide sesión en el handler.
-function devolucionesPut(req, res, ctx, { params }) {
-    const { db, json, readBody, requireSession, log } = ctx;
-    const _sesDev = requireSession(req, res);
-    if (!_sesDev) return;
+function devolucionesPut(req, res, ctx, { params, ses: _sesDev }) {
+    const { db, json, readBody, log } = ctx;
     const id = parseInt(params[0]);
     return readBody(req, body => {
         try {
@@ -442,7 +441,7 @@ const RUTAS = [
     { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/regenerar$/,            areas: ['pos', 'operacion'], handler: pagoRegenerar },
     { metodo: 'GET',  path: /^\/api\/pedidos\/(\d+)\/ticket$/,             handler: pedidoTicket },
     { metodo: 'GET',  path: '/api/devoluciones',                           handler: devolucionesGet },
-    { metodo: 'PUT',  path: /^\/api\/devoluciones\/(\d+)$/,                handler: devolucionesPut },
+    { metodo: 'PUT',  path: /^\/api\/devoluciones\/(\d+)$/,                area: 'operacion', handler: devolucionesPut },
     { metodo: 'GET',  path: /^\/api\/pedidos\/(\d+)\/historial$/,          handler: pedidoHistorial },
 ];
 

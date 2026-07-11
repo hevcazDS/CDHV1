@@ -11,13 +11,7 @@ const { rangoDe } = require('../permisos');
 const construirModulo = require('./_construirModulo');
 
 // Precondición: el módulo RRHH debe estar activo (corre tras el gate de área).
-function rrhhActivo(req, res, ctx) {
-    try {
-        if (ctx.db.prepare("SELECT valor FROM configuracion WHERE clave='rrhh_activo'").get()?.valor === '1') return true;
-    } catch (_) {}
-    ctx.json(res, { ok: false, error: 'El módulo RRHH está desactivado (actívalo en Módulos)' }, 403);
-    return false;
-}
+const rrhhActivo = construirModulo.precondModulo('rrhh_activo', 'El módulo RRHH está desactivado (actívalo en Módulos)', 403);
 
 function empleadosGet(req, res, ctx) {
     const { db, json } = ctx;
