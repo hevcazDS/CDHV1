@@ -29,7 +29,7 @@ function buscar(req, res, ctx) {
 
 // POST /api/login {username, password} — pública (whitelist). Crea sesión.
 function login(req, res, ctx) {
-    const { db, json, readBody, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, crearSesion, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, COOKIE_SECURE_FLAG } = ctx;
+    const { db, json, readBody, log, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, crearSesion, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, COOKIE_SECURE_FLAG } = ctx;
     return readBody(req, body => {
         try {
             const { username, password, recordar } = JSON.parse(body || '{}');
@@ -47,7 +47,12 @@ function login(req, res, ctx) {
             const token = crearSesion(u2.username, u2.rol, ttlMs);
             res.setHeader('Set-Cookie', `jc_session=${token}; HttpOnly; SameSite=Lax${COOKIE_SECURE_FLAG}; Max-Age=${ttlMs / 1000}; Path=/`);
             return json(res, { ok: true, username: u2.username, rol: u2.rol });
-        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+        } catch (e) {
+            // No filtrar el mensaje interno en el camino de auth: log server-side,
+            // respuesta genérica al cliente.
+            log.error('[login] ' + e.message);
+            return json(res, { ok: false, error: 'No se pudo iniciar sesión, intenta de nuevo' }, 500);
+        }
     });
 }
 
