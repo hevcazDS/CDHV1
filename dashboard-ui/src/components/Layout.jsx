@@ -160,7 +160,8 @@ export default function Layout() {
         <div className="topbar-right">
           <ThemeSwitcher />
           <NotificationBell />
-          <BotStatusWidget />
+          {/* El bot es un módulo (no la base): solo operación/gerente lo ven y controlan */}
+          {permite(user?.rol, 'operacion') && <BotStatusWidget />}
           <div className="avatar-chip" title={`${user?.username} · ${etiquetaRol(user?.rol)}{user?.version ? ' · v' + user.version : ''}`}>{iniciales}</div>
         </div>
       </AppShell.Header>

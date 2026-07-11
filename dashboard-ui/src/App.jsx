@@ -76,7 +76,7 @@ export default function App() {
         <Route path="/" element={<Inicio />} />
         <Route path="/pedidos" element={<Pedidos />} />
         <Route path="/devoluciones" element={<Devoluciones />} />
-        <Route path="/clientes" element={<Clientes />} />
+        {permite(user.rol, 'operacion') && <Route path="/clientes" element={<Clientes />} />}
         <Route path="/guias" element={<Guias />} />
         <Route path="/cola" element={<ColaAtencion />} />
         <Route path="/lista-espera" element={<ListaEspera />} />
@@ -90,7 +90,7 @@ export default function App() {
         <Route path="/cola-envios" element={<ColaEnvios />} />
         {tieneRango(user.rol, 'prime') && <Route path="/beta" element={<Beta />} />}
         <Route path="/metricas" element={<Metricas />} />
-        <Route path="/notificaciones" element={<Notificaciones />} />
+        {permite(user.rol, 'operacion') && <Route path="/notificaciones" element={<Notificaciones />} />}
         <Route path="/etiquetas" element={<Etiquetas />} />
         <Route path="/mostrador" element={<Mostrador />} />
         {tieneRango(user.rol, 'gerente') && <Route path="/prime" element={<Prime />} />}

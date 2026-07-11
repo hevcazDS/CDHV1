@@ -38,6 +38,7 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
     // envío automático programado de services/stockWatcher.js, para que
     // ambos caminos generen y encolen el reporte de forma idéntica.
     if (p === '/api/reporte' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return;
         return readBody(req, body => {
             try {
                 const { destino } = JSON.parse(body); // destino: 'whatsapp'|'email'
@@ -259,6 +260,7 @@ module.exports = function marketingRoutes(req, res, p, u, ctx, next) {
     // Body: { codigo, idTicket? }. Marca el uso en promociones (no acumulable
     // si usos_max=1) y, si se manda idTicket, lo liga a tickets_venta.id_promocion.
     if (p === '/api/cupon/redimir' && req.method === 'POST') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!(permite(_s.rol, 'pos') || permite(_s.rol, 'operacion'))) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         return readBody(req, body => {
             try {
                 const parsed = validar(JSON.parse(body), CuponRedimirSchema, res, p);

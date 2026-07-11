@@ -165,7 +165,7 @@ module.exports = function primeUsuariosPuntosRoutes(req, res, p, u, ctx, next) {
     if (p.startsWith('/api/puntos/') && req.method === 'GET') {
         const tel = decodeURIComponent(p.split('/').pop());
         try {
-            const puntosService = require('../bot/handlers/puntosService');
+            const puntosService = require('../../bot/handlers/puntosService');
             const saldo = puntosService.consultarSaldo(tel);
             return json(res, saldo || { disponibles: 0, puntos: 0 });
         } catch(e) { return json(res, { error: e.message }, 500); }

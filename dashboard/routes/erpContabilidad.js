@@ -13,6 +13,11 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
         if (!ses) return;
         if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
     }
+    // Redondeo a 2 decimales, a nivel de MÓDULO: flujo-caja y salud-financiera
+    // lo usaban pero solo estaba declarado dentro del handler del tablero
+    // (block-scoped) → esas dos rutas tronaban siempre (ReferenceError). Lo
+    // detectó tests/test_rutas_smoke.js. El tablero mantiene su const local (shadow inocuo).
+    const r2 = (n) => Math.round((n || 0) * 100) / 100;
 
     const _rango = () => {
         const sp = new URL(req.url, 'http://x').searchParams;

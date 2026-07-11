@@ -7,6 +7,7 @@
 module.exports = function catalogoColaRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
     if (req.method === 'PUT' && p.startsWith('/api/preventas/')) {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
@@ -20,9 +21,10 @@ module.exports = function catalogoColaRoutes(req, res, p, u, ctx, next) {
 
     // POST /api/notificar-lista/:idProducto — notificar lista de espera manualmente
     if (req.method === 'POST' && p.startsWith('/api/notificar-lista/')) {
+        if (!requireSession(req, res, ['gerente'])) return; // notificación en bloque a la lista de espera = gerente+
         const idProducto = parseInt(p.split('/').pop());
         try {
-            const stockSvc = require('../services/stockService');
+            const stockSvc = require('../../services/stockService');
             const notificados = stockSvc.notificarListaEspera(idProducto);
             return json(res, { ok:true, notificados: notificados.length, telefonos: notificados });
         } catch(e) { return json(res, { ok:false, error:e.message }, 500); }
@@ -44,6 +46,7 @@ module.exports = function catalogoColaRoutes(req, res, p, u, ctx, next) {
 
     // POST /api/sustitutos — agregar relación manual entre productos
     if (p === '/api/sustitutos' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return;
         return readBody(req, body => {
             try {
                 const { id_producto, id_sustituto, tipo_relacion, score } = JSON.parse(body);
@@ -68,6 +71,7 @@ module.exports = function catalogoColaRoutes(req, res, p, u, ctx, next) {
     // POST /api/sustitutos crea el par en ambas direcciones, así que aquí
     // desactivamos las dos para no dejar la reversa huérfana y activa.
     if (p.startsWith('/api/sustitutos/') && req.method === 'DELETE') {
+        if (!requireSession(req, res, ['gerente'])) return;
         const id = parseInt(p.split('/').pop());
         const rel = db.prepare('SELECT id_producto, id_sustituto FROM productos_similares WHERE id=?').get(id);
         if (rel) {
@@ -127,6 +131,7 @@ module.exports = function catalogoColaRoutes(req, res, p, u, ctx, next) {
 
     // POST /api/cola/reintentar — resetear intentos de mensajes fallidos
     if (p === '/api/cola/reintentar' && req.method === 'POST') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         const r = db.prepare(`
             UPDATE cola_notificaciones SET intentos=0, estatus='pendiente'
             WHERE intentos >= 3 AND estatus='pendiente'
@@ -136,6 +141,7 @@ module.exports = function catalogoColaRoutes(req, res, p, u, ctx, next) {
 
     // POST /api/cola/reintentar/:id — reintentar un mensaje específico
     if (req.method === 'POST' && p.startsWith('/api/cola/reintentar/')) {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         const id = parseInt(p.split('/').pop());
         db.prepare(`UPDATE cola_notificaciones SET intentos=0, estatus='pendiente' WHERE id=?`).run(id);
         return json(res, { ok: true, id });
@@ -157,6 +163,7 @@ module.exports = function catalogoColaRoutes(req, res, p, u, ctx, next) {
 
     // DELETE /api/cola/programados — cancelar campaña programada
     if (p === '/api/cola/programados' && req.method === 'DELETE') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         return readBody(req, body => {
             try {
                 const { asunto, enviar_despues_de } = JSON.parse(body);

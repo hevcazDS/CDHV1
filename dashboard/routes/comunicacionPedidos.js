@@ -1,7 +1,7 @@
 'use strict';
 const kardexService = require('../../services/kardexService');
 const autorizacion = require('../autorizacion');
-const { rangoDe } = require('../permisos');
+const { rangoDe, permite } = require('../permisos');
 // Extraído mecánicamente de dashboard/server.js (líneas 574-891 del
 // monolito original) — fase 4 del hardening, item de partir server.js en
 // módulos. NINGUNA línea de lógica fue reescrita, solo movida; ctx trae todo
@@ -10,6 +10,9 @@ const { rangoDe } = require('../permisos');
 module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
     if (p === '/api/notificar' && req.method === 'POST') {
+        // Enviar mensaje a un cliente = atención (área 'operacion'): operador/
+        // usuario/gerente/prime. No el cajero (solo POS) ni almacén/rh/auditor.
+        { const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Tu rol no puede enviar mensajes a clientes' }, 403); }
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body), NotificarSchema, res, p);
@@ -53,6 +56,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     // confirme. Al responder, el bot lo mete directo a SHOW_CART y sigue el
     // flujo normal de carrito/envío/pago — no se reimplementa esa lógica aquí.
     if (p === '/api/pos/venta-previa' && req.method === 'POST') {
+        { const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body), VentaPreviaSchema, res, p);
@@ -84,6 +88,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     // GET /api/masivo/preview — misma audiencia que calculará el envío real,
     // de solo lectura, para que el admin vea antes de disparar.
     if (p === '/api/masivo/preview' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return; // audiencia + teléfonos = gerente+
         try {
             const soloConPedido = u.searchParams.get('soloConPedido') === '1' || u.searchParams.get('soloConPedido') === 'true';
             const sinActividad  = u.searchParams.get('sinActividad') === '1' || u.searchParams.get('sinActividad') === 'true';
@@ -96,6 +101,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
 
     // POST /api/masivo — envío masivo de WhatsApp a clientes registrados
     if (p === '/api/masivo' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return; // campaña masiva = gerente+ (no cajero)
         return readBody(req, body => {
             try {
                 const _raw = JSON.parse(body);
@@ -172,9 +178,13 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     // El aviso al cliente lo manda el ÚNICO WhatsApp del negocio (el bot, vía
     // cola_notificaciones) cuando el operador cambia el estado aquí.
     if (p === '/api/repartidores' && req.method === 'GET') {
+        // Lista de repartidores (incluye teléfono) = asignación de entregas,
+        // área 'operacion'. No la ven roles ajenos a la operación (almacén/rh).
+        { const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         return json(res, db.prepare('SELECT id, nombre, telefono, activo FROM repartidores WHERE activo=1 ORDER BY nombre').all());
     }
     if (p === '/api/repartidores' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return; // alta de repartidor = gestión de datos, gerente+
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');
@@ -230,6 +240,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     // facturación) actualizar razon_social/rfc sin tocar el estatus -- el
     // modal "Ver ticket" de Pedidos.jsx manda solo esos dos campos.
     if (req.method === 'PUT' && p.startsWith('/api/pedidos/')) {
+        { const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {
@@ -348,7 +359,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                     if (_esCred) {
                         _conta.asientoCobroCredito(lp.id_pedido, Number(lp.monto || 0), ped?.metodo_pago);
                         // Puntos diferidos del fiado: se otorgan al cobrar.
-                        try { require('../bot/handlers/puntosService').otorgarPuntosPorCompra(lp.id_pedido); } catch (_) {}
+                        try { require('../../bot/handlers/puntosService').otorgarPuntosPorCompra(lp.id_pedido); } catch (_) {}
                     } else {
                     _conta.asientoVenta(lp.id_pedido, Number(lp.monto || 0), ped?.metodo_pago);
                     _conta.asientoCostoVenta(lp.id_pedido);
@@ -362,7 +373,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                     }
                     // Único disparador de puntos por compra — ya no depende de escanear
                     // ningún ticket físico, aplica a cualquier pedido pagado/confirmado.
-                    try { require('../bot/handlers/puntosService').otorgarPuntosPorCompra(ped.id_pedido); }
+                    try { require('../../bot/handlers/puntosService').otorgarPuntosPorCompra(ped.id_pedido); }
                     catch (e) { log.debug('No se pudo procesar otorgamiento de puntos por compra: ' + e.message); }
                     // Embudo (CRO): marca el carrito abandonado como convertido
                     // y registra el evento — mide ROI real de la recuperación.
@@ -371,7 +382,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                         if (conv.changes > 0) db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('carrito_convertido','whatsapp',?,?)").run(String(ped.total||''), ped.telefono || null);
                     } catch (_) {}
                     // Único disparador del programa de referidos: primera compra finalizada.
-                    try { require('../bot/handlers/referidosService').otorgarPuntosPorPrimeraCompra(ped.id_cliente); }
+                    try { require('../../bot/handlers/referidosService').otorgarPuntosPorPrimeraCompra(ped.id_cliente); }
                     catch (e) { log.debug('No se pudo procesar otorgamiento de puntos por referido: ' + e.message); }
                 }
                 return json(res, { ok:true, id, estatus:'pagado', referencia_pago });
