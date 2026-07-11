@@ -95,6 +95,7 @@ const MODULOS = [
   { key: 'entrega_pickup_activo', titulo: 'Recoger en sucursal', desc: 'El bot ofrece pickup en tienda' },
   { key: 'entrega_paqueteria_activo', titulo: 'Envío por paquetería', desc: 'El bot ofrece envío a domicilio por paquetería (Estafeta)' },
   { key: 'entrega_repartidor_activo', titulo: 'Repartidor propio', desc: 'Entrega local con tu repartidor; el negocio avisa "va en camino"' },
+  { key: 'inventario_activo', titulo: 'Control de inventario', desc: 'Descuenta stock con kardex en cada venta (bot/POS/mesas). Apagado = negocios sin control de stock (servicios, comida al momento): cobra sin tocar inventario. Encendido por defecto' },
   { key: 'pos_activo', titulo: 'Punto de venta (mostrador)', desc: 'Cobrar ventas presenciales y hacer corte de caja' },
   { key: 'facturacion_activo', titulo: 'Facturación', desc: 'Comprobante con datos fiscales y referencia (no todos los negocios facturan)' },
   { key: 'emojis_dashboard_activo', titulo: 'Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
