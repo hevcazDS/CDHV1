@@ -4,13 +4,12 @@
 // marcar-pagado [CHOKEPOINT de puntos/lealtad], cancelar, regenerar), ticket,
 // devoluciones e historial del pedido. Migrado al patrón declarativo del tronco.
 //
-// Gates: notificar/venta-previa/repartidores(GET)/pedidos(PUT) → operacion;
-// masivo(+preview)/repartidores(POST) → gerente; enviar-link → pos||operacion;
-// marcar-pagado → pos||operacion||finanzas. devoluciones PUT pide sesión en el
-// handler (PIN CONDICIONAL para aprobar/resolver). NOTA: pedidos/:id/repartidor,
-// pagos/:id/cancelar y pagos/:id/regenerar NUNCA tuvieron gate propio (solo el
-// global de sesión) — se preserva su comportamiento; cancelar/regenerar mueven
-// dinero, candidatos a endurecer en un cambio aparte.
+// Gates: notificar/venta-previa/repartidores(GET)/pedidos(PUT)/pedidos/:id/
+// repartidor → operacion; masivo(+preview)/repartidores(POST) → gerente;
+// enviar-link/pagos/:id/regenerar → pos||operacion; marcar-pagado y
+// pagos/:id/cancelar → pos||operacion||finanzas (cancelar es el espejo inverso
+// de marcar-pagado: revierte cobro+inventario+puntos, misma exigencia).
+// devoluciones PUT pide sesión en el handler (PIN CONDICIONAL para aprobar/resolver).
 const kardexService = require('../../services/kardexService');
 const autorizacion = require('../autorizacion');
 const { rangoDe } = require('../permisos');
@@ -295,7 +294,8 @@ function pagoMarcarPagado(req, res, ctx, { params, ses }) {
 }
 
 // POST /api/pagos/:id/cancelar — cancela el link; si estaba pagado, revierte el
-// cobro completo (inventario + puntos). Sin gate propio (ver nota del módulo).
+// cobro completo (inventario + puntos). pos||operacion||finanzas (espejo inverso
+// de marcar-pagado).
 function pagoCancelar(req, res, ctx, { params }) {
     const { db, json } = ctx;
     const id = parseInt(params[0]);
@@ -434,12 +434,12 @@ const RUTAS = [
     { metodo: 'POST', path: '/api/masivo',                                 roles: ['gerente'], handler: masivo },
     { metodo: 'GET',  path: '/api/repartidores',                           area: 'operacion', handler: repartidoresGet },
     { metodo: 'POST', path: '/api/repartidores',                           roles: ['gerente'], handler: repartidoresPost },
-    { metodo: 'POST', path: /^\/api\/pedidos\/(\d+)\/repartidor$/,         handler: pedidoRepartidor },
+    { metodo: 'POST', path: /^\/api\/pedidos\/(\d+)\/repartidor$/,         area: 'operacion', handler: pedidoRepartidor },
     { metodo: 'PUT',  path: /^\/api\/pedidos\/(\d+)$/,                     area: 'operacion', handler: pedidosPut },
     { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/enviar-link$/,          areas: ['pos', 'operacion'], handler: pagoEnviarLink },
     { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/marcar-pagado$/,        areas: ['pos', 'operacion', 'finanzas'], handler: pagoMarcarPagado },
-    { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/cancelar$/,             handler: pagoCancelar },
-    { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/regenerar$/,            handler: pagoRegenerar },
+    { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/cancelar$/,             areas: ['pos', 'operacion', 'finanzas'], handler: pagoCancelar },
+    { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/regenerar$/,            areas: ['pos', 'operacion'], handler: pagoRegenerar },
     { metodo: 'GET',  path: /^\/api\/pedidos\/(\d+)\/ticket$/,             handler: pedidoTicket },
     { metodo: 'GET',  path: '/api/devoluciones',                           handler: devolucionesGet },
     { metodo: 'PUT',  path: /^\/api\/devoluciones\/(\d+)$/,                handler: devolucionesPut },
