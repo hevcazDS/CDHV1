@@ -92,10 +92,10 @@ export default function App() {
         <Route path="/metricas" element={<Metricas />} />
         {permite(user.rol, 'operacion') && <Route path="/notificaciones" element={<Notificaciones />} />}
         <Route path="/etiquetas" element={<Etiquetas />} />
-        <Route path="/mostrador" element={<Mostrador />} />
+        {permite(user.rol, 'pos') && <Route path="/mostrador" element={<Mostrador />} />}
         {tieneRango(user.rol, 'gerente') && <Route path="/prime" element={<Prime />} />}
         {(permite(user.rol, 'finanzas') || permite(user.rol, 'compras')) && <Route path="/erp" element={<Erp />} />}
-        {permite(user.rol, 'compras') && <Route path="/compras" element={<Compras />} />}
+        {(permite(user.rol, 'compras') || permite(user.rol, 'finanzas')) && <Route path="/compras" element={<Compras />} />}
         {(permite(user.rol, 'almacen') || permite(user.rol, 'almacen_lectura')) && <Route path="/almacen" element={<Almacen />} />}
         {permite(user.rol, 'rrhh') && <Route path="/rrhh" element={<Rrhh />} />}
               {permite(user.rol, 'operacion') && <Route path="/citas" element={<Citas />} />}

@@ -19,8 +19,13 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
     if (p.startsWith('/api/pos/') && !p.startsWith('/api/pos/buscar-producto') && !p.startsWith('/api/pos/venta-previa')) {
         const _s = requireSession(req, res);
         if (!_s) return;
+        // Corte y la LECTURA de fiados (cartera CxC) son financieros: los ve
+        // finanzas/cortes aunque no tengan 'pos' (ver ≠ editar — la venta, el
+        // límite de crédito y la cancelación siguen exigiendo 'pos'/gerente).
         const _esCorte = p.startsWith('/api/pos/corte');
-        if (!permite(_s.rol, 'pos') && !(_esCorte && permite(_s.rol, 'cortes'))) {
+        const _esFiadosLectura = req.method === 'GET' && p.endsWith('/pos/fiados'); // endsWith: no confundir al índice canónico con una ruta
+        const _finanzas = permite(_s.rol, 'cortes') || permite(_s.rol, 'finanzas');
+        if (!permite(_s.rol, 'pos') && !((_esCorte || _esFiadosLectura) && _finanzas)) {
             return json(res, { ok: false, error: 'Tu rol no tiene acceso al punto de venta' }, 403);
         }
         req._ses = _s;
