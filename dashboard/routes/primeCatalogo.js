@@ -7,6 +7,7 @@
 //
 // db/schema.sql declara `inventarios.id` como PK, pero producción usa
 // `id_inventory` (drift real). Se detecta una vez por proceso.
+const { sucursalFacturacionDefault } = require('../../services/sucursalService');
 const construirModulo = require('./_construirModulo');
 
 let _pkInventarios = null;
@@ -155,8 +156,7 @@ function productosPost(req, res, ctx, { ses }) {
         try {
             const d = validar(JSON.parse(body || '{}'), ProductoSchema, res, '/api/prime/productos');
             if (!d) return;
-            const _sucDefRow = db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default' LIMIT 1").get();
-            const sucursalDefault = _sucDefRow ? db.prepare('SELECT nombre FROM sucursales WHERE id=?').get(Number(_sucDefRow.valor)) : null;
+            const sucursalDefault = sucursalFacturacionDefault(db);
             if (!sucursalDefault) {
                 return json(res, { ok: false, error: 'Configura la sucursal de facturación default en Prime > General antes de dar de alta productos' }, 400);
             }
@@ -185,9 +185,9 @@ function productosPost(req, res, ctx, { ses }) {
                 // Limpia filas de inventario huérfanas que pudieran coincidir por id reciclado.
                 db.prepare('DELETE FROM inventarios WHERE id_producto = ?').run(idProducto);
                 const stock = datos.stock_inicial || 0;
-                db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock, stock_minimo) VALUES (?, ?, ?, 0)').run(idProducto, sucursalDefault.nombre, stock);
+                db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock, stock_minimo) VALUES (?, ?, ?, 0)').run(idProducto, sucursalDefault, stock);
                 db.prepare(`INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo, creado_por)
-                            VALUES (?, ?, 'alta', NULL, ?, 'Alta de producto', ?)`).run(idProducto, sucursalDefault.nombre, stock, ses.username);
+                            VALUES (?, ?, 'alta', NULL, ?, 'Alta de producto', ?)`).run(idProducto, sucursalDefault, stock, ses.username);
                 return idProducto;
             });
             const id = crear(d);

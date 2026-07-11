@@ -125,15 +125,38 @@ function colisiones(rutas) {
     return Object.entries(porClave).filter(([, v]) => v.length > 1).map(([k, v]) => ({ clave: k, en: v }));
 }
 
+// Sombra exacta-vs-patrón: una ruta EXACTA queda INALCANZABLE si en el MISMO
+// módulo+método hay un patrón catch-all (termina en '*') declarado ANTES (línea
+// menor) cuyo prefijo la cubre — construirModulo matchea en orden de arreglo y
+// retorna al primer match. Es el riesgo que --check antes no veía (comparaba
+// solo exactas). Solo patrones con comodín FINAL disparan el chequeo (el
+// catch-all real: '/api/puntos/*', '/api/modulo/*'); un patrón con comodín
+// intermedio ('/api/x/*/y') no cubre exactas.
+function sombras(rutas) {
+    const out = [];
+    const exactas = rutas.filter(r => r.tipo === 'exacta');
+    const catchAlls = rutas.filter(r => (r.tipo === 'patrón' || r.tipo === 'prefijo') && /\*$/.test(r.ruta));
+    for (const ex of exactas) {
+        for (const pat of catchAlls) {
+            if (pat.modulo !== ex.modulo || pat.metodo !== ex.metodo || pat.linea >= ex.linea) continue;
+            const base = pat.ruta.replace(/\*$/, '');
+            if (base && ex.ruta.startsWith(base)) out.push({ exacta: ex, patron: pat });
+        }
+    }
+    return out;
+}
+
 function main() {
     const rutas = extraer().sort((a, b) => a.ruta.localeCompare(b.ruta) || a.metodo.localeCompare(b.metodo));
     const cols = colisiones(rutas);
+    const somb = sombras(rutas);
 
-    if (process.argv.includes('--json')) { console.log(JSON.stringify({ rutas, colisiones: cols }, null, 2)); return; }
+    if (process.argv.includes('--json')) { console.log(JSON.stringify({ rutas, colisiones: cols, sombras: somb }, null, 2)); return; }
 
     if (process.argv.includes('--check')) {
         if (cols.length) { console.error('❌ ' + cols.length + ' colisión(es) de ruta:'); cols.forEach(c => console.error('  ' + c.clave + ' → ' + c.en.map(x => x.modulo + ':' + x.linea).join(' Y '))); process.exit(1); }
-        console.log('✓ Sin colisiones de ruta (' + rutas.length + ' rutas en ' + new Set(rutas.map(r => r.modulo)).size + ' módulos).');
+        if (somb.length) { console.error('❌ ' + somb.length + ' ruta(s) exacta(s) sombreada(s) por un catch-all declarado antes (mueve la exacta ARRIBA del patrón):'); somb.forEach(s => console.error('  ' + s.exacta.metodo + ' ' + s.exacta.ruta + ' (' + s.exacta.archivo + ':' + s.exacta.linea + ') ← ' + s.patron.ruta + ':' + s.patron.linea)); process.exit(1); }
+        console.log('✓ Sin colisiones ni sombras de ruta (' + rutas.length + ' rutas en ' + new Set(rutas.map(r => r.modulo)).size + ' módulos).');
         return;
     }
 
@@ -160,5 +183,5 @@ function main() {
 
 // Exporta para que otras herramientas (el smoke test) consuman el índice sin
 // duplicar el parser. Solo corre main() cuando se invoca como script.
-module.exports = { extraer, colisiones, esPublica };
+module.exports = { extraer, colisiones, sombras, esPublica };
 if (require.main === module) main();

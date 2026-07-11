@@ -20,35 +20,17 @@ const puntosService = require('../../bot/handlers/puntosService');
 const kardexService = require('../../services/kardexService');
 const autorizacion = require('../autorizacion');
 const { rangoDe } = require('../permisos');
+const { flagActivo } = require('../../services/configFlags');
+const { sucursalFacturacionDefault } = require('../../services/sucursalService');
 const construirModulo = require('./_construirModulo');
 
 // ── Estado del módulo / config (por request, contra `configuracion`) ──────────
-function posActivo(db) {
-    try {
-        const r = db.prepare("SELECT valor FROM configuracion WHERE clave='pos_activo' LIMIT 1").get();
-        return !!r && (r.valor === '1' || r.valor === 'true');
-    } catch (_) { return false; }
-}
+const posActivo = (db) => flagActivo(db, 'pos_activo');
 // Negocios que SOLO venden (sin control de inventario): default ON; si el dueño
 // lo apaga, el POS no valida ni descuenta stock.
-function inventarioActivo(db) {
-    try {
-        const r = db.prepare("SELECT valor FROM configuracion WHERE clave='inventario_activo' LIMIT 1").get();
-        return !r || r.valor !== '0';
-    } catch (_) { return true; }
-}
-function creditoActivo(db) {
-    try { return db.prepare("SELECT valor FROM configuracion WHERE clave='ventas_credito_activo' LIMIT 1").get()?.valor === '1'; }
-    catch (_) { return false; }
-}
-function sucursalDefault(db) {
-    try {
-        const row = db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default' LIMIT 1").get();
-        if (!row) return null;
-        const s = db.prepare('SELECT nombre FROM sucursales WHERE id=?').get(Number(row.valor));
-        return s ? s.nombre : null;
-    } catch (_) { return null; }
-}
+const inventarioActivo = (db) => flagActivo(db, 'inventario_activo', true);
+const creditoActivo = (db) => flagActivo(db, 'ventas_credito_activo');
+const sucursalDefault = (db) => sucursalFacturacionDefault(db);
 
 // GET /api/pos/config — sucursal + métodos de pago activos (cualquier sesión POS)
 function configGet(req, res, ctx) {

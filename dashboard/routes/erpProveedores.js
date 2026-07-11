@@ -8,20 +8,8 @@
 const costeo = require('../../services/costeoService');
 const { permite, rangoDe } = require('../permisos');
 const conta = require('../../services/contabilidadService');
+const { sucursalFacturacionDefault: _sucursalDefault } = require('../../services/sucursalService');
 const construirModulo = require('./_construirModulo');
-
-// Mismo criterio que pos.js: el valor es el ID de la sucursal (con fallback a
-// nombre por si una instancia vieja guardó el nombre).
-function _sucursalDefault(db) {
-    try {
-        const v = db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default'").get()?.valor;
-        if (!v) return null;
-        const porId = db.prepare('SELECT nombre FROM sucursales WHERE id=?').get(Number(v));
-        if (porId) return porId.nombre;
-        const porNombre = db.prepare('SELECT nombre FROM sucursales WHERE nombre=?').get(v);
-        return porNombre ? porNombre.nombre : null;
-    } catch (_) { return null; }
-}
 
 // ── Proveedores ──────────────────────────────────────────────────────────
 function proveedoresGet(req, res, ctx) {

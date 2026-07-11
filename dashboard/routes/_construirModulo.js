@@ -33,6 +33,19 @@
 // opts.prefijo: filtro de prefijo para salir rápido (perf; opcional).
 // ─────────────────────────────────────────────────────────────────────────
 const { permite } = require('../permisos');
+const { flagActivo } = require('../../services/configFlags');
+
+// Fábrica de precondición de módulo (para opts.precondicion): exige que un flag
+// '..._activo' esté ON; si no, responde `mensaje` con `code` y corta. Converge
+// los checks idénticos de mesas/rrhh (y cualquier módulo toggleable) en un solo
+// lugar, sobre el gancho opts.precondicion que el tronco ya soporta.
+function precondModulo(clave, mensaje, code = 403, defaultOn = false) {
+    return (req, res, ctx) => {
+        if (flagActivo(ctx.db, clave, defaultOn)) return true;
+        ctx.json(res, { ok: false, error: mensaje }, code);
+        return false;
+    };
+}
 
 // Bitácora forzada de una operación autorizada por PIN. Reusa configuracion_log
 // (la bitácora forense que ya existe) con clave namespaced 'autorizacion:'. NO
@@ -80,7 +93,13 @@ function construirModulo(defs, opts = {}) {
                     const err = ctx.autorizacion.exigirAutorizacion(ctx.db, ses, body.pin, ctx.permisos.rangoDe);
                     if (err) return json(res, { ok: false, error: err, pin_requerido: true }, 403);
                     _auditarPin(ctx.db, req.method + ' ' + p, ses.username);
-                    return d.handler(req, res, ctx, { p, u, params, ses, body });
+                    // OJO: este handler corre en el callback async de readBody,
+                    // que ESCAPA al try/catch síncrono de server.js. Si lanzara
+                    // síncrono tumbaría el proceso — se blinda aquí (único punto
+                    // async que el tronco controla). El path NO-pin corre síncrono
+                    // dentro del try/catch de server.js, no lo necesita.
+                    try { return d.handler(req, res, ctx, { p, u, params, ses, body }); }
+                    catch (e) { return json(res, { ok: false, error: 'Error interno' }, 500); }
                 });
             }
             return d.handler(req, res, ctx, { p, u, params, ses });
@@ -90,3 +109,4 @@ function construirModulo(defs, opts = {}) {
 }
 
 module.exports = construirModulo;
+module.exports.precondModulo = precondModulo;

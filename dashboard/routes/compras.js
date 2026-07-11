@@ -7,6 +7,7 @@ const conta = require('../../services/contabilidadService');
 const costeo = require('../../services/costeoService');
 const kardexService = require('../../services/kardexService');
 const { esAdminOMas } = require('../permisos');
+const { sucursalFacturacionDefault } = require('../../services/sucursalService');
 const construirModulo = require('./_construirModulo');
 
 // Matchea un concepto de CFDI contra el catálogo: NoIdentificacion vs upc/sku,
@@ -100,12 +101,7 @@ function facturaXml(req, res, ctx, { ses }) {
             // Cargar los CONCEPTOS al inventario (opcional, solo mercancía).
             const carga = { entradas: 0, creados: 0, omitidos: [] };
             if (d.cargar_conceptos && d.es_mercancia) {
-                const suc = (() => {
-                    const v = db.prepare("SELECT valor FROM configuracion WHERE clave='sucursal_facturacion_default'").get()?.valor;
-                    if (!v) return null;
-                    return db.prepare('SELECT nombre FROM sucursales WHERE id=?').get(Number(v))?.nombre
-                        || db.prepare('SELECT nombre FROM sucursales WHERE nombre=?').get(v)?.nombre || null;
-                })();
+                const suc = sucursalFacturacionDefault(db);
                 if (!suc) return json(res, { ok: false, error: 'Configura la sucursal de facturación antes de cargar conceptos' }, 400);
                 db.transaction(() => {
                     for (const c of cfdi.conceptos) {

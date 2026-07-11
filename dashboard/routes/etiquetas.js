@@ -101,7 +101,7 @@ function logsError(req, res, ctx, { u }) {
 const RUTAS = [
     { metodo: 'GET', path: '/api/etiquetas',                     handler: listar },
     { metodo: 'GET', path: '/api/etiquetas/pendientes-count',    handler: pendientesCount },
-    { metodo: 'PUT', path: /^\/api\/etiquetas\/(\d+)$/,          handler: actualizar },
+    { metodo: 'PUT', path: /^\/api\/etiquetas\/(\d+)$/,          area: 'operacion', handler: actualizar },
     { metodo: 'GET', path: /^\/api\/imagenes_clientes\/(.+)$/,   handler: servirImagen },
     { metodo: 'GET', path: '/api/logs_error',                    handler: logsError },
 ];
