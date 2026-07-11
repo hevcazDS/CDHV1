@@ -1,7 +1,7 @@
 'use strict';
 const kardexService = require('../../services/kardexService');
 const autorizacion = require('../autorizacion');
-const { rangoDe } = require('../permisos');
+const { rangoDe, permite } = require('../permisos');
 // Extraído mecánicamente de dashboard/server.js (líneas 574-891 del
 // monolito original) — fase 4 del hardening, item de partir server.js en
 // módulos. NINGUNA línea de lógica fue reescrita, solo movida; ctx trae todo
@@ -10,6 +10,9 @@ const { rangoDe } = require('../permisos');
 module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, validar, requireSession, log, pm2, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
     if (p === '/api/notificar' && req.method === 'POST') {
+        // Enviar mensaje a un cliente = atención (área 'operacion'): operador/
+        // usuario/gerente/prime. No el cajero (solo POS) ni almacén/rh/auditor.
+        { const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Tu rol no puede enviar mensajes a clientes' }, 403); }
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body), NotificarSchema, res, p);
@@ -174,6 +177,9 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     // El aviso al cliente lo manda el ÚNICO WhatsApp del negocio (el bot, vía
     // cola_notificaciones) cuando el operador cambia el estado aquí.
     if (p === '/api/repartidores' && req.method === 'GET') {
+        // Lista de repartidores (incluye teléfono) = asignación de entregas,
+        // área 'operacion'. No la ven roles ajenos a la operación (almacén/rh).
+        { const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         return json(res, db.prepare('SELECT id, nombre, telefono, activo FROM repartidores WHERE activo=1 ORDER BY nombre').all());
     }
     if (p === '/api/repartidores' && req.method === 'POST') {
