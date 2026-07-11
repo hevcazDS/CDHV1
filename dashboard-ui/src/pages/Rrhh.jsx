@@ -164,7 +164,7 @@ export default function Rrhh() {
             </Group>
           </div>
           <div className="table-wrap" style={{ maxHeight: 460, overflow: 'auto' }}>
-            <table>
+            <table className="tabla-sticky">
               <thead><tr><th>Empleado</th><th>Periodo</th><th>Horas</th>{fiscal && <th>H.Extra</th>}{fiscal && <th>Prima dom.</th>}{fiscal && <th>7º día</th>}{fiscal && <th>Comis.</th>}<th>Bruto</th><th>ISR</th><th>IMSS</th><th>Neto</th>{fiscal && <th title="Cuota patronal — costo del negocio, no se descuenta">IMSS patrón</th>}<th>Estatus</th></tr></thead>
               <tbody>
                 {nominas.length === 0 && <tr><td colSpan={fiscal ? 13 : 8} className="empty">Calcula un periodo para ver la nómina</td></tr>}

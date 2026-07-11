@@ -65,7 +65,7 @@ export default function Calendario({ eventos = [], onRango, onClickDia, vistaIni
         for (let i = 0; i < inicio; i++) celdas.push(null);
         for (let d = 1; d <= dias; d++) celdas.push(iso(new Date(y, m, d)));
         return (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
             {DOW.map(d => <div key={d} style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', textAlign: 'center' }}>{d}</div>)}
             {celdas.map((f, i) => (
               <div key={i} onClick={() => f && onClickDia && onClickDia(f)}
@@ -84,7 +84,7 @@ export default function Calendario({ eventos = [], onRango, onClickDia, vistaIni
         const desde = new Date(ancla); desde.setDate(ancla.getDate() - ancla.getDay());
         const dias = Array.from({ length: 7 }, (_, i) => iso(new Date(desde.getFullYear(), desde.getMonth(), desde.getDate() + i)));
         return (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
             {dias.map((f, i) => (
               <div key={f} onClick={() => onClickDia && onClickDia(f)} style={{ minHeight: 220, border: '1px solid var(--border)', borderRadius: 6, padding: 4, cursor: 'pointer', background: f === hoyISO ? 'var(--panel-2)' : undefined }}>
                 <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>{DOW[i]} {parseInt(f.slice(8))}</div>

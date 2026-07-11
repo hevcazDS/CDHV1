@@ -29,13 +29,18 @@ const TABS = [
 ];
 
 export default function Erp() {
-  const [tab, setTab] = useState('proveedores');
+  // Recuerda el último tab abierto (no volver a Proveedores tras F5).
+  const [tab, setTab] = useState(() => {
+    const t = (typeof localStorage !== 'undefined') && localStorage.getItem('erp-tab');
+    return TABS.some(x => x.key === t) ? t : 'proveedores';
+  });
+  const cambiar = (t) => { setTab(t); try { localStorage.setItem('erp-tab', t); } catch (_) {} };
   const Activo = TABS.find(t => t.key === tab)?.Componente;
   return (
     <div>
       <div className="page-title">ERP · Finanzas</div>
       <div className="page-sub">Proveedores, compras, cuentas por pagar y libro mayor</div>
-      <Tabs value={tab} onChange={setTab} mb="md">
+      <Tabs value={tab} onChange={cambiar} mb="md">
         <Tabs.List>
           {TABS.map(t => <Tabs.Tab key={t.key} value={t.key}>{t.label}</Tabs.Tab>)}
         </Tabs.List>
