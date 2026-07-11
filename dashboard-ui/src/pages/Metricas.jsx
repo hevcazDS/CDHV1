@@ -82,8 +82,16 @@ export default function Metricas() {
     queryKey: ['metricas-operacion'],
     queryFn: () => api.get('/api/metricas/operacion').catch(() => null),
   });
+  const { data: bot, refetch: refetchBot } = useQuery({
+    queryKey: ['metricas-salud-bot'],
+    queryFn: () => api.get('/api/metricas/salud-bot').catch(() => null),
+  });
+  const { data: seg = [], refetch: refetchSeg } = useQuery({
+    queryKey: ['metricas-segmentacion'],
+    queryFn: () => api.get('/api/metricas/segmentacion').catch(() => []),
+  });
 
-  const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); refetchCanales(); refetchOper(); };
+  const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); refetchCanales(); refetchOper(); refetchBot(); refetchSeg(); };
   const canalLabel = (c) => c === 'directo' ? 'Directo' : c === 'whatsapp' ? 'WhatsApp' : c.startsWith('promo:') ? '🔗 ' + c.slice(6) : c;
   const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
@@ -360,6 +368,41 @@ export default function Metricas() {
           </div>
         )}
       </Card>
+
+      {bot && (
+        <Card withBorder radius="md" p="lg" style={{ marginBottom: 16 }}>
+          <Title order={4} mb="md">{txt('🤖 Salud del bot (30 días)')}</Title>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14 }}>
+            <div><Text size="xs" c="dimmed">Búsquedas</Text><Text fw={700} size="lg">{bot.busquedas}</Text></div>
+            <div><Text size="xs" c="dimmed">Productos vistos</Text><Text fw={700} size="lg">{bot.productos_vistos}</Text></div>
+            <div><Text size="xs" c="dimmed">Fallbacks (no entendió)</Text><Text fw={700} size="lg" c={bot.fallback_pct > 15 ? 'red' : undefined}>{bot.fallbacks} <Text span size="xs" c="dimmed">{bot.fallback_pct != null ? '(' + bot.fallback_pct + '%)' : ''}</Text></Text></div>
+            <div><Text size="xs" c="dimmed">Frustraciones</Text><Text fw={700} size="lg" c={bot.frustraciones > 0 ? 'orange' : undefined}>{bot.frustraciones}</Text></div>
+            <div><Text size="xs" c="dimmed">Imágenes analizadas</Text><Text fw={700} size="lg">{bot.imagenes}</Text></div>
+          </div>
+          <Text size="xs" c="dimmed" mt="sm">Un fallback alto = el bot recibe texto que las reglas no resuelven (candidato a mejorar o al LLM). Frustración = clientes molestos detectados.</Text>
+        </Card>
+      )}
+
+      {seg.length > 0 && (
+        <Card withBorder radius="md" p="lg" style={{ marginBottom: 16 }}>
+          <Title order={4} mb="md">{txt('🎯 Segmentación de clientes')}</Title>
+          <div className="table-wrap" style={{ maxHeight: 360, overflow: 'auto' }}>
+            <table>
+              <thead><tr><th>Género</th><th>Edad</th><th>Presupuesto</th><th>Clientes</th><th>Lead score</th><th>Pedidos</th><th>Ingresos</th></tr></thead>
+              <tbody>
+                {seg.map((s, i) => (
+                  <tr key={i}>
+                    <td>{s.genero}</td><td>{s.edad}</td><td>{s.presupuesto}</td>
+                    <td><strong>{s.clientes}</strong></td><td>{s.lead_score ?? '—'}</td><td>{s.pedidos}</td>
+                    <td style={{ fontWeight: 600 }}>${Number(s.ingresos).toLocaleString('es-MX')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Text size="xs" c="dimmed" mt="sm">Perfil capturado por el bot. Identifica qué segmento deja más ingresos para dirigir ofertas/tono.</Text>
+        </Card>
+      )}
 
       <Card withBorder radius="md" p="lg">
         <Title order={4} mb="md">{txt('📤 Reporte al supervisor')}</Title>

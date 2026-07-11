@@ -267,6 +267,55 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
         } catch (_) { return json(res, {}); }
     }
 
+    // GET /api/metricas/salud-bot — eventos del bot que se capturaban pero
+    // nadie veía: productos vistos, frustraciones, análisis de imagen y
+    // fallbacks (texto que el motor de reglas no supo resolver). 3er comité (CRO).
+    if (p === '/api/metricas/salud-bot' && req.method === 'GET') {
+        try {
+            const sp = new URL(req.url, 'http://x').searchParams;
+            const desde = (sp.get('desde') || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)).slice(0, 10);
+            const rows = db.prepare(`
+                SELECT tipo_evento, COUNT(*) n, MAX(registrado_en) ultima
+                FROM log_eventos
+                WHERE date(registrado_en) >= ? AND tipo_evento IN ('busqueda','producto_visto','frustracion','imagen','fallback')
+                GROUP BY tipo_evento`).all(desde);
+            const g = {}; rows.forEach(r => { g[r.tipo_evento] = r; });
+            const n = (k) => g[k]?.n || 0;
+            const busq = n('busqueda');
+            return json(res, {
+                desde,
+                busquedas: busq, productos_vistos: n('producto_visto'),
+                frustraciones: n('frustracion'), imagenes: n('imagen'), fallbacks: n('fallback'),
+                fallback_pct: busq ? Math.round((n('fallback') / busq) * 1000) / 10 : null,
+                ultima_frustracion: g['frustracion']?.ultima || null,
+            });
+        } catch (_) { return json(res, {}); }
+    }
+
+    // GET /api/metricas/segmentacion — perfil de cliente (edad/género/
+    // presupuesto + lead_score) cruzado con ingresos. Datos ya capturados por
+    // el bot (migración 0019) que no se veían en ningún reporte. 3er comité.
+    if (p === '/api/metricas/segmentacion' && req.method === 'GET') {
+        try {
+            const rows = db.prepare(`
+                SELECT COALESCE(NULLIF(c.genero_pref,''),'—') genero,
+                       COALESCE(NULLIF(c.edad_pref,''),'—') edad,
+                       COALESCE(NULLIF(c.presupuesto_pref,''),'—') presupuesto,
+                       COUNT(DISTINCT c.id) clientes,
+                       ROUND(AVG(c.lead_score),1) lead_score,
+                       COUNT(DISTINCT p.id_pedido) pedidos,
+                       ROUND(COALESCE(SUM(lp.monto),0),2) ingresos
+                FROM clientes c
+                LEFT JOIN pedidos p ON p.id_cliente = c.id
+                LEFT JOIN links_pago lp ON lp.id_pedido = p.id_pedido AND lp.estatus='pagado'
+                WHERE c.activo=1
+                GROUP BY genero, edad, presupuesto
+                HAVING clientes > 0
+                ORDER BY ingresos DESC, clientes DESC LIMIT 30`).all();
+            return json(res, rows);
+        } catch (_) { return json(res, []); }
+    }
+
     // GET /api/metricas/abandono-motivos — por qué los clientes no terminan
     // su compra (precio/envío/otro), capturado por bot/handlers/abandonoHandler.js.
     // Defensivo: [] si `carritos_abandonados.motivo` todavía no existe.
