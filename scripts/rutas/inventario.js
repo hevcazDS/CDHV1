@@ -85,7 +85,8 @@ function extraer() {
                     const dRol = aM ? aM[1]
                         : asM ? asM[1].replace(/['"\s]/g, '').split(',').filter(Boolean).join('||')
                         : (rM ? rM[1].replace(/['"\s]/g, '') : null);
-                    rutas.push({ modulo, archivo, linea: i + 1, metodo: decl[1], ruta: dRuta, tipo: dTipo, rolMin: dRol, gateModulo: false });
+                    const pin = /\bpin:\s*true/.test(L); // op sensible: el tronco exige PIN
+                    rutas.push({ modulo, archivo, linea: i + 1, metodo: decl[1], ruta: dRuta, tipo: dTipo, rolMin: dRol, gateModulo: false, pin });
                     continue;
                 }
             }
@@ -141,7 +142,7 @@ function main() {
     let modActual = '';
     for (const r of rutas.sort((a, b) => a.modulo.localeCompare(b.modulo) || a.ruta.localeCompare(b.ruta))) {
         if (r.modulo !== modActual) { modActual = r.modulo; console.log('\n[' + modActual + ']'); }
-        const gate = esPublica(r.metodo, r.ruta) ? '🌐pública' : (r.rolMin ? '🔒' + r.rolMin + (r.gateModulo ? '(módulo)' : '') : '·global');
+        const gate = (esPublica(r.metodo, r.ruta) ? '🌐pública' : (r.rolMin ? '🔒' + r.rolMin + (r.gateModulo ? '(módulo)' : '') : '·global')) + (r.pin ? ' 🔐PIN' : '');
         console.log('  ' + r.metodo.padEnd(6) + ' ' + (r.ruta + (r.tipo === 'prefijo' ? '' : '')).padEnd(42) + ' ' + gate + '  (' + r.archivo + ':' + r.linea + ')');
     }
     // Resumen de cobertura de auth
@@ -152,7 +153,7 @@ function main() {
     console.log('  con gate de rol (por-ruta o módulo): ' + conRol.length);
     console.log('  solo gate global (cualquier sesión): ' + soloGlobal.length);
     console.log('  públicas (sin sesión): ' + pub.length);
-    console.log('  Nota: no se detectan gates por PIN (autorizacion.exigir) — esas rutas salen como ·global.');
+    console.log('  Nota: el PIN declarativo del tronco (pin:true) se ve como 🔐PIN; el PIN por-handler (autorizacion.exigir dentro del código, p.ej. condicional-por-body) no se detecta.');
     if (soloGlobal.length) { console.log('\n  Rutas solo-global (candidatas a revisar rol):'); soloGlobal.forEach(r => console.log('    ' + r.metodo.padEnd(6) + ' ' + r.ruta + '  (' + r.archivo + ':' + r.linea + ')')); }
     if (cols.length) console.log('\n⚠️  ' + cols.length + ' colisión(es) — corre --check para el detalle.');
 }
