@@ -8,6 +8,7 @@ import {
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
   LogOut, Landmark, Warehouse, ShoppingCart, IdCard,
+  UserCog, Utensils, Wallet, CalendarClock, ShieldCheck,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
@@ -16,18 +17,23 @@ import NotificationBell from './NotificationBell';
 import SoporteWidget from './SoporteWidget';
 import BuscadorGlobal from './BuscadorGlobal';
 import { tieneRango } from '../lib/roles';
-import { permite, etiquetaRol, esAuditor } from '../lib/permisos';
+import { permite, etiquetaRol, esAuditor, esAdminOMas } from '../lib/permisos';
 
+// Los grupos se DEFINEN aquí una vez; el ORDEN en que se muestran depende del
+// rango del usuario (ver ORDEN_ADMIN abajo): un administrador ve primero la
+// gestión y la operación al fondo; un operador ve la operación arriba.
 const GRUPOS = [
-  { titulo: 'Operación diaria', enlaces: [
+  { titulo: 'Panel', enlaces: [
     { to: '/', label: 'Inicio', Icono: Home },
+  ]},
+  { titulo: 'Operación diaria', enlaces: [
     { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo', area: 'pos' },
-      { to: '/mesas', label: 'Mesas', area: 'pos', moduloRequerido: 'mesas_activo' },
-      { to: '/fiados', label: 'Fiados', areas: ['pos', 'finanzas'], moduloRequerido: 'ventas_credito_activo' },
+      { to: '/mesas', label: 'Mesas', Icono: Utensils, area: 'pos', moduloRequerido: 'mesas_activo' },
+      { to: '/fiados', label: 'Fiados', Icono: Wallet, areas: ['pos', 'finanzas'], moduloRequerido: 'ventas_credito_activo' },
     { to: '/pedidos', area: 'operacion', label: 'Pedidos', Icono: Package },
     { to: '/devoluciones', area: 'operacion', label: 'Devoluciones', Icono: Undo2 },
     { to: '/cola', area: 'operacion', label: 'Cola de atención', Icono: MessagesSquare },
-      { to: '/citas', label: 'Citas', area: 'operacion', moduloRequerido: 'citas_activo' },
+      { to: '/citas', label: 'Citas', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'citas_activo' },
     { to: '/notificaciones', area: 'operacion', label: 'Chat y mensajes', Icono: MessageCircle },
   ]},
   { titulo: 'Envíos y logística', enlaces: [
@@ -51,19 +57,29 @@ const GRUPOS = [
     { to: '/etiquetas', label: 'Etiquetas', Icono: Tags, rolRequerido: 'gerente' },
   ]},
   { titulo: 'Finanzas', enlaces: [
-    { to: '/erp', label: 'ERP / Finanzas', Icono: Landmark, area: 'finanzas' },
+    // El link ERP se muestra a quien la RUTA /erp ya deja entrar (finanzas O
+    // compras), y Almacén incluye 'almacen_lectura' (compras lo tiene por
+    // diseño) — antes el link se ocultaba aunque la ruta sí permitía (link≠ruta).
+    { to: '/erp', label: 'ERP / Finanzas', Icono: Landmark, areas: ['finanzas', 'compras'] },
     { to: '/compras', label: 'Compras', Icono: ShoppingCart, areas: ['compras', 'finanzas'] },
     { to: '/rrhh', label: 'Recursos Humanos', Icono: IdCard, area: 'rrhh', moduloRequerido: 'rrhh_activo' },
   ]},
   { titulo: 'Almacén', enlaces: [
-    { to: '/almacen', label: 'Almacén', Icono: Warehouse, area: 'almacen' },
+    { to: '/almacen', label: 'Almacén', Icono: Warehouse, areas: ['almacen', 'almacen_lectura'] },
   ]},
-  { titulo: 'Sistema', enlaces: [
+  { titulo: 'Administración', enlaces: [
+    { to: '/prime?tab=usuarios', label: 'Usuarios', Icono: UserCog, rolRequerido: 'gerente' },
     { to: '/modulos', label: 'Módulos', Icono: Settings, rolRequerido: 'gerente' },
-    { to: '/prime', label: 'Gestión / Prime', Icono: Star, rolRequerido: 'gerente' },
+    { to: '/prime', label: 'Configuración', Icono: Star, rolRequerido: 'gerente' },
     { to: '/beta', label: 'Beta / Pruebas', Icono: FlaskConical, rolRequerido: 'prime' },
   ]},
 ];
+
+// Orden de grupos para administrador/prime (rango ≥ 2): gestión primero,
+// operación al fondo — el admin supervisa la operación, no la ejecuta a diario.
+// Para rango 1 (cajero/operador/especialistas) se conserva el orden de arriba
+// (Operación diaria arriba, que es lo suyo).
+const ORDEN_ADMIN = ['Panel', 'Administración', 'Finanzas', 'Catálogo y datos', 'Almacén', 'Marketing', 'Clientes y fidelidad', 'Envíos y logística', 'Operación diaria'];
 
 const ACCORDION_STYLES = {
   item: { border: 'none', background: 'transparent' },
@@ -96,7 +112,13 @@ export default function Layout() {
     queryKey: ['modulo', 'citas_activo'],
     queryFn: () => api.get('/api/modulo/citas_activo').then(r => !!r.activo).catch(() => false),
   });
-  const modulosActivos = { pos_activo: posActivo, rrhh_activo: rrhhActivo, mesas_activo: mesasActivo, citas_activo: citasActivo };
+  // ventas_credito_activo faltaba en el mapa → Fiados quedaba oculto SIEMPRE
+  // (incluso para prime), porque modulosActivos[clave] daba undefined.
+  const { data: creditoActivo } = useQuery({
+    queryKey: ['modulo', 'ventas_credito_activo'],
+    queryFn: () => api.get('/api/modulo/ventas_credito_activo').then(r => !!r.activo).catch(() => false),
+  });
+  const modulosActivos = { pos_activo: posActivo, rrhh_activo: rrhhActivo, mesas_activo: mesasActivo, citas_activo: citasActivo, ventas_credito_activo: creditoActivo };
   // rolRequerido es rango mínimo, no match exacto
   const grupos = GRUPOS
     .map(g => ({ ...g, enlaces: g.enlaces.filter(e => {
@@ -113,6 +135,10 @@ export default function Layout() {
           (e.moduloRequerido === 'rrhh_activo' && ['rh', 'contabilidad'].includes(user?.rol)));
     }) }))
     .filter(g => g.enlaces.length > 0);
+  // Administrador/prime (rango ≥ 2): gestión arriba, operación al fondo. El
+  // operador conserva el orden natural (operación arriba). Resuelve el "el menú
+  // del admin se ve como el de un operador".
+  if (esAdminOMas(user?.rol)) grupos.sort((a, b) => ORDEN_ADMIN.indexOf(a.titulo) - ORDEN_ADMIN.indexOf(b.titulo));
 
   const [nombreNegocio, setNombreNegocio] = useState('Julio Cepeda');
   useEffect(() => {
@@ -142,8 +168,8 @@ export default function Layout() {
   // de contraer/extraer
   const monograma = nombreNegocio.split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
   const ICONO_CATEGORIA = {
-    'Operación diaria': Home, 'Envíos y logística': Truck, 'Clientes y fidelidad': Users,
-    'Marketing': Tag, 'Catálogo y datos': BarChart3, 'Finanzas': Landmark, 'Almacén': Warehouse, 'Sistema': Settings,
+    'Panel': Home, 'Operación diaria': ReceiptText, 'Envíos y logística': Truck, 'Clientes y fidelidad': Users,
+    'Marketing': Tag, 'Catálogo y datos': BarChart3, 'Finanzas': Landmark, 'Almacén': Warehouse, 'Administración': ShieldCheck,
   };
 
   // Acordeón de un grupo abierto a la vez, siempre el de la ruta activa
@@ -163,7 +189,13 @@ export default function Layout() {
           <NotificationBell />
           {/* El bot es un módulo (no la base): solo operación/gerente lo ven y controlan */}
           {permite(user?.rol, 'operacion') && <BotStatusWidget />}
-          <div className="avatar-chip" title={`${user?.username} · ${etiquetaRol(user?.rol)}{user?.version ? ' · v' + user.version : ''}`}>{iniciales}</div>
+          {/* Identidad del rol visible (no solo en hover): que un Administrador
+              sepa de un vistazo que está en su panel, no en el de un operador. */}
+          <span className="rol-chip" style={{
+            fontSize: 11, fontWeight: 700, letterSpacing: '0.02em', padding: '3px 9px',
+            borderRadius: 999, border: '1px solid var(--border)', color: 'var(--text-mute)', whiteSpace: 'nowrap',
+          }}>{etiquetaRol(user?.rol)}</span>
+          <div className="avatar-chip" title={`${user?.username} · ${etiquetaRol(user?.rol)}${user?.version ? ' · v' + user.version : ''}`}>{iniciales}</div>
         </div>
       </AppShell.Header>
 
