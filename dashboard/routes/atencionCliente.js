@@ -337,6 +337,40 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
         } catch (_) { return json(res, []); }
     }
 
+    // GET /api/metricas/embudos-abandono — dos fugas que se capturaban pero
+    // nadie veía (comité CRO/BI + Conectividad): (1) búsquedas que devuelven 0
+    // resultados y terminan en abandono (qué productos piden y no tienes), y
+    // (2) ROI real de la recuperación de carritos (abandonados vs recuperados
+    // + monto). busqueda_abandonada.valor = id del evento 'busqueda' cuyo texto
+    // (b.valor) es el término buscado; carrito_convertido.valor = total.
+    if (p === '/api/metricas/embudos-abandono' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
+        try {
+            const sp = new URL(req.url, 'http://x').searchParams;
+            const desde = (sp.get('desde') || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)).slice(0, 10);
+            const terminos = db.prepare(`
+                SELECT b.valor AS termino, COUNT(*) AS veces, MAX(ba.registrado_en) AS ultima
+                FROM log_eventos ba
+                JOIN log_eventos b ON b.id = CAST(ba.valor AS INTEGER)
+                WHERE ba.tipo_evento = 'busqueda_abandonada' AND date(ba.registrado_en) >= ?
+                  AND b.valor IS NOT NULL AND b.valor != ''
+                GROUP BY b.valor ORDER BY veces DESC, ultima DESC LIMIT 15`).all(desde);
+            const sinResultado = db.prepare(`SELECT COUNT(*) c FROM log_eventos WHERE tipo_evento='busqueda_abandonada' AND date(registrado_en) >= ?`).get(desde)?.c || 0;
+            const abandonados = db.prepare(`SELECT COUNT(*) c FROM carritos_abandonados WHERE date(COALESCE(convertido_en, abandonado_en)) >= ?`).get(desde)?.c || 0;
+            const recuperados = db.prepare(`SELECT COUNT(*) c FROM carritos_abandonados WHERE convertido=1 AND date(COALESCE(convertido_en, abandonado_en)) >= ?`).get(desde)?.c || 0;
+            const montoRec = db.prepare(`SELECT COALESCE(SUM(CAST(valor AS REAL)),0) m FROM log_eventos WHERE tipo_evento='carrito_convertido' AND date(registrado_en) >= ?`).get(desde)?.m || 0;
+            return json(res, {
+                desde,
+                busquedas_sin_resultado: { total: sinResultado, terminos },
+                carritos: {
+                    abandonados, recuperados,
+                    monto_recuperado: Math.round(montoRec * 100) / 100,
+                    tasa_recuperacion_pct: abandonados > 0 ? Math.round((recuperados / abandonados) * 1000) / 10 : null,
+                },
+            });
+        } catch (_) { return json(res, {}); }
+    }
+
     // ── Preventas ─────────────────────────────────────────────────────
     if (p === '/api/preventas' && req.method === 'GET') {
         const rows = db.prepare(`

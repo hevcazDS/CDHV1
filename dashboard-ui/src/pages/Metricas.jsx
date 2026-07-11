@@ -8,7 +8,7 @@ import { Card, Group, Title, ActionIcon, Button, Text, RingProgress } from '@man
 import PuntosGrafica from '../components/PuntosGrafica';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../api';
-import { fmt } from '../lib/format';
+import { fmt, fdate } from '../lib/format';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 const ESTILOS_CHART = [
@@ -90,8 +90,12 @@ export default function Metricas() {
     queryKey: ['metricas-segmentacion'],
     queryFn: () => api.get('/api/metricas/segmentacion').catch(() => []),
   });
+  const { data: embudos, refetch: refetchEmbudos } = useQuery({
+    queryKey: ['metricas-embudos-abandono'],
+    queryFn: () => api.get('/api/metricas/embudos-abandono').catch(() => null),
+  });
 
-  const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); refetchCanales(); refetchOper(); refetchBot(); refetchSeg(); };
+  const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); refetchCanales(); refetchOper(); refetchBot(); refetchSeg(); refetchEmbudos(); };
   const canalLabel = (c) => c === 'directo' ? 'Directo' : c === 'whatsapp' ? 'WhatsApp' : c.startsWith('promo:') ? '🔗 ' + c.slice(6) : c;
   const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
@@ -405,6 +409,31 @@ export default function Metricas() {
             </table>
           </div>
           <Text size="xs" c="dimmed" mt="sm">Perfil capturado por el bot. Identifica qué segmento deja más ingresos para dirigir ofertas/tono.</Text>
+        </Card>
+      )}
+
+      {embudos && (
+        <Card withBorder radius="md" p="lg" style={{ marginBottom: 16 }}>
+          <Title order={4} mb="md">{txt('🕳️ Fugas: búsquedas sin resultado y carritos')}</Title>
+          <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 14 }}>
+            <div><Text size="xs" c="dimmed">Búsquedas sin resultado</Text><Text fw={700} size="lg" c={embudos.busquedas_sin_resultado?.total > 0 ? 'orange' : undefined}>{embudos.busquedas_sin_resultado?.total ?? 0}</Text></div>
+            <div><Text size="xs" c="dimmed">Carritos abandonados</Text><Text fw={700} size="lg">{embudos.carritos?.abandonados ?? 0}</Text></div>
+            <div><Text size="xs" c="dimmed">Recuperados</Text><Text fw={700} size="lg" c={embudos.carritos?.recuperados > 0 ? 'green' : undefined}>{embudos.carritos?.recuperados ?? 0} <Text span size="xs" c="dimmed">{embudos.carritos?.tasa_recuperacion_pct != null ? '(' + embudos.carritos.tasa_recuperacion_pct + '%)' : ''}</Text></Text></div>
+            <div><Text size="xs" c="dimmed">Monto recuperado</Text><Text fw={700} size="lg">{money(embudos.carritos?.monto_recuperado)}</Text></div>
+          </div>
+          {embudos.busquedas_sin_resultado?.terminos?.length > 0 ? (
+            <div className="table-wrap" style={{ maxHeight: 280, overflow: 'auto' }}>
+              <table>
+                <thead><tr><th>Término buscado (0 resultados)</th><th>Veces</th><th>Última</th></tr></thead>
+                <tbody>
+                  {embudos.busquedas_sin_resultado.terminos.map((t, i) => (
+                    <tr key={i}><td>{t.termino}</td><td><strong>{t.veces}</strong></td><td className="text-muted" style={{ fontSize: 11 }}>{fdate(t.ultima)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <Text size="sm" c="dimmed">Sin búsquedas fallidas en el periodo.</Text>}
+          <Text size="xs" c="dimmed" mt="sm">Lo que los clientes piden y no encuentras = qué producto agregar o cómo renombrar/etiquetar. La tasa de recuperación mide el ROI de los cupones de carrito abandonado.</Text>
         </Card>
       )}
 
