@@ -20,6 +20,7 @@ module.exports = function catalogoColaRoutes(req, res, p, u, ctx, next) {
 
     // POST /api/notificar-lista/:idProducto — notificar lista de espera manualmente
     if (req.method === 'POST' && p.startsWith('/api/notificar-lista/')) {
+        if (!requireSession(req, res, ['gerente'])) return; // notificación en bloque a la lista de espera = gerente+
         const idProducto = parseInt(p.split('/').pop());
         try {
             const stockSvc = require('../../services/stockService');

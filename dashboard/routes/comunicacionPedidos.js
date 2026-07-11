@@ -84,6 +84,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     // GET /api/masivo/preview — misma audiencia que calculará el envío real,
     // de solo lectura, para que el admin vea antes de disparar.
     if (p === '/api/masivo/preview' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return; // audiencia + teléfonos = gerente+
         try {
             const soloConPedido = u.searchParams.get('soloConPedido') === '1' || u.searchParams.get('soloConPedido') === 'true';
             const sinActividad  = u.searchParams.get('sinActividad') === '1' || u.searchParams.get('sinActividad') === 'true';
@@ -96,6 +97,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
 
     // POST /api/masivo — envío masivo de WhatsApp a clientes registrados
     if (p === '/api/masivo' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return; // campaña masiva = gerente+ (no cajero)
         return readBody(req, body => {
             try {
                 const _raw = JSON.parse(body);
@@ -175,6 +177,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
         return json(res, db.prepare('SELECT id, nombre, telefono, activo FROM repartidores WHERE activo=1 ORDER BY nombre').all());
     }
     if (p === '/api/repartidores' && req.method === 'POST') {
+        if (!requireSession(req, res, ['gerente'])) return; // alta de repartidor = gestión de datos, gerente+
         return readBody(req, body => {
             try {
                 const d = JSON.parse(body || '{}');
