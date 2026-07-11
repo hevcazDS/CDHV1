@@ -40,9 +40,13 @@ function construirModulo(defs, opts = {}) {
             // Gate explícito por ruta
             let ses = null;
             if (d.roles) { ses = requireSession(req, res, d.roles); if (!ses) return; }
-            else if (d.area) {
+            else if (d.area || d.areas) {
+                // area:'x' (una) o areas:['x','y'] (basta pasar UNA). Los módulos
+                // con acceso cruzado lo necesitan: mesas ['pos','operacion'],
+                // almacen ['almacen','almacen_lectura'], compras ['compras','finanzas'].
                 ses = requireSession(req, res); if (!ses) return;
-                if (!permite(ses.rol, d.area)) return json(res, { ok: false, error: 'Sin permiso' }, 403);
+                const areas = d.areas || [d.area];
+                if (!areas.some(a => permite(ses.rol, a))) return json(res, { ok: false, error: 'Sin permiso' }, 403);
             }
             return d.handler(req, res, ctx, { p, u, params, ses });
         }

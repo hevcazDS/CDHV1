@@ -36,8 +36,10 @@ const RE_ROUTE = /\bp\s*===|\bp\.match\(|\bp\.startsWith\(/; // "empieza una rut
 function gateEn(linea) {
     let g = linea.match(/requireSession\([^,]+,[^,]+,\s*\[([^\]]*)\]\)/);
     if (g) return g[1].replace(/['"\s]/g, '') || null;
-    g = linea.match(/permite\([^,]+,\s*'([a-z_]+)'\)/);
-    if (g) return g[1];
+    // Todas las áreas permite(...) de la línea, unidas con || (el gate suele ser
+    // `permite(x,'pos') || permite(x,'operacion')` — mostrar solo la primera mentía).
+    const perms = [...linea.matchAll(/permite\([^,]+,\s*'([a-z_]+)'\)/g)].map(m => m[1]);
+    if (perms.length) return [...new Set(perms)].join('||');
     return null;
 }
 
@@ -77,9 +79,12 @@ function extraer() {
                 if (ps) { dRuta = ps[1]; }
                 else if (pr) { dRuta = pr[1].replace(/\\\//g, '/').replace(/[\^$]/g, '').replace(/\([^)]*\)/g, '*'); dTipo = 'patrón'; }
                 if (dRuta && dRuta.startsWith('/api')) {
-                    const aM = L.match(/area:\s*'([a-z_]+)'/);
-                    const rM = L.match(/roles:\s*\[([^\]]*)\]/);
-                    const dRol = aM ? aM[1] : (rM ? rM[1].replace(/['"\s]/g, '') : null);
+                    const aM = L.match(/\barea:\s*'([a-z_]+)'/);
+                    const asM = L.match(/\bareas:\s*\[([^\]]*)\]/);
+                    const rM = L.match(/\broles:\s*\[([^\]]*)\]/);
+                    const dRol = aM ? aM[1]
+                        : asM ? asM[1].replace(/['"\s]/g, '').split(',').filter(Boolean).join('||')
+                        : (rM ? rM[1].replace(/['"\s]/g, '') : null);
                     rutas.push({ modulo, archivo, linea: i + 1, metodo: decl[1], ruta: dRuta, tipo: dTipo, rolMin: dRol, gateModulo: false });
                     continue;
                 }
