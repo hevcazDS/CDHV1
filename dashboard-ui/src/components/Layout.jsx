@@ -23,7 +23,7 @@ const GRUPOS = [
     { to: '/', label: 'Inicio', Icono: Home },
     { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo', area: 'pos' },
       { to: '/mesas', label: 'Mesas', area: 'pos', moduloRequerido: 'mesas_activo' },
-      { to: '/fiados', label: 'Fiados', area: 'pos', moduloRequerido: 'ventas_credito_activo' },
+      { to: '/fiados', label: 'Fiados', areas: ['pos', 'finanzas'], moduloRequerido: 'ventas_credito_activo' },
     { to: '/pedidos', area: 'operacion', label: 'Pedidos', Icono: Package },
     { to: '/devoluciones', area: 'operacion', label: 'Devoluciones', Icono: Undo2 },
     { to: '/cola', area: 'operacion', label: 'Cola de atención', Icono: MessagesSquare },
@@ -52,7 +52,7 @@ const GRUPOS = [
   ]},
   { titulo: 'Finanzas', enlaces: [
     { to: '/erp', label: 'ERP / Finanzas', Icono: Landmark, area: 'finanzas' },
-    { to: '/compras', label: 'Compras', Icono: ShoppingCart, area: 'compras' },
+    { to: '/compras', label: 'Compras', Icono: ShoppingCart, areas: ['compras', 'finanzas'] },
     { to: '/rrhh', label: 'Recursos Humanos', Icono: IdCard, area: 'rrhh', moduloRequerido: 'rrhh_activo' },
   ]},
   { titulo: 'Almacén', enlaces: [
@@ -107,6 +107,7 @@ export default function Layout() {
         : true;
       return pasaRol &&
         (!e.area || permite(user?.rol, e.area)) &&
+        (!e.areas || e.areas.some(a => permite(user?.rol, a))) &&
         (!e.moduloRequerido || modulosActivos[e.moduloRequerido] ||
           // rh/contabilidad SIEMPRE ven su link de RRHH; la página avisa si el módulo está apagado
           (e.moduloRequerido === 'rrhh_activo' && ['rh', 'contabilidad'].includes(user?.rol)));
