@@ -371,6 +371,50 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
         } catch (_) { return json(res, {}); }
     }
 
+    // GET /api/gerente/reportes — tres decisiones que el gerente tomaba a
+    // ciegas (comité de usuarios): (1) qué bajó de su stock mínimo, (2) margen
+    // real por producto vs volumen vendido, (3) productos muertos (con stock
+    // pero sin venta en 90 días = dinero parado). Todo ya se calcula por dentro
+    // (kardex, costo, pedido_detalle); solo faltaba exponerlo a nivel gerente
+    // sin abrir finanzas (prime+). Lectura pura.
+    if (p === '/api/gerente/reportes' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
+        try {
+            const d30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+            const d90 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+            const stock_bajo = db.prepare(`
+                SELECT p.id, p.name, i.sucursal, i.stock, i.stock_minimo
+                FROM inventarios i JOIN productos p ON p.id = i.id_producto
+                WHERE i.stock_minimo > 0 AND i.stock <= i.stock_minimo
+                ORDER BY (i.stock_minimo - i.stock) DESC, i.stock ASC LIMIT 100`).all();
+            const margen = db.prepare(`
+                SELECT p.id, p.name, p.price, p.costo,
+                       (SELECT COALESCE(SUM(d.cantidad),0) FROM pedido_detalle d
+                          JOIN links_pago lp ON lp.id_pedido=d.id_pedido AND lp.estatus='pagado'
+                          WHERE d.id_producto=p.id AND date(lp.pagado_en) >= ?) AS vendidos_30d
+                FROM productos p
+                WHERE p.activo=1 AND p.costo IS NOT NULL AND p.costo > 0
+                ORDER BY vendidos_30d DESC, p.name LIMIT 100`).all(d30);
+            const muertos = db.prepare(`
+                SELECT p.id, p.name, p.price,
+                       (SELECT COALESCE(SUM(i.stock),0) FROM inventarios i WHERE i.id_producto=p.id) AS stock
+                FROM productos p
+                WHERE p.activo=1
+                  AND (SELECT COALESCE(SUM(i.stock),0) FROM inventarios i WHERE i.id_producto=p.id) > 0
+                  AND NOT EXISTS (
+                      SELECT 1 FROM pedido_detalle d
+                        JOIN links_pago lp ON lp.id_pedido=d.id_pedido AND lp.estatus='pagado'
+                        WHERE d.id_producto=p.id AND date(lp.pagado_en) >= ?)
+                ORDER BY stock DESC LIMIT 100`).all(d90);
+            const margenCalc = margen.map(m => ({
+                ...m,
+                margen: m.price > 0 ? Math.round((m.price - m.costo) * 100) / 100 : 0,
+                margen_pct: m.price > 0 ? Math.round(((m.price - m.costo) / m.price) * 1000) / 10 : null,
+            }));
+            return json(res, { desde_ventas: d30, desde_muertos: d90, stock_bajo, margen: margenCalc, muertos });
+        } catch (_) { return json(res, { stock_bajo: [], margen: [], muertos: [] }); }
+    }
+
     // ── Preventas ─────────────────────────────────────────────────────
     if (p === '/api/preventas' && req.method === 'GET') {
         const rows = db.prepare(`
