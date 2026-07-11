@@ -22,6 +22,9 @@
     "test:dashboard-api": "node tests/test_dashboard_api.js",
     "migrate": "node scripts/migrate.js",
     "migrate:status": "node scripts/migrate.js --status",
+    "demo:generar": "node scripts/demo/generar.js",
+    "demo:limpiar": "node scripts/demo/generar.js --limpiar",
+    "demo": "node scripts/demo/servir.js",
     "lint": "echo 'Linting...'",
     "dev": "nodemon bot/index.js",
     "stop": "pm2 stop all"
