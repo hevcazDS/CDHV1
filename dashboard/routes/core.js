@@ -167,6 +167,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
 
     // GET /api/bot/status — estado real del proceso bot-whatsapp en PM2
     if (p === '/api/bot/status' && req.method === 'GET') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         pm2(['jlist'], (err, stdout) => {
             if (err) return json(res, { ok:false, error:'pm2 no disponible: ' + err.message }, 500);
             try {
@@ -201,6 +202,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
     // GET /api/bot/status-history — últimos cambios de estatus, para el
     // widget del header (qué pasó, no solo "inactivo" a secas)
     if (p === '/api/bot/status-history' && req.method === 'GET') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         const rows = db.prepare('SELECT estatus, motivo, registrado_en FROM bot_status_log ORDER BY id DESC LIMIT 50').all();
         return json(res, rows);
     }
@@ -210,6 +212,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
     // en cada evento 'qr' y lo limpia al autenticar — antes el único lugar
     // donde aparecía era la terminal del proceso pm2, invisible desde aquí.
     if (p === '/api/bot/qr' && req.method === 'GET') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         let fila = null;
         try {
             fila = db.prepare("SELECT valor, actualizado_en FROM configuracion WHERE clave='whatsapp_qr'").get();
@@ -219,6 +222,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
 
     // POST /api/bot/start — enciende solo bot-whatsapp (no toca el dashboard)
     if (p === '/api/bot/start' && req.method === 'POST') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         pm2(['start', ECOSYSTEM_PATH, '--only', 'bot-whatsapp'], (err, stdout, stderr) => {
             if (err) return json(res, { ok:false, error: stderr || err.message }, 500);
             try { db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('bot_estado_deseado','1') ON CONFLICT(clave) DO UPDATE SET valor='1'").run(); } catch (_) {}
@@ -230,6 +234,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
 
     // POST /api/bot/stop
     if (p === '/api/bot/stop' && req.method === 'POST') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         pm2(['stop', 'bot-whatsapp'], (err, stdout, stderr) => {
             if (err) return json(res, { ok:false, error: stderr || err.message }, 500);
             try { db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('bot_estado_deseado','0') ON CONFLICT(clave) DO UPDATE SET valor='0'").run(); } catch (_) {}
@@ -245,6 +250,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
     // reiniciar, sin que el dashboard mismo se vea afectado (pm2 solo toca
     // bot-whatsapp, nunca el proceso 'dashboard').
     if (p === '/api/bot/restart' && req.method === 'POST') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         cerrarElectronSiAbierto(() => {
             pm2(['restart', 'bot-whatsapp'], (err, stdout, stderr) => {
                 if (err) return json(res, { ok:false, error: stderr || err.message }, 500);
@@ -259,6 +265,7 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
     // (Chromium/puppeteer zombie tras reload de contenedor). Prime,
     // Administrador u Operador.
     if (p === '/api/bot/bridge/restart' && req.method === 'POST') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         const sesB = requireSession(req, res);
         if (!sesB) return;
         const { rangoDe } = require('../permisos');

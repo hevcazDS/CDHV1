@@ -56,6 +56,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     // confirme. Al responder, el bot lo mete directo a SHOW_CART y sigue el
     // flujo normal de carrito/envío/pago — no se reimplementa esa lógica aquí.
     if (p === '/api/pos/venta-previa' && req.method === 'POST') {
+        { const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body), VentaPreviaSchema, res, p);
@@ -239,6 +240,7 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
     // facturación) actualizar razon_social/rfc sin tocar el estatus -- el
     // modal "Ver ticket" de Pedidos.jsx manda solo esos dos campos.
     if (req.method === 'PUT' && p.startsWith('/api/pedidos/')) {
+        { const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         const id = parseInt(p.split('/').pop());
         return readBody(req, body => {
             try {

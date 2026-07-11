@@ -119,6 +119,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
 
     // POST /api/actualizar_guia — actualizar estatus de guía manualmente
     if (p === '/api/actualizar_guia' && req.method === 'POST') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body), GuiaSchema, res, p);
@@ -423,6 +424,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     }
 
     if (p === '/api/preventas' && req.method === 'POST') {
+        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
         return readBody(req, body => {
             try {
                 const datos = validar(JSON.parse(body), PreventaSchema, res, p);
