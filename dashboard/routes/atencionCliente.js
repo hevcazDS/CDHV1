@@ -2,9 +2,9 @@
 // Cola de atención, chat/conversaciones, reanudar-bot, actualización de guía,
 // lista de espera, búsquedas, métricas de gerencia y preventas. Migrado al
 // patrón declarativo del tronco: los reportes de /api/metricas/* y
-// /api/gerente/reportes → gerente; actualizar_guia y crear preventa →
-// operacion; el resto (lecturas + los dos PUT de atención que NUNCA tuvieron
-// gate propio) cae al gate global de sesión — se preserva su comportamiento.
+// /api/gerente/reportes → gerente; actualizar_guia/crear preventa y los dos PUT
+// de atención (cola_atencion/:id, clientes/:id/reanudar-bot) → operacion; las
+// lecturas (cola/chat/lista-espera/busquedas/preventas GET) caen al gate global.
 const construirModulo = require('./_construirModulo');
 
 // GET /api/cola_atencion?estatus=
@@ -320,10 +320,10 @@ function preventasPost(req, res, ctx) {
 
 const RUTAS = [
     { metodo: 'GET',  path: '/api/cola_atencion',                       handler: colaAtencionGet },
-    { metodo: 'PUT',  path: /^\/api\/cola_atencion\/(\d+)$/,            handler: colaAtencionPut },
+    { metodo: 'PUT',  path: /^\/api\/cola_atencion\/(\d+)$/,            area: 'operacion', handler: colaAtencionPut },
     { metodo: 'GET',  path: /^\/api\/pedidos\/(\d+)\/mensajes$/,        handler: pedidoMensajes },
     { metodo: 'GET',  path: /^\/api\/clientes\/(\d+)\/mensajes$/,       handler: clienteMensajes },
-    { metodo: 'PUT',  path: /^\/api\/clientes\/(\d+)\/reanudar-bot$/,   handler: reanudarBot },
+    { metodo: 'PUT',  path: /^\/api\/clientes\/(\d+)\/reanudar-bot$/,   area: 'operacion', handler: reanudarBot },
     { metodo: 'POST', path: '/api/actualizar_guia',                     area: 'operacion', handler: actualizarGuia },
     { metodo: 'GET',  path: '/api/lista-espera',                        handler: listaEspera },
     { metodo: 'GET',  path: '/api/busquedas',                           handler: busquedas },
