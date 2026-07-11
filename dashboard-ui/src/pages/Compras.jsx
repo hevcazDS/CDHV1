@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { esAdminOMas } from '../lib/permisos';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
+import { confirmar, toastOk } from '../lib/ui';
 
 // Rol Compras: solicitudes de adquisición (el administrador aprueba) e
 // ingreso de facturas de proveedor (→ CxP). Las OC viven en ERP > Compras.
@@ -29,7 +30,7 @@ export default function Compras() {
   });
   const crearFac = useMutation({
     mutationFn: () => api.post('/api/compras/factura', { ...fac, id_proveedor: Number(fac.id_proveedor), monto: Number(fac.monto) }),
-    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); alert('Factura registrada — vence ' + r.vence_en); setFac({ id_proveedor: null, monto: 0, referencia: '', es_mercancia: true }); },
+    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); toastOk('Factura registrada — vence ' + r.vence_en); setFac({ id_proveedor: null, monto: 0, referencia: '', es_mercancia: true }); },
     onError: handleApiError,
   });
 
@@ -60,20 +61,20 @@ export default function Compras() {
                   const prev = await api.post('/api/compras/factura-xml', { xml: String(rd.result || ''), solo_preview: true });
                   if (!prev.ok) throw new Error(prev.error);
                   const c = prev.cfdi;
-                  const esM = window.confirm(
-                    `CFDI leído:\n\nEmisor: ${c.emisor_nombre} (${c.emisor_rfc || 'sin RFC'})\nTotal: $${c.total} ${c.moneda}\nFecha: ${c.fecha || '-'}\nConceptos: ${c.conceptos.length}\nUUID: ${c.uuid || '-'}\n\n¿Es MERCANCÍA? (Aceptar = Inventario · Cancelar = Gasto)`
-                  );
+                  const esM = await confirmar({ titulo: 'CFDI leído',
+                    mensaje: `Emisor: ${c.emisor_nombre} (${c.emisor_rfc || 'sin RFC'})\nTotal: $${c.total} ${c.moneda}\nFecha: ${c.fecha || '-'}\nConceptos: ${c.conceptos.length}\nUUID: ${c.uuid || '-'}\n\n¿Es MERCANCÍA? (Aceptar = Inventario · Cancelar = Gasto)`,
+                    textoOk: 'Es mercancía' });
                   const matcheados = c.conceptos.filter(x => x.producto_id).length;
-                  const cargar = esM && window.confirm(
-                    `¿Cargar también los ${c.conceptos.length} conceptos al INVENTARIO?\n\n` +
+                  const cargar = esM && await confirmar({ titulo: 'Cargar al inventario',
+                    mensaje: `¿Cargar también los ${c.conceptos.length} conceptos al INVENTARIO?\n\n` +
                     `${matcheados} matchean con tu catálogo (entrada + costo promedio);\n` +
                     `${c.conceptos.length - matcheados} se crearían como producto INACTIVO para revisar.\n\n` +
-                    `Aceptar = cargar · Cancelar = solo registrar la factura`);
-                  if (!window.confirm('¿Registrar la factura → proveedor + cuenta por pagar + asiento?')) return;
+                    `Aceptar = cargar · Cancelar = solo registrar la factura`, textoOk: 'Cargar' });
+                  if (!await confirmar({ mensaje: '¿Registrar la factura → proveedor + cuenta por pagar + asiento?', textoOk: 'Registrar' })) return;
                   const r = await api.post('/api/compras/factura-xml', { xml: String(rd.result || ''), es_mercancia: esM, cargar_conceptos: cargar });
                   if (!r.ok) throw new Error(r.error);
-                  alert(`Registrada: ${r.proveedor} · $${r.total} · vence ${r.vence_en}` +
-                    (r.carga?.entradas ? `\n${r.carga.entradas} entradas al inventario (${r.carga.creados} productos nuevos inactivos)` : ''));
+                  toastOk(`Registrada: ${r.proveedor} · $${r.total} · vence ${r.vence_en}` +
+                    (r.carga?.entradas ? ` · ${r.carga.entradas} entradas al inventario (${r.carga.creados} nuevos inactivos)` : ''));
                 } catch (err) { handleApiError(err); }
               };
               rd.readAsText(f);

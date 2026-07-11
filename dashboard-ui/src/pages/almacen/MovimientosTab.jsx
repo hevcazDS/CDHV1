@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, TextInput, NumberInput, Select, Group, Text } from '@mantine/core';
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
+import { prompt as pedir, toastOk } from '../../lib/ui';
 import { fdate } from '../../lib/format';
 
 // Traslados entre bodegas y salidas (ambos con PIN) + kardex por producto.
@@ -18,7 +19,7 @@ export default function MovimientosTab() {
     mutationFn: (id) => api.post(`/api/erp/ordenes-compra/${id}/recibir`),
     onSuccess: (r) => {
       if (!r.ok) return handleApiError(new Error(r.error));
-      alert('Mercancía recibida: inventario, costo promedio y CxP actualizados');
+      toastOk('Mercancía recibida: inventario, costo promedio y CxP actualizados');
       qc.invalidateQueries({ queryKey: ['erp-ocs'] });
       qc.invalidateQueries({ queryKey: ['almacen-prods'] });
     },
@@ -28,14 +29,14 @@ export default function MovimientosTab() {
   const sucursales = [...new Set(prods.map(x => x.sucursal))];
 
   const mover = useMutation({
-    mutationFn: ({ ruta, body }) => {
-      const pin = window.prompt('PIN de autorización del administrador:');
+    mutationFn: async ({ ruta, body }) => {
+      const pin = await pedir({ titulo: 'Autorización', mensaje: 'PIN de autorización del administrador:', tipo: 'password' });
       if (!pin) throw new Error('Operación cancelada');
       return api.post(ruta, { ...body, pin });
     },
     onSuccess: (r) => {
       if (!r.ok) return handleApiError(new Error(r.error));
-      alert('Movimiento registrado con kardex');
+      toastOk('Movimiento registrado con kardex');
       qc.invalidateQueries({ queryKey: ['almacen-prods'] });
       qc.invalidateQueries({ queryKey: ['kardex'] });
     },
@@ -79,14 +80,14 @@ export default function MovimientosTab() {
         </Group>
         <Button fullWidth mt="sm" variant="light" color="teal" disabled={!f.producto || !f.origen}
           onClick={async () => {
-            const costo = window.prompt('Costo unitario (opcional, recalcula el promedio):', '');
+            const costo = await pedir({ titulo: 'Entrada de mercancía', mensaje: 'Costo unitario (opcional, recalcula el promedio):', tipo: 'text' });
             try {
               const r = await api.post('/api/prime/entrada-mercancia', {
                 id_producto: Number(f.producto), sucursal: f.origen, cantidad: f.cantidad,
                 costo: costo !== null && costo !== '' ? Number(costo) : undefined, proveedor: f.motivo || undefined,
               });
               if (!r.ok) throw new Error(r.error);
-              alert(`Entrada registrada: ${r.stock_anterior} → ${r.stock_nuevo}`);
+              toastOk(`Entrada registrada: ${r.stock_anterior} → ${r.stock_nuevo}`);
               qc.invalidateQueries({ queryKey: ['almacen-prods'] });
               qc.invalidateQueries({ queryKey: ['kardex'] });
             } catch (e) { handleApiError(e); }

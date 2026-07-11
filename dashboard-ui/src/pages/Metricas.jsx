@@ -139,7 +139,7 @@ export default function Metricas() {
               sections={[{ value: d?.csat?.promedio ? Math.min(100, (d.csat.promedio / 5) * 100) : 0, color: 'var(--green)' }]}
               label={<Text ta="center" size="sm" fw={700}>{d?.csat?.promedio ? Math.round((d.csat.promedio / 5) * 100) + '%' : '—'}</Text>}
             />
-            <Text size="xs" c="dimmed">{d?.csat?.n || 0} valoracion{(d?.csat?.n || 0) === 1 ? '' : 'es'}</Text>
+            <Text size="xs" c="dimmed">{d?.csat?.n || 0} {(d?.csat?.n || 0) === 1 ? 'valoración' : 'valoraciones'}</Text>
           </div>
         </Card>
       </div>
@@ -372,14 +372,18 @@ export default function Metricas() {
       {bot && (
         <Card withBorder radius="md" p="lg" style={{ marginBottom: 16 }}>
           <Title order={4} mb="md">{txt('🤖 Salud del bot (30 días)')}</Title>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14 }}>
-            <div><Text size="xs" c="dimmed">Búsquedas</Text><Text fw={700} size="lg">{bot.busquedas}</Text></div>
-            <div><Text size="xs" c="dimmed">Productos vistos</Text><Text fw={700} size="lg">{bot.productos_vistos}</Text></div>
-            <div><Text size="xs" c="dimmed">Fallbacks (no entendió)</Text><Text fw={700} size="lg" c={bot.fallback_pct > 15 ? 'red' : undefined}>{bot.fallbacks} <Text span size="xs" c="dimmed">{bot.fallback_pct != null ? '(' + bot.fallback_pct + '%)' : ''}</Text></Text></div>
-            <div><Text size="xs" c="dimmed">Frustraciones</Text><Text fw={700} size="lg" c={bot.frustraciones > 0 ? 'orange' : undefined}>{bot.frustraciones}</Text></div>
-            <div><Text size="xs" c="dimmed">Imágenes analizadas</Text><Text fw={700} size="lg">{bot.imagenes}</Text></div>
-          </div>
-          <Text size="xs" c="dimmed" mt="sm">Un fallback alto = el bot recibe texto que las reglas no resuelven (candidato a mejorar o al LLM). Frustración = clientes molestos detectados.</Text>
+          {(bot.busquedas + bot.productos_vistos + bot.fallbacks + bot.frustraciones + bot.imagenes) === 0 ? (
+            <Text size="sm" c="dimmed">Sin datos aún — el bot no ha registrado actividad en los últimos 30 días.</Text>
+          ) : (<>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14 }}>
+              <div><Text size="xs" c="dimmed">Búsquedas</Text><Text fw={700} size="lg">{bot.busquedas}</Text></div>
+              <div><Text size="xs" c="dimmed">Productos vistos</Text><Text fw={700} size="lg">{bot.productos_vistos}</Text></div>
+              <div><Text size="xs" c="dimmed">Fallbacks (no entendió)</Text><Text fw={700} size="lg" c={bot.fallback_pct > 15 ? 'red' : undefined}>{bot.fallbacks} <Text span size="xs" c="dimmed">{bot.fallback_pct != null ? '(' + bot.fallback_pct + '%)' : ''}</Text></Text></div>
+              <div><Text size="xs" c="dimmed">Frustraciones</Text><Text fw={700} size="lg" c={bot.frustraciones > 0 ? 'orange' : undefined}>{bot.frustraciones}</Text></div>
+              <div><Text size="xs" c="dimmed">Imágenes analizadas</Text><Text fw={700} size="lg">{bot.imagenes}</Text></div>
+            </div>
+            <Text size="xs" c="dimmed" mt="sm">Un fallback alto = el bot recibe texto que las reglas no resuelven (candidato a mejorar o al LLM). Frustración = clientes molestos detectados.</Text>
+          </>)}
         </Card>
       )}
 

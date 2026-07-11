@@ -5,6 +5,7 @@ import { Card, Group, Title, ActionIcon, Table, Tabs, Button } from '@mantine/co
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
+import { confirmar, toastOk } from '../lib/ui';
 import Badge from '../components/Badge';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
@@ -38,7 +39,7 @@ export default function ColaEnvios() {
   const reintentarTodoMutation = useMutation({
     mutationFn: () => api.post('/api/cola/reintentar', {}),
     onSuccess: (r) => {
-      window.alert(txt(`✅ ${r.reactivados || 0} mensajes reactivados`));
+      toastOk(txt(`✅ ${r.reactivados || 0} mensajes reactivados`));
       queryClient.invalidateQueries({ queryKey: ['cola-envios'] });
     },
     onError: (e) => handleApiError(e),
@@ -53,13 +54,13 @@ export default function ColaEnvios() {
   const cancelarCampanaMutation = useMutation({
     mutationFn: ({ asunto, enviar_despues_de }) => api.del('/api/cola/programados', { asunto, enviar_despues_de }),
     onSuccess: (r) => {
-      window.alert(txt(`✅ ${r.cancelados || 0} mensajes cancelados`));
+      toastOk(txt(`✅ ${r.cancelados || 0} mensajes cancelados`));
       queryClient.invalidateQueries({ queryKey: ['cola-programados'] });
     },
     onError: (e) => handleApiError(e),
   });
-  const cancelarCampana = (asunto, enviar_despues_de) => {
-    if (!window.confirm('¿Cancelar esta campaña? Los mensajes pendientes no se enviarán.')) return;
+  const cancelarCampana = async (asunto, enviar_despues_de) => {
+    if (!await confirmar({ mensaje: '¿Cancelar esta campaña? Los mensajes pendientes no se enviarán.', peligro: true, textoOk: 'Cancelar campaña' })) return;
     cancelarCampanaMutation.mutate({ asunto, enviar_despues_de });
   };
 

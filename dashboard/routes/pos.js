@@ -206,8 +206,12 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     // stock; y si el negocio no controla inventario, tampoco.
                     for (const it of carrito) {
                         if (it.tipo === 'servicio' || !inventarioActivo()) continue;
-                        kardexService.movimiento({ id_producto: it.id, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Venta ' + folio, usuario: req._ses?.username });
-                        if (it.id_variante) require('../../services/variantesService').descontarVariante(it.id_variante, sucursal, it.cantidad);
+                        // Un tropiezo del kardex (producto sin fila de inventario, etc.)
+                        // no debe tumbar un cobro físico que ya ocurrió. Igual que mesas.js.
+                        try {
+                            kardexService.movimiento({ id_producto: it.id, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Venta ' + folio, usuario: req._ses?.username });
+                            if (it.id_variante) require('../../services/variantesService').descontarVariante(it.id_variante, sucursal, it.cantidad);
+                        } catch (e) { log.warn('Kardex POS no aplicado para producto ' + it.id + ': ' + e.message); }
                     }
                     db.prepare('UPDATE pedidos SET cobrado_por=? WHERE id_pedido=?').run(req._ses?.username || null, pedidoRowid);
                     return { pedidoRowid, subtotal };

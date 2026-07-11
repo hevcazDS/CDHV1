@@ -4,6 +4,7 @@ import { Bot } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { esAdminOMas } from '../lib/permisos';
 import { api } from '../api';
+import { confirmar, toastOk, toastErr } from '../lib/ui';
 
 const ETIQUETAS = {
   online: 'En línea',
@@ -44,7 +45,7 @@ export default function BotStatusWidget() {
       queryClient.invalidateQueries({ queryKey: ['bot-status'] });
       queryClient.invalidateQueries({ queryKey: ['bot-status-history'] });
     },
-    onError: (e) => alert(e.message),
+    onError: (e) => toastErr(e.message),
   });
 
   useEffect(() => {
@@ -76,9 +77,9 @@ export default function BotStatusWidget() {
             {puedeBridge && (
               <button className="btn" disabled={accionMutation.isPending} title="Si el bot quedó zombie tras un reinicio del servidor (HS-502)"
                 onClick={async () => {
-                  if (!window.confirm('¿Reiniciar el BRIDGE de WhatsApp? (para cuando quedó zombie tras un reload)')) return;
+                  if (!await confirmar({ mensaje: '¿Reiniciar el BRIDGE de WhatsApp? (para cuando quedó zombie tras un reload)', textoOk: 'Reiniciar' })) return;
                   const r = await api.post('/api/bot/bridge/restart');
-                  alert(r.ok ? 'Bridge reiniciado' : (r.error || 'No se pudo'));
+                  if (r.ok) toastOk('Bridge reiniciado'); else toastErr(r.error || 'No se pudo');
                 }}>Reiniciar bridge</button>
             )}
           </div>

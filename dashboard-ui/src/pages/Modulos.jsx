@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Switch, TextInput } from '@mantine/core';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
+import { confirmar, toastOk } from '../lib/ui';
 import { useTextoEmoji, EMOJIS_ACTIVO_QUERY_KEY } from '../context/EmojiContext';
 
 // Gestión de métodos de pago: activar/desactivar cada uno y, para
@@ -58,7 +59,7 @@ function PinCard({ txt }) {
     try {
       const r = await api.put('/api/autorizacion/pin', { pin });
       if (!r.ok) throw new Error(r.error);
-      alert('PIN actualizado'); setPin('');
+      toastOk('PIN actualizado'); setPin('');
     } catch (e) { handleApiError(e); }
   };
   return (
@@ -139,9 +140,9 @@ export default function Modulos() {
     },
     onError: (e) => handleApiError(e),
   });
-  const toggle = (clave, activo) => {
+  const toggle = async (clave, activo) => {
     const accion = activo ? 'activar' : 'desactivar';
-    if (!window.confirm(`¿Seguro que quieres ${accion} este módulo? Afecta a los clientes de inmediato.`)) return;
+    if (!await confirmar({ mensaje: `¿Seguro que quieres ${accion} este módulo? Afecta a los clientes de inmediato.`, peligro: !activo, textoOk: accion })) return;
     toggleMutation.mutate({ clave, activo });
   };
 

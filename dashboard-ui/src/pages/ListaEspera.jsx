@@ -4,6 +4,7 @@ import { Card, Group, Title, ActionIcon, Table, Button } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
+import { confirmar, toastOk } from '../lib/ui';
 import { useTextoEmoji } from '../context/EmojiContext';
 
 export default function ListaEspera() {
@@ -18,13 +19,13 @@ export default function ListaEspera() {
   const notificarMutation = useMutation({
     mutationFn: (idProducto) => api.post(`/api/notificar-lista/${idProducto}`),
     onSuccess: (r) => {
-      window.alert(txt(`✅ ${r.notificados || 0} notificados`));
+      toastOk(txt(`✅ ${r.notificados || 0} notificados`));
       queryClient.invalidateQueries({ queryKey: ['lista-espera'] });
     },
     onError: (e) => { handleApiError(e, 'Error al notificar'); queryClient.invalidateQueries({ queryKey: ['lista-espera'] }); },
   });
-  const notificar = (idProducto, total) => {
-    if (!window.confirm(`¿Notificar a ${total || 0} persona(s) que este producto ya tiene stock?`)) return;
+  const notificar = async (idProducto, total) => {
+    if (!await confirmar({ mensaje: `¿Notificar a ${total || 0} persona(s) que este producto ya tiene stock?`, textoOk: 'Notificar' })) return;
     notificarMutation.mutate(idProducto);
   };
 

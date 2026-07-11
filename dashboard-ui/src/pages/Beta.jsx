@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, Title, ActionIcon, Group, Button, PasswordInput, TextInput, Table } from '@mantine/core';
 import { api } from '../api';
 import { fdate } from '../lib/format';
+import { confirmar } from '../lib/ui';
 import { useTextoEmoji } from '../context/EmojiContext';
 
 export default function Beta() {
@@ -16,7 +17,7 @@ export default function Beta() {
 
   const resetBeta = async () => {
     if (!codigo || !telefono) { setMsg({ ok: false, texto: 'Completa código y teléfono' }); return; }
-    if (!window.confirm('¿Eliminar todos los datos de prueba de este número?')) return;
+    if (!await confirmar({ mensaje: '¿Eliminar todos los datos de prueba de este número?', peligro: true, textoOk: 'Eliminar' })) return;
     try {
       const r = await api.post('/api/beta/limpiar', { codigo, telefono });
       setMsg(r.ok ? { ok: true, texto: 'Datos eliminados correctamente' } : { ok: false, texto: '' + r.error });

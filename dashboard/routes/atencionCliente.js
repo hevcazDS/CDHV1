@@ -271,6 +271,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // nadie veía: productos vistos, frustraciones, análisis de imagen y
     // fallbacks (texto que el motor de reglas no supo resolver). 3er comité (CRO).
     if (p === '/api/metricas/salud-bot' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const sp = new URL(req.url, 'http://x').searchParams;
             const desde = (sp.get('desde') || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)).slice(0, 10);
@@ -296,6 +297,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // presupuesto + lead_score) cruzado con ingresos. Datos ya capturados por
     // el bot (migración 0019) que no se veían en ningún reporte. 3er comité.
     if (p === '/api/metricas/segmentacion' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const rows = db.prepare(`
                 SELECT COALESCE(NULLIF(c.genero_pref,''),'—') genero,
