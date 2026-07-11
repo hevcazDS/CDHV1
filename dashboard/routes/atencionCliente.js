@@ -201,6 +201,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // vencer, reactivación de dormidos, etc.), via el tag `campana` en
     // cola_notificaciones. Defensivo: [] si la columna todavía no existe.
     if (p === '/api/metricas/campanas' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const rows = db.prepare(`
                 SELECT cn.campana,
@@ -221,6 +222,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // promo:CÓDIGO del primer mensaje): clientes, pedidos, ingresos y ticket
     // por canal. Usa datos YA capturados en clientes.canal_origen.
     if (p === '/api/metricas/canales' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const sp = new URL(req.url, 'http://x').searchParams;
             const desde = (sp.get('desde') || '2000-01-01').slice(0, 10);
@@ -243,6 +245,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // capturaban en log_eventos pero nadie veía: citas (no-show), mesas
     // (ocupación/ticket), link de pago (enviado→pagado) y recompra (ROI).
     if (p === '/api/metricas/operacion' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const sp = new URL(req.url, 'http://x').searchParams;
             const desde = (sp.get('desde') || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)).slice(0, 10);
@@ -322,6 +325,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // su compra (precio/envío/otro), capturado por bot/handlers/abandonoHandler.js.
     // Defensivo: [] si `carritos_abandonados.motivo` todavía no existe.
     if (p === '/api/metricas/abandono-motivos' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const rows = db.prepare(`
                 SELECT motivo, COUNT(*) AS n
