@@ -138,8 +138,13 @@ async function handle(ctx) {
             const _controlInv = moduloActivo('inventario_activo');
             if (_controlInv) for (const item of _carrito) {
                 if (!item.id) continue;
-                const _prod = db.prepare('SELECT name, stock_tienda, stock_cedis FROM productos WHERE id=?').get(item.id);
-                const _stockTotal = (_prod?.stock_tienda || 0) + (_prod?.stock_cedis || 0);
+                // Stock VIVO desde inventarios (lo que mantiene el kardex). Las
+                // columnas productos.stock_* son estáticas del alta y nunca se
+                // actualizan → causaban sobreventa. Si el producto no tiene
+                // filas en inventarios, se cae al valor legacy (sin regresión).
+                const _prod = db.prepare('SELECT name, (COALESCE(stock_tienda,0)+COALESCE(stock_cedis,0)+COALESCE(stock_exhibicion,0)) legacy FROM productos WHERE id=?').get(item.id);
+                const _inv = db.prepare('SELECT COALESCE(SUM(stock),0) s, COUNT(*) n FROM inventarios WHERE id_producto=?').get(item.id) || { s: 0, n: 0 };
+                const _stockTotal = _inv.n > 0 ? _inv.s : (_prod?.legacy || 0);
                 if (_stockTotal < (item.cantidad || 1)) {
                     _sinStock.push(_prod?.name || item.name);
                 }
