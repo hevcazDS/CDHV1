@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, Button, TextInput, Textarea, Text } from '@mantine/core';
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
+import { prompt as pedir, toastOk } from '../../lib/ui';
 import { exportarCSV } from '../../lib/csv';
 
 // Conteo físico contra archivo: CSV/TXT con "upc,cantidad" (o solo UPCs
@@ -41,12 +42,12 @@ export default function ConteoTab() {
   const aplicar = async () => {
     const conDiferencia = resultado.resultado.filter(x => x.diferencia !== 0);
     const hayBajas = conDiferencia.some(x => x.diferencia < 0);
-    const pin = hayBajas ? window.prompt('Hay ajustes A LA BAJA — PIN de autorización del administrador:') : undefined;
+    const pin = hayBajas ? await pedir({ titulo: 'Autorización', mensaje: 'Hay ajustes A LA BAJA — PIN de autorización del administrador:', tipo: 'password' }) : undefined;
     if (hayBajas && !pin) return;
     try {
       const r = await api.post('/api/almacen/conteo/aplicar', { sucursal: resultado.sucursal, ajustes: conDiferencia, pin });
       if (!r.ok) throw new Error(r.error);
-      alert(`${r.aplicados} ajuste(s) aplicados con kardex`);
+      toastOk(`${r.aplicados} ajuste(s) aplicados con kardex`);
       setResultado(null); setTexto('');
     } catch (e) { handleApiError(e); }
   };

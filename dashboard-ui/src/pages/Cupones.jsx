@@ -6,6 +6,7 @@ import { api } from '../api';
 import Modal from '../components/Modal';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
+import { confirmar } from '../lib/ui';
 import { useTextoEmoji } from '../context/EmojiContext';
 
 const FILTRO_OPTS = [
@@ -88,8 +89,8 @@ export default function Cupones() {
     onSuccess: () => { setBajando(null); setMotivoBaja(''); queryClient.invalidateQueries({ queryKey: ['promociones'] }); },
     onError: (e) => handleApiError(e),
   });
-  const activar = (id) => {
-    if (!window.confirm('¿Seguro que quieres activar esta promoción?')) return;
+  const activar = async (id) => {
+    if (!await confirmar({ mensaje: '¿Seguro que quieres activar esta promoción?', textoOk: 'Activar' })) return;
     toggleMutation.mutate({ id, activa: true });
   };
 

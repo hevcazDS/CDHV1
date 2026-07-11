@@ -480,9 +480,18 @@ module.exports = function comunicacionPedidosRoutes(req, res, p, u, ctx, next) {
                         'SELECT sucursal_origen FROM pedido_detalle WHERE id_pedido=? AND id_producto=? LIMIT 1'
                     ).get(dev.id_pedido, dev.id_producto);
                     if (det) {
-                        kardexService.movimiento({ id_producto: dev.id_producto, sucursal: det.sucursal_origen, tipo: 'devolucion', delta: dev.cantidad, motivo: 'Devolución pedido ' + (dev.folio || dev.id_pedido), usuario: _sesDev.username });
-                        try { require('../../services/contabilidadService').asientoDevolucion(dev.id_pedido, dev.id_producto, dev.cantidad); }
-                        catch (e) { log.debug('Asiento de devolución no registrado: ' + e.message); }
+                        // No reponer más de lo que se vendió (menos lo ya devuelto en
+                        // devoluciones previas resueltas) — evita stock fantasma si la
+                        // cantidad capturada excede la vendida. Comité de dominio.
+                        const vendida = db.prepare('SELECT COALESCE(SUM(cantidad),0) c FROM pedido_detalle WHERE id_pedido=? AND id_producto=?').get(dev.id_pedido, dev.id_producto).c;
+                        const yaDevuelta = db.prepare("SELECT COALESCE(SUM(cantidad),0) c FROM devoluciones WHERE id_pedido=? AND id_producto=? AND estatus='resuelta' AND id!=?").get(dev.id_pedido, dev.id_producto, id).c;
+                        const cantReponer = Math.min(dev.cantidad, Math.max(0, vendida - yaDevuelta));
+                        if (cantReponer < dev.cantidad) log.warn('Devolución ' + id + ': cantidad ' + dev.cantidad + ' excede lo devolvible (' + Math.max(0, vendida - yaDevuelta) + '); se repone ' + cantReponer);
+                        if (cantReponer > 0) {
+                            kardexService.movimiento({ id_producto: dev.id_producto, sucursal: det.sucursal_origen, tipo: 'devolucion', delta: cantReponer, motivo: 'Devolución pedido ' + (dev.folio || dev.id_pedido), usuario: _sesDev.username });
+                            try { require('../../services/contabilidadService').asientoDevolucion(dev.id_pedido, dev.id_producto, cantReponer); }
+                            catch (e) { log.debug('Asiento de devolución no registrado: ' + e.message); }
+                        }
                     }
                 }
 

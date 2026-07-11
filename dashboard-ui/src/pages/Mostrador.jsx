@@ -4,9 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, Group, Title, Table, Button, TextInput, NumberInput, Select, ActionIcon, Checkbox } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
-import { alertar, prompt } from '../lib/ui';
-import { useAuth } from '../context/AuthContext';
-import { tieneRango } from '../lib/roles';
+import { alertar, prompt, toastErr, toastOk } from '../lib/ui';
 import { LEYENDA_FACTURACION } from '../lib/factura';
 import { useTextoEmoji } from '../context/EmojiContext';
 
@@ -14,8 +12,6 @@ import { useTextoEmoji } from '../context/EmojiContext';
 // presenciales; el corte de caja es gerente+.
 export default function Mostrador() {
   const txt = useTextoEmoji();
-  const { user } = useAuth();
-  const esGerente = tieneRango(user?.rol, 'gerente');
 
   const { data: config } = useQuery({ queryKey: ['pos-config'], queryFn: () => api.get('/api/pos/config') });
   const [busqueda, setBusqueda] = useState('');
@@ -30,6 +26,8 @@ export default function Mostrador() {
   const [rfc, setRfc] = useState('');
   const [msg, setMsg] = useState(null);
   const [ticket, setTicket] = useState(null);
+  const [cupon, setCupon] = useState('');
+  const [cuponInfo, setCuponInfo] = useState(null);
   const reimprimir = () => { try { const t = JSON.parse(localStorage.getItem('pos-ultimo-ticket') || 'null'); if (t) setTicket(t); else alertar({ titulo: 'Sin ticket', mensaje: 'No hay ticket previo en esta caja' }); } catch (_) {} };
   const [cobrando, setCobrando] = useState(false);
 
@@ -71,7 +69,24 @@ export default function Mostrador() {
   const setCantidad = (id, cant) => setCarrito(c => c.map(x => x.id === id ? { ...x, cantidad: Math.max(0.001, Number(cant) || 1) } : x));
   const quitar = (id) => setCarrito(c => c.filter(x => x.id !== id));
   const total = useMemo(() => carrito.reduce((s, i) => s + i.price * i.cantidad, 0), [carrito]);
-  const cambio = (metodoPago === 'efectivo' && efectivo !== '') ? Math.max(0, Number(efectivo) - total) : null;
+  // Descuento por cupón: el server es la autoridad (revalida alcance al cobrar);
+  // esto es solo la vista previa para que el cajero le diga el total al cliente.
+  const descuento = cuponInfo ? cuponInfo.descuento : 0;
+  const totalNeto = Math.round((total - descuento) * 100) / 100;
+  const cambio = (metodoPago === 'efectivo' && efectivo !== '') ? Math.max(0, Number(efectivo) - totalNeto) : null;
+
+  const validarCupon = async () => {
+    const cod = cupon.trim();
+    if (!cod) return;
+    try {
+      const r = await api.get('/api/cupon/validar?codigo=' + encodeURIComponent(cod));
+      if (!r.ok) { setCuponInfo(null); toastErr('Cupón: ' + (r.error || 'no válido')); return; }
+      const desc = r.tipo === 'porcentaje' ? Math.round(total * (r.valor / 100) * 100) / 100 : Math.min(r.valor, total);
+      setCuponInfo({ codigo: r.codigo, descuento: desc, descripcion: r.tipo === 'porcentaje' ? r.valor + '% de descuento' : '$' + Number(r.valor).toFixed(2) + ' de descuento' });
+      toastOk('Cupón aplicado: ' + r.codigo);
+    } catch (e) { setCuponInfo(null); toastErr(e.message); }
+  };
+  const quitarCupon = () => { setCupon(''); setCuponInfo(null); };
 
   const cobrar = async () => {
     if (!carrito.length) return;
@@ -85,6 +100,7 @@ export default function Mostrador() {
         efectivo_recibido: efectivo === '' ? undefined : Number(efectivo),
         razon_social: razonSocial || undefined,
         rfc: rfc || undefined,
+        cupon: cupon.trim() || undefined,
         pin,
       });
       let r = await armarVenta();
@@ -97,7 +113,7 @@ export default function Mostrador() {
       if (r && r.ok === false) throw new Error(r.error || 'No se pudo cobrar');
       setTicket(r);
       try { localStorage.setItem('pos-ultimo-ticket', JSON.stringify(r)); } catch (_) {}
-      setCarrito([]); setEfectivo(''); setClienteTel(''); setClienteNombre(''); setRazonSocial(''); setRfc(''); setACredito(false);
+      setCarrito([]); setEfectivo(''); setClienteTel(''); setClienteNombre(''); setRazonSocial(''); setRfc(''); setACredito(false); setCupon(''); setCuponInfo(null);
     } catch (e) { setMsg({ ok: false, t: e.message }); }
     finally { setCobrando(false); }
   };
@@ -156,7 +172,12 @@ export default function Mostrador() {
               ))}
             </tbody>
           </Table>
-          <div style={{ textAlign: 'right', fontSize: 20, fontWeight: 700, marginTop: 8 }}>Total: ${fmt(total)}</div>
+          {descuento > 0 && (
+            <div style={{ textAlign: 'right', fontSize: 13, marginTop: 8, color: 'var(--text-mute)' }}>
+              Subtotal: ${fmt(total)} · Descuento ({cuponInfo.codigo}): <span style={{ color: 'var(--green)' }}>-${fmt(descuento)}</span>
+            </div>
+          )}
+          <div style={{ textAlign: 'right', fontSize: 20, fontWeight: 700, marginTop: 4 }}>Total: ${fmt(totalNeto)}</div>
         </Card>
 
         <Card withBorder radius="md" p="lg">
@@ -184,9 +205,24 @@ export default function Mostrador() {
               <TextInput placeholder="RFC" value={rfc} onChange={e => setRfc(e.target.value)} size="xs" />
             </div>
           )}
+          <div style={{ border: '1px dashed var(--border)', borderRadius: 6, padding: 10, marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6 }}>Cupón / descuento (opcional)</div>
+            {cuponInfo ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+                <span>✅ <strong>{cuponInfo.codigo}</strong> — {cuponInfo.descripcion}</span>
+                <Button size="xs" variant="subtle" color="red" onClick={quitarCupon}>Quitar</Button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <TextInput placeholder="Código" value={cupon} onChange={e => setCupon(e.target.value)} size="xs" style={{ flex: 1 }}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); validarCupon(); } }} />
+                <Button size="xs" variant="default" disabled={!cupon.trim()} onClick={validarCupon}>Aplicar</Button>
+              </div>
+            )}
+          </div>
           <Button fullWidth size="md" color={aCredito ? 'orange' : undefined}
             disabled={!carrito.length || cobrando || (aCredito && !clienteTel && !clienteNombre)} onClick={cobrar}>
-            {cobrando ? (aCredito ? 'Registrando…' : 'Cobrando…') : aCredito ? `Registrar fiado $${fmt(total)}` : `Cobrar $${fmt(total)}`}
+            {cobrando ? (aCredito ? 'Registrando…' : 'Cobrando…') : aCredito ? `Registrar fiado $${fmt(totalNeto)}` : `Cobrar $${fmt(totalNeto)}`}
           </Button>
 
           {ticket && (
@@ -195,6 +231,7 @@ export default function Mostrador() {
               <div style={{ marginTop: 6 }}>
                 {ticket.items.map((it, i) => <div key={i}>{it.cantidad}× {it.name} — ${fmt(it.subtotal)}</div>)}
               </div>
+              {ticket.descuento > 0 && <div style={{ color: 'var(--text-mute)' }}>Subtotal: ${fmt(ticket.subtotal)} · Descuento{ticket.cupon ? ' (' + ticket.cupon.codigo + ')' : ''}: -${fmt(ticket.descuento)}</div>}
               <div style={{ marginTop: 6 }}>Total: <strong>${fmt(ticket.total)}</strong> ({ticket.metodo_pago})</div>
               {ticket.cambio !== null && <div>Cambio: <strong>${fmt(ticket.cambio)}</strong></div>}
               {(ticket.razon_social || ticket.rfc) && (
@@ -211,12 +248,14 @@ export default function Mostrador() {
         </Card>
       </div>
 
-      {esGerente && <CorteCaja txt={txt} />}
+      <CorteCaja txt={txt} />
     </div>
   );
 }
 
-// Corte de caja — solo gerente+ (es un reporte).
+// Corte de caja. Backend scoping por rol: gerente+ ve el corte GLOBAL (todas
+// las cajas + WhatsApp); el cajero cierra SOLO su propia caja del día. Por eso
+// se muestra a cualquier usuario del mostrador (no solo gerente).
 function CorteCaja({ txt }) {
   const hoy = new Date().toISOString().slice(0, 10);
   const [fecha, setFecha] = useState(hoy);
@@ -237,7 +276,7 @@ function CorteCaja({ txt }) {
   return (
     <Card withBorder radius="md" p="lg" mt="md">
       <Group justify="space-between" mb="sm">
-        <Title order={4}>{txt('🧾 Corte de caja')}</Title>
+        <Title order={4}>{txt('🧾 Corte de caja')}{data?.alcance === 'propio' ? ' (tu caja)' : data?.alcance === 'global' ? ' (global)' : ''}</Title>
         <TextInput type="date" value={fecha} onChange={e => setFecha(e.target.value)} size="xs" />
       </Group>
       {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginBottom: 10, fontSize: 13 }}>{msg.t}</div>}

@@ -201,6 +201,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // vencer, reactivación de dormidos, etc.), via el tag `campana` en
     // cola_notificaciones. Defensivo: [] si la columna todavía no existe.
     if (p === '/api/metricas/campanas' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const rows = db.prepare(`
                 SELECT cn.campana,
@@ -221,6 +222,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // promo:CÓDIGO del primer mensaje): clientes, pedidos, ingresos y ticket
     // por canal. Usa datos YA capturados en clientes.canal_origen.
     if (p === '/api/metricas/canales' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const sp = new URL(req.url, 'http://x').searchParams;
             const desde = (sp.get('desde') || '2000-01-01').slice(0, 10);
@@ -243,6 +245,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // capturaban en log_eventos pero nadie veía: citas (no-show), mesas
     // (ocupación/ticket), link de pago (enviado→pagado) y recompra (ROI).
     if (p === '/api/metricas/operacion' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const sp = new URL(req.url, 'http://x').searchParams;
             const desde = (sp.get('desde') || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)).slice(0, 10);
@@ -271,6 +274,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // nadie veía: productos vistos, frustraciones, análisis de imagen y
     // fallbacks (texto que el motor de reglas no supo resolver). 3er comité (CRO).
     if (p === '/api/metricas/salud-bot' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const sp = new URL(req.url, 'http://x').searchParams;
             const desde = (sp.get('desde') || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)).slice(0, 10);
@@ -296,6 +300,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // presupuesto + lead_score) cruzado con ingresos. Datos ya capturados por
     // el bot (migración 0019) que no se veían en ningún reporte. 3er comité.
     if (p === '/api/metricas/segmentacion' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const rows = db.prepare(`
                 SELECT COALESCE(NULLIF(c.genero_pref,''),'—') genero,
@@ -320,6 +325,7 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
     // su compra (precio/envío/otro), capturado por bot/handlers/abandonoHandler.js.
     // Defensivo: [] si `carritos_abandonados.motivo` todavía no existe.
     if (p === '/api/metricas/abandono-motivos' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
         try {
             const rows = db.prepare(`
                 SELECT motivo, COUNT(*) AS n
@@ -329,6 +335,84 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
             `).all();
             return json(res, rows);
         } catch (_) { return json(res, []); }
+    }
+
+    // GET /api/metricas/embudos-abandono — dos fugas que se capturaban pero
+    // nadie veía (comité CRO/BI + Conectividad): (1) búsquedas que devuelven 0
+    // resultados y terminan en abandono (qué productos piden y no tienes), y
+    // (2) ROI real de la recuperación de carritos (abandonados vs recuperados
+    // + monto). busqueda_abandonada.valor = id del evento 'busqueda' cuyo texto
+    // (b.valor) es el término buscado; carrito_convertido.valor = total.
+    if (p === '/api/metricas/embudos-abandono' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
+        try {
+            const sp = new URL(req.url, 'http://x').searchParams;
+            const desde = (sp.get('desde') || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)).slice(0, 10);
+            const terminos = db.prepare(`
+                SELECT b.valor AS termino, COUNT(*) AS veces, MAX(ba.registrado_en) AS ultima
+                FROM log_eventos ba
+                JOIN log_eventos b ON b.id = CAST(ba.valor AS INTEGER)
+                WHERE ba.tipo_evento = 'busqueda_abandonada' AND date(ba.registrado_en) >= ?
+                  AND b.valor IS NOT NULL AND b.valor != ''
+                GROUP BY b.valor ORDER BY veces DESC, ultima DESC LIMIT 15`).all(desde);
+            const sinResultado = db.prepare(`SELECT COUNT(*) c FROM log_eventos WHERE tipo_evento='busqueda_abandonada' AND date(registrado_en) >= ?`).get(desde)?.c || 0;
+            const abandonados = db.prepare(`SELECT COUNT(*) c FROM carritos_abandonados WHERE date(COALESCE(convertido_en, abandonado_en)) >= ?`).get(desde)?.c || 0;
+            const recuperados = db.prepare(`SELECT COUNT(*) c FROM carritos_abandonados WHERE convertido=1 AND date(COALESCE(convertido_en, abandonado_en)) >= ?`).get(desde)?.c || 0;
+            const montoRec = db.prepare(`SELECT COALESCE(SUM(CAST(valor AS REAL)),0) m FROM log_eventos WHERE tipo_evento='carrito_convertido' AND date(registrado_en) >= ?`).get(desde)?.m || 0;
+            return json(res, {
+                desde,
+                busquedas_sin_resultado: { total: sinResultado, terminos },
+                carritos: {
+                    abandonados, recuperados,
+                    monto_recuperado: Math.round(montoRec * 100) / 100,
+                    tasa_recuperacion_pct: abandonados > 0 ? Math.round((recuperados / abandonados) * 1000) / 10 : null,
+                },
+            });
+        } catch (_) { return json(res, {}); }
+    }
+
+    // GET /api/gerente/reportes — tres decisiones que el gerente tomaba a
+    // ciegas (comité de usuarios): (1) qué bajó de su stock mínimo, (2) margen
+    // real por producto vs volumen vendido, (3) productos muertos (con stock
+    // pero sin venta en 90 días = dinero parado). Todo ya se calcula por dentro
+    // (kardex, costo, pedido_detalle); solo faltaba exponerlo a nivel gerente
+    // sin abrir finanzas (prime+). Lectura pura.
+    if (p === '/api/gerente/reportes' && req.method === 'GET') {
+        if (!requireSession(req, res, ['gerente'])) return;
+        try {
+            const d30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+            const d90 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+            const stock_bajo = db.prepare(`
+                SELECT p.id, p.name, i.sucursal, i.stock, i.stock_minimo
+                FROM inventarios i JOIN productos p ON p.id = i.id_producto
+                WHERE i.stock_minimo > 0 AND i.stock <= i.stock_minimo
+                ORDER BY (i.stock_minimo - i.stock) DESC, i.stock ASC LIMIT 100`).all();
+            const margen = db.prepare(`
+                SELECT p.id, p.name, p.price, p.costo,
+                       (SELECT COALESCE(SUM(d.cantidad),0) FROM pedido_detalle d
+                          JOIN links_pago lp ON lp.id_pedido=d.id_pedido AND lp.estatus='pagado'
+                          WHERE d.id_producto=p.id AND date(lp.pagado_en) >= ?) AS vendidos_30d
+                FROM productos p
+                WHERE p.activo=1 AND p.costo IS NOT NULL AND p.costo > 0
+                ORDER BY vendidos_30d DESC, p.name LIMIT 100`).all(d30);
+            const muertos = db.prepare(`
+                SELECT p.id, p.name, p.price,
+                       (SELECT COALESCE(SUM(i.stock),0) FROM inventarios i WHERE i.id_producto=p.id) AS stock
+                FROM productos p
+                WHERE p.activo=1
+                  AND (SELECT COALESCE(SUM(i.stock),0) FROM inventarios i WHERE i.id_producto=p.id) > 0
+                  AND NOT EXISTS (
+                      SELECT 1 FROM pedido_detalle d
+                        JOIN links_pago lp ON lp.id_pedido=d.id_pedido AND lp.estatus='pagado'
+                        WHERE d.id_producto=p.id AND date(lp.pagado_en) >= ?)
+                ORDER BY stock DESC LIMIT 100`).all(d90);
+            const margenCalc = margen.map(m => ({
+                ...m,
+                margen: m.price > 0 ? Math.round((m.price - m.costo) * 100) / 100 : 0,
+                margen_pct: m.price > 0 ? Math.round(((m.price - m.costo) / m.price) * 1000) / 10 : null,
+            }));
+            return json(res, { desde_ventas: d30, desde_muertos: d90, stock_bajo, margen: margenCalc, muertos });
+        } catch (_) { return json(res, { stock_bajo: [], margen: [], muertos: [] }); }
     }
 
     // ── Preventas ─────────────────────────────────────────────────────

@@ -204,10 +204,33 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
                 variacion_pct: tPrev ? r2((tAct - tPrev) / tPrev * 100) : null };
         } catch (_) {}
 
+        // — P&L del período anterior (misma duración, justo antes) → variación.
+        // El dueño no veía tendencia de rentabilidad; ahora ingresos/utilidad/
+        // margen contra el período previo. Comité de usuarios (prime).
+        let comparativo = null;
+        try {
+            const diasP = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
+            const prevH = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
+            const prevD = new Date(Date.parse(desde) - diasP * 86400000).toISOString().slice(0, 10);
+            const mayP = conta.libroMayor(prevD, prevH);
+            const ctaP = (c) => mayP.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
+            const ingP = r2(ctaP('401').haber - ctaP('401').debe);
+            const cogsP = r2(ctaP('501').debe - ctaP('501').haber);
+            const gasP = r2(ctaP('601').debe - ctaP('601').haber);
+            const utopP = r2(ingP - cogsP - gasP);
+            const varPct = (a, b) => b ? r2((a - b) / Math.abs(b) * 100) : null;
+            comparativo = {
+                desde: prevD, hasta: prevH, ingresos: ingP, utilidad_operativa: utopP,
+                margen_neto_pct: ingP ? r2(utopP / ingP * 100) : 0,
+                var_ingresos_pct: varPct(ingresos, ingP),
+                var_utilidad_pct: varPct(utilidad_operativa, utopP),
+            };
+        } catch (_) {}
+
         // El P&L/balance salen de asientos; sin el módulo Contabilidad no se
         // asienta nada y todo da $0 — la UI muestra un aviso para que no se
         // lea como "no vendí" (Harvard/PO del re-review).
-        return json(res, { desde, hasta, pyl, punto_equilibrio: puntoEquilibrio, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo() });
+        return json(res, { desde, hasta, pyl, comparativo, punto_equilibrio: puntoEquilibrio, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo() });
     }
 
     // Cierre de período contable (idea SAP): 'YYYY-MM' — nada se asienta en
@@ -322,7 +345,11 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
         const dpo = cogs > 0 ? r2(cxp / (cogs / dias)) : null;                 // días de pago (compras≈COGS)
         const ccc = (dio != null && dso != null && dpo != null) ? r2(dio + dso - dpo) : null;
         const activoCirc = r2(caja + cxc + inv);
-        const pasivoCirc = r2(cxp + Math.max(0, ivaPorPagar));
+        // Pasivo circulante incluye obligaciones de nómina (IMSS patronal 210 y
+        // retenciones 211) — son saldos acreedores, por eso -s(). Sin esto los
+        // ratios sobreestimaban la liquidez cuando había nómina asentada.
+        const nominaPorPagar = r2(Math.max(0, -s('210')) + Math.max(0, -s('211')));
+        const pasivoCirc = r2(cxp + Math.max(0, ivaPorPagar) + nominaPorPagar);
         return json(res, {
             desde, hasta, dias, conta_activa: true,
             dias_inventario: dio, dias_cobro: dso, dias_pago: dpo, ciclo_efectivo: ccc,
@@ -358,6 +385,14 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
             por_pagar = llenar(db.prepare(`
                 SELECT ${bucket('vence_en')} AS bucket, ROUND(SUM(monto),2) AS monto
                 FROM cuentas_pagar WHERE estatus='pendiente' GROUP BY bucket`).all());
+            // Obligaciones de nómina (IMSS patronal 210 + retenciones 211): sin
+            // fecha de vencimiento propia → se asumen exigibles a 0-30 días.
+            if (saldo_actual != null) {
+                const mayN = conta.libroMayor('1900-01-01', new Date().toISOString().slice(0, 10));
+                const sN = (c) => { const r = mayN.find(x => x.cuenta === c); return r ? r.saldo : 0; };
+                const oblNom = r2(Math.max(0, -sN('210')) + Math.max(0, -sN('211')));
+                if (oblNom > 0) { por_pagar.d0_30 = r2((por_pagar.d0_30 || 0) + oblNom); por_pagar.total = r2((por_pagar.total || 0) + oblNom); }
+            }
         } catch (_) {}
         // Proyección acumulada del saldo si cobras/pagas lo de cada franja
         const base = saldo_actual || 0;

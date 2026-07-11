@@ -8,7 +8,7 @@ import { Card, Group, Title, ActionIcon, Button, Text, RingProgress } from '@man
 import PuntosGrafica from '../components/PuntosGrafica';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../api';
-import { fmt } from '../lib/format';
+import { fmt, fdate } from '../lib/format';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 const ESTILOS_CHART = [
@@ -90,8 +90,12 @@ export default function Metricas() {
     queryKey: ['metricas-segmentacion'],
     queryFn: () => api.get('/api/metricas/segmentacion').catch(() => []),
   });
+  const { data: embudos, refetch: refetchEmbudos } = useQuery({
+    queryKey: ['metricas-embudos-abandono'],
+    queryFn: () => api.get('/api/metricas/embudos-abandono').catch(() => null),
+  });
 
-  const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); refetchCanales(); refetchOper(); refetchBot(); refetchSeg(); };
+  const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); refetchCanales(); refetchOper(); refetchBot(); refetchSeg(); refetchEmbudos(); };
   const canalLabel = (c) => c === 'directo' ? 'Directo' : c === 'whatsapp' ? 'WhatsApp' : c.startsWith('promo:') ? '🔗 ' + c.slice(6) : c;
   const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
@@ -139,7 +143,7 @@ export default function Metricas() {
               sections={[{ value: d?.csat?.promedio ? Math.min(100, (d.csat.promedio / 5) * 100) : 0, color: 'var(--green)' }]}
               label={<Text ta="center" size="sm" fw={700}>{d?.csat?.promedio ? Math.round((d.csat.promedio / 5) * 100) + '%' : '—'}</Text>}
             />
-            <Text size="xs" c="dimmed">{d?.csat?.n || 0} valoracion{(d?.csat?.n || 0) === 1 ? '' : 'es'}</Text>
+            <Text size="xs" c="dimmed">{d?.csat?.n || 0} {(d?.csat?.n || 0) === 1 ? 'valoración' : 'valoraciones'}</Text>
           </div>
         </Card>
       </div>
@@ -372,14 +376,18 @@ export default function Metricas() {
       {bot && (
         <Card withBorder radius="md" p="lg" style={{ marginBottom: 16 }}>
           <Title order={4} mb="md">{txt('🤖 Salud del bot (30 días)')}</Title>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14 }}>
-            <div><Text size="xs" c="dimmed">Búsquedas</Text><Text fw={700} size="lg">{bot.busquedas}</Text></div>
-            <div><Text size="xs" c="dimmed">Productos vistos</Text><Text fw={700} size="lg">{bot.productos_vistos}</Text></div>
-            <div><Text size="xs" c="dimmed">Fallbacks (no entendió)</Text><Text fw={700} size="lg" c={bot.fallback_pct > 15 ? 'red' : undefined}>{bot.fallbacks} <Text span size="xs" c="dimmed">{bot.fallback_pct != null ? '(' + bot.fallback_pct + '%)' : ''}</Text></Text></div>
-            <div><Text size="xs" c="dimmed">Frustraciones</Text><Text fw={700} size="lg" c={bot.frustraciones > 0 ? 'orange' : undefined}>{bot.frustraciones}</Text></div>
-            <div><Text size="xs" c="dimmed">Imágenes analizadas</Text><Text fw={700} size="lg">{bot.imagenes}</Text></div>
-          </div>
-          <Text size="xs" c="dimmed" mt="sm">Un fallback alto = el bot recibe texto que las reglas no resuelven (candidato a mejorar o al LLM). Frustración = clientes molestos detectados.</Text>
+          {(bot.busquedas + bot.productos_vistos + bot.fallbacks + bot.frustraciones + bot.imagenes) === 0 ? (
+            <Text size="sm" c="dimmed">Sin datos aún — el bot no ha registrado actividad en los últimos 30 días.</Text>
+          ) : (<>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14 }}>
+              <div><Text size="xs" c="dimmed">Búsquedas</Text><Text fw={700} size="lg">{bot.busquedas}</Text></div>
+              <div><Text size="xs" c="dimmed">Productos vistos</Text><Text fw={700} size="lg">{bot.productos_vistos}</Text></div>
+              <div><Text size="xs" c="dimmed">Fallbacks (no entendió)</Text><Text fw={700} size="lg" c={bot.fallback_pct > 15 ? 'red' : undefined}>{bot.fallbacks} <Text span size="xs" c="dimmed">{bot.fallback_pct != null ? '(' + bot.fallback_pct + '%)' : ''}</Text></Text></div>
+              <div><Text size="xs" c="dimmed">Frustraciones</Text><Text fw={700} size="lg" c={bot.frustraciones > 0 ? 'orange' : undefined}>{bot.frustraciones}</Text></div>
+              <div><Text size="xs" c="dimmed">Imágenes analizadas</Text><Text fw={700} size="lg">{bot.imagenes}</Text></div>
+            </div>
+            <Text size="xs" c="dimmed" mt="sm">Un fallback alto = el bot recibe texto que las reglas no resuelven (candidato a mejorar o al LLM). Frustración = clientes molestos detectados.</Text>
+          </>)}
         </Card>
       )}
 
@@ -401,6 +409,31 @@ export default function Metricas() {
             </table>
           </div>
           <Text size="xs" c="dimmed" mt="sm">Perfil capturado por el bot. Identifica qué segmento deja más ingresos para dirigir ofertas/tono.</Text>
+        </Card>
+      )}
+
+      {embudos && (
+        <Card withBorder radius="md" p="lg" style={{ marginBottom: 16 }}>
+          <Title order={4} mb="md">{txt('🕳️ Fugas: búsquedas sin resultado y carritos')}</Title>
+          <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 14 }}>
+            <div><Text size="xs" c="dimmed">Búsquedas sin resultado</Text><Text fw={700} size="lg" c={embudos.busquedas_sin_resultado?.total > 0 ? 'orange' : undefined}>{embudos.busquedas_sin_resultado?.total ?? 0}</Text></div>
+            <div><Text size="xs" c="dimmed">Carritos abandonados</Text><Text fw={700} size="lg">{embudos.carritos?.abandonados ?? 0}</Text></div>
+            <div><Text size="xs" c="dimmed">Recuperados</Text><Text fw={700} size="lg" c={embudos.carritos?.recuperados > 0 ? 'green' : undefined}>{embudos.carritos?.recuperados ?? 0} <Text span size="xs" c="dimmed">{embudos.carritos?.tasa_recuperacion_pct != null ? '(' + embudos.carritos.tasa_recuperacion_pct + '%)' : ''}</Text></Text></div>
+            <div><Text size="xs" c="dimmed">Monto recuperado</Text><Text fw={700} size="lg">{money(embudos.carritos?.monto_recuperado)}</Text></div>
+          </div>
+          {embudos.busquedas_sin_resultado?.terminos?.length > 0 ? (
+            <div className="table-wrap" style={{ maxHeight: 280, overflow: 'auto' }}>
+              <table>
+                <thead><tr><th>Término buscado (0 resultados)</th><th>Veces</th><th>Última</th></tr></thead>
+                <tbody>
+                  {embudos.busquedas_sin_resultado.terminos.map((t, i) => (
+                    <tr key={i}><td>{t.termino}</td><td><strong>{t.veces}</strong></td><td className="text-muted" style={{ fontSize: 11 }}>{fdate(t.ultima)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <Text size="sm" c="dimmed">Sin búsquedas fallidas en el periodo.</Text>}
+          <Text size="xs" c="dimmed" mt="sm">Lo que los clientes piden y no encuentras = qué producto agregar o cómo renombrar/etiquetar. La tasa de recuperación mide el ROI de los cupones de carrito abandonado.</Text>
         </Card>
       )}
 

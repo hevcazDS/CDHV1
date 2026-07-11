@@ -4,6 +4,7 @@ import { Button, TextInput, NumberInput, Group, Text } from '@mantine/core';
 import Modal from '../../components/Modal';
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
+import { toastOk } from '../../lib/ui';
 
 // Matriz talla×color con stock POR SUCURSAL. Guardar recalcula el stock
 // agregado del producto vía kardex (auditable). Quitar una fila la inactiva.
@@ -26,7 +27,7 @@ export default function VariantesModal({ producto, onClose }) {
     try {
       const r = await api.post('/api/prime/variantes/' + producto.id, { filas });
       if (!r.ok) throw new Error(r.error);
-      alert(`Guardado: ${r.variantes} variante(s). El stock del producto se recalculó con kardex.`);
+      toastOk(`Guardado: ${r.variantes} variante(s). El stock del producto se recalculó con kardex.`);
       onClose();
     } catch (e) { handleApiError(e); } finally { setGuardando(false); }
   };

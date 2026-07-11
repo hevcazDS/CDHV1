@@ -179,14 +179,25 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                         }
                     }
                 }
+                // Cupón/descuento en mostrador (mismo catálogo `promociones` y
+                // misma validación de alcance que el bot). Se valida ANTES de
+                // cobrar para fallar claro; se redime (usos++) recién al cerrar
+                // la venta. total = subtotal neto; el bruto queda en subtotal.
+                let _cupon = null;
+                if (d.cupon && String(d.cupon).trim()) {
+                    _cupon = shared.aplicarCupon(String(d.cupon).trim(), carrito);
+                    if (!_cupon.ok) return json(res, { ok: false, error: 'Cupón: ' + _cupon.error }, 409);
+                }
                 const _plazoFiado = parseInt(db.prepare("SELECT valor FROM configuracion WHERE clave='fiado_dias_plazo'").get()?.valor, 10) || 30;
                 const folio = shared.generarFolio('pedido');
                 const resultado = db.transaction(() => {
                     const { pedidoRowid, subtotal } = shared.insertarPedidoConCarrito(
                         nombreCliente, carrito, '', 'entregado', sucursal, folio, idCliente, 'mostrador'
                     );
+                    const descuento = _cupon ? _cupon.descuento : 0;
+                    const totalNeto = Math.round((subtotal - descuento) * 100) / 100;
                     db.prepare("UPDATE pedidos SET subtotal=?, total=?, metodo_pago=?, metodo_entrega='pickup', actualizado_en=datetime('now','localtime') WHERE id_pedido=?")
-                      .run(subtotal, subtotal, metodoPago, pedidoRowid);
+                      .run(subtotal, totalNeto, metodoPago, pedidoRowid);
                     // Datos fiscales opcionales (comprobante de facturación).
                     const rs = String(d.razon_social || '').trim();
                     const rfc = String(d.rfc || '').trim();
@@ -197,40 +208,52 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
                     if (esCredito) {
                         db.prepare("UPDATE pedidos SET a_credito=1, fiado_vence_en=date('now','localtime','+'||?||' days') WHERE id_pedido=?").run(_plazoFiado, pedidoRowid);
                         db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, fecha_expiracion, creado_en) VALUES (?,?,?,'MXN','generado',NULL,datetime('now','localtime'))")
-                          .run(pedidoRowid, met ? met.id : null, subtotal);
+                          .run(pedidoRowid, met ? met.id : null, totalNeto);
                     } else {
                         db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
-                          .run(pedidoRowid, met ? met.id : null, subtotal);
+                          .run(pedidoRowid, met ? met.id : null, totalNeto);
                     }
                     // Descontar inventario con KARDEX; los servicios no llevan
                     // stock; y si el negocio no controla inventario, tampoco.
                     for (const it of carrito) {
                         if (it.tipo === 'servicio' || !inventarioActivo()) continue;
-                        kardexService.movimiento({ id_producto: it.id, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Venta ' + folio, usuario: req._ses?.username });
-                        if (it.id_variante) require('../../services/variantesService').descontarVariante(it.id_variante, sucursal, it.cantidad);
+                        // Un tropiezo del kardex (producto sin fila de inventario, etc.)
+                        // no debe tumbar un cobro físico que ya ocurrió. Igual que mesas.js.
+                        try {
+                            kardexService.movimiento({ id_producto: it.id, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Venta ' + folio, usuario: req._ses?.username });
+                            if (it.id_variante) require('../../services/variantesService').descontarVariante(it.id_variante, sucursal, it.cantidad);
+                        } catch (e) { log.warn('Kardex POS no aplicado para producto ' + it.id + ': ' + e.message); }
                     }
                     db.prepare('UPDATE pedidos SET cobrado_por=? WHERE id_pedido=?').run(req._ses?.username || null, pedidoRowid);
-                    return { pedidoRowid, subtotal };
+                    return { pedidoRowid, subtotal, total: totalNeto };
                 })();
-                try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES (?,'mostrador',?,?)").run(esCredito ? 'venta_credito' : 'pago_confirmado', String(resultado.subtotal), (d.cliente && d.cliente.telefono) || null); } catch (_) {}
+                // Cupón cobrado → redimir (usos++) recién ahora, atómico igual
+                // que /api/cupon/redimir (no acumulable si es de un solo uso).
+                if (_cupon && _cupon.promo) {
+                    try { db.prepare('UPDATE promociones SET usos_actual=usos_actual+1 WHERE id=? AND (usos_max=0 OR usos_actual<usos_max)').run(_cupon.promo.id); } catch (_) {}
+                }
+                try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES (?,'mostrador',?,?)").run(esCredito ? 'venta_credito' : 'pago_confirmado', String(resultado.total), (d.cliente && d.cliente.telefono) || null); } catch (_) {}
                 try {
                     const _conta = require('../../services/contabilidadService');
                     // Fiado: devengado (105/401/208) + costo al entregar. Contado:
                     // asiento de venta normal (caja/401/209) + costo.
-                    if (esCredito) _conta.asientoVentaCredito(resultado.pedidoRowid, resultado.subtotal);
-                    else _conta.asientoVenta(resultado.pedidoRowid, resultado.subtotal, metodoPago);
+                    if (esCredito) _conta.asientoVentaCredito(resultado.pedidoRowid, resultado.total);
+                    else _conta.asientoVenta(resultado.pedidoRowid, resultado.total, metodoPago);
                     _conta.asientoCostoVenta(resultado.pedidoRowid);
                 } catch (e) { log.debug('Asientos de venta POS no registrados: ' + e.message); }
 
                 // Puntos: contado ahora; fiado hasta que se cobre (marcar-pagado).
                 if (!esCredito) { try { puntosService.otorgarPuntosPorCompra(resultado.pedidoRowid); } catch (_) {} }
 
-                const total = resultado.subtotal;
+                const total = resultado.total;
                 const efectivo = (d.efectivo_recibido !== undefined && d.efectivo_recibido !== null && d.efectivo_recibido !== '') ? Number(d.efectivo_recibido) : null;
                 const cambio = (efectivo !== null && metodoPago === 'efectivo') ? Math.max(0, efectivo - total) : null;
                 return json(res, {
                     ok: true, folio, id_pedido: resultado.pedidoRowid, total, metodo_pago: metodoPago,
                     sucursal, efectivo_recibido: efectivo, cambio,
+                    subtotal: resultado.subtotal,
+                    descuento: _cupon ? _cupon.descuento : 0,
+                    cupon: _cupon ? { codigo: _cupon.promo.codigo, descripcion: _cupon.descripcion } : null,
                     razon_social: String(d.razon_social || '').trim() || null,
                     rfc: String(d.rfc || '').trim() || null,
                     items: carrito.map(i => ({ name: i.name, cantidad: i.cantidad, price: i.price, subtotal: i.price * i.cantidad })),

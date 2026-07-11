@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Tabs, Button, TextInput, Textarea, Select, Radio, Group, Switch, NumberInput } from '@mantine/core';
 import { api } from '../api';
 import { fdate, soloTelefono } from '../lib/format';
+import { confirmar, toastErr } from '../lib/ui';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 // Inserta texto en la posición del cursor (no al final) del <textarea> nativo
@@ -262,7 +263,7 @@ export default function Notificaciones() {
     const confirmTxt = enviarEn
       ? `¿Programar para ${new Date(enviarEn).toLocaleString('es-MX')} a ${audiencia.length} clientes?`
       : `¿Enviar a ${audiencia.length} clientes ahora?`;
-    if (!window.confirm(confirmTxt)) return;
+    if (!await confirmar({ mensaje: confirmTxt, textoOk: 'Enviar' })) return;
 
     let mensajeFinal = msgMasivo;
     if (cuponFlash) {
@@ -539,8 +540,8 @@ export default function Notificaciones() {
             <Group gap="xs" mb="sm">
               <Button size="xs" variant="default" onClick={async () => {
                 try { const r = await api.get('/api/marketing/wa-link?campana=' + encodeURIComponent(codigoCampana || 'general'));
-                  if (r.ok) { setWaLink(r.link); navigator.clipboard?.writeText(r.link); } else alert(r.error);
-                } catch (e) { alert(e.message); }
+                  if (r.ok) { setWaLink(r.link); navigator.clipboard?.writeText(r.link); } else toastErr(r.error);
+                } catch (e) { toastErr(e.message); }
               }}>Generar link wa.me para redes</Button>
               {waLink && <span style={{ fontSize: 11, color: 'var(--text-mute)', wordBreak: 'break-all' }}>Copiado: {waLink}</span>}
             </Group>

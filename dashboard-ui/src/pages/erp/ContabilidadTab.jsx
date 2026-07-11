@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, Text, TextInput, Group } from '@mantine/core';
 import { api } from '../../api';
 import { Button } from '@mantine/core';
-import { confirmar } from '../../lib/ui';
+import { confirmar, toastErr } from '../../lib/ui';
 import { exportarCSV } from '../../lib/csv';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -107,7 +107,7 @@ function PeriodoCierre() {
   const { data } = useQuery({ queryKey: ['periodo-cierre'], queryFn: () => api.get('/api/erp/periodo-cierre') });
   const mut = useMutation({
     mutationFn: (cerrado) => api.put('/api/erp/periodo-cierre', { cerrado }),
-    onSuccess: (r) => { if (r.ok === false) alert(r.error); qc.invalidateQueries({ queryKey: ['periodo-cierre'] }); },
+    onSuccess: (r) => { if (r.ok === false) toastErr(r.error); qc.invalidateQueries({ queryKey: ['periodo-cierre'] }); },
   });
   const mesPasado = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7);
   return (

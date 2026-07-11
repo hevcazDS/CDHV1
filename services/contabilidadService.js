@@ -65,6 +65,10 @@ function _cuentaCobro(metodoPago) { return metodoPago === 'efectivo' ? '101' : '
 // Venta cobrada: cargo Caja/Bancos, abono Ventas (+IVA trasladado si aplica)
 function asientoVenta(idPedido, monto, metodoPago) {
     if (!activo() || !(monto > 0)) return null;
+    // Idempotente igual que asientoVentaCredito/asientoCobroCredito: si ya se
+    // asentó esta venta, no duplicar (defensa por si el chokepoint de pago
+    // fallara en aislarlo). Comité forense.
+    if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='venta' AND referencia_id=? LIMIT 1").get(String(idPedido))) return null;
     const iva = parseFloat(getValor('iva_pct', '0')) || 0;
     const base = iva > 0 ? _r2(monto / (1 + iva / 100)) : _r2(monto);
     const partidas = [{ cuenta: _cuentaCobro(metodoPago), debe: monto }];

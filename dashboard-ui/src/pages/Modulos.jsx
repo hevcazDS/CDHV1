@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Switch, TextInput } from '@mantine/core';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
+import { confirmar, toastOk } from '../lib/ui';
 import { useTextoEmoji, EMOJIS_ACTIVO_QUERY_KEY } from '../context/EmojiContext';
 
 // Gestión de métodos de pago: activar/desactivar cada uno y, para
@@ -58,7 +59,7 @@ function PinCard({ txt }) {
     try {
       const r = await api.put('/api/autorizacion/pin', { pin });
       if (!r.ok) throw new Error(r.error);
-      alert('PIN actualizado'); setPin('');
+      toastOk('PIN actualizado'); setPin('');
     } catch (e) { handleApiError(e); }
   };
   return (
@@ -94,6 +95,7 @@ const MODULOS = [
   { key: 'entrega_pickup_activo', titulo: 'Recoger en sucursal', desc: 'El bot ofrece pickup en tienda' },
   { key: 'entrega_paqueteria_activo', titulo: 'Envío por paquetería', desc: 'El bot ofrece envío a domicilio por paquetería (Estafeta)' },
   { key: 'entrega_repartidor_activo', titulo: 'Repartidor propio', desc: 'Entrega local con tu repartidor; el negocio avisa "va en camino"' },
+  { key: 'inventario_activo', titulo: 'Control de inventario', desc: 'Descuenta stock con kardex en cada venta (bot/POS/mesas). Apagado = negocios sin control de stock (servicios, comida al momento): cobra sin tocar inventario. Encendido por defecto' },
   { key: 'pos_activo', titulo: 'Punto de venta (mostrador)', desc: 'Cobrar ventas presenciales y hacer corte de caja' },
   { key: 'facturacion_activo', titulo: 'Facturación', desc: 'Comprobante con datos fiscales y referencia (no todos los negocios facturan)' },
   { key: 'emojis_dashboard_activo', titulo: 'Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
@@ -139,9 +141,9 @@ export default function Modulos() {
     },
     onError: (e) => handleApiError(e),
   });
-  const toggle = (clave, activo) => {
+  const toggle = async (clave, activo) => {
     const accion = activo ? 'activar' : 'desactivar';
-    if (!window.confirm(`¿Seguro que quieres ${accion} este módulo? Afecta a los clientes de inmediato.`)) return;
+    if (!await confirmar({ mensaje: `¿Seguro que quieres ${accion} este módulo? Afecta a los clientes de inmediato.`, peligro: !activo, textoOk: accion })) return;
     toggleMutation.mutate({ clave, activo });
   };
 

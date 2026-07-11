@@ -7,16 +7,19 @@ import ConteoTab from './almacen/ConteoTab';
 import MovimientosTab from './almacen/MovimientosTab';
 import KardexTab from './almacen/KardexTab';
 import CalendarioTab from './almacen/CalendarioTab';
+import ReportesTab from './almacen/ReportesTab';
 
 export default function Almacen() {
   const { user } = useAuth();
   const auditor = esAuditor(user?.rol);
   const soloLectura = auditor || !permite(user?.rol, 'almacen') || (permite(user?.rol, 'almacen_lectura') && !esAdminOMas(user?.rol) && user?.rol !== 'almacen');
   const veKardex = esAdminOMas(user?.rol) || auditor; // material de auditoría
+  const veReportes = esAdminOMas(user?.rol); // muestran costo/margen → gerente+
   const opera = !soloLectura;
   const TABS = [
     { key: 'inventario', label: 'Inventario y ubicaciones', C: InventarioTab },
     { key: 'calendario', label: 'Calendario de mercancía', C: CalendarioTab },
+    ...(veReportes ? [{ key: 'reportes', label: 'Reportes (stock/margen/rotación)', C: ReportesTab }] : []),
     ...(opera ? [
       { key: 'conteo', label: 'Conteo físico', C: ConteoTab },
       { key: 'movimientos', label: 'Traslados / Salidas / Entradas', C: MovimientosTab },

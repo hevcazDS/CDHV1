@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, Select, NumberInput, Group, Text, TextInput } from '@mantine/core';
-import { confirmar, toastOk } from '../../lib/ui';
+import { confirmar, toastOk, toastErr } from '../../lib/ui';
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
 import Badge from '../../components/Badge';
@@ -83,7 +83,7 @@ export default function ComprasTab() {
                   <td>
                     <Button size="xs" variant="subtle" mr={6} onClick={async () => {
                       const r = await api.post(`/api/erp/ordenes-compra/${oc.id}/reordenar`).catch(e => ({ ok: false, error: e.message }));
-                      if (r.ok) { alert('Nueva OC creada: ' + r.folio); qc.invalidateQueries(); } else alert(r.error);
+                      if (r.ok) { toastOk('Nueva OC creada: ' + r.folio); qc.invalidateQueries(); } else toastErr(r.error);
                     }}>Reordenar</Button>
                     {oc.estatus === 'abierta' && (
                     <>

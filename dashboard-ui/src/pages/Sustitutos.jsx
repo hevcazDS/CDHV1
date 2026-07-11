@@ -4,6 +4,7 @@ import { Card, Title, ActionIcon, TextInput } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
+import { confirmar } from '../lib/ui';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 export default function Sustitutos() {
@@ -53,8 +54,8 @@ export default function Sustitutos() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sustitutos', base.id] }),
     onError: (e) => handleApiError(e),
   });
-  const eliminar = (id) => {
-    if (!window.confirm('¿Eliminar esta relación?')) return;
+  const eliminar = async (id) => {
+    if (!await confirmar({ mensaje: '¿Eliminar esta relación?', peligro: true, textoOk: 'Eliminar' })) return;
     eliminarMutation.mutate(id);
   };
 
