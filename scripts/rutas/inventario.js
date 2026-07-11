@@ -130,4 +130,7 @@ function main() {
     if (cols.length) console.log('\n⚠️  ' + cols.length + ' colisión(es) — corre --check para el detalle.');
 }
 
-main();
+// Exporta para que otras herramientas (el smoke test) consuman el índice sin
+// duplicar el parser. Solo corre main() cuando se invoca como script.
+module.exports = { extraer, colisiones, esPublica };
+if (require.main === module) main();
