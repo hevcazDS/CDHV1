@@ -1,288 +1,262 @@
 'use strict';
-// Extraído mecánicamente de dashboard/server.js (líneas 399-573 del
-// monolito original) — fase 4 del hardening, item de partir server.js en
-// módulos. NINGUNA línea de lógica fue reescrita, solo movida; ctx trae todo
-// lo que este rango referenciaba como variable de módulo en el archivo
-// original (ver dashboard/server.js para la construcción de ctx).
-module.exports = function coreRoutes(req, res, p, u, ctx, next) {
-    const { db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
-    // GET /api/buscar?q= — buscador global del topbar (clientes/pedidos/productos/guías).
-    // Handler ÚNICO: antes había una segunda copia en atencionCliente.js que
-    // nunca se alcanzaba (core gana el dispatch) y que añadía guías; se consolidó
-    // aquí para no perder esa búsqueda. (Colisión detectada por scripts/rutas/inventario.js)
-    if (p === '/api/buscar' && req.method === 'GET') {
-        const q = ((new URL(req.url, 'http://x')).searchParams.get('q') || '').trim();
-        if (q.length < 2) return json(res, { clientes: [], pedidos: [], productos: [], guias: [] });
-        const like = '%' + q + '%';
-        const clientes = db.prepare(
-            "SELECT id, nombre, telefono FROM clientes WHERE activo=1 AND (nombre LIKE ? OR telefono LIKE ?) ORDER BY id DESC LIMIT 5"
-        ).all(like, like);
-        const pedidos = db.prepare(
-            "SELECT id_pedido, folio, cliente, estatus, total, creado_en FROM pedidos WHERE folio LIKE ? OR cliente LIKE ? ORDER BY id_pedido DESC LIMIT 5"
-        ).all(like, like);
-        const productos = db.prepare(
-            "SELECT id, name, price FROM productos WHERE activo=1 AND name LIKE ? LIMIT 5"
-        ).all(like);
-        // Defensivo: la tabla de guías puede no existir en toda instancia.
-        let guias = [];
-        try { guias = db.prepare("SELECT numero_guia, estatus, dest_nombre, dest_ciudad FROM guias_estafeta WHERE numero_guia LIKE ? OR dest_nombre LIKE ? LIMIT 5").all(like, like); } catch (_) {}
-        return json(res, { clientes, pedidos, productos, guias });
-    }
+// Núcleo del dashboard: buscador global, AUTH (login/logout/me), listados
+// (pedidos/clientes/guías), stats y control del proceso bot en PM2.
+// Migrado al patrón declarativo del tronco:
+//   - login/logout/me caen al gate global (están en la whitelist pública de
+//     server.js, por eso se alcanzan SIN sesión; la lógica de sesión vive en
+//     el handler).
+//   - buscar/pedidos/guias/stats → gate global (cualquier sesión).
+//   - clientes y todo /api/bot/* → area:'operacion' (defensa en profundidad;
+//     el widget del bot ya se oculta para no-operacion en el front).
+// Sin opts.prefijo: agrupa muchos prefijos distintos.
+const { permite, rangoDe } = require('../permisos');
+const construirModulo = require('./_construirModulo');
 
-    // POST /api/login {username, password} — reemplaza el pop-up de Basic Auth
-    if (p === '/api/login' && req.method === 'POST') {
-        return readBody(req, body => {
-            try {
-                const { username, password, recordar } = JSON.parse(body || '{}');
-                const uname = String(username || '');
-                if (loginBloqueado(uname)) {
-                    return json(res, { ok: false, error: 'Cuenta bloqueada temporalmente por demasiados intentos fallidos. Intenta de nuevo en unos minutos.' }, 429);
-                }
-                const u2 = db.prepare('SELECT * FROM usuarios WHERE username=?').get(uname);
-                if (!u2 || !safeEqual(hashPassword(String(password || ''), u2.salt), u2.password_hash)) {
-                    registrarIntentoFallido(uname);
-                    return json(res, { ok: false, error: 'Usuario o contraseña incorrectos' }, 401);
-                }
-                limpiarIntentosLogin(uname);
-                const ttlMs = recordar ? SESSION_TTL_MS_RECORDAR : SESSION_TTL_MS;
-                const token = crearSesion(u2.username, u2.rol, ttlMs);
-                res.setHeader('Set-Cookie', `jc_session=${token}; HttpOnly; SameSite=Lax${COOKIE_SECURE_FLAG}; Max-Age=${ttlMs / 1000}; Path=/`);
-                return json(res, { ok: true, username: u2.username, rol: u2.rol });
-            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
-        });
-    }
+// GET /api/buscar?q= — buscador global del topbar (handler ÚNICO; antes había
+// una copia en atencionCliente que nunca se alcanzaba — colisión consolidada).
+function buscar(req, res, ctx) {
+    const { db, json } = ctx;
+    const q = ((new URL(req.url, 'http://x')).searchParams.get('q') || '').trim();
+    if (q.length < 2) return json(res, { clientes: [], pedidos: [], productos: [], guias: [] });
+    const like = '%' + q + '%';
+    const clientes = db.prepare("SELECT id, nombre, telefono FROM clientes WHERE activo=1 AND (nombre LIKE ? OR telefono LIKE ?) ORDER BY id DESC LIMIT 5").all(like, like);
+    const pedidos = db.prepare("SELECT id_pedido, folio, cliente, estatus, total, creado_en FROM pedidos WHERE folio LIKE ? OR cliente LIKE ? ORDER BY id_pedido DESC LIMIT 5").all(like, like);
+    const productos = db.prepare("SELECT id, name, price FROM productos WHERE activo=1 AND name LIKE ? LIMIT 5").all(like);
+    let guias = [];
+    try { guias = db.prepare("SELECT numero_guia, estatus, dest_nombre, dest_ciudad FROM guias_estafeta WHERE numero_guia LIKE ? OR dest_nombre LIKE ? LIMIT 5").all(like, like); } catch (_) {}
+    return json(res, { clientes, pedidos, productos, guias });
+}
 
-    // POST /api/logout
-    if (p === '/api/logout' && req.method === 'POST') {
-        const s = obtenerSesion(req);
-        if (s) eliminarSesion(s.token);
-        res.setHeader('Set-Cookie', `jc_session=; HttpOnly; SameSite=Lax${COOKIE_SECURE_FLAG}; Max-Age=0; Path=/`);
-        return json(res, { ok: true });
-    }
-
-    // GET /api/me — quién soy / si mi sesión sigue viva (para el shell de React)
-    if (p === '/api/me' && req.method === 'GET') {
-        const s = obtenerSesion(req);
-        if (!s) return json(res, { ok: false }, 401);
-        return json(res, { ok: true, username: s.username, rol: s.rol, version: ctx.APP_VERSION });
-    }
-
-    // GET /api/pedidos
-    if (p === '/api/pedidos' && req.method === 'GET') {
-        const rows = db.prepare(`
-            SELECT p.id_pedido, p.folio, p.cliente, p.estatus, p.ciudad_envio,
-                   p.email_notificado, p.creado_en, p.a_credito, p.cobrado_por,
-                   p.metodo_entrega, p.repartidor_nombre, p.repartidor_telefono,
-                   lp.id AS id_link_pago, lp.monto AS total, lp.estatus AS pago_estatus, lp.url_link,
-                   g.numero_guia, g.estatus AS guia_estatus,
-                   g.fecha_envio_est, g.fecha_entrega_est
-            FROM pedidos p
-            LEFT JOIN links_pago lp ON lp.id_pedido = p.id_pedido
-            LEFT JOIN guias_estafeta g ON g.id_pedido = p.id_pedido
-            ORDER BY p.id_pedido DESC LIMIT 100
-        `).all();
-        return json(res, rows);
-    }
-
-    // GET /api/clientes — lista con teléfono/email. La página Clientes ya es
-    // área 'operacion' en el frontend; alineamos el endpoint (defensa en
-    // profundidad): operador/usuario/gerente/prime/auditor, no almacén/rh/compras.
-    if (p === '/api/clientes' && req.method === 'GET') {
-        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
-        const _u = new URL('http://x' + req.url);
-        const q   = (_u.searchParams.get('q')  ||'').trim();
-        const tag = (_u.searchParams.get('tag') ||'').trim();
-        let sql = "SELECT id, nombre, telefono, email, canal_origen, creado_en, ultima_actividad, codigo_referido, COALESCE(tags,'') AS tags FROM clientes WHERE activo=1";
-        const params = [];
-        if (q)   { sql += ' AND (nombre LIKE ? OR telefono LIKE ?)'; params.push('%'+q+'%','%'+q+'%'); }
-        if (tag) { sql += " AND COALESCE(tags,'') LIKE ?"; params.push('%'+tag+'%'); }
-        sql += ' ORDER BY ultima_actividad DESC, creado_en DESC LIMIT 300';
-        const rows = db.prepare(sql).all(...params);
-        // Backfill perezoso: clientes creados antes del programa de referidos
-        // (o por una vía que no sea el primer-contacto) aún no tienen código —
-        // se genera aquí mismo para que el asesor siempre tenga uno que mencionar.
-        const { asegurarCodigoReferido } = require('../../bot/handlers/referidosService');
-        for (const r of rows) {
-            if (!r.codigo_referido) r.codigo_referido = asegurarCodigoReferido(r.id);
-        }
-        return json(res, rows);
-    }
-
-    // GET /api/guias
-    if (p === '/api/guias' && req.method === 'GET') {
-        const rows = db.prepare(`
-            SELECT g.*, p.cliente, p.ciudad_envio
-            FROM guias_estafeta g
-            JOIN pedidos p ON p.id_pedido = g.id_pedido
-            ORDER BY g.id DESC LIMIT 100
-        `).all();
-        return json(res, rows);
-    }
-
-    // GET /api/stats
-    if (p === '/api/stats' && req.method === 'GET') {
-        const stats = {
-            pedidos_hoy: db.prepare("SELECT COUNT(*) c FROM pedidos WHERE date(creado_en)=date('now','localtime')").get()?.c || 0,
-            pedidos_total: db.prepare("SELECT COUNT(*) c FROM pedidos").get()?.c || 0,
-            clientes_total: db.prepare("SELECT COUNT(*) c FROM clientes WHERE activo=1").get()?.c || 0,
-            guias_total: db.prepare("SELECT COUNT(*) c FROM guias_estafeta").get()?.c || 0,
-            pagos_pendientes: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='generado'").get()?.c || 0,
-            pagos_pagados: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='pagado'").get()?.c || 0,
-            // Ventas cobradas hoy ($): suma de links de pago marcados pagados
-            // con fecha de pago de hoy. KPI central para la operación diaria.
-            ventas_hoy: db.prepare("SELECT COALESCE(SUM(monto),0) s FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=date('now','localtime')").get()?.s || 0,
-            pedidos_pagados_hoy: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=date('now','localtime')").get()?.c || 0,
-            cola_atencion: db.prepare("SELECT COUNT(*) c FROM cola_atencion WHERE estatus='en_espera'").get()?.c || 0,
-            // cola_notificaciones (WhatsApp) ya tiene su propia página dedicada
-            // (ColaEnvios.jsx); cola_emails nunca tuvo ninguna — un correo de
-            // confirmación de pedido podía fallar en silencio sin que el
-            // operador tuviera forma de notarlo desde el dashboard.
-            emails_error: db.prepare("SELECT COUNT(*) c FROM cola_emails WHERE estatus='error'").get()?.c || 0,
-            chats_hoy: (() => { try { return db.prepare("SELECT COUNT(*) c FROM chats_iniciados WHERE fecha=date('now','localtime')").get()?.c || 0; } catch (_) { return 0; } })(),
-            chats_30d: (() => { try { return db.prepare("SELECT COUNT(*) c FROM chats_iniciados WHERE fecha >= date('now','-30 days','localtime')").get()?.c || 0; } catch (_) { return 0; } })(),
-            clientes_nuevos_30d: db.prepare("SELECT COUNT(*) c FROM clientes WHERE activo=1 AND datetime(creado_en) >= datetime('now','-30 days','localtime')").get()?.c || 0,
-        };
-        // Bloque marketing (fila de Inicio): carritos abandonados = venta
-        // recuperable; motivo dominante = qué palanca mover; conversión =
-        // salud del embudo; recuperados = ROI de las campañas del bot.
+// POST /api/login {username, password} — pública (whitelist). Crea sesión.
+function login(req, res, ctx) {
+    const { db, json, readBody, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, crearSesion, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, COOKIE_SECURE_FLAG } = ctx;
+    return readBody(req, body => {
         try {
-            stats.marketing = {
-                abandonados_n: db.prepare('SELECT COUNT(*) c FROM carritos_abandonados WHERE convertido=0').get()?.c || 0,
-                abandonados_monto: (() => {
-                    try {
-                        return db.prepare(`
-                            SELECT COALESCE(SUM(json_extract(j.value,'$.price') * COALESCE(json_extract(j.value,'$.cantidad'),1)),0) s
-                            FROM carritos_abandonados ca, json_each(ca.carrito_json) j WHERE ca.convertido=0
-                        `).get()?.s || 0;
-                    } catch (_) { return 0; }
-                })(),
-                motivo_top: db.prepare("SELECT motivo, COUNT(*) c FROM carritos_abandonados WHERE convertido=0 AND motivo IS NOT NULL AND motivo!='' GROUP BY motivo ORDER BY c DESC LIMIT 1").get() || null,
-                recuperados_30d: db.prepare("SELECT COUNT(*) c FROM carritos_abandonados WHERE convertido=1 AND datetime(COALESCE(convertido_en, abandonado_en)) >= datetime('now','-30 days','localtime')").get()?.c || 0,
-                busquedas_30d: db.prepare("SELECT COUNT(*) c FROM log_eventos WHERE tipo_evento='busqueda'").get()?.c || 0,
-                pagos_30d: db.prepare("SELECT COUNT(*) c FROM log_eventos WHERE tipo_evento='pago_confirmado'").get()?.c || 0,
-            };
-        } catch (_) { stats.marketing = null; }
-        return json(res, stats);
-    }
+            const { username, password, recordar } = JSON.parse(body || '{}');
+            const uname = String(username || '');
+            if (loginBloqueado(uname)) {
+                return json(res, { ok: false, error: 'Cuenta bloqueada temporalmente por demasiados intentos fallidos. Intenta de nuevo en unos minutos.' }, 429);
+            }
+            const u2 = db.prepare('SELECT * FROM usuarios WHERE username=?').get(uname);
+            if (!u2 || !safeEqual(hashPassword(String(password || ''), u2.salt), u2.password_hash)) {
+                registrarIntentoFallido(uname);
+                return json(res, { ok: false, error: 'Usuario o contraseña incorrectos' }, 401);
+            }
+            limpiarIntentosLogin(uname);
+            const ttlMs = recordar ? SESSION_TTL_MS_RECORDAR : SESSION_TTL_MS;
+            const token = crearSesion(u2.username, u2.rol, ttlMs);
+            res.setHeader('Set-Cookie', `jc_session=${token}; HttpOnly; SameSite=Lax${COOKIE_SECURE_FLAG}; Max-Age=${ttlMs / 1000}; Path=/`);
+            return json(res, { ok: true, username: u2.username, rol: u2.rol });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
+}
 
-    // GET /api/bot/status — estado real del proceso bot-whatsapp en PM2
-    if (p === '/api/bot/status' && req.method === 'GET') {
-        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
-        pm2(['jlist'], (err, stdout) => {
-            if (err) return json(res, { ok:false, error:'pm2 no disponible: ' + err.message }, 500);
-            try {
-                const lista = JSON.parse(stdout);
-                const proc = lista.find(p2 => p2.name === 'bot-whatsapp');
-                if (!proc) {
-                    registrarCambioEstatusBot('no_iniciado', null);
-                    return json(res, { ok:true, registrado:false, estatus:'no_iniciado' });
-                }
-                const estatus = proc.pm2_env?.status || 'desconocido';
-                registrarCambioEstatusBot(estatus, null);
-                // stockwatcher_modo lo escribe bot/index.js (proceso separado) en
-                // `configuracion` — 'fork' es lo sano, 'in-process'/'caido' indican
-                // que los checks de stock/marketing dejaron de correr aislados.
-                let stockwatcherModo = null;
+// POST /api/logout — pública (whitelist)
+function logout(req, res, ctx) {
+    const { json, obtenerSesion, eliminarSesion, COOKIE_SECURE_FLAG } = ctx;
+    const s = obtenerSesion(req);
+    if (s) eliminarSesion(s.token);
+    res.setHeader('Set-Cookie', `jc_session=; HttpOnly; SameSite=Lax${COOKIE_SECURE_FLAG}; Max-Age=0; Path=/`);
+    return json(res, { ok: true });
+}
+
+// GET /api/me — quién soy / sesión viva (pública; el handler decide 401)
+function me(req, res, ctx) {
+    const { json, obtenerSesion } = ctx;
+    const s = obtenerSesion(req);
+    if (!s) return json(res, { ok: false }, 401);
+    return json(res, { ok: true, username: s.username, rol: s.rol, version: ctx.APP_VERSION });
+}
+
+// GET /api/pedidos
+function pedidos(req, res, ctx) {
+    const { db, json } = ctx;
+    const rows = db.prepare(`
+        SELECT p.id_pedido, p.folio, p.cliente, p.estatus, p.ciudad_envio,
+               p.email_notificado, p.creado_en, p.a_credito, p.cobrado_por,
+               p.metodo_entrega, p.repartidor_nombre, p.repartidor_telefono,
+               lp.id AS id_link_pago, lp.monto AS total, lp.estatus AS pago_estatus, lp.url_link,
+               g.numero_guia, g.estatus AS guia_estatus, g.fecha_envio_est, g.fecha_entrega_est
+        FROM pedidos p
+        LEFT JOIN links_pago lp ON lp.id_pedido = p.id_pedido
+        LEFT JOIN guias_estafeta g ON g.id_pedido = p.id_pedido
+        ORDER BY p.id_pedido DESC LIMIT 100`).all();
+    return json(res, rows);
+}
+
+// GET /api/clientes — lista (area 'operacion', alineado con la página Clientes)
+function clientes(req, res, ctx) {
+    const { db, json } = ctx;
+    const _u = new URL('http://x' + req.url);
+    const q = (_u.searchParams.get('q') || '').trim();
+    const tag = (_u.searchParams.get('tag') || '').trim();
+    let sql = "SELECT id, nombre, telefono, email, canal_origen, creado_en, ultima_actividad, codigo_referido, COALESCE(tags,'') AS tags FROM clientes WHERE activo=1";
+    const params = [];
+    if (q) { sql += ' AND (nombre LIKE ? OR telefono LIKE ?)'; params.push('%' + q + '%', '%' + q + '%'); }
+    if (tag) { sql += " AND COALESCE(tags,'') LIKE ?"; params.push('%' + tag + '%'); }
+    sql += ' ORDER BY ultima_actividad DESC, creado_en DESC LIMIT 300';
+    const rows = db.prepare(sql).all(...params);
+    // Backfill perezoso del código de referido para clientes previos al programa.
+    const { asegurarCodigoReferido } = require('../../bot/handlers/referidosService');
+    for (const r of rows) { if (!r.codigo_referido) r.codigo_referido = asegurarCodigoReferido(r.id); }
+    return json(res, rows);
+}
+
+// GET /api/guias
+function guias(req, res, ctx) {
+    const { db, json } = ctx;
+    const rows = db.prepare(`
+        SELECT g.*, p.cliente, p.ciudad_envio FROM guias_estafeta g
+        JOIN pedidos p ON p.id_pedido = g.id_pedido ORDER BY g.id DESC LIMIT 100`).all();
+    return json(res, rows);
+}
+
+// GET /api/stats — KPIs de operación (Inicio)
+function stats(req, res, ctx) {
+    const { db, json } = ctx;
+    const st = {
+        pedidos_hoy: db.prepare("SELECT COUNT(*) c FROM pedidos WHERE date(creado_en)=date('now','localtime')").get()?.c || 0,
+        pedidos_total: db.prepare("SELECT COUNT(*) c FROM pedidos").get()?.c || 0,
+        clientes_total: db.prepare("SELECT COUNT(*) c FROM clientes WHERE activo=1").get()?.c || 0,
+        guias_total: db.prepare("SELECT COUNT(*) c FROM guias_estafeta").get()?.c || 0,
+        pagos_pendientes: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='generado'").get()?.c || 0,
+        pagos_pagados: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='pagado'").get()?.c || 0,
+        ventas_hoy: db.prepare("SELECT COALESCE(SUM(monto),0) s FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=date('now','localtime')").get()?.s || 0,
+        pedidos_pagados_hoy: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=date('now','localtime')").get()?.c || 0,
+        cola_atencion: db.prepare("SELECT COUNT(*) c FROM cola_atencion WHERE estatus='en_espera'").get()?.c || 0,
+        emails_error: db.prepare("SELECT COUNT(*) c FROM cola_emails WHERE estatus='error'").get()?.c || 0,
+        chats_hoy: (() => { try { return db.prepare("SELECT COUNT(*) c FROM chats_iniciados WHERE fecha=date('now','localtime')").get()?.c || 0; } catch (_) { return 0; } })(),
+        chats_30d: (() => { try { return db.prepare("SELECT COUNT(*) c FROM chats_iniciados WHERE fecha >= date('now','-30 days','localtime')").get()?.c || 0; } catch (_) { return 0; } })(),
+        clientes_nuevos_30d: db.prepare("SELECT COUNT(*) c FROM clientes WHERE activo=1 AND datetime(creado_en) >= datetime('now','-30 days','localtime')").get()?.c || 0,
+    };
+    try {
+        st.marketing = {
+            abandonados_n: db.prepare('SELECT COUNT(*) c FROM carritos_abandonados WHERE convertido=0').get()?.c || 0,
+            abandonados_monto: (() => {
                 try {
-                    stockwatcherModo = db.prepare("SELECT valor FROM configuracion WHERE clave='stockwatcher_modo'").get()?.valor || null;
-                } catch (_) {}
-                return json(res, {
-                    ok:true, registrado:true,
-                    estatus,
-                    uptime_ms:  proc.pm2_env?.pm_uptime ? Date.now() - proc.pm2_env.pm_uptime : 0,
-                    reinicios:  proc.pm2_env?.restart_time || 0,
-                    memoria_mb: proc.monit?.memory ? Math.round(proc.monit.memory / 1024 / 1024) : 0,
-                    stockwatcher_modo: stockwatcherModo,
-                });
-            } catch(e) { return json(res, { ok:false, error:e.message }, 500); }
-        });
-        return;
-    }
+                    return db.prepare(`SELECT COALESCE(SUM(json_extract(j.value,'$.price') * COALESCE(json_extract(j.value,'$.cantidad'),1)),0) s
+                        FROM carritos_abandonados ca, json_each(ca.carrito_json) j WHERE ca.convertido=0`).get()?.s || 0;
+                } catch (_) { return 0; }
+            })(),
+            motivo_top: db.prepare("SELECT motivo, COUNT(*) c FROM carritos_abandonados WHERE convertido=0 AND motivo IS NOT NULL AND motivo!='' GROUP BY motivo ORDER BY c DESC LIMIT 1").get() || null,
+            recuperados_30d: db.prepare("SELECT COUNT(*) c FROM carritos_abandonados WHERE convertido=1 AND datetime(COALESCE(convertido_en, abandonado_en)) >= datetime('now','-30 days','localtime')").get()?.c || 0,
+            busquedas_30d: db.prepare("SELECT COUNT(*) c FROM log_eventos WHERE tipo_evento='busqueda'").get()?.c || 0,
+            pagos_30d: db.prepare("SELECT COUNT(*) c FROM log_eventos WHERE tipo_evento='pago_confirmado'").get()?.c || 0,
+        };
+    } catch (_) { st.marketing = null; }
+    return json(res, st);
+}
 
-    // GET /api/bot/status-history — últimos cambios de estatus, para el
-    // widget del header (qué pasó, no solo "inactivo" a secas)
-    if (p === '/api/bot/status-history' && req.method === 'GET') {
-        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
-        const rows = db.prepare('SELECT estatus, motivo, registrado_en FROM bot_status_log ORDER BY id DESC LIMIT 50').all();
-        return json(res, rows);
-    }
-
-    // GET /api/bot/qr — QR de WhatsApp pendiente de escanear, si hay uno.
-    // bot/index.js (proceso separado, sin IPC) lo publica en `configuracion`
-    // en cada evento 'qr' y lo limpia al autenticar — antes el único lugar
-    // donde aparecía era la terminal del proceso pm2, invisible desde aquí.
-    if (p === '/api/bot/qr' && req.method === 'GET') {
-        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
-        let fila = null;
+// GET /api/bot/status — estado real del proceso bot-whatsapp en PM2 (async)
+function botStatus(req, res, ctx) {
+    const { db, json, pm2, registrarCambioEstatusBot } = ctx;
+    pm2(['jlist'], (err, stdout) => {
+        if (err) return json(res, { ok: false, error: 'pm2 no disponible: ' + err.message }, 500);
         try {
-            fila = db.prepare("SELECT valor, actualizado_en FROM configuracion WHERE clave='whatsapp_qr'").get();
-        } catch (_) {}
-        return json(res, { qr: fila?.valor || null, actualizado_en: fila?.actualizado_en || null });
-    }
-
-    // POST /api/bot/start — enciende solo bot-whatsapp (no toca el dashboard)
-    if (p === '/api/bot/start' && req.method === 'POST') {
-        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
-        pm2(['start', ECOSYSTEM_PATH, '--only', 'bot-whatsapp'], (err, stdout, stderr) => {
-            if (err) return json(res, { ok:false, error: stderr || err.message }, 500);
-            try { db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('bot_estado_deseado','1') ON CONFLICT(clave) DO UPDATE SET valor='1'").run(); } catch (_) {}
-            registrarCambioEstatusBot('online', 'iniciado manualmente desde el dashboard');
-            return json(res, { ok:true, estatus:'iniciado' });
-        });
-        return;
-    }
-
-    // POST /api/bot/stop
-    if (p === '/api/bot/stop' && req.method === 'POST') {
-        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
-        pm2(['stop', 'bot-whatsapp'], (err, stdout, stderr) => {
-            if (err) return json(res, { ok:false, error: stderr || err.message }, 500);
-            try { db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('bot_estado_deseado','0') ON CONFLICT(clave) DO UPDATE SET valor='0'").run(); } catch (_) {}
-            registrarCambioEstatusBot('stopped', 'detenido manualmente desde el dashboard');
-            return json(res, { ok:true, estatus:'detenido' });
-        });
-        return;
-    }
-
-    // POST /api/bot/restart — cierra la ventana de Electron existente antes de
-    // pedirle a pm2 que reinicie: bot/index.js ya la reabre sola en su
-    // arranque, así que el operador siempre ve una ventana fresca tras
-    // reiniciar, sin que el dashboard mismo se vea afectado (pm2 solo toca
-    // bot-whatsapp, nunca el proceso 'dashboard').
-    if (p === '/api/bot/restart' && req.method === 'POST') {
-        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
-        cerrarElectronSiAbierto(() => {
-            pm2(['restart', 'bot-whatsapp'], (err, stdout, stderr) => {
-                if (err) return json(res, { ok:false, error: stderr || err.message }, 500);
-                registrarCambioEstatusBot('online', 'reiniciado manualmente desde el dashboard');
-                return json(res, { ok:true, estatus:'reiniciado' });
+            const lista = JSON.parse(stdout);
+            const proc = lista.find(p2 => p2.name === 'bot-whatsapp');
+            if (!proc) {
+                registrarCambioEstatusBot('no_iniciado', null);
+                return json(res, { ok: true, registrado: false, estatus: 'no_iniciado' });
+            }
+            const estatus = proc.pm2_env?.status || 'desconocido';
+            registrarCambioEstatusBot(estatus, null);
+            let stockwatcherModo = null;
+            try { stockwatcherModo = db.prepare("SELECT valor FROM configuracion WHERE clave='stockwatcher_modo'").get()?.valor || null; } catch (_) {}
+            return json(res, {
+                ok: true, registrado: true, estatus,
+                uptime_ms: proc.pm2_env?.pm_uptime ? Date.now() - proc.pm2_env.pm_uptime : 0,
+                reinicios: proc.pm2_env?.restart_time || 0,
+                memoria_mb: proc.monit?.memory ? Math.round(proc.monit.memory / 1024 / 1024) : 0,
+                stockwatcher_modo: stockwatcherModo,
             });
-        });
-        return;
-    }
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
+}
 
-    // POST /api/bot/bridge/restart — reinicio del BRIDGE de WhatsApp
-    // (Chromium/puppeteer zombie tras reload de contenedor). Prime,
-    // Administrador u Operador.
-    if (p === '/api/bot/bridge/restart' && req.method === 'POST') {
-        { const { permite } = require('../permisos'); const _s = requireSession(req, res); if (!_s) return; if (!permite(_s.rol, 'operacion')) return json(res, { ok: false, error: 'Sin permiso' }, 403); }
-        const sesB = requireSession(req, res);
-        if (!sesB) return;
-        const { rangoDe } = require('../permisos');
-        if (rangoDe(sesB.rol) < 2 && !['operador', 'usuario'].includes(sesB.rol)) {
-            return json(res, { ok: false, error: 'Reiniciar el bridge es de Prime/Administrador/Operador' }, 403);
-        }
-        log.warn('[HS-502] Reinicio de bridge solicitado por ' + sesB.username);
-        cerrarElectronSiAbierto(() => {
-            pm2(['restart', 'bot-whatsapp'], (err, stdout, stderr) => {
-                if (err) return json(res, { ok: false, error: '[HS-502] ' + (stderr || err.message) }, 500);
-                registrarCambioEstatusBot('online', '[HS-502] bridge reiniciado por ' + sesB.username);
-                return json(res, { ok: true, estatus: 'bridge reiniciado' });
-            });
-        });
-        return;
-    }
+// GET /api/bot/status-history — timeline de cambios de estatus (widget header)
+function botStatusHistory(req, res, ctx) {
+    const { db, json } = ctx;
+    return json(res, db.prepare('SELECT estatus, motivo, registrado_en FROM bot_status_log ORDER BY id DESC LIMIT 50').all());
+}
 
-    // POST /api/notificar — enviar mensaje de estatus a un cliente
-    return next();
-};
+// GET /api/bot/qr — QR de WhatsApp pendiente (bot/index.js lo publica en config)
+function botQr(req, res, ctx) {
+    const { db, json } = ctx;
+    let fila = null;
+    try { fila = db.prepare("SELECT valor, actualizado_en FROM configuracion WHERE clave='whatsapp_qr'").get(); } catch (_) {}
+    return json(res, { qr: fila?.valor || null, actualizado_en: fila?.actualizado_en || null });
+}
+
+// POST /api/bot/start — enciende solo bot-whatsapp (async)
+function botStart(req, res, ctx) {
+    const { db, json, pm2, ECOSYSTEM_PATH, registrarCambioEstatusBot } = ctx;
+    pm2(['start', ECOSYSTEM_PATH, '--only', 'bot-whatsapp'], (err, stdout, stderr) => {
+        if (err) return json(res, { ok: false, error: stderr || err.message }, 500);
+        try { db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('bot_estado_deseado','1') ON CONFLICT(clave) DO UPDATE SET valor='1'").run(); } catch (_) {}
+        registrarCambioEstatusBot('online', 'iniciado manualmente desde el dashboard');
+        return json(res, { ok: true, estatus: 'iniciado' });
+    });
+}
+
+// POST /api/bot/stop (async)
+function botStop(req, res, ctx) {
+    const { db, json, pm2, registrarCambioEstatusBot } = ctx;
+    pm2(['stop', 'bot-whatsapp'], (err, stdout, stderr) => {
+        if (err) return json(res, { ok: false, error: stderr || err.message }, 500);
+        try { db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('bot_estado_deseado','0') ON CONFLICT(clave) DO UPDATE SET valor='0'").run(); } catch (_) {}
+        registrarCambioEstatusBot('stopped', 'detenido manualmente desde el dashboard');
+        return json(res, { ok: true, estatus: 'detenido' });
+    });
+}
+
+// POST /api/bot/restart — cierra la ventana Electron y reinicia bot-whatsapp (async)
+function botRestart(req, res, ctx) {
+    const { json, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot } = ctx;
+    cerrarElectronSiAbierto(() => {
+        pm2(['restart', 'bot-whatsapp'], (err, stdout, stderr) => {
+            if (err) return json(res, { ok: false, error: stderr || err.message }, 500);
+            registrarCambioEstatusBot('online', 'reiniciado manualmente desde el dashboard');
+            return json(res, { ok: true, estatus: 'reiniciado' });
+        });
+    });
+}
+
+// POST /api/bot/bridge/restart — reinicio del bridge WhatsApp. area:'operacion'
+// MÁS check fino: Prime/Administrador/Operador (auditor, ya bloqueado global, fuera).
+function botBridgeRestart(req, res, ctx, { ses }) {
+    const { json, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, log } = ctx;
+    if (rangoDe(ses.rol) < 2 && !['operador', 'usuario'].includes(ses.rol)) {
+        return json(res, { ok: false, error: 'Reiniciar el bridge es de Prime/Administrador/Operador' }, 403);
+    }
+    log.warn('[HS-502] Reinicio de bridge solicitado por ' + ses.username);
+    cerrarElectronSiAbierto(() => {
+        pm2(['restart', 'bot-whatsapp'], (err, stdout, stderr) => {
+            if (err) return json(res, { ok: false, error: '[HS-502] ' + (stderr || err.message) }, 500);
+            registrarCambioEstatusBot('online', '[HS-502] bridge reiniciado por ' + ses.username);
+            return json(res, { ok: true, estatus: 'bridge reiniciado' });
+        });
+    });
+}
+
+// Orden: rutas exactas; /api/bot/status ANTES de status-history (ambas exactas,
+// sin colisión por ser strings distintos, pero se listan juntas por claridad).
+const RUTAS = [
+    { metodo: 'GET',  path: '/api/buscar',                 handler: buscar },
+    { metodo: 'POST', path: '/api/login',                  handler: login },
+    { metodo: 'POST', path: '/api/logout',                 handler: logout },
+    { metodo: 'GET',  path: '/api/me',                     handler: me },
+    { metodo: 'GET',  path: '/api/pedidos',                handler: pedidos },
+    { metodo: 'GET',  path: '/api/clientes',               area: 'operacion', handler: clientes },
+    { metodo: 'GET',  path: '/api/guias',                  handler: guias },
+    { metodo: 'GET',  path: '/api/stats',                  handler: stats },
+    { metodo: 'GET',  path: '/api/bot/status',             area: 'operacion', handler: botStatus },
+    { metodo: 'GET',  path: '/api/bot/status-history',     area: 'operacion', handler: botStatusHistory },
+    { metodo: 'GET',  path: '/api/bot/qr',                 area: 'operacion', handler: botQr },
+    { metodo: 'POST', path: '/api/bot/start',              area: 'operacion', handler: botStart },
+    { metodo: 'POST', path: '/api/bot/stop',               area: 'operacion', handler: botStop },
+    { metodo: 'POST', path: '/api/bot/restart',            area: 'operacion', handler: botRestart },
+    { metodo: 'POST', path: '/api/bot/bridge/restart',     area: 'operacion', handler: botBridgeRestart },
+];
+
+module.exports = construirModulo(RUTAS);
