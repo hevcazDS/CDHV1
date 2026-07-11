@@ -24,8 +24,9 @@ arboreal-pager-497920-c5-af568a08e348.json
 *.db-wal
 *.sqlite
 
-# Demo generado (scripts/demo/generar.js) — se regenera, no se versiona
-demo/
+# Demo generado (scripts/demo/generar.js) — se regenera, no se versiona.
+# Anclado a la raíz para NO ignorar scripts/demo/ (el código sí se versiona).
+/demo/
 *.sqlite3
 
 # Logs
