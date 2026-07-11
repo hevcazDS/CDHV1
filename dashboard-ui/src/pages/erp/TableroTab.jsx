@@ -18,7 +18,9 @@ export default function TableroTab() {
   });
 
   if (!data) return <div className="empty">Cargando tablero...</div>;
-  const { pyl, balance, aging, inventario, categorias, ticket, punto_equilibrio: pe } = data;
+  const { pyl, comparativo, balance, aging, inventario, categorias, ticket, punto_equilibrio: pe } = data;
+  const varTxt = (v) => v == null ? null : (v >= 0 ? '▲ +' + v + '%' : '▼ ' + v + '%');
+  const varColor = (v) => v == null ? 'var(--text-mute)' : v >= 0 ? 'var(--green)' : 'var(--red)';
   const Fila = ({ label, val, fuerte, color }) => (
     <tr style={fuerte ? { borderTop: '1px solid var(--border)' } : undefined}>
       <td style={{ padding: '5px 0', fontWeight: fuerte ? 700 : 400 }}>{label}</td>
@@ -52,6 +54,14 @@ export default function TableroTab() {
             <Fila label="= Utilidad operativa" val={pyl.utilidad_operativa} fuerte color={pyl.utilidad_operativa >= 0 ? 'var(--green)' : 'var(--red)'} />
           </tbody></table>
           <Text size="xs" c="dimmed" mt="xs">Margen bruto {pyl.margen_bruto_pct}% · requiere el módulo Contabilidad activo</Text>
+          {comparativo && (
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--border)', display: 'flex', gap: 18, fontSize: 12, flexWrap: 'wrap' }}>
+              <span style={{ color: 'var(--text-mute)' }}>vs período anterior:</span>
+              <span>Ventas <strong style={{ color: varColor(comparativo.var_ingresos_pct) }}>{varTxt(comparativo.var_ingresos_pct) || '—'}</strong></span>
+              <span>Utilidad <strong style={{ color: varColor(comparativo.var_utilidad_pct) }}>{varTxt(comparativo.var_utilidad_pct) || '—'}</strong></span>
+              <span style={{ color: 'var(--text-mute)' }}>(margen ant. {comparativo.margen_neto_pct}%)</span>
+            </div>
+          )}
           {pe && (
             <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
               <Text size="sm" fw={600} mb={4}>Punto de equilibrio</Text>

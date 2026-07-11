@@ -5,8 +5,6 @@ import { Card, Group, Title, Table, Button, TextInput, NumberInput, Select, Acti
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { alertar, prompt, toastErr, toastOk } from '../lib/ui';
-import { useAuth } from '../context/AuthContext';
-import { tieneRango } from '../lib/roles';
 import { LEYENDA_FACTURACION } from '../lib/factura';
 import { useTextoEmoji } from '../context/EmojiContext';
 
@@ -14,8 +12,6 @@ import { useTextoEmoji } from '../context/EmojiContext';
 // presenciales; el corte de caja es gerente+.
 export default function Mostrador() {
   const txt = useTextoEmoji();
-  const { user } = useAuth();
-  const esGerente = tieneRango(user?.rol, 'gerente');
 
   const { data: config } = useQuery({ queryKey: ['pos-config'], queryFn: () => api.get('/api/pos/config') });
   const [busqueda, setBusqueda] = useState('');
@@ -252,12 +248,14 @@ export default function Mostrador() {
         </Card>
       </div>
 
-      {esGerente && <CorteCaja txt={txt} />}
+      <CorteCaja txt={txt} />
     </div>
   );
 }
 
-// Corte de caja — solo gerente+ (es un reporte).
+// Corte de caja. Backend scoping por rol: gerente+ ve el corte GLOBAL (todas
+// las cajas + WhatsApp); el cajero cierra SOLO su propia caja del día. Por eso
+// se muestra a cualquier usuario del mostrador (no solo gerente).
 function CorteCaja({ txt }) {
   const hoy = new Date().toISOString().slice(0, 10);
   const [fecha, setFecha] = useState(hoy);
@@ -278,7 +276,7 @@ function CorteCaja({ txt }) {
   return (
     <Card withBorder radius="md" p="lg" mt="md">
       <Group justify="space-between" mb="sm">
-        <Title order={4}>{txt('🧾 Corte de caja')}</Title>
+        <Title order={4}>{txt('🧾 Corte de caja')}{data?.alcance === 'propio' ? ' (tu caja)' : data?.alcance === 'global' ? ' (global)' : ''}</Title>
         <TextInput type="date" value={fecha} onChange={e => setFecha(e.target.value)} size="xs" />
       </Group>
       {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginBottom: 10, fontSize: 13 }}>{msg.t}</div>}

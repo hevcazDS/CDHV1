@@ -1189,3 +1189,6 @@ CREATE INDEX IF NOT EXISTS idx_inventarios_producto ON inventarios(id_producto);
 CREATE INDEX IF NOT EXISTS idx_log_eventos_tipo_fecha ON log_eventos(tipo_evento, registrado_en);
 CREATE INDEX IF NOT EXISTS idx_pedidos_id_cliente ON pedidos(id_cliente);
 CREATE INDEX IF NOT EXISTS idx_links_pago_pedido_estatus ON links_pago(id_pedido, estatus);
+
+-- 0047: devoluciones por pedido (historial + clamp de cantidad devolvible).
+CREATE INDEX IF NOT EXISTS idx_devoluciones_pedido ON devoluciones(id_pedido, id_producto);

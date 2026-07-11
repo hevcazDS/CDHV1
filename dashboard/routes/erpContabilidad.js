@@ -204,10 +204,33 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
                 variacion_pct: tPrev ? r2((tAct - tPrev) / tPrev * 100) : null };
         } catch (_) {}
 
+        // — P&L del período anterior (misma duración, justo antes) → variación.
+        // El dueño no veía tendencia de rentabilidad; ahora ingresos/utilidad/
+        // margen contra el período previo. Comité de usuarios (prime).
+        let comparativo = null;
+        try {
+            const diasP = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
+            const prevH = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
+            const prevD = new Date(Date.parse(desde) - diasP * 86400000).toISOString().slice(0, 10);
+            const mayP = conta.libroMayor(prevD, prevH);
+            const ctaP = (c) => mayP.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
+            const ingP = r2(ctaP('401').haber - ctaP('401').debe);
+            const cogsP = r2(ctaP('501').debe - ctaP('501').haber);
+            const gasP = r2(ctaP('601').debe - ctaP('601').haber);
+            const utopP = r2(ingP - cogsP - gasP);
+            const varPct = (a, b) => b ? r2((a - b) / Math.abs(b) * 100) : null;
+            comparativo = {
+                desde: prevD, hasta: prevH, ingresos: ingP, utilidad_operativa: utopP,
+                margen_neto_pct: ingP ? r2(utopP / ingP * 100) : 0,
+                var_ingresos_pct: varPct(ingresos, ingP),
+                var_utilidad_pct: varPct(utilidad_operativa, utopP),
+            };
+        } catch (_) {}
+
         // El P&L/balance salen de asientos; sin el módulo Contabilidad no se
         // asienta nada y todo da $0 — la UI muestra un aviso para que no se
         // lea como "no vendí" (Harvard/PO del re-review).
-        return json(res, { desde, hasta, pyl, punto_equilibrio: puntoEquilibrio, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo() });
+        return json(res, { desde, hasta, pyl, comparativo, punto_equilibrio: puntoEquilibrio, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo() });
     }
 
     // Cierre de período contable (idea SAP): 'YYYY-MM' — nada se asienta en
