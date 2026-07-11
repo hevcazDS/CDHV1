@@ -46,7 +46,11 @@ function extraer() {
     const rutas = [];
     for (const archivo of fs.readdirSync(ROUTES_DIR).filter(f => f.endsWith('.js'))) {
         const modulo = archivo.replace('.js', '');
-        const lineas = fs.readFileSync(path.join(ROUTES_DIR, archivo), 'utf8').split('\n');
+        // Quita comentarios de línea (preservando el número de línea) para no
+        // parsear ejemplos de ruta dentro de comentarios (p.ej. el header de
+        // _construirModulo.js). Las rutas nunca llevan '//' en su literal.
+        const lineas = fs.readFileSync(path.join(ROUTES_DIR, archivo), 'utf8').split('\n')
+            .map(l => { const j = l.indexOf('//'); return j >= 0 ? l.slice(0, j) : l; });
         // Línea de la primera ruta del módulo → todo lo anterior es "cabecera"
         // (filtro de prefijo + posible gate a nivel de módulo).
         let primeraRuta = lineas.length;
@@ -62,6 +66,24 @@ function extraer() {
 
         for (let i = 0; i < lineas.length; i++) {
             const L = lineas[i];
+            // Formato DECLARATIVO (paso 3, construirModulo): una línea con
+            // { metodo:'X', path:'/api/..'|/regex/, area:'y'|roles:[...] }. Se
+            // parsea directo del arreglo — más confiable que las cadenas de if.
+            const decl = L.match(/metodo:\s*'([A-Z]+)'/);
+            if (decl && /path:\s*/.test(L)) {
+                const ps = L.match(/path:\s*'([^']+)'/);
+                const pr = L.match(/path:\s*\/(.+)\/[a-z]*\s*,/); // literal regex (greedy hasta /flags,)
+                let dRuta = null, dTipo = 'exacta';
+                if (ps) { dRuta = ps[1]; }
+                else if (pr) { dRuta = pr[1].replace(/\\\//g, '/').replace(/[\^$]/g, '').replace(/\([^)]*\)/g, '*'); dTipo = 'patrón'; }
+                if (dRuta && dRuta.startsWith('/api')) {
+                    const aM = L.match(/area:\s*'([a-z_]+)'/);
+                    const rM = L.match(/roles:\s*\[([^\]]*)\]/);
+                    const dRol = aM ? aM[1] : (rM ? rM[1].replace(/['"\s]/g, '') : null);
+                    rutas.push({ modulo, archivo, linea: i + 1, metodo: decl[1], ruta: dRuta, tipo: dTipo, rolMin: dRol, gateModulo: false });
+                    continue;
+                }
+            }
             const met = (L.match(/req\.method\s*===\s*'([A-Z]+)'/) || [])[1];
             let m = L.match(/\bp\s*===\s*'([^']+)'/) || L.match(/\bp\s*===\s*"([^"]+)"/);
             let tipo = 'exacta', ruta = m && m[1];
