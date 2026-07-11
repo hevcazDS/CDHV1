@@ -81,7 +81,7 @@ function buscarUpsellMsg(prod, totalAct) {
         const _familia = _familias.find(f => f.trigger.test(_nombre));
         if (!_familia) return '';
         const { results: _comp } = searchProducts(_familia.buscar);
-        const _disponibles = _comp.filter(p => p.id !== prod.id && (p.stock_tienda > 0 || p.stock_cedis > 0));
+        const _disponibles = _comp.filter(p => p.id !== prod.id && (p.stock_vivo ?? ((p.stock_tienda || 0) + (p.stock_cedis || 0))) > 0);
         if (!_disponibles.length) return '';
         const _sug = _disponibles[0];
         const _falta = FLETE_UMBRAL - totalAct;
@@ -202,7 +202,7 @@ async function handle(ctx) {
                     JOIN productos p ON p.id = pr.id_producto
                     WHERE pr.activa = 1
                       AND (pr.fecha_fin IS NULL OR pr.fecha_fin >= ?)
-                      AND (p.stock_tienda > 0 OR p.stock_cedis > 0)
+                      AND COALESCE((SELECT SUM(stock) FROM inventarios WHERE id_producto=p.id), COALESCE(p.stock_tienda,0)+COALESCE(p.stock_cedis,0)+COALESCE(p.stock_exhibicion,0)) > 0
                       AND (pr.usos_max = 0 OR pr.usos_actual < pr.usos_max)
                     ORDER BY pr.valor DESC
                     LIMIT 3
@@ -470,7 +470,7 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
                 }
                 // Sin match real → flujo stock inteligente
                 const _enEspera = db.prepare("SELECT COUNT(*) AS n FROM lista_espera WHERE notas LIKE ? AND estatus='activa'").get('%'+raw.slice(0,30)+'%')?.n || 0;
-                const _sust = stockService.buscarSustitutosAuto(_nr.length ? _nr[0].id : 0, 0.50, 3).filter(p => p.stock_tienda > 0 || p.stock_cedis > 0);
+                const _sust = stockService.buscarSustitutosAuto(_nr.length ? _nr[0].id : 0, 0.50, 3).filter(p => (p.stock_vivo ?? ((p.stock_tienda || 0) + (p.stock_cedis || 0))) > 0);
                 sessionManager.updateSession(userId, S.LISTA_ESPERA, { ...data, _queryOriginal: raw, idProducto: null, _sinResultado: true, viewing: undefined });
 
                 // Si viene de imagen → mensaje especial sin repetir el query técnico
@@ -531,7 +531,7 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
             let _relacionadosMsg = '';
             try {
                 const _rel = stockService.buscarSustitutos(prod.id, 2)
-                    .filter(r => r.id !== prod.id && (r.stock_tienda > 0 || r.stock_cedis > 0));
+                    .filter(r => r.id !== prod.id && (r.stock_vivo ?? ((r.stock_tienda || 0) + (r.stock_cedis || 0))) > 0);
                 if (_rel.length) {
                     _relacionadosMsg = '\n\n💡 *También te puede interesar:*\n' +
                         _rel.map(r => '· *' + r.name + '* — $' + Number(r.price).toFixed(2) + ' MXN').join('\n');

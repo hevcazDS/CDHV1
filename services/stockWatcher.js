@@ -66,7 +66,7 @@ function checkListaEspera() {
          FROM lista_espera le
          JOIN productos p ON p.id = le.id_producto
          WHERE le.estatus='activa'
-           AND (p.stock_tienda > 0 OR p.stock_cedis > 0)`
+           AND COALESCE((SELECT SUM(stock) FROM inventarios WHERE id_producto=p.id), COALESCE(p.stock_tienda,0)+COALESCE(p.stock_cedis,0)+COALESCE(p.stock_exhibicion,0)) > 0`
     ).all();
 
     let total = 0;

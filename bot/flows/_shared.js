@@ -112,9 +112,17 @@ function generarFolio(tipo = 'pedido') {
 //  + fallback de sugerencias cuando hay poco match
 // ═══════════════════════════════════════════════════════
 
+// Stock VIVO: suma de inventarios (lo que mantiene el kardex) con fallback a
+// las columnas legacy del alta (productos.stock_* NUNCA se actualizan). Se usa
+// como columna calculada en los SELECT y como filtro en los WHERE del bot, así
+// la búsqueda/sugerencias reflejan existencias reales (antes: sobreventa y
+// catálogo desincronizado). Fallback ⇒ sin regresión para productos sin
+// filas en inventarios. Requiere que la tabla se llame `productos` en el FROM.
+const _STOCK_VIVO_SQL = "COALESCE((SELECT SUM(stock) FROM inventarios WHERE id_producto=productos.id), COALESCE(productos.stock_tienda,0)+COALESCE(productos.stock_cedis,0)+COALESCE(productos.stock_exhibicion,0))";
+
 // Stock total normalizado para boost (0-3 puntos)
 function boostStock(p) {
-    const total = (p.stock_tienda||0) + (p.stock_cedis||0) + (p.stock_exhibicion||0);
+    const total = p.stock_vivo != null ? p.stock_vivo : ((p.stock_tienda||0) + (p.stock_cedis||0) + (p.stock_exhibicion||0));
     if (total >= 20) return 3;
     if (total >= 5)  return 2;
     if (total >= 1)  return 1;
@@ -153,7 +161,8 @@ function searchProducts(query, limit = 3, telefono = null) {
     const all = db.prepare(
         `SELECT id,name,cat,price,url_imagen,tags,seo_description,
                 edad_recomendada,target_audience,genero,
-                stock_tienda,stock_cedis,stock_exhibicion,ventas_simuladas
+                stock_tienda,stock_cedis,stock_exhibicion,ventas_simuladas,
+                ${_STOCK_VIVO_SQL} AS stock_vivo
          FROM productos WHERE activo=1`
     ).all();
 
@@ -261,7 +270,7 @@ function wizardSearch(answers) {
               AND edad_min <= ? AND edad_max >= ?
               AND genero IN (${genPlaceholders})
               AND tipo_juguete IN (${tipoPlaceholders})
-              AND (stock_tienda > 0 OR stock_cedis > 0)
+              AND ${_STOCK_VIVO_SQL} > 0
             ORDER BY ventas_simuladas DESC, price ASC
             LIMIT 5
         `).all(...params);
@@ -275,7 +284,7 @@ function wizardSearch(answers) {
                 WHERE activo = 1
                   AND price BETWEEN ? AND ?
                   AND edad_min <= ? AND edad_max >= ?
-                  AND (stock_tienda > 0 OR stock_cedis > 0)
+                  AND ${_STOCK_VIVO_SQL} > 0
                 ORDER BY ventas_simuladas DESC, price ASC
                 LIMIT 3
             `).all(minP, maxP, eMax, eMin);

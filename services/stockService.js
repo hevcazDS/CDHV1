@@ -196,16 +196,21 @@ function registrarPreventa(telefono, idPreventa, nombreCliente, cantidad = 1) {
 // ═══════════════════════════════════════════════════════
 //  ESTRATEGIA 4 — Sustitutos
 // ═══════════════════════════════════════════════════════
+// Stock VIVO (inventarios) con fallback a las columnas legacy del alta, para
+// el alias dado. productos.stock_* nunca se actualizan; el kardex vive en
+// inventarios. Fallback ⇒ sin regresión si el producto no tiene filas ahí.
+const _sv = (a) => `COALESCE((SELECT SUM(stock) FROM inventarios WHERE id_producto=${a}.id), COALESCE(${a}.stock_tienda,0)+COALESCE(${a}.stock_cedis,0)+COALESCE(${a}.stock_exhibicion,0))`;
+
 function buscarSustitutos(idProducto, limite = 3) {
     // Primero: relaciones definidas manualmente
     const definidos = db.prepare(`
         SELECT ps.score, ps.tipo_relacion,
                p.id, p.name, p.cat, p.price, p.url_imagen, p.seo_description,
-               p.stock_tienda, p.stock_cedis
+               p.stock_tienda, p.stock_cedis, ${_sv('p')} AS stock_vivo
         FROM productos_similares ps
         JOIN productos p ON p.id = ps.id_sustituto
         WHERE ps.id_producto=? AND ps.activa=1
-          AND p.activo=1 AND (p.stock_tienda > 0 OR p.stock_cedis > 0)
+          AND p.activo=1 AND ${_sv('p')} > 0
         ORDER BY ps.score DESC, p.price ASC
         LIMIT ?
     `).all(idProducto, limite);
@@ -223,11 +228,11 @@ function buscarSustitutosAuto(idProducto, rango = 0.30, limite = 3) {
     const maxP = base.price * (1 + rango);
     return db.prepare(`
         SELECT id, name, cat, price, url_imagen, seo_description,
-               stock_tienda, stock_cedis, 0 AS score
+               stock_tienda, stock_cedis, ${_sv('productos')} AS stock_vivo, 0 AS score
         FROM productos
         WHERE activo=1 AND id != ?
           AND cat=? AND price BETWEEN ? AND ?
-          AND (stock_tienda > 0 OR stock_cedis > 0)
+          AND ${_sv('productos')} > 0
         ORDER BY price ASC
         LIMIT ?
     `).all(idProducto, base.cat, minP, maxP, limite);
@@ -255,14 +260,14 @@ function registrarAlertaReabasto(telefono, idProducto, nombreCliente) {
 
 function verificarAlertas() {
     const alertas = db.prepare(
-        `SELECT a.*, p.name AS nombre_producto, p.stock_tienda, p.stock_cedis
+        `SELECT a.*, p.name AS nombre_producto, p.stock_tienda, p.stock_cedis, ${_sv('p')} AS stock_vivo
          FROM alertas_reabasto a JOIN productos p ON p.id = a.id_producto
          WHERE a.estatus='activa'`
     ).all();
 
     let disparadas = 0;
     for (const a of alertas) {
-        const stockTotal = (a.stock_tienda || 0) + (a.stock_cedis || 0);
+        const stockTotal = a.stock_vivo != null ? a.stock_vivo : ((a.stock_tienda || 0) + (a.stock_cedis || 0));
         if (stockTotal >= a.umbral_stock) {
             const cuerpo =
                 `\uD83D\uDD14 \u00a1${a.nombre_cliente || 'Hola'}! El producto que esperabas ya est\u00e1 disponible.\n\n` +
