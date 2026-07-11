@@ -48,6 +48,10 @@ function construirModulo(defs, opts = {}) {
                 const areas = d.areas || [d.area];
                 if (!areas.some(a => permite(ses.rol, a))) return json(res, { ok: false, error: 'Sin permiso' }, 403);
             }
+            // Precondición de módulo (opt-in): p.ej. "el módulo Mesas está
+            // activo". Corre DESPUÉS del gate (auth primero). Si devuelve algo
+            // falsy debe haber respondido ella misma y se corta.
+            if (opts.precondicion && !opts.precondicion(req, res, ctx, ses)) return;
             return d.handler(req, res, ctx, { p, u, params, ses });
         }
         return next();
