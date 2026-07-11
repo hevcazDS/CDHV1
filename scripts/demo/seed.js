@@ -78,6 +78,7 @@ function revert() {
                 { try { db.prepare("DELETE FROM asientos_detalle WHERE id_asiento IN (SELECT id FROM asientos WHERE referencia_tipo=? AND referencia_id=?)").run(rt, String(idp)); db.prepare("DELETE FROM asientos WHERE referencia_tipo=? AND referencia_id=?").run(rt, String(idp)); } catch (_) {} }
         }
         db.prepare("DELETE FROM pedidos WHERE folio LIKE 'DEMO-%'").run();
+        try { db.prepare("DELETE FROM asientos_detalle WHERE id_asiento IN (SELECT id FROM asientos WHERE referencia_tipo='demo')").run(); db.prepare("DELETE FROM asientos WHERE referencia_tipo='demo'").run(); } catch (_) {}
         try { db.prepare("DELETE FROM log_eventos WHERE valor LIKE 'demo:%' OR canal='demo'").run(); } catch (_) {}
         try { db.prepare("DELETE FROM inventario_movimientos WHERE motivo LIKE 'DEMO %'").run(); } catch (_) {}
         db.prepare("DELETE FROM clientes WHERE tags='demo'").run();
@@ -171,6 +172,7 @@ function sembrarAnio(productos) {
 
     let folioN = 1000, pedidosCreados = 0;
     const tx = db.transaction(() => {
+        sembrarAperturaYGastos();   // capital + compra de inventario + renta (dentro de la tx: atómico)
         for (let d = 360; d >= 0; d--) {                 // recorre el año
             const fecha = diasAtras(d);
             const nPed = rnd(0, 3);                        // 0-3 pedidos/día
@@ -217,9 +219,36 @@ function sembrarAnio(productos) {
             const r = db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono, resultados, registrado_en) VALUES ('busqueda','demo',?,?,0,?)").run(pick(['producto que no hay', 'marca inexistente', 'talla especial', 'color raro']), '5210000000000', dt);
             db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono, registrado_en) VALUES ('busqueda_abandonada','demo',?, '5210000000000', ?)").run(String(r.lastInsertRowid), dt);
         }
+        // Reposición del inventario vendido en el año (una compra = COGS total):
+        // así el 115 vuelve a su nivel inicial (inventario "atado" positivo) y la
+        // caja refleja el efectivo gastado en mercancía. Sin esto el 115 se iba
+        // muy negativo (vendemos más que la compra inicial y nunca reponíamos).
+        const cogsAnio = db.prepare("SELECT COALESCE(SUM(debe),0) v FROM asientos_detalle WHERE cuenta='501'").get().v;
+        if (cogsAnio > 0) insAsiento(isoFecha(diasAtras(200)), 'Compras de mercancía del año', [{ c: '115', d: Math.round(cogsAnio * 100) / 100 }, { c: '102', h: Math.round(cogsAnio * 100) / 100 }]);
     });
     tx();
     return { pedidosCreados, clientes: clientes.length };
+}
+
+// Asiento contable directo (backdated) para dar realismo al balance: sin esto
+// la caja solo recibe ventas y jamás compra inventario ni paga gastos, así que
+// "caja vs utilidad" se ve al revés. Aporta las salidas de efectivo que faltan.
+function insAsiento(fecha, concepto, partidas) {
+    const r = db.prepare("INSERT INTO asientos (fecha, concepto, referencia_tipo, referencia_id, creado_en) VALUES (?,?, 'demo', NULL, datetime('now','localtime'))").run(fecha, concepto);
+    for (const p of partidas)
+        db.prepare("INSERT INTO asientos_detalle (id_asiento, cuenta, debe, haber) VALUES (?,?,?,?)").run(r.lastInsertRowid, p.c, p.d || 0, p.h || 0);
+}
+function sembrarAperturaYGastos() {
+    const invValor = db.prepare("SELECT COALESCE(SUM(i.stock * COALESCE(p.costo,0)),0) v FROM inventarios i JOIN productos p ON p.id=i.id_producto").get().v;
+    const capital = Math.round((invValor + 80000) * 100) / 100;
+    const apertura = isoFecha(diasAtras(365));
+    // Aportación inicial de capital (efectivo/banco 102 ← capital 301)
+    insAsiento(apertura, 'Apertura: aportación de capital', [{ c: '102', d: capital }, { c: '301', h: capital }]);
+    // Compra del inventario inicial de contado (inventario 115 ← banco 102)
+    if (invValor > 0) insAsiento(apertura, 'Compra de inventario inicial', [{ c: '115', d: invValor }, { c: '102', h: invValor }]);
+    // Renta mensual (gasto 601 ← banco 102), 12 meses
+    for (let mnth = 11; mnth >= 0; mnth--)
+        insAsiento(isoFecha(diasAtras(mnth * 30 + 5)), 'Renta del local', [{ c: '601', d: 1000 }, { c: '102', h: 1000 }]);
 }
 
 function sembrarEmpleados() {

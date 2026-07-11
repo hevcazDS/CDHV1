@@ -92,10 +92,10 @@ export default function TableroTab() {
               <Text size="sm" fw={600} mb={4}>Liquidez: caja vs utilidad</Text>
               <table style={{ width: '100%' }}><tbody>
                 <Fila label="💵 Caja y bancos (disponible hoy)" val={balance.caja} fuerte color={balance.caja >= 0 ? 'var(--green)' : 'var(--red)'} />
+                <Fila label="📦 Atado en inventario + por cobrar" val={balance.atado} />
                 <Fila label="Utilidad acumulada" val={balance.utilidad_acumulada} />
-                <Fila label="No líquido (reinvertido/distribuido)" val={balance.no_liquido} />
               </tbody></table>
-              <Text size="xs" c="dimmed" mt={4}>La utilidad no es dinero en caja: la diferencia está en inventario, cuentas por cobrar o ya se distribuyó.</Text>
+              <Text size="xs" c="dimmed" mt={4}>Tu caja es el dinero disponible hoy; parte de tu utilidad está atada en inventario y cuentas por cobrar, no en efectivo.</Text>
             </div>
           )}
           <div className="card-header" style={{ marginTop: 16 }}><h3>Ticket promedio</h3></div>

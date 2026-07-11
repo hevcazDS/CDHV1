@@ -141,18 +141,21 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
             else porTipo[t] = (porTipo[t] || 0) + (c.haber - c.debe);
         }
         const utilidad_acumulada = r2(porTipo.ingreso - porTipo.costo - porTipo.gasto);
-        // Caja/bancos reales (saldo acumulado 101+102) vs utilidad acumulada:
-        // el dueño veía "gané $X" pero no cuánto de eso es dinero disponible hoy
-        // (el resto está reinvertido en inventario/CxC o se distribuyó). Comité.
+        // Caja real vs utilidad: el dueño veía "gané $X" sin saber cuánto es
+        // dinero disponible HOY. La caja (101+102) es lo líquido; buena parte de
+        // la utilidad suele estar atada en inventario (115) y cuentas por cobrar
+        // (105), no en efectivo. Comité de usuarios (prime).
         const cAcum = (c) => acum.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
-        const caja = r2((cAcum('101').debe - cAcum('101').haber) + (cAcum('102').debe - cAcum('102').haber));
+        const saldoDeudor = (c) => cAcum(c).debe - cAcum(c).haber;
+        const caja = r2(saldoDeudor('101') + saldoDeudor('102'));
+        const atado = r2(Math.max(0, saldoDeudor('115')) + Math.max(0, saldoDeudor('105')));
         const balance = {
             activos: r2(porTipo.activo),
             pasivos: r2(porTipo.pasivo),
             capital: r2(porTipo.capital + utilidad_acumulada),
             caja,
             utilidad_acumulada,
-            no_liquido: r2(utilidad_acumulada - caja), // reinvertido (inventario/CxC) o distribuido
+            atado, // dinero no líquido: inventario (115) + cuentas por cobrar (105)
             cuadra: Math.abs(porTipo.activo - (porTipo.pasivo + porTipo.capital + utilidad_acumulada)) < 0.5,
         };
 

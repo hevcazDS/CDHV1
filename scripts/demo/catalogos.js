@@ -23,12 +23,12 @@ const CATALOGOS = {
   abarrotes: {
     negocio: 'Abarrotes La Esquina', corto: 'La Esquina',
     productos: [
-      P('Coca-Cola 2L', 'Bebidas', 38, 30), P('Leche entera 1L', 'Lácteos', 28, 22),
-      P('Huevo kilo', 'Básicos', 42, 34), P('Frijol bayo kilo', 'Granos', 38, 28),
-      P('Arroz kilo', 'Granos', 32, 24), P('Aceite 1L', 'Básicos', 45, 36),
-      P('Pan de caja grande', 'Panadería', 48, 35), P('Sabritas grande', 'Botanas', 25, 18),
-      P('Jabón de baño', 'Higiene', 18, 11), P('Papel higiénico 4 rollos', 'Higiene', 40, 30),
-      P('Detergente 1kg', 'Limpieza', 55, 42), P('Atún lata', 'Enlatados', 22, 16),
+      P('Coca-Cola 2L', 'Bebidas', 38, 26), P('Leche entera 1L', 'Lácteos', 28, 19),
+      P('Huevo kilo', 'Básicos', 42, 29), P('Frijol bayo kilo', 'Granos', 38, 24),
+      P('Arroz kilo', 'Granos', 32, 20), P('Aceite 1L', 'Básicos', 45, 31),
+      P('Pan de caja grande', 'Panadería', 48, 30), P('Sabritas grande', 'Botanas', 25, 15),
+      P('Jabón de baño', 'Higiene', 18, 10), P('Papel higiénico 4 rollos', 'Higiene', 40, 26),
+      P('Detergente 1kg', 'Limpieza', 55, 36), P('Atún lata', 'Enlatados', 22, 13),
     ],
   },
   carniceria: {
