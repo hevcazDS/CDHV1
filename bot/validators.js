@@ -254,9 +254,13 @@ const UsuarioSchema = z.object({
     rol:      z.enum(['cajero', 'operador', 'almacen', 'compras', 'rh', 'contabilidad', 'auditor', 'usuario', 'gerente', 'prime']),
     nombre:   z.string().trim().min(1).max(80).optional(),
 });
+// El PUT admite los MISMOS roles que el alta (antes solo usuario/gerente/prime →
+// re-asignar a un rol especialista daba 400 aunque el panel lo ofrecía). La
+// frontera de escalada la ponen el gate del handler y ROLES_CREABLES_POR_GERENTE
+// (un gerente no puede asignar prime/gerente/auditor), no este enum.
 const UsuarioUpdateSchema = z.object({
     password: z.string().min(8).max(200).optional(),
-    rol:      z.enum(['usuario', 'gerente', 'prime']).optional(),
+    rol:      z.enum(['cajero', 'operador', 'almacen', 'compras', 'rh', 'contabilidad', 'auditor', 'usuario', 'gerente', 'prime']).optional(),
     nombre:   z.string().trim().min(1).max(80).optional(),
 });
 
