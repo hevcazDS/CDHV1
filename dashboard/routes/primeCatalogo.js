@@ -339,7 +339,12 @@ function inventarioMovimientos(req, res, ctx) {
     } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
 }
 
-// GET /api/prime/usuarios — gestión de usuarios "normales" (solo prime)
+// GET /api/prime/usuarios — LISTA de usuarios operativos (gerente+). El
+// administrador crea/edita cajero/almacén/compras/rh/contabilidad/operador
+// (ROLES_CREABLES_POR_GERENTE) y necesita verlos; antes el listar era prime-only
+// mientras el crear (POST) sí era gerente → la pestaña Usuarios se le rompía con
+// un 401. La query EXCLUYE las cuentas 'prime', así que el gerente no ve ni toca
+// cuentas prime (y el DELETE + tocar admin/prime siguen prime-only aparte).
 function usuariosGet(req, res, ctx) {
     const { db, json } = ctx;
     try { return json(res, db.prepare("SELECT id, username, nombre, rol, creado_en FROM usuarios WHERE rol != 'prime' ORDER BY id").all()); }
@@ -367,7 +372,7 @@ const RUTAS = [
     { metodo: 'POST',   path: /^\/api\/prime\/variantes\/(\d+)$/,          roles: ['gerente'], handler: variantesPost },
     { metodo: 'POST',   path: '/api/prime/entrada-mercancia',              area: 'almacen', handler: entradaMercancia },
     { metodo: 'GET',    path: '/api/prime/inventario-movimientos',         roles: ['gerente'], handler: inventarioMovimientos },
-    { metodo: 'GET',    path: '/api/prime/usuarios',                       roles: ['prime'], handler: usuariosGet },
+    { metodo: 'GET',    path: '/api/prime/usuarios',                       roles: ['gerente'], handler: usuariosGet },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/prime/' });

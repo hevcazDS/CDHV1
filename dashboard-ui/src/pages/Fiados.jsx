@@ -5,12 +5,14 @@ import { handleApiError } from '../lib/apiError';
 import { toastOk, prompt } from '../lib/ui';
 import { useAuth } from '../context/AuthContext';
 import { tieneRango } from '../lib/roles';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 // Cartera de fiado (cuentas por cobrar del mostrador): quién debe, cuánto,
 // desde cuándo y qué tan vencido. Cobranza se hace en Pedidos (marcar pagado).
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
 export default function Fiados() {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const { user } = useAuth();
   const esGerente = tieneRango(user?.rol, 'gerente');
@@ -68,7 +70,7 @@ export default function Fiados() {
           <table>
             <thead><tr><th>Cliente</th><th>Teléfono</th><th>Pedidos</th><th>Adeudo</th><th>Límite</th><th>Vence</th><th>Estado</th>{esGerente && <th></th>}</tr></thead>
             <tbody>
-              {fiados.length === 0 && <tr><td colSpan={esGerente ? 8 : 7} className="empty">Sin fiados pendientes 🎉</td></tr>}
+              {fiados.length === 0 && <tr><td colSpan={esGerente ? 8 : 7} className="empty">{txt('Sin fiados pendientes 🎉')}</td></tr>}
               {fiados.map(f => {
                 const vencido = f.dias_vencido_max != null && f.dias_vencido_max > 0;
                 return (

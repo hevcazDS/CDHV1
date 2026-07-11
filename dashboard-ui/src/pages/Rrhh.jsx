@@ -4,11 +4,13 @@ import { Card, Button, TextInput, NumberInput, Checkbox, Group, Text, Tabs, Sele
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 import { toastOk, alertar, confirmar, prompt } from '../lib/ui';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 // RRHH: empleados, horarios por plantilla (CSV que Excel abre nativo) y
 // nómina MX con/sin impuestos. El ISR/IMSS es aproximado — validar con
 // contador; el CFDI de nómina es upgrade aparte (PAC).
 export default function Rrhh() {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const [tab, setTab] = useState('empleados');
   const [emp, setEmp] = useState({ nombre: '', puesto: '', salario_diario: 0, con_impuestos: false, rfc: '', nss: '', curp: '', fecha_alta: '', departamento: '', comision_pct: 0, metodo_pago: 'transferencia', username: '' });
@@ -183,7 +185,7 @@ export default function Rrhh() {
               </tbody>
             </table>
           </div>
-          <Text size="xs" c="dimmed" mt="sm">⚠️ ISR/IMSS aproximados para gestión interna — el cálculo fiscal definitivo y el CFDI de nómina los hace tu contador/PAC.</Text>
+          <Text size="xs" c="dimmed" mt="sm">{txt('⚠️ ISR/IMSS aproximados para gestión interna — el cálculo fiscal definitivo y el CFDI de nómina los hace tu contador/PAC.')}</Text>
         </Card>
       )}
 

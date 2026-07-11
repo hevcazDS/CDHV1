@@ -52,6 +52,14 @@ function usuariosPut(req, res, ctx, { params, ses }) {
         try {
             const datos = validar(JSON.parse(body || '{}'), UsuarioUpdateSchema, res, '/api/prime/usuarios');
             if (!datos) return;
+            // Antiescalada: un gerente no puede ASIGNAR un rol fuera de su alcance
+            // (ni prime/gerente). El guard de arriba valida el rol ACTUAL del
+            // objetivo; hay que validar también el rol NUEVO (datos.rol) — si no,
+            // un gerente edita un cajero → rol='prime' + password conocida = prime.
+            // El POST (alta) ya hace esta validación; el PUT la omitía.
+            if (ses.rol !== 'prime' && datos.rol && !ROLES_CREABLES_POR_GERENTE.includes(datos.rol)) {
+                return json(res, { ok: false, error: 'Solo Prime puede asignar el rol "' + datos.rol + '"' }, 403);
+            }
             const existente = db.prepare('SELECT id, rol FROM usuarios WHERE id=?').get(id);
             if (!existente) return json(res, { ok: false, error: 'Usuario no encontrado' }, 404);
             if (datos.rol && datos.rol !== 'prime' && existente.rol === 'prime') {

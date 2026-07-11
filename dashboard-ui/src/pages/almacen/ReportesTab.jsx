@@ -4,12 +4,14 @@ import { api } from '../../api';
 import { fmt } from '../../lib/format';
 import { prompt as pedir, toastOk } from '../../lib/ui';
 import { handleApiError } from '../../lib/apiError';
+import { useTextoEmoji } from '../../context/EmojiContext';
 
 // Tres reportes que el gerente tomaba a ciegas (comité de usuarios), todos
 // lectura pura desde GET /api/gerente/reportes: stock bajo mínimo, margen por
 // producto vs volumen, y productos muertos (stock sin venta en 90 días). El
 // margen permite capturar el costo faltante inline (los sin costo van arriba).
 export default function ReportesTab() {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ['gerente-reportes'],
@@ -35,9 +37,9 @@ export default function ReportesTab() {
   return (
     <div style={{ display: 'grid', gap: 18 }}>
       <Card withBorder radius="md" p="lg">
-        <Title order={5} mb="xs">🔴 Stock bajo mínimo</Title>
+        <Title order={5} mb="xs">{txt('🔴 Stock bajo mínimo')}</Title>
         <Text size="xs" c="dimmed" mb="sm">Productos en o por debajo del mínimo configurado — reordena antes de quedarte sin venta.</Text>
-        {stockBajo.length === 0 ? <Text size="sm" c="dimmed">Nada bajo mínimo. 👍</Text> : (
+        {stockBajo.length === 0 ? <Text size="sm" c="dimmed">{txt('Nada bajo mínimo. 👍')}</Text> : (
           <div className="table-wrap" style={{ maxHeight: 300, overflow: 'auto' }}>
             <table>
               <thead><tr><th>Producto</th><th>Sucursal</th><th>Stock</th><th>Mínimo</th><th>Faltante</th></tr></thead>
@@ -56,7 +58,7 @@ export default function ReportesTab() {
       </Card>
 
       <Card withBorder radius="md" p="lg">
-        <Title order={5} mb="xs">💰 Margen por producto (últimos 30 días)</Title>
+        <Title order={5} mb="xs">{txt('💰 Margen por producto (últimos 30 días)')}</Title>
         <Text size="xs" c="dimmed" mb="sm">Precio vs costo y unidades vendidas. Margen bajo + mucho volumen = revisa precio o proveedor.</Text>
         {margen.length === 0 ? <Text size="sm" c="dimmed">Aún no hay productos activos.</Text> : (
           <div className="table-wrap" style={{ maxHeight: 340, overflow: 'auto' }}>
@@ -81,9 +83,9 @@ export default function ReportesTab() {
       </Card>
 
       <Card withBorder radius="md" p="lg">
-        <Title order={5} mb="xs">🪦 Productos muertos (con stock, sin venta en 90 días)</Title>
+        <Title order={5} mb="xs">{txt('🪦 Productos muertos (con stock, sin venta en 90 días)')}</Title>
         <Text size="xs" c="dimmed" mb="sm">Dinero parado en anaquel. Candidatos a promoción, liquidación o baja de catálogo.</Text>
-        {muertos.length === 0 ? <Text size="sm" c="dimmed">Todo tu inventario con stock ha rotado en los últimos 90 días. 👍</Text> : (
+        {muertos.length === 0 ? <Text size="sm" c="dimmed">{txt('Todo tu inventario con stock ha rotado en los últimos 90 días. 👍')}</Text> : (
           <div className="table-wrap" style={{ maxHeight: 300, overflow: 'auto' }}>
             <table>
               <thead><tr><th>Producto</th><th>Stock</th><th>Precio</th><th>Valor parado</th></tr></thead>

@@ -5,6 +5,7 @@
 // (sucursales, categorías) se piden por la misma queryKey de React Query, que
 // las deduplica, así que no hay doble fetch.
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Tabs } from '@mantine/core';
 import { useTextoEmoji } from '../context/EmojiContext';
 import { useAuth } from '../context/AuthContext';
@@ -37,7 +38,11 @@ export default function Prime() {
   const { user } = useAuth();
   const esPrime = user?.rol === 'prime';
   const tabsVisibles = TABS.filter(t => esPrime || !t.soloPrime);
-  const [tab, setTab] = useState(tabsVisibles[0]?.key || 'sucursales');
+  // Permite entrar directo a una pestaña vía ?tab=usuarios (el link "Usuarios"
+  // del sidebar). Si el tab pedido no es visible para el rol, cae al primero.
+  const [params] = useSearchParams();
+  const tabPedido = params.get('tab');
+  const [tab, setTab] = useState(tabsVisibles.find(t => t.key === tabPedido)?.key || tabsVisibles[0]?.key || 'sucursales');
   const TabActivo = tabsVisibles.find(t => t.key === tab)?.Componente;
 
   return (
