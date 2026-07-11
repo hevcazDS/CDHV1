@@ -6,10 +6,13 @@
 // original (ver dashboard/server.js para la construcción de ctx).
 module.exports = function coreRoutes(req, res, p, u, ctx, next) {
     const { db, json, readBody, validar, requireSession, log, pm2, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, UsuarioSchema, UsuarioUpdateSchema } = ctx;
-    // GET /api/buscar?q= — buscador global del topbar (clientes/pedidos/productos)
+    // GET /api/buscar?q= — buscador global del topbar (clientes/pedidos/productos/guías).
+    // Handler ÚNICO: antes había una segunda copia en atencionCliente.js que
+    // nunca se alcanzaba (core gana el dispatch) y que añadía guías; se consolidó
+    // aquí para no perder esa búsqueda. (Colisión detectada por scripts/rutas/inventario.js)
     if (p === '/api/buscar' && req.method === 'GET') {
         const q = ((new URL(req.url, 'http://x')).searchParams.get('q') || '').trim();
-        if (q.length < 2) return json(res, { clientes: [], pedidos: [], productos: [] });
+        if (q.length < 2) return json(res, { clientes: [], pedidos: [], productos: [], guias: [] });
         const like = '%' + q + '%';
         const clientes = db.prepare(
             "SELECT id, nombre, telefono FROM clientes WHERE activo=1 AND (nombre LIKE ? OR telefono LIKE ?) ORDER BY id DESC LIMIT 5"
@@ -20,7 +23,10 @@ module.exports = function coreRoutes(req, res, p, u, ctx, next) {
         const productos = db.prepare(
             "SELECT id, name, price FROM productos WHERE activo=1 AND name LIKE ? LIMIT 5"
         ).all(like);
-        return json(res, { clientes, pedidos, productos });
+        // Defensivo: la tabla de guías puede no existir en toda instancia.
+        let guias = [];
+        try { guias = db.prepare("SELECT numero_guia, estatus, dest_nombre, dest_ciudad FROM guias_estafeta WHERE numero_guia LIKE ? OR dest_nombre LIKE ? LIMIT 5").all(like, like); } catch (_) {}
+        return json(res, { clientes, pedidos, productos, guias });
     }
 
     // POST /api/login {username, password} — reemplaza el pop-up de Basic Auth

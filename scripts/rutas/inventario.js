@@ -20,7 +20,26 @@ const fs = require('fs');
 const path = require('path');
 
 const ROUTES_DIR = path.join(__dirname, '..', '..', 'dashboard', 'routes');
-const PUBLICAS = ['/api/login', '/api/logout', '/api/me', '/api/bot/qr']; // + /api/onboarding*
+// Whitelist pública EXACTA y por método — espejo de server.js `esRutaPublica`
+// (líneas ~634-641). Coincidencia exacta, no por prefijo (antes '/api/me'
+// matcheaba '/api/metricas'/'/api/mesas'). bot/qr NO es pública.
+const PUBLICAS = [['POST', '/api/login'], ['POST', '/api/logout'], ['GET', '/api/me'],
+    ['GET', '/api/onboarding/estado'], ['POST', '/api/onboarding']];
+const esPublica = (met, ruta) => PUBLICAS.some(([m, r]) => r === ruta && (m === met || met === 'ANY'));
+
+const RE_ROUTE = /\bp\s*===|\bp\.match\(|\bp\.startsWith\(/; // "empieza una ruta"
+
+// Gate de un bloque: requireSession(...,[roles]) o permite(rol,'area'). El
+// `permite('area')` es el mecanismo real de las áreas especialistas (finanzas/
+// pos/almacen/rrhh/compras), no solo requireSession — hay que verlo o el mapa
+// de auth miente. Devuelve el rol/área o null.
+function gateEn(linea) {
+    let g = linea.match(/requireSession\([^,]+,[^,]+,\s*\[([^\]]*)\]\)/);
+    if (g) return g[1].replace(/['"\s]/g, '') || null;
+    g = linea.match(/permite\([^,]+,\s*'([a-z_]+)'\)/);
+    if (g) return g[1];
+    return null;
+}
 
 // Extrae [{ modulo, archivo, linea, metodo, ruta, tipo, rolMin }]
 function extraer() {
@@ -28,25 +47,40 @@ function extraer() {
     for (const archivo of fs.readdirSync(ROUTES_DIR).filter(f => f.endsWith('.js'))) {
         const modulo = archivo.replace('.js', '');
         const lineas = fs.readFileSync(path.join(ROUTES_DIR, archivo), 'utf8').split('\n');
+        // Línea de la primera ruta del módulo → todo lo anterior es "cabecera"
+        // (filtro de prefijo + posible gate a nivel de módulo).
+        let primeraRuta = lineas.length;
         for (let i = 0; i < lineas.length; i++) {
             const L = lineas[i];
-            // método declarado en la misma condición del if (si lo hay)
+            const tieneMet = /req\.method\s*===/.test(L);
+            if ((/\bp\s*===/.test(L)) || (/\bp\.match\(/.test(L)) || (/\bp\.startsWith\(/.test(L) && tieneMet && !/!\s*p\.startsWith/.test(L) && !/return next/.test(L))) { primeraRuta = i; break; }
+        }
+        // Gate a nivel de módulo: escanea la cabecera. Cubre el patrón
+        // `if (p.startsWith('/api/x/')...) { requireSession; permite(rol,'area') }`.
+        let gateModulo = null;
+        for (let i = 0; i < primeraRuta; i++) { const g = gateEn(lineas[i]); if (g) { gateModulo = g; break; } }
+
+        for (let i = 0; i < lineas.length; i++) {
+            const L = lineas[i];
             const met = (L.match(/req\.method\s*===\s*'([A-Z]+)'/) || [])[1];
-            // ruta exacta: p === '...'
             let m = L.match(/\bp\s*===\s*'([^']+)'/) || L.match(/\bp\s*===\s*"([^"]+)"/);
             let tipo = 'exacta', ruta = m && m[1];
-            // ruta por patrón: p.match(/.../)
             if (!ruta) { m = L.match(/\bp\.match\(\/([^/]+(?:\\.[^/]*)*)\//); if (m) { ruta = '/' + m[1].replace(/\\\//g, '/').replace(/\^|\$/g, ''); tipo = 'patrón'; } }
+            // startsWith SOLO como ruta viva: lleva método, no está negado y no
+            // es un `return next()` (esos son guardas de prefijo, no rutas).
+            if (!ruta && met && !/!\s*p\.startsWith/.test(L) && !/return next/.test(L)) {
+                m = L.match(/\bp\.startsWith\(['"]([^'"]+)['"]\)/); if (m) { ruta = m[1] + '*'; tipo = 'prefijo'; }
+            }
             if (!ruta || !ruta.startsWith('/api')) continue;
-            // gate de rol: buscar requireSession en las ~25 líneas siguientes,
-            // hasta la próxima condición de ruta.
+            // Gate por-ruta: requireSession/permite en el bloque (hasta la
+            // próxima ruta). Si no hay, hereda el gate del módulo.
             let rolMin = null;
             for (let j = i; j < Math.min(lineas.length, i + 25); j++) {
-                if (j > i && /\bp\s*===|\bp\.match\(/.test(lineas[j])) break;
-                const rs = lineas[j].match(/requireSession\([^,]+,[^,]+(?:,\s*\[([^\]]*)\])?\)/);
-                if (rs) { rolMin = rs[1] ? rs[1].replace(/['"\s]/g, '') : 'sesión'; break; }
+                if (j > i && RE_ROUTE.test(lineas[j])) break;
+                const g = gateEn(lineas[j]); if (g) { rolMin = g; break; }
             }
-            rutas.push({ modulo, archivo, linea: i + 1, metodo: met || 'ANY', ruta, tipo, rolMin });
+            if (!rolMin) rolMin = gateModulo;
+            rutas.push({ modulo, archivo, linea: i + 1, metodo: met || 'ANY', ruta, tipo, rolMin, gateModulo: !!gateModulo && rolMin === gateModulo });
         }
     }
     return rutas;
@@ -80,15 +114,19 @@ function main() {
     let modActual = '';
     for (const r of rutas.sort((a, b) => a.modulo.localeCompare(b.modulo) || a.ruta.localeCompare(b.ruta))) {
         if (r.modulo !== modActual) { modActual = r.modulo; console.log('\n[' + modActual + ']'); }
-        const gate = r.rolMin ? (r.rolMin === 'sesión' ? '🔒sesión' : '🔒' + r.rolMin) : (PUBLICAS.some(pu => r.ruta.startsWith(pu)) || r.ruta.startsWith('/api/onboarding') ? '🌐pública' : '·global');
-        console.log('  ' + r.metodo.padEnd(6) + ' ' + r.ruta.padEnd(42) + ' ' + gate + '  (' + r.archivo + ':' + r.linea + ')');
+        const gate = esPublica(r.metodo, r.ruta) ? '🌐pública' : (r.rolMin ? '🔒' + r.rolMin + (r.gateModulo ? '(módulo)' : '') : '·global');
+        console.log('  ' + r.metodo.padEnd(6) + ' ' + (r.ruta + (r.tipo === 'prefijo' ? '' : '')).padEnd(42) + ' ' + gate + '  (' + r.archivo + ':' + r.linea + ')');
     }
     // Resumen de cobertura de auth
-    const sinGateRol = rutas.filter(r => !r.rolMin && !PUBLICAS.some(pu => r.ruta.startsWith(pu)) && !r.ruta.startsWith('/api/onboarding'));
+    const pub = rutas.filter(r => esPublica(r.metodo, r.ruta));
+    const conRol = rutas.filter(r => r.rolMin && !esPublica(r.metodo, r.ruta));
+    const soloGlobal = rutas.filter(r => !r.rolMin && !esPublica(r.metodo, r.ruta));
     console.log('\n── Cobertura de auth ──');
-    console.log('  con gate de rol por-ruta: ' + rutas.filter(r => r.rolMin && r.rolMin !== 'sesión').length);
-    console.log('  solo gate global (cualquier sesión): ' + sinGateRol.length);
-    console.log('  públicas (sin sesión): ' + rutas.filter(r => PUBLICAS.some(pu => r.ruta.startsWith(pu)) || r.ruta.startsWith('/api/onboarding')).length);
+    console.log('  con gate de rol (por-ruta o módulo): ' + conRol.length);
+    console.log('  solo gate global (cualquier sesión): ' + soloGlobal.length);
+    console.log('  públicas (sin sesión): ' + pub.length);
+    console.log('  Nota: no se detectan gates por PIN (autorizacion.exigir) — esas rutas salen como ·global.');
+    if (soloGlobal.length) { console.log('\n  Rutas solo-global (candidatas a revisar rol):'); soloGlobal.forEach(r => console.log('    ' + r.metodo.padEnd(6) + ' ' + r.ruta + '  (' + r.archivo + ':' + r.linea + ')')); }
     if (cols.length) console.log('\n⚠️  ' + cols.length + ' colisión(es) — corre --check para el detalle.');
 }
 

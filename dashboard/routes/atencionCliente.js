@@ -114,16 +114,8 @@ module.exports = function atencionClienteRoutes(req, res, p, u, ctx, next) {
         });
     }
 
-    // GET /api/buscar?q=texto — buscador global (pedidos + clientes + guías)
-    if (p === '/api/buscar' && req.method === 'GET') {
-        const q = (new URL('http://x'+req.url).searchParams.get('q')||'').trim();
-        if (q.length < 2) return json(res, { pedidos:[], clientes:[], guias:[] });
-        const like = '%'+q+'%';
-        const pedidos = db.prepare('SELECT id_pedido, folio, cliente, estatus, total, creado_en FROM pedidos WHERE folio LIKE ? OR cliente LIKE ? LIMIT 5').all(like, like);
-        const clientes = db.prepare('SELECT id, nombre, telefono, COALESCE(tags,\'\') AS tags FROM clientes WHERE nombre LIKE ? OR telefono LIKE ? LIMIT 5').all(like, like);
-        const guias = db.prepare('SELECT numero_guia, estatus, dest_nombre, dest_ciudad FROM guias_estafeta WHERE numero_guia LIKE ? OR dest_nombre LIKE ? LIMIT 5').all(like, like);
-        return json(res, { pedidos, clientes, guias });
-    }
+    // (GET /api/buscar se consolidó en core.js — antes había aquí una copia
+    // inalcanzable; core gana el dispatch. Su búsqueda de guías se movió allá.)
 
     // POST /api/actualizar_guia — actualizar estatus de guía manualmente
     if (p === '/api/actualizar_guia' && req.method === 'POST') {
