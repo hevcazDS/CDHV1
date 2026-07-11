@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, TextInput, Group, Text } from '@mantine/core';
 import { api } from '../../api';
+import { useTextoEmoji } from '../../context/EmojiContext';
 
 // Tablero de dirección (comité Harvard+LSE+Oxford): estado de resultados,
 // balance, aging de CxC, rotación de inventario, margen por categoría y
@@ -9,6 +10,7 @@ import { api } from '../../api';
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function TableroTab() {
+  const txt = useTextoEmoji();
   const hoy = new Date().toISOString().slice(0, 10);
   const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const [r, setR] = useState({ desde: hace30, hasta: hoy });
@@ -37,7 +39,7 @@ export default function TableroTab() {
 
       {data.conta_activa === false && (
         <Card withBorder radius="md" p="md" mb="md" style={{ borderColor: 'var(--yellow)', background: 'rgba(234,179,8,0.08)' }}>
-          <Text size="sm" fw={600}>⚠️ Módulo Contabilidad apagado</Text>
+          <Text size="sm" fw={600}>{txt('⚠️ Módulo Contabilidad apagado')}</Text>
           <Text size="xs" c="dimmed">El estado de resultados y el balance salen de los asientos contables. Sin el módulo activo no se registra ninguno, así que verás $0 — no significa que no hayas vendido. Actívalo en <strong>Módulos → Contabilidad</strong> para que las ventas empiecen a asentarse. El aging de CxC, el margen por categoría y el ticket promedio sí funcionan sin él.</Text>
         </Card>
       )}
@@ -91,8 +93,8 @@ export default function TableroTab() {
             <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
               <Text size="sm" fw={600} mb={4}>Liquidez: caja vs utilidad</Text>
               <table style={{ width: '100%' }}><tbody>
-                <Fila label="💵 Caja y bancos (disponible hoy)" val={balance.caja} fuerte color={balance.caja >= 0 ? 'var(--green)' : 'var(--red)'} />
-                <Fila label="📦 Atado en inventario + por cobrar" val={balance.atado} />
+                <Fila label={txt('💵 Caja y bancos (disponible hoy)')} val={balance.caja} fuerte color={balance.caja >= 0 ? 'var(--green)' : 'var(--red)'} />
+                <Fila label={txt('📦 Atado en inventario + por cobrar')} val={balance.atado} />
                 <Fila label="Utilidad acumulada" val={balance.utilidad_acumulada} />
               </tbody></table>
               <Text size="xs" c="dimmed" mt={4}>Tu caja es el dinero disponible hoy; parte de tu utilidad está atada en inventario y cuentas por cobrar, no en efectivo.</Text>

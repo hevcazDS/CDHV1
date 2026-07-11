@@ -4,11 +4,13 @@ import { Card, Button, TextInput, NumberInput, Select, Checkbox, Group, Text } f
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
 import { exportarCSV } from '../../lib/csv';
+import { useTextoEmoji } from '../../context/EmojiContext';
 
 // Herramientas diarias del contador: captura de gastos (renta/luz/etc. →
 // asiento automático) y reporte de impuestos del periodo (IVA trasladado
 // vs acreditable = por pagar o a favor).
 export default function GastosImpuestosTab() {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const hoy = new Date().toISOString().slice(0, 10);
   const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
@@ -55,7 +57,7 @@ export default function GastosImpuestosTab() {
           <Checkbox label="Trae IVA (factura — desglosa el acreditable)" checked={g.con_iva} onChange={e => setG({ ...g, con_iva: e.currentTarget.checked })} mb="md" />
           {mesCerrado && (
             <Text size="xs" mb="sm" style={{ color: 'var(--yellow)' }}>
-              ⚠️ El período <strong>{cierre.cerrado}</strong> está cerrado. Solo un Administrador o Prime puede capturar aquí, y quedará registrado quién lo autorizó.
+              {txt('⚠️')} El período <strong>{cierre.cerrado}</strong> está cerrado. Solo un Administrador o Prime puede capturar aquí, y quedará registrado quién lo autorizó.
             </Text>
           )}
           <Button fullWidth onClick={() => crear.mutate()} disabled={!g.concepto.trim() || !(g.monto > 0)}>
