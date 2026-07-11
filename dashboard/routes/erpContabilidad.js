@@ -1,499 +1,427 @@
 'use strict';
-// ERP Fase 6: plan de cuentas, asientos (diario) y libro mayor.
-// Consultas gerente+; asiento manual solo prime.
+// ERP Fase 6: plan de cuentas, asientos (diario), libro mayor, tablero de
+// dirección, reportes de rentabilidad, flujo de caja, salud financiera, gastos,
+// impuestos y timbrado. Migrado al patrón declarativo del tronco: TODAS las
+// rutas son area:'finanzas' (contabilidad/administrador/prime; el auditor pasa
+// por su bypass de lectura). Bajo el prefijo /api/erp/ (convive con
+// erpProveedores, que atiende proveedores/OC/CxP).
 const conta = require('../../services/contabilidadService');
-const { permite, esAdminOMas } = require('../permisos');
+const { esAdminOMas } = require('../permisos');
+const construirModulo = require('./_construirModulo');
 
-module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
-    const { db, json, readBody, requireSession } = ctx;
-    if (!p.startsWith('/api/erp/')) return next();
-    if (p.startsWith('/api/erp/plan-cuentas') || p.startsWith('/api/erp/asientos') || p.startsWith('/api/erp/libro-mayor')
-        || p.startsWith('/api/erp/gastos') || p.startsWith('/api/erp/impuestos') || p.startsWith('/api/erp/periodo-cierre') || p.startsWith('/api/erp/tablero') || p.startsWith('/api/erp/facturacion-pendiente') || p.startsWith('/api/erp/productos-vendidos') || p.startsWith('/api/erp/rentabilidad-clientes') || p.startsWith('/api/erp/rentabilidad-vendedores') || p.startsWith('/api/erp/flujo-caja') || p.startsWith('/api/erp/salud-financiera') || p.startsWith('/api/erp/timbrar')) {
-        const ses = requireSession(req, res);
-        if (!ses) return;
-        if (!permite(ses.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
-    }
-    // Redondeo a 2 decimales, a nivel de MÓDULO: flujo-caja y salud-financiera
-    // lo usaban pero solo estaba declarado dentro del handler del tablero
-    // (block-scoped) → esas dos rutas tronaban siempre (ReferenceError). Lo
-    // detectó tests/test_rutas_smoke.js. El tablero mantiene su const local (shadow inocuo).
+// Redondeo a 2 decimales a nivel de MÓDULO (flujo-caja y salud-financiera lo
+// usan; el tablero mantiene su const local, shadow inocuo).
+const r2 = (n) => Math.round((n || 0) * 100) / 100;
+
+function _rango(req) {
+    const sp = new URL(req.url, 'http://x').searchParams;
+    const hoy = new Date().toISOString().slice(0, 10);
+    const mes = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    return { desde: (sp.get('desde') || mes).slice(0, 10), hasta: (sp.get('hasta') || hoy).slice(0, 10) };
+}
+
+function planCuentas(req, res, ctx) {
+    return ctx.json(res, ctx.db.prepare('SELECT * FROM plan_cuentas ORDER BY codigo').all());
+}
+
+function asientosGet(req, res, ctx) {
+    const { db, json } = ctx;
+    const { desde, hasta } = _rango(req);
+    const asientos = db.prepare('SELECT * FROM asientos WHERE fecha >= ? AND fecha <= ? ORDER BY id DESC LIMIT 200').all(desde, hasta);
+    const det = db.prepare(`SELECT d.cuenta, pc.nombre, d.debe, d.haber FROM asientos_detalle d LEFT JOIN plan_cuentas pc ON pc.codigo = d.cuenta WHERE d.id_asiento=?`);
+    return json(res, asientos.map(a => ({ ...a, partidas: det.all(a.id) })));
+}
+
+function libroMayor(req, res, ctx) {
+    const { desde, hasta } = _rango(req);
+    return ctx.json(res, { desde, hasta, cuentas: conta.libroMayor(desde, hasta) });
+}
+
+// GET /api/erp/rastro — cadena completa desde un folio
+function rastro(req, res, ctx) {
+    const { db, json } = ctx;
+    const q = ((new URL(req.url, 'http://x')).searchParams.get('folio') || '').trim();
+    if (!q) return json(res, { ok: false, error: 'Falta folio' }, 400);
+    const ped = db.prepare('SELECT * FROM pedidos WHERE folio=? OR id_pedido=? LIMIT 1').get(q, parseInt(q.replace(/\D/g, ''), 10) || -1);
+    if (!ped) return json(res, { ok: false, error: 'No encontré pedido con folio ' + q }, 404);
+    const id = ped.id_pedido, folio = ped.folio || ('#' + id);
+    const like1 = '%' + folio + '%', like2 = '%pedido ' + id + '%';
+    return json(res, {
+        ok: true, pedido: ped,
+        detalle: db.prepare('SELECT d.*, pr.name FROM pedido_detalle d LEFT JOIN productos pr ON pr.id=d.id_producto WHERE d.id_pedido=?').all(id),
+        pagos: db.prepare('SELECT * FROM links_pago WHERE id_pedido=?').all(id),
+        kardex: db.prepare('SELECT * FROM inventario_movimientos WHERE motivo LIKE ? OR motivo LIKE ? ORDER BY id').all(like1, like2),
+        asientos: db.prepare(`SELECT a.*, (SELECT GROUP_CONCAT(d2.cuenta || ' $' || COALESCE(NULLIF(d2.debe,0), d2.haber), ' · ') FROM asientos_detalle d2 WHERE d2.id_asiento=a.id) partidas_txt
+                              FROM asientos a WHERE a.referencia_id=? OR a.concepto LIKE ? OR a.concepto LIKE ? ORDER BY a.id`).all(String(id), like1, like2),
+        devoluciones: db.prepare('SELECT * FROM devoluciones WHERE id_pedido=?').all(id),
+    });
+}
+
+function productosVendidos(req, res, ctx) {
+    const { db, json } = ctx;
+    const { desde, hasta } = _rango(req);
+    const filas = db.prepare(`
+        SELECT COALESCE(pr.name, d.id_producto) producto, pr.sku,
+               ROUND(SUM(d.cantidad),3) unidades, ROUND(SUM(d.precio_unitario * d.cantidad),2) total
+        FROM pedido_detalle d
+        JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
+        JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
+        LEFT JOIN productos pr ON pr.id = d.id_producto
+        WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?
+        GROUP BY d.id_producto ORDER BY total DESC LIMIT 500`).all(desde, hasta);
+    const totalGeneral = filas.reduce((s, f) => s + (f.total || 0), 0);
+    return json(res, { desde, hasta, filas, total: Math.round(totalGeneral * 100) / 100 });
+}
+
+function facturacionPendiente(req, res, ctx) {
+    const { db, json } = ctx;
+    const { desde, hasta } = _rango(req);
+    const filas = db.prepare(`
+        SELECT p2.folio, p2.razon_social, p2.rfc,
+               COALESCE((SELECT SUM(monto) FROM links_pago lp WHERE lp.id_pedido=p2.id_pedido AND lp.estatus='pagado'), p2.total) monto, p2.creado_en
+        FROM pedidos p2
+        WHERE (p2.rfc IS NOT NULL AND p2.rfc != '') AND date(p2.creado_en) >= ? AND date(p2.creado_en) <= ?
+        ORDER BY p2.id_pedido DESC LIMIT 500`).all(desde, hasta);
+    return json(res, { desde, hasta, filas });
+}
+
+// GET /api/erp/tablero — estado de resultados, balance, aging, rotación, etc.
+function tablero(req, res, ctx) {
+    const { db, json } = ctx;
+    const { desde, hasta } = _rango(req);
     const r2 = (n) => Math.round((n || 0) * 100) / 100;
-
-    const _rango = () => {
-        const sp = new URL(req.url, 'http://x').searchParams;
-        const hoy = new Date().toISOString().slice(0, 10);
-        const mes = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-        return { desde: (sp.get('desde') || mes).slice(0, 10), hasta: (sp.get('hasta') || hoy).slice(0, 10) };
+    const may = conta.libroMayor(desde, hasta);
+    const cta = (c) => may.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
+    const ingresos = r2(cta('401').haber - cta('401').debe);
+    const cogs = r2(cta('501').debe - cta('501').haber);
+    const gastos = r2(cta('601').debe - cta('601').haber);
+    const utilidad_bruta = r2(ingresos - cogs);
+    const utilidad_operativa = r2(utilidad_bruta - gastos);
+    const pyl = { ingresos, cogs, utilidad_bruta, gastos, utilidad_operativa,
+        margen_bruto_pct: ingresos ? r2(utilidad_bruta / ingresos * 100) : 0,
+        margen_neto_pct: ingresos ? r2(utilidad_operativa / ingresos * 100) : 0 };
+    const margenContrib = ingresos > 0 ? (ingresos - cogs) / ingresos : 0;
+    const puntoEquilibrio = {
+        gastos_fijos: gastos, margen_contribucion_pct: r2(margenContrib * 100),
+        ventas_equilibrio: margenContrib > 0 ? r2(gastos / margenContrib) : null,
+        ventas_periodo: ingresos, holgura: margenContrib > 0 ? r2(ingresos - gastos / margenContrib) : null,
     };
-
-    if (p === '/api/erp/plan-cuentas' && req.method === 'GET') {
-        return json(res, db.prepare('SELECT * FROM plan_cuentas ORDER BY codigo').all());
+    const acum = conta.libroMayor('1900-01-01', hasta);
+    const porTipo = { activo: 0, pasivo: 0, capital: 0, ingreso: 0, costo: 0, gasto: 0 };
+    for (const c of acum) {
+        const t = c.tipo || '';
+        if (t === 'activo' || t === 'costo' || t === 'gasto') porTipo[t] = (porTipo[t] || 0) + (c.debe - c.haber);
+        else porTipo[t] = (porTipo[t] || 0) + (c.haber - c.debe);
     }
-
-    if (p === '/api/erp/asientos' && req.method === 'GET') {
-        const { desde, hasta } = _rango();
-        const asientos = db.prepare(
-            'SELECT * FROM asientos WHERE fecha >= ? AND fecha <= ? ORDER BY id DESC LIMIT 200'
-        ).all(desde, hasta);
-        const det = db.prepare(`
-            SELECT d.cuenta, pc.nombre, d.debe, d.haber FROM asientos_detalle d
-            LEFT JOIN plan_cuentas pc ON pc.codigo = d.cuenta WHERE d.id_asiento=?`);
-        return json(res, asientos.map(a => ({ ...a, partidas: det.all(a.id) })));
-    }
-
-    if (p === '/api/erp/libro-mayor' && req.method === 'GET') {
-        const { desde, hasta } = _rango();
-        return json(res, { desde, hasta, cuentas: conta.libroMayor(desde, hasta) });
-    }
-
-    // RASTRO DE DOCUMENTO (idea SAP): desde un folio, toda la cadena —
-    // pedido → detalle → pagos → kardex → asientos → devoluciones. Área
-    // finanzas (el auditor pasa por su bypass de lectura).
-    if (p === '/api/erp/rastro' && req.method === 'GET') {
-        const sesR = requireSession(req, res);
-        if (!sesR) return;
-        if (!permite(sesR.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso' }, 403);
-        const q = ((new URL(req.url, 'http://x')).searchParams.get('folio') || '').trim();
-        if (!q) return json(res, { ok: false, error: 'Falta folio' }, 400);
-        const ped = db.prepare('SELECT * FROM pedidos WHERE folio=? OR id_pedido=? LIMIT 1').get(q, parseInt(q.replace(/\D/g, ''), 10) || -1);
-        if (!ped) return json(res, { ok: false, error: 'No encontré pedido con folio ' + q }, 404);
-        const id = ped.id_pedido, folio = ped.folio || ('#' + id);
-        const like1 = '%' + folio + '%', like2 = '%pedido ' + id + '%';
-        return json(res, {
-            ok: true,
-            pedido: ped,
-            detalle: db.prepare('SELECT d.*, pr.name FROM pedido_detalle d LEFT JOIN productos pr ON pr.id=d.id_producto WHERE d.id_pedido=?').all(id),
-            pagos: db.prepare('SELECT * FROM links_pago WHERE id_pedido=?').all(id),
-            kardex: db.prepare('SELECT * FROM inventario_movimientos WHERE motivo LIKE ? OR motivo LIKE ? ORDER BY id').all(like1, like2),
-            asientos: db.prepare(`SELECT a.*, (SELECT GROUP_CONCAT(d2.cuenta || ' $' || COALESCE(NULLIF(d2.debe,0), d2.haber), ' · ') FROM asientos_detalle d2 WHERE d2.id_asiento=a.id) partidas_txt
-                                  FROM asientos a WHERE a.referencia_id=? OR a.concepto LIKE ? OR a.concepto LIKE ? ORDER BY a.id`).all(String(id), like1, like2),
-            devoluciones: db.prepare('SELECT * FROM devoluciones WHERE id_pedido=?').all(id),
-        });
-    }
-
-    // PRODUCTOS VENDIDOS (dueño): qué se vendió, cuánto y en cuánto — sirve
-    // aunque el negocio NO lleve inventario (la venta se graba igual). Base
-    // para ir formalizando.
-    if (p === '/api/erp/productos-vendidos' && req.method === 'GET') {
-        const { desde, hasta } = _rango();
-        const filas = db.prepare(`
-            SELECT COALESCE(pr.name, d.id_producto) producto, pr.sku,
-                   ROUND(SUM(d.cantidad),3) unidades,
-                   ROUND(SUM(d.precio_unitario * d.cantidad),2) total
+    const utilidad_acumulada = r2(porTipo.ingreso - porTipo.costo - porTipo.gasto);
+    const cAcum = (c) => acum.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
+    const saldoDeudor = (c) => cAcum(c).debe - cAcum(c).haber;
+    const caja = r2(saldoDeudor('101') + saldoDeudor('102'));
+    const atado = r2(Math.max(0, saldoDeudor('115')) + Math.max(0, saldoDeudor('105')));
+    const balance = {
+        activos: r2(porTipo.activo), pasivos: r2(porTipo.pasivo),
+        capital: r2(porTipo.capital + utilidad_acumulada), caja, utilidad_acumulada, atado,
+        cuadra: Math.abs(porTipo.activo - (porTipo.pasivo + porTipo.capital + utilidad_acumulada)) < 0.5,
+    };
+    let aging = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
+    try {
+        const cxc = db.prepare(`
+            SELECT lp.monto, CAST(julianday('now','localtime') - julianday(p2.creado_en) AS INT) dias
+            FROM links_pago lp JOIN pedidos p2 ON p2.id_pedido = lp.id_pedido
+            WHERE lp.estatus != 'pagado' AND p2.estatus NOT IN ('cancelado')`).all();
+        for (const x of cxc) {
+            const b = x.dias <= 30 ? '0-30' : x.dias <= 60 ? '31-60' : x.dias <= 90 ? '61-90' : '90+';
+            aging[b] = r2(aging[b] + (x.monto || 0));
+        }
+    } catch (_) {}
+    let inventario = {};
+    try {
+        const valorInv = db.prepare('SELECT COALESCE(SUM(i.stock * COALESCE(pr.costo,0)),0) v FROM inventarios i JOIN productos pr ON pr.id = i.id_producto').get().v;
+        const diasPeriodo = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
+        const cogsDiario = cogs / diasPeriodo;
+        inventario = {
+            valor: r2(valorInv), cogs_periodo: cogs,
+            dias_inventario: cogsDiario > 0 ? Math.round(valorInv / cogsDiario) : null,
+            rotacion_anual: valorInv > 0 ? r2(cogs / diasPeriodo * 365 / valorInv) : null,
+        };
+    } catch (_) {}
+    let categorias = [];
+    try {
+        categorias = db.prepare(`
+            SELECT COALESCE(NULLIF(pr.cat,''), 'Sin categoría') categoria,
+                   ROUND(SUM(d.precio_unitario * d.cantidad),2) ventas, ROUND(SUM(COALESCE(pr.costo,0) * d.cantidad),2) costo
             FROM pedido_detalle d
             JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
+            JOIN productos pr ON pr.id = d.id_producto
             JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
-            LEFT JOIN productos pr ON pr.id = d.id_producto
             WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?
-            GROUP BY d.id_producto ORDER BY total DESC LIMIT 500`).all(desde, hasta);
-        const totalGeneral = filas.reduce((s, f) => s + (f.total || 0), 0);
-        return json(res, { desde, hasta, filas, total: Math.round(totalGeneral * 100) / 100 });
-    }
-
-    // FACTURACIÓN PENDIENTE (dueño): pedidos con datos fiscales capturados,
-    // exportable para que un PAC/tercero los timbre externamente. El enganche
-    // del PAC va aquí cuando se contrate. NO es CFDI timbrado.
-    if (p === '/api/erp/facturacion-pendiente' && req.method === 'GET') {
-        const { desde, hasta } = _rango();
-        const filas = db.prepare(`
-            SELECT p2.folio, p2.razon_social, p2.rfc,
-                   COALESCE((SELECT SUM(monto) FROM links_pago lp WHERE lp.id_pedido=p2.id_pedido AND lp.estatus='pagado'), p2.total) monto,
-                   p2.creado_en
-            FROM pedidos p2
-            WHERE (p2.rfc IS NOT NULL AND p2.rfc != '') AND date(p2.creado_en) >= ? AND date(p2.creado_en) <= ?
-            ORDER BY p2.id_pedido DESC LIMIT 500`).all(desde, hasta);
-        return json(res, { desde, hasta, filas });
-    }
-
-    // TABLERO DE DIRECCIÓN (comité: Harvard+LSE+Oxford) — estado de
-    // resultados, balance, aging CxC, rotación de inventario, margen por
-    // categoría y ticket vs período anterior. Todo desde datos existentes.
-    if (p === '/api/erp/tablero' && req.method === 'GET') {
-        const { desde, hasta } = _rango();
-        const r2 = (n) => Math.round((n || 0) * 100) / 100;
-
-        // — Estado de resultados (del período) —
-        const may = conta.libroMayor(desde, hasta);
-        const cta = (c) => may.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
-        const ingresos = r2(cta('401').haber - cta('401').debe);
-        const cogs = r2(cta('501').debe - cta('501').haber);
-        const gastos = r2(cta('601').debe - cta('601').haber);
-        const utilidad_bruta = r2(ingresos - cogs);
-        const utilidad_operativa = r2(utilidad_bruta - gastos);
-        const pyl = { ingresos, cogs, utilidad_bruta, gastos, utilidad_operativa,
-            margen_bruto_pct: ingresos ? r2(utilidad_bruta / ingresos * 100) : 0,
-            margen_neto_pct: ingresos ? r2(utilidad_operativa / ingresos * 100) : 0 };
-
-        // — Punto de equilibrio (en $ de venta) — trata los gastos operativos
-        // (601) como FIJOS y el COGS como variable (simplificación documentada):
-        // ventas_equilibrio = gastos_fijos / margen_de_contribución.
-        const margenContrib = ingresos > 0 ? (ingresos - cogs) / ingresos : 0;
-        const puntoEquilibrio = {
-            gastos_fijos: gastos,
-            margen_contribucion_pct: r2(margenContrib * 100),
-            ventas_equilibrio: margenContrib > 0 ? r2(gastos / margenContrib) : null,
-            ventas_periodo: ingresos,
-            // cuánto por encima (o debajo) del equilibrio va el período
-            holgura: margenContrib > 0 ? r2(ingresos - gastos / margenContrib) : null,
+            GROUP BY categoria ORDER BY ventas DESC LIMIT 20`).all(desde, hasta)
+            .map(c => ({ ...c, margen: r2(c.ventas - c.costo), margen_pct: c.ventas ? r2((c.ventas - c.costo) / c.ventas * 100) : 0 }));
+    } catch (_) {}
+    let ticket = {};
+    try {
+        const dias = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
+        const prevHasta = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
+        const prevDesde = new Date(Date.parse(desde) - dias * 86400000).toISOString().slice(0, 10);
+        const q = (d1, d2) => db.prepare(`SELECT COALESCE(SUM(monto),0) t, COUNT(DISTINCT id_pedido) n FROM links_pago WHERE estatus='pagado' AND date(pagado_en)>=? AND date(pagado_en)<=?`).get(d1, d2);
+        const act = q(desde, hasta), prev = q(prevDesde, prevHasta);
+        const tAct = act.n ? act.t / act.n : 0, tPrev = prev.n ? prev.t / prev.n : 0;
+        ticket = { actual: r2(tAct), anterior: r2(tPrev), pedidos: act.n, variacion_pct: tPrev ? r2((tAct - tPrev) / tPrev * 100) : null };
+    } catch (_) {}
+    let comparativo = null;
+    try {
+        const diasP = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
+        const prevH = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
+        const prevD = new Date(Date.parse(desde) - diasP * 86400000).toISOString().slice(0, 10);
+        const mayP = conta.libroMayor(prevD, prevH);
+        const ctaP = (c) => mayP.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
+        const ingP = r2(ctaP('401').haber - ctaP('401').debe);
+        const cogsP = r2(ctaP('501').debe - ctaP('501').haber);
+        const gasP = r2(ctaP('601').debe - ctaP('601').haber);
+        const utopP = r2(ingP - cogsP - gasP);
+        const varPct = (a, b) => b ? r2((a - b) / Math.abs(b) * 100) : null;
+        comparativo = {
+            desde: prevD, hasta: prevH, ingresos: ingP, utilidad_operativa: utopP,
+            margen_neto_pct: ingP ? r2(utopP / ingP * 100) : 0,
+            var_ingresos_pct: varPct(ingresos, ingP), var_utilidad_pct: varPct(utilidad_operativa, utopP),
         };
+    } catch (_) {}
+    return json(res, { desde, hasta, pyl, comparativo, punto_equilibrio: puntoEquilibrio, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo() });
+}
 
-        // — Balance general (acumulado hasta 'hasta') —
-        const acum = conta.libroMayor('1900-01-01', hasta);
-        const porTipo = { activo: 0, pasivo: 0, capital: 0, ingreso: 0, costo: 0, gasto: 0 };
-        for (const c of acum) {
-            const t = c.tipo || '';
-            if (t === 'activo' || t === 'costo' || t === 'gasto') porTipo[t] = (porTipo[t] || 0) + (c.debe - c.haber);
-            else porTipo[t] = (porTipo[t] || 0) + (c.haber - c.debe);
+function periodoCierreGet(req, res, ctx) {
+    const { db, json } = ctx;
+    return json(res, { cerrado: db.prepare("SELECT valor FROM configuracion WHERE clave='periodo_cerrado'").get()?.valor || null });
+}
+function periodoCierrePut(req, res, ctx, { ses }) {
+    const { db, json, readBody } = ctx;
+    return readBody(req, body => {
+        try {
+            const v = String(JSON.parse(body || '{}').cerrado || '').trim();
+            if (v && !/^\d{4}-\d{2}$/.test(v)) return json(res, { ok: false, error: 'Formato YYYY-MM (o vacío para reabrir)' }, 400);
+            require('../../services/configAudit').logCambio(db, 'periodo_cerrado', v || null, ses.username);
+            if (v) db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('periodo_cerrado', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(v);
+            else db.prepare("DELETE FROM configuracion WHERE clave='periodo_cerrado'").run();
+            ctx.log.info('[contable] período ' + (v ? 'cerrado hasta ' + v : 'REABIERTO') + ' por ' + ses.username);
+            return json(res, { ok: true, cerrado: v || null });
+        } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }
+    });
+}
+
+function rentabilidadClientes(req, res, ctx) {
+    const { db, json } = ctx;
+    const { desde, hasta } = _rango(req);
+    let filas = [];
+    try {
+        filas = db.prepare(`
+            SELECT COALESCE(c.id, p2.cliente) AS id_cliente, COALESCE(c.nombre, p2.cliente) AS nombre, c.telefono,
+                   COUNT(DISTINCT p2.id_pedido) AS pedidos, ROUND(SUM(d.precio_unitario * d.cantidad), 2) AS ventas,
+                   ROUND(SUM(COALESCE(pr.costo, 0) * d.cantidad), 2) AS costo
+            FROM pedido_detalle d
+            JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
+            JOIN productos pr ON pr.id = d.id_producto
+            JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
+            LEFT JOIN clientes c ON c.id = p2.id_cliente
+            WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?
+            GROUP BY COALESCE(c.id, p2.cliente)
+            ORDER BY (SUM(d.precio_unitario * d.cantidad) - SUM(COALESCE(pr.costo,0) * d.cantidad)) DESC LIMIT 100`).all(desde, hasta)
+            .map(r => ({ ...r, margen: r2(r.ventas - r.costo), margen_pct: r.ventas ? r2((r.ventas - r.costo) / r.ventas * 100) : 0 }));
+        const deuda = db.prepare("SELECT p.id_cliente, ROUND(SUM(lp.monto),2) adeudo FROM pedidos p JOIN links_pago lp ON lp.id_pedido=p.id_pedido AND lp.estatus='generado' WHERE p.a_credito=1 GROUP BY p.id_cliente").all();
+        const mapDeuda = {}; deuda.forEach(x => { mapDeuda[x.id_cliente] = x.adeudo; });
+        filas.forEach(f => { f.adeudo_fiado = mapDeuda[f.id_cliente] || 0; });
+    } catch (_) {}
+    return json(res, { desde, hasta, clientes: filas });
+}
+
+function rentabilidadVendedores(req, res, ctx) {
+    const { db, json } = ctx;
+    const { desde, hasta } = _rango(req);
+    let filas = [];
+    try {
+        const pct = parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='comision_pct'").get()?.valor || '0') || 0;
+        filas = db.prepare(`
+            SELECT p2.cobrado_por AS vendedor, COUNT(DISTINCT p2.id_pedido) AS pedidos,
+                   ROUND(SUM(d.precio_unitario * d.cantidad), 2) AS ventas, ROUND(SUM(COALESCE(pr.costo, 0) * d.cantidad), 2) AS costo
+            FROM pedido_detalle d
+            JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
+            JOIN productos pr ON pr.id = d.id_producto
+            JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
+            WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ? AND p2.cobrado_por IS NOT NULL
+            GROUP BY p2.cobrado_por
+            ORDER BY (SUM(d.precio_unitario * d.cantidad) - SUM(COALESCE(pr.costo,0) * d.cantidad)) DESC`).all(desde, hasta)
+            .map(r => ({ ...r, margen: r2(r.ventas - r.costo), margen_pct: r.ventas ? r2((r.ventas - r.costo) / r.ventas * 100) : 0, comision: r2(r.ventas * pct / 100) }));
+        const fiado = db.prepare("SELECT p.cobrado_por, ROUND(SUM(lp.monto),2) fiado FROM pedidos p JOIN links_pago lp ON lp.id_pedido=p.id_pedido AND lp.estatus='generado' WHERE p.a_credito=1 AND p.cobrado_por IS NOT NULL GROUP BY p.cobrado_por").all();
+        const mapF = {}; fiado.forEach(x => { mapF[x.cobrado_por] = x.fiado; });
+        filas.forEach(f => { f.fiado_pendiente = mapF[f.vendedor] || 0; });
+    } catch (_) {}
+    return json(res, { desde, hasta, comision_pct: parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='comision_pct'").get()?.valor || '0') || 0, vendedores: filas });
+}
+
+// POST /api/erp/timbrar/:id — timbra el CFDI vía el PAC (async, hoy inerte)
+function timbrar(req, res, ctx, { params }) {
+    const { db, json } = ctx;
+    return require('../../services/pacService').timbrar(db, parseInt(params[0]))
+        .then(r => json(res, r.ok ? r : { ok: false, ...r }, r.ok ? 200 : 400))
+        .catch(e => json(res, { ok: false, error: e.message }, 500));
+}
+
+function saludFinanciera(req, res, ctx) {
+    const { json } = ctx;
+    if (!conta.activo()) return json(res, { conta_activa: false });
+    const { desde, hasta } = _rango(req);
+    const dias = Math.max(1, Math.round((new Date(hasta) - new Date(desde)) / 86400000) + 1);
+    const per = conta.libroMayor(desde, hasta);
+    const pc = (code) => { const r = per.find(x => x.cuenta === code); return r || { debe: 0, haber: 0 }; };
+    const ventas = r2(pc('401').haber - pc('401').debe);
+    const cogs = r2(pc('501').debe - pc('501').haber);
+    const acum = conta.libroMayor('1900-01-01', hasta);
+    const s = (code) => { const r = acum.find(x => x.cuenta === code); return r ? r.saldo : 0; };
+    const caja = r2(s('101') + s('102'));
+    const cxc = r2(s('105'));
+    const inv = r2(s('115'));
+    const cxp = r2(-s('201'));
+    const ivaPorPagar = r2(-s('209'));
+    const dio = cogs > 0 ? r2(inv / (cogs / dias)) : null;
+    const dso = ventas > 0 ? r2(cxc / (ventas / dias)) : null;
+    const dpo = cogs > 0 ? r2(cxp / (cogs / dias)) : null;
+    const ccc = (dio != null && dso != null && dpo != null) ? r2(dio + dso - dpo) : null;
+    const activoCirc = r2(caja + cxc + inv);
+    const nominaPorPagar = r2(Math.max(0, -s('210')) + Math.max(0, -s('211')));
+    const pasivoCirc = r2(cxp + Math.max(0, ivaPorPagar) + nominaPorPagar);
+    return json(res, {
+        desde, hasta, dias, conta_activa: true,
+        dias_inventario: dio, dias_cobro: dso, dias_pago: dpo, ciclo_efectivo: ccc,
+        activo_circulante: activoCirc, pasivo_circulante: pasivoCirc,
+        razon_corriente: pasivoCirc > 0 ? r2(activoCirc / pasivoCirc) : null,
+        prueba_acida: pasivoCirc > 0 ? r2((activoCirc - inv) / pasivoCirc) : null,
+    });
+}
+
+function flujoCaja(req, res, ctx) {
+    const { db, json } = ctx;
+    const bucket = (col) => `CASE WHEN ${col} IS NULL THEN 'sin_fecha'
+        WHEN ${col} < date('now','localtime') THEN 'vencido'
+        WHEN ${col} <= date('now','localtime','+30 days') THEN 'd0_30'
+        WHEN ${col} <= date('now','localtime','+60 days') THEN 'd31_60'
+        ELSE 'd61mas' END`;
+    const vacio = () => ({ vencido: 0, d0_30: 0, d31_60: 0, d61mas: 0, sin_fecha: 0 });
+    const llenar = (rows) => { const o = vacio(); rows.forEach(r => { o[r.bucket] = r.monto || 0; }); o.total = r2(o.vencido + o.d0_30 + o.d31_60 + o.d61mas + o.sin_fecha); return o; };
+    let saldo_actual = null, por_cobrar = vacio(), por_pagar = vacio();
+    try {
+        if (conta.activo()) {
+            const may = conta.libroMayor('1900-01-01', new Date().toISOString().slice(0, 10));
+            const s = (c) => { const r = may.find(x => x.cuenta === c); return r ? r.saldo : 0; };
+            saldo_actual = r2(s('101') + s('102'));
         }
-        const utilidad_acumulada = r2(porTipo.ingreso - porTipo.costo - porTipo.gasto);
-        // Caja real vs utilidad: el dueño veía "gané $X" sin saber cuánto es
-        // dinero disponible HOY. La caja (101+102) es lo líquido; buena parte de
-        // la utilidad suele estar atada en inventario (115) y cuentas por cobrar
-        // (105), no en efectivo. Comité de usuarios (prime).
-        const cAcum = (c) => acum.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
-        const saldoDeudor = (c) => cAcum(c).debe - cAcum(c).haber;
-        const caja = r2(saldoDeudor('101') + saldoDeudor('102'));
-        const atado = r2(Math.max(0, saldoDeudor('115')) + Math.max(0, saldoDeudor('105')));
-        const balance = {
-            activos: r2(porTipo.activo),
-            pasivos: r2(porTipo.pasivo),
-            capital: r2(porTipo.capital + utilidad_acumulada),
-            caja,
-            utilidad_acumulada,
-            atado, // dinero no líquido: inventario (115) + cuentas por cobrar (105)
-            cuadra: Math.abs(porTipo.activo - (porTipo.pasivo + porTipo.capital + utilidad_acumulada)) < 0.5,
-        };
+        por_cobrar = llenar(db.prepare(`
+            SELECT ${bucket('p.fiado_vence_en')} AS bucket, ROUND(SUM(lp.monto),2) AS monto
+            FROM pedidos p JOIN links_pago lp ON lp.id_pedido=p.id_pedido AND lp.estatus='generado'
+            WHERE p.a_credito=1 GROUP BY bucket`).all());
+        por_pagar = llenar(db.prepare(`
+            SELECT ${bucket('vence_en')} AS bucket, ROUND(SUM(monto),2) AS monto
+            FROM cuentas_pagar WHERE estatus='pendiente' GROUP BY bucket`).all());
+        if (saldo_actual != null) {
+            const mayN = conta.libroMayor('1900-01-01', new Date().toISOString().slice(0, 10));
+            const sN = (c) => { const r = mayN.find(x => x.cuenta === c); return r ? r.saldo : 0; };
+            const oblNom = r2(Math.max(0, -sN('210')) + Math.max(0, -sN('211')));
+            if (oblNom > 0) { por_pagar.d0_30 = r2((por_pagar.d0_30 || 0) + oblNom); por_pagar.total = r2((por_pagar.total || 0) + oblNom); }
+        }
+    } catch (_) {}
+    const base = saldo_actual || 0;
+    const neto = (b) => r2((por_cobrar[b] || 0) - (por_pagar[b] || 0));
+    const proyeccion = {
+        hoy: saldo_actual,
+        en_30d: r2(base + neto('vencido') + neto('d0_30')),
+        en_60d: r2(base + neto('vencido') + neto('d0_30') + neto('d31_60')),
+        en_90d: r2(base + neto('vencido') + neto('d0_30') + neto('d31_60') + neto('d61mas')),
+    };
+    return json(res, { saldo_actual, por_cobrar, por_pagar, proyeccion, conta_activa: conta.activo() });
+}
 
-        // — Aging de CxC (pedidos con pago generado no pagado) —
-        let aging = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
+// POST /api/erp/gastos — registrar gasto directo (asiento 601)
+function gastosPost(req, res, ctx, { ses }) {
+    const { db, json, readBody } = ctx;
+    return readBody(req, body => {
         try {
-            const cxc = db.prepare(`
-                SELECT lp.monto, CAST(julianday('now','localtime') - julianday(p2.creado_en) AS INT) dias
-                FROM links_pago lp JOIN pedidos p2 ON p2.id_pedido = lp.id_pedido
-                WHERE lp.estatus != 'pagado' AND p2.estatus NOT IN ('cancelado')`).all();
-            for (const x of cxc) {
-                const b = x.dias <= 30 ? '0-30' : x.dias <= 60 ? '31-60' : x.dias <= 90 ? '61-90' : '90+';
-                aging[b] = r2(aging[b] + (x.monto || 0));
-            }
-        } catch (_) {}
-
-        // — Rotación de inventario —
-        let inventario = {};
-        try {
-            const valorInv = db.prepare('SELECT COALESCE(SUM(i.stock * COALESCE(pr.costo,0)),0) v FROM inventarios i JOIN productos pr ON pr.id = i.id_producto').get().v;
-            const diasPeriodo = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
-            const cogsDiario = cogs / diasPeriodo;
-            inventario = {
-                valor: r2(valorInv),
-                cogs_periodo: cogs,
-                dias_inventario: cogsDiario > 0 ? Math.round(valorInv / cogsDiario) : null, // cuántos días dura el stock al ritmo actual
-                rotacion_anual: valorInv > 0 ? r2(cogs / diasPeriodo * 365 / valorInv) : null,
-            };
-        } catch (_) {}
-
-        // — Margen por categoría (ventas pagadas del período) —
-        let categorias = [];
-        try {
-            categorias = db.prepare(`
-                SELECT COALESCE(NULLIF(pr.cat,''), 'Sin categoría') categoria,
-                       ROUND(SUM(d.precio_unitario * d.cantidad),2) ventas,
-                       ROUND(SUM(COALESCE(pr.costo,0) * d.cantidad),2) costo
-                FROM pedido_detalle d
-                JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
-                JOIN productos pr ON pr.id = d.id_producto
-                JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
-                WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?
-                GROUP BY categoria ORDER BY ventas DESC LIMIT 20`).all(desde, hasta)
-                .map(c => ({ ...c, margen: r2(c.ventas - c.costo), margen_pct: c.ventas ? r2((c.ventas - c.costo) / c.ventas * 100) : 0 }));
-        } catch (_) {}
-
-        // — Ticket promedio vs período anterior —
-        let ticket = {};
-        try {
-            const dias = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
-            const prevHasta = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
-            const prevDesde = new Date(Date.parse(desde) - dias * 86400000).toISOString().slice(0, 10);
-            const q = (d1, d2) => db.prepare(`SELECT COALESCE(SUM(monto),0) t, COUNT(DISTINCT id_pedido) n FROM links_pago WHERE estatus='pagado' AND date(pagado_en)>=? AND date(pagado_en)<=?`).get(d1, d2);
-            const act = q(desde, hasta), prev = q(prevDesde, prevHasta);
-            const tAct = act.n ? act.t / act.n : 0, tPrev = prev.n ? prev.t / prev.n : 0;
-            ticket = { actual: r2(tAct), anterior: r2(tPrev), pedidos: act.n,
-                variacion_pct: tPrev ? r2((tAct - tPrev) / tPrev * 100) : null };
-        } catch (_) {}
-
-        // — P&L del período anterior (misma duración, justo antes) → variación.
-        // El dueño no veía tendencia de rentabilidad; ahora ingresos/utilidad/
-        // margen contra el período previo. Comité de usuarios (prime).
-        let comparativo = null;
-        try {
-            const diasP = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
-            const prevH = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
-            const prevD = new Date(Date.parse(desde) - diasP * 86400000).toISOString().slice(0, 10);
-            const mayP = conta.libroMayor(prevD, prevH);
-            const ctaP = (c) => mayP.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
-            const ingP = r2(ctaP('401').haber - ctaP('401').debe);
-            const cogsP = r2(ctaP('501').debe - ctaP('501').haber);
-            const gasP = r2(ctaP('601').debe - ctaP('601').haber);
-            const utopP = r2(ingP - cogsP - gasP);
-            const varPct = (a, b) => b ? r2((a - b) / Math.abs(b) * 100) : null;
-            comparativo = {
-                desde: prevD, hasta: prevH, ingresos: ingP, utilidad_operativa: utopP,
-                margen_neto_pct: ingP ? r2(utopP / ingP * 100) : 0,
-                var_ingresos_pct: varPct(ingresos, ingP),
-                var_utilidad_pct: varPct(utilidad_operativa, utopP),
-            };
-        } catch (_) {}
-
-        // El P&L/balance salen de asientos; sin el módulo Contabilidad no se
-        // asienta nada y todo da $0 — la UI muestra un aviso para que no se
-        // lea como "no vendí" (Harvard/PO del re-review).
-        return json(res, { desde, hasta, pyl, comparativo, punto_equilibrio: puntoEquilibrio, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo() });
-    }
-
-    // Cierre de período contable (idea SAP): 'YYYY-MM' — nada se asienta en
-    // meses <= cerrado. Reabrir = borrar el valor (queda en el log de quién).
-    if (p === '/api/erp/periodo-cierre' && req.method === 'GET') {
-        return json(res, { cerrado: db.prepare("SELECT valor FROM configuracion WHERE clave='periodo_cerrado'").get()?.valor || null });
-    }
-    if (p === '/api/erp/periodo-cierre' && req.method === 'PUT') {
-        const sesP = requireSession(req, res);
-        if (!sesP) return;
-        if (!permite(sesP.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
-        return readBody(req, body => {
-            try {
-                const v = String(JSON.parse(body || '{}').cerrado || '').trim();
-                if (v && !/^\d{4}-\d{2}$/.test(v)) return json(res, { ok: false, error: 'Formato YYYY-MM (o vacío para reabrir)' }, 400);
-                require('../../services/configAudit').logCambio(db, 'periodo_cerrado', v || null, sesP.username);
-                if (v) db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('periodo_cerrado', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(v);
-                else db.prepare("DELETE FROM configuracion WHERE clave='periodo_cerrado'").run();
-                ctx.log.info('[contable] período ' + (v ? 'cerrado hasta ' + v : 'REABIERTO') + ' por ' + sesP.username);
-                return json(res, { ok: true, cerrado: v || null });
-            } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }
-        });
-    }
-
-    // GET /api/erp/rentabilidad-clientes — quién deja más margen (ventas
-    // pagadas − costo) y cuánto te debe en fiado. Identifica el 20% que da el
-    // 80% y a los "tóxicos" (mucho volumen, bajo margen o mucha deuda).
-    if (p === '/api/erp/rentabilidad-clientes' && req.method === 'GET') {
-        const { desde, hasta } = _rango();
-        let filas = [];
-        try {
-            filas = db.prepare(`
-                SELECT COALESCE(c.id, p2.cliente) AS id_cliente, COALESCE(c.nombre, p2.cliente) AS nombre, c.telefono,
-                       COUNT(DISTINCT p2.id_pedido) AS pedidos,
-                       ROUND(SUM(d.precio_unitario * d.cantidad), 2) AS ventas,
-                       ROUND(SUM(COALESCE(pr.costo, 0) * d.cantidad), 2) AS costo
-                FROM pedido_detalle d
-                JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
-                JOIN productos pr ON pr.id = d.id_producto
-                JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
-                LEFT JOIN clientes c ON c.id = p2.id_cliente
-                WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?
-                GROUP BY COALESCE(c.id, p2.cliente)
-                ORDER BY (SUM(d.precio_unitario * d.cantidad) - SUM(COALESCE(pr.costo,0) * d.cantidad)) DESC
-                LIMIT 100`).all(desde, hasta)
-                .map(r => ({ ...r, margen: r2(r.ventas - r.costo), margen_pct: r.ventas ? r2((r.ventas - r.costo) / r.ventas * 100) : 0 }));
-            // Adeudo de fiado por cliente (independiente del período)
-            const deuda = db.prepare("SELECT p.id_cliente, ROUND(SUM(lp.monto),2) adeudo FROM pedidos p JOIN links_pago lp ON lp.id_pedido=p.id_pedido AND lp.estatus='generado' WHERE p.a_credito=1 GROUP BY p.id_cliente").all();
-            const mapDeuda = {}; deuda.forEach(x => { mapDeuda[x.id_cliente] = x.adeudo; });
-            filas.forEach(f => { f.adeudo_fiado = mapDeuda[f.id_cliente] || 0; });
-        } catch (_) {}
-        return json(res, { desde, hasta, clientes: filas });
-    }
-
-    // GET /api/erp/rentabilidad-vendedores — más allá de la comisión: quién
-    // vende con margen sano vs quién deja fiado sin cobrar. Por cobrado_por.
-    if (p === '/api/erp/rentabilidad-vendedores' && req.method === 'GET') {
-        const { desde, hasta } = _rango();
-        let filas = [];
-        try {
-            const pct = parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='comision_pct'").get()?.valor || '0') || 0;
-            filas = db.prepare(`
-                SELECT p2.cobrado_por AS vendedor,
-                       COUNT(DISTINCT p2.id_pedido) AS pedidos,
-                       ROUND(SUM(d.precio_unitario * d.cantidad), 2) AS ventas,
-                       ROUND(SUM(COALESCE(pr.costo, 0) * d.cantidad), 2) AS costo
-                FROM pedido_detalle d
-                JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
-                JOIN productos pr ON pr.id = d.id_producto
-                JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
-                WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ? AND p2.cobrado_por IS NOT NULL
-                GROUP BY p2.cobrado_por
-                ORDER BY (SUM(d.precio_unitario * d.cantidad) - SUM(COALESCE(pr.costo,0) * d.cantidad)) DESC`).all(desde, hasta)
-                .map(r => ({ ...r, margen: r2(r.ventas - r.costo), margen_pct: r.ventas ? r2((r.ventas - r.costo) / r.ventas * 100) : 0, comision: r2(r.ventas * pct / 100) }));
-            // Fiado pendiente que dejó cada vendedor (a_credito sin cobrar)
-            const fiado = db.prepare("SELECT p.cobrado_por, ROUND(SUM(lp.monto),2) fiado FROM pedidos p JOIN links_pago lp ON lp.id_pedido=p.id_pedido AND lp.estatus='generado' WHERE p.a_credito=1 AND p.cobrado_por IS NOT NULL GROUP BY p.cobrado_por").all();
-            const mapF = {}; fiado.forEach(x => { mapF[x.cobrado_por] = x.fiado; });
-            filas.forEach(f => { f.fiado_pendiente = mapF[f.vendedor] || 0; });
-        } catch (_) {}
-        return json(res, { desde, hasta, comision_pct: parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='comision_pct'").get()?.valor || '0') || 0, vendedores: filas });
-    }
-
-    // POST /api/erp/timbrar/:id — timbra el CFDI de un pedido vía el PAC.
-    // Punto de wiring: hoy pacService está inerte (pendiente:true) hasta que se
-    // integre el proveedor; el endpoint ya queda listo.
-    if (req.method === 'POST' && p.match(/^\/api\/erp\/timbrar\/\d+$/)) {
-        const idPed = parseInt(p.split('/')[4]);
-        return require('../../services/pacService').timbrar(db, idPed)
-            .then(r => json(res, r.ok ? r : { ok: false, ...r }, r.ok ? 200 : 400))
-            .catch(e => json(res, { ok: false, error: e.message }, 500));
-    }
-
-    // GET /api/erp/salud-financiera — ciclo de conversión de efectivo (CCC) y
-    // ratios de liquidez, desde los saldos contables (requiere Contabilidad).
-    if (p === '/api/erp/salud-financiera' && req.method === 'GET') {
-        if (!conta.activo()) return json(res, { conta_activa: false });
-        const { desde, hasta } = _rango();
-        const dias = Math.max(1, Math.round((new Date(hasta) - new Date(desde)) / 86400000) + 1);
-        const per = conta.libroMayor(desde, hasta);
-        const pc = (code) => { const r = per.find(x => x.cuenta === code); return r || { debe: 0, haber: 0 }; };
-        const ventas = r2(pc('401').haber - pc('401').debe);
-        const cogs = r2(pc('501').debe - pc('501').haber);
-        const acum = conta.libroMayor('1900-01-01', hasta);
-        const s = (code) => { const r = acum.find(x => x.cuenta === code); return r ? r.saldo : 0; }; // saldo = debe - haber
-        const caja = r2(s('101') + s('102'));
-        const cxc = r2(s('105'));
-        const inv = r2(s('115'));
-        const cxp = r2(-s('201'));            // pasivo: saldo acreedor → -saldo
-        const ivaPorPagar = r2(-s('209'));
-        const dio = cogs > 0 ? r2(inv / (cogs / dias)) : null;                  // días de inventario
-        const dso = ventas > 0 ? r2(cxc / (ventas / dias)) : null;             // días de cobro
-        const dpo = cogs > 0 ? r2(cxp / (cogs / dias)) : null;                 // días de pago (compras≈COGS)
-        const ccc = (dio != null && dso != null && dpo != null) ? r2(dio + dso - dpo) : null;
-        const activoCirc = r2(caja + cxc + inv);
-        // Pasivo circulante incluye obligaciones de nómina (IMSS patronal 210 y
-        // retenciones 211) — son saldos acreedores, por eso -s(). Sin esto los
-        // ratios sobreestimaban la liquidez cuando había nómina asentada.
-        const nominaPorPagar = r2(Math.max(0, -s('210')) + Math.max(0, -s('211')));
-        const pasivoCirc = r2(cxp + Math.max(0, ivaPorPagar) + nominaPorPagar);
-        return json(res, {
-            desde, hasta, dias, conta_activa: true,
-            dias_inventario: dio, dias_cobro: dso, dias_pago: dpo, ciclo_efectivo: ccc,
-            activo_circulante: activoCirc, pasivo_circulante: pasivoCirc,
-            razon_corriente: pasivoCirc > 0 ? r2(activoCirc / pasivoCirc) : null,
-            prueba_acida: pasivoCirc > 0 ? r2((activoCirc - inv) / pasivoCirc) : null,
-        });
-    }
-
-    // GET /api/erp/flujo-caja — proyección: ¿tendré dinero aunque el P&L dé
-    // positivo? Saldo actual (caja+bancos) + lo por COBRAR (fiado por
-    // vencimiento) − lo por PAGAR (cuentas por pagar por vencimiento), en
-    // franjas vencido / 0-30 / 31-60 / 61+ días.
-    if (p === '/api/erp/flujo-caja' && req.method === 'GET') {
-        const bucket = (col) => `CASE WHEN ${col} IS NULL THEN 'sin_fecha'
-            WHEN ${col} < date('now','localtime') THEN 'vencido'
-            WHEN ${col} <= date('now','localtime','+30 days') THEN 'd0_30'
-            WHEN ${col} <= date('now','localtime','+60 days') THEN 'd31_60'
-            ELSE 'd61mas' END`;
-        const vacio = () => ({ vencido: 0, d0_30: 0, d31_60: 0, d61mas: 0, sin_fecha: 0 });
-        const llenar = (rows) => { const o = vacio(); rows.forEach(r => { o[r.bucket] = r.monto || 0; }); o.total = r2(o.vencido + o.d0_30 + o.d31_60 + o.d61mas + o.sin_fecha); return o; };
-        let saldo_actual = null, por_cobrar = vacio(), por_pagar = vacio();
-        try {
-            if (conta.activo()) {
-                const may = conta.libroMayor('1900-01-01', new Date().toISOString().slice(0, 10));
-                const s = (c) => { const r = may.find(x => x.cuenta === c); return r ? r.saldo : 0; };
-                saldo_actual = r2(s('101') + s('102'));
-            }
-            por_cobrar = llenar(db.prepare(`
-                SELECT ${bucket('p.fiado_vence_en')} AS bucket, ROUND(SUM(lp.monto),2) AS monto
-                FROM pedidos p JOIN links_pago lp ON lp.id_pedido=p.id_pedido AND lp.estatus='generado'
-                WHERE p.a_credito=1 GROUP BY bucket`).all());
-            por_pagar = llenar(db.prepare(`
-                SELECT ${bucket('vence_en')} AS bucket, ROUND(SUM(monto),2) AS monto
-                FROM cuentas_pagar WHERE estatus='pendiente' GROUP BY bucket`).all());
-            // Obligaciones de nómina (IMSS patronal 210 + retenciones 211): sin
-            // fecha de vencimiento propia → se asumen exigibles a 0-30 días.
-            if (saldo_actual != null) {
-                const mayN = conta.libroMayor('1900-01-01', new Date().toISOString().slice(0, 10));
-                const sN = (c) => { const r = mayN.find(x => x.cuenta === c); return r ? r.saldo : 0; };
-                const oblNom = r2(Math.max(0, -sN('210')) + Math.max(0, -sN('211')));
-                if (oblNom > 0) { por_pagar.d0_30 = r2((por_pagar.d0_30 || 0) + oblNom); por_pagar.total = r2((por_pagar.total || 0) + oblNom); }
-            }
-        } catch (_) {}
-        // Proyección acumulada del saldo si cobras/pagas lo de cada franja
-        const base = saldo_actual || 0;
-        const neto = (b) => r2((por_cobrar[b] || 0) - (por_pagar[b] || 0));
-        const proyeccion = {
-            hoy: saldo_actual,
-            en_30d: r2(base + neto('vencido') + neto('d0_30')),
-            en_60d: r2(base + neto('vencido') + neto('d0_30') + neto('d31_60')),
-            en_90d: r2(base + neto('vencido') + neto('d0_30') + neto('d31_60') + neto('d61mas')),
-        };
-        return json(res, { saldo_actual, por_cobrar, por_pagar, proyeccion, conta_activa: conta.activo() });
-    }
-
-    // Registro de GASTOS directos (renta, luz, papelería) → asiento 601
-    // (+119 si trae IVA) contra Caja/Bancos. Requiere módulo contabilidad ON.
-    if (p === '/api/erp/gastos' && req.method === 'POST') {
-        const sesG = requireSession(req, res);
-        if (!sesG) return;
-        return readBody(req, body => {
-            try {
-                const d = JSON.parse(body || '{}');
-                const monto = Number(d.monto);
-                if (!String(d.concepto || '').trim() || !(monto > 0)) return json(res, { ok: false, error: 'Faltan concepto o monto' }, 400);
-                if (!conta.activo()) return json(res, { ok: false, error: 'Activa el módulo Contabilidad en Módulos para registrar gastos' }, 400);
-                // Fecha opcional (capturar en meses pasados). Si el mes está
-                // cerrado, solo Administrador/Prime puede, y queda la huella.
-                const fecha = /^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '') ? d.fecha : null;
-                const mesCerrado = conta.mesCerradoDe(fecha);
-                if (mesCerrado) {
-                    if (!esAdminOMas(sesG.rol)) {
-                        return json(res, { ok: false, error: 'El período ' + mesCerrado + ' está cerrado. Solo un Administrador o Prime puede autorizar la captura en meses cerrados.', mes_cerrado: mesCerrado }, 409);
-                    }
-                    require('../../services/configAudit').logCambio(db, 'gasto_mes_cerrado', (fecha || '').slice(0, 7) + ' · ' + String(d.concepto).trim() + ' $' + monto, sesG.username);
+            const d = JSON.parse(body || '{}');
+            const monto = Number(d.monto);
+            if (!String(d.concepto || '').trim() || !(monto > 0)) return json(res, { ok: false, error: 'Faltan concepto o monto' }, 400);
+            if (!conta.activo()) return json(res, { ok: false, error: 'Activa el módulo Contabilidad en Módulos para registrar gastos' }, 400);
+            const fecha = /^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '') ? d.fecha : null;
+            const mesCerrado = conta.mesCerradoDe(fecha);
+            if (mesCerrado) {
+                if (!esAdminOMas(ses.rol)) {
+                    return json(res, { ok: false, error: 'El período ' + mesCerrado + ' está cerrado. Solo un Administrador o Prime puede autorizar la captura en meses cerrados.', mes_cerrado: mesCerrado }, 409);
                 }
-                const id = conta.asientoGasto(String(d.concepto).trim(), monto, d.metodo === 'bancos' ? 'bancos' : 'caja', !!d.con_iva, { fecha, override: !!mesCerrado });
-                return json(res, { ok: true, id_asiento: id, en_mes_cerrado: !!mesCerrado });
-            } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
-        });
-    }
-    if (p === '/api/erp/gastos' && req.method === 'GET') {
-        const { desde, hasta } = _rango();
-        const gastos = db.prepare(`
-            SELECT a.id, a.fecha, a.concepto, COALESCE(SUM(d.haber), 0) total
-            FROM asientos a JOIN asientos_detalle d ON d.id_asiento = a.id
-            WHERE a.referencia_tipo='gasto' AND a.fecha >= ? AND a.fecha <= ?
-            GROUP BY a.id ORDER BY a.id DESC LIMIT 200`).all(desde, hasta);
-        return json(res, gastos);
-    }
+                require('../../services/configAudit').logCambio(db, 'gasto_mes_cerrado', (fecha || '').slice(0, 7) + ' · ' + String(d.concepto).trim() + ' $' + monto, ses.username);
+            }
+            const id = conta.asientoGasto(String(d.concepto).trim(), monto, d.metodo === 'bancos' ? 'bancos' : 'caja', !!d.con_iva, { fecha, override: !!mesCerrado });
+            return json(res, { ok: true, id_asiento: id, en_mes_cerrado: !!mesCerrado });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
+}
+function gastosGet(req, res, ctx) {
+    const { db, json } = ctx;
+    const { desde, hasta } = _rango(req);
+    const gastos = db.prepare(`
+        SELECT a.id, a.fecha, a.concepto, COALESCE(SUM(d.haber), 0) total
+        FROM asientos a JOIN asientos_detalle d ON d.id_asiento = a.id
+        WHERE a.referencia_tipo='gasto' AND a.fecha >= ? AND a.fecha <= ?
+        GROUP BY a.id ORDER BY a.id DESC LIMIT 200`).all(desde, hasta);
+    return json(res, gastos);
+}
 
-    // Reporte de IMPUESTOS del periodo: IVA trasladado (209, cobrado en
-    // ventas) vs acreditable (119, pagado en compras/gastos) = por pagar/favor
-    if (p === '/api/erp/impuestos' && req.method === 'GET') {
-        const { desde, hasta } = _rango();
-        const cuentas = conta.libroMayor(desde, hasta);
-        const de = (cod) => cuentas.find(c => c.cuenta === cod) || { debe: 0, haber: 0 };
-        const trasladado = Math.round((de('209').haber - de('209').debe) * 100) / 100;
-        const acreditable = Math.round((de('119').debe - de('119').haber) * 100) / 100;
-        return json(res, {
-            desde, hasta,
-            ventas_base: Math.round((de('401').haber - de('401').debe) * 100) / 100,
-            gastos: Math.round((de('601').debe - de('601').haber) * 100) / 100,
-            iva_trasladado: trasladado,
-            iva_acreditable: acreditable,
-            iva_resultado: Math.round((trasladado - acreditable) * 100) / 100, // >0 = por pagar, <0 = a favor
-        });
-    }
+function impuestos(req, res, ctx) {
+    const { json } = ctx;
+    const { desde, hasta } = _rango(req);
+    const cuentas = conta.libroMayor(desde, hasta);
+    const de = (cod) => cuentas.find(c => c.cuenta === cod) || { debe: 0, haber: 0 };
+    const trasladado = Math.round((de('209').haber - de('209').debe) * 100) / 100;
+    const acreditable = Math.round((de('119').debe - de('119').haber) * 100) / 100;
+    return json(res, {
+        desde, hasta,
+        ventas_base: Math.round((de('401').haber - de('401').debe) * 100) / 100,
+        gastos: Math.round((de('601').debe - de('601').haber) * 100) / 100,
+        iva_trasladado: trasladado, iva_acreditable: acreditable,
+        iva_resultado: Math.round((trasladado - acreditable) * 100) / 100,
+    });
+}
 
-    // Asiento manual (ajustes, capital inicial, gastos) — es la herramienta
-    // diaria del contador: área finanzas (contabilidad/administrador/prime)
-    if (p === '/api/erp/asientos' && req.method === 'POST') {
-        const sesA = requireSession(req, res);
-        if (!sesA) return;
-        if (!permite(sesA.rol, 'finanzas')) return json(res, { ok: false, error: 'Sin acceso a contabilidad' }, 403);
-        return readBody(req, body => {
-            try {
-                const d = JSON.parse(body || '{}');
-                const id = conta.registrarAsiento({
-                    concepto: String(d.concepto || '').trim() || 'Asiento manual',
-                    referencia_tipo: 'manual',
-                    partidas: Array.isArray(d.partidas) ? d.partidas : [],
-                });
-                return json(res, { ok: true, id });
-            } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
-        });
-    }
+// POST /api/erp/asientos — asiento manual
+function asientosPost(req, res, ctx) {
+    const { json, readBody } = ctx;
+    return readBody(req, body => {
+        try {
+            const d = JSON.parse(body || '{}');
+            const id = conta.registrarAsiento({
+                concepto: String(d.concepto || '').trim() || 'Asiento manual',
+                referencia_tipo: 'manual',
+                partidas: Array.isArray(d.partidas) ? d.partidas : [],
+            });
+            return json(res, { ok: true, id });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+    });
+}
 
-    return next();
-};
+const RUTAS = [
+    { metodo: 'GET',  path: '/api/erp/plan-cuentas',              area: 'finanzas', handler: planCuentas },
+    { metodo: 'GET',  path: '/api/erp/asientos',                  area: 'finanzas', handler: asientosGet },
+    { metodo: 'POST', path: '/api/erp/asientos',                  area: 'finanzas', handler: asientosPost },
+    { metodo: 'GET',  path: '/api/erp/libro-mayor',               area: 'finanzas', handler: libroMayor },
+    { metodo: 'GET',  path: '/api/erp/rastro',                    area: 'finanzas', handler: rastro },
+    { metodo: 'GET',  path: '/api/erp/productos-vendidos',        area: 'finanzas', handler: productosVendidos },
+    { metodo: 'GET',  path: '/api/erp/facturacion-pendiente',     area: 'finanzas', handler: facturacionPendiente },
+    { metodo: 'GET',  path: '/api/erp/tablero',                   area: 'finanzas', handler: tablero },
+    { metodo: 'GET',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierreGet },
+    { metodo: 'PUT',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierrePut },
+    { metodo: 'GET',  path: '/api/erp/rentabilidad-clientes',     area: 'finanzas', handler: rentabilidadClientes },
+    { metodo: 'GET',  path: '/api/erp/rentabilidad-vendedores',   area: 'finanzas', handler: rentabilidadVendedores },
+    { metodo: 'POST', path: /^\/api\/erp\/timbrar\/(\d+)$/,       area: 'finanzas', handler: timbrar },
+    { metodo: 'GET',  path: '/api/erp/salud-financiera',          area: 'finanzas', handler: saludFinanciera },
+    { metodo: 'GET',  path: '/api/erp/flujo-caja',                area: 'finanzas', handler: flujoCaja },
+    { metodo: 'POST', path: '/api/erp/gastos',                    area: 'finanzas', handler: gastosPost },
+    { metodo: 'GET',  path: '/api/erp/gastos',                    area: 'finanzas', handler: gastosGet },
+    { metodo: 'GET',  path: '/api/erp/impuestos',                 area: 'finanzas', handler: impuestos },
+];
+
+module.exports = construirModulo(RUTAS, { prefijo: '/api/erp/' });
