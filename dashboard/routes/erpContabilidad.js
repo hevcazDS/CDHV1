@@ -141,10 +141,18 @@ module.exports = function erpContabilidadRoutes(req, res, p, u, ctx, next) {
             else porTipo[t] = (porTipo[t] || 0) + (c.haber - c.debe);
         }
         const utilidad_acumulada = r2(porTipo.ingreso - porTipo.costo - porTipo.gasto);
+        // Caja/bancos reales (saldo acumulado 101+102) vs utilidad acumulada:
+        // el dueño veía "gané $X" pero no cuánto de eso es dinero disponible hoy
+        // (el resto está reinvertido en inventario/CxC o se distribuyó). Comité.
+        const cAcum = (c) => acum.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
+        const caja = r2((cAcum('101').debe - cAcum('101').haber) + (cAcum('102').debe - cAcum('102').haber));
         const balance = {
             activos: r2(porTipo.activo),
             pasivos: r2(porTipo.pasivo),
             capital: r2(porTipo.capital + utilidad_acumulada),
+            caja,
+            utilidad_acumulada,
+            no_liquido: r2(utilidad_acumulada - caja), // reinvertido (inventario/CxC) o distribuido
             cuadra: Math.abs(porTipo.activo - (porTipo.pasivo + porTipo.capital + utilidad_acumulada)) < 0.5,
         };
 

@@ -122,6 +122,11 @@ export default function Mostrador() {
     <div>
       <div className="page-title">Mostrador</div>
       <div className="page-sub">Punto de venta — cobra ventas presenciales{config?.sucursal ? ` · sucursal: ${config.sucursal}` : ''}</div>
+      {config && config.inventario === false && (
+        <div style={{ marginBottom: 12, padding: '9px 14px', borderRadius: 8, background: 'rgba(251,189,35,0.15)', border: '1px solid var(--yellow)', color: 'var(--text)', fontSize: 13 }}>
+          ⚠️ El <strong>control de inventario está desactivado</strong>: estas ventas <strong>no descuentan stock</strong>. Actívalo en Módulos si tu negocio maneja existencias.
+        </div>
+      )}
       {msg && <div className="login-error" style={{ marginBottom: 12 }}>{msg.t}</div>}
 
       <div className="kpi-grid" style={{ gridTemplateColumns: '1.4fr 1fr', alignItems: 'start' }}>

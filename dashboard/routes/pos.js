@@ -62,7 +62,7 @@ module.exports = function posRoutes(req, res, p, u, ctx, next) {
         try { metodos = db.prepare('SELECT nombre FROM metodos_pago WHERE activo=1 ORDER BY id').all().map(m => m.nombre); } catch (_) {}
         let facturacion = false;
         try { const r = db.prepare("SELECT valor FROM configuracion WHERE clave='facturacion_activo' LIMIT 1").get(); facturacion = !!r && (r.valor === '1' || r.valor === 'true'); } catch (_) {}
-        return json(res, { sucursal: sucursalDefault(), metodos, facturacion, credito: creditoActivo() });
+        return json(res, { sucursal: sucursalDefault(), metodos, facturacion, credito: creditoActivo(), inventario: inventarioActivo() });
     }
 
     // ── GET /api/pos/productos?q= — búsqueda ligera para el mostrador ──────

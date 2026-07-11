@@ -87,6 +87,17 @@ export default function TableroTab() {
             <Fila label="Pasivos" val={balance.pasivos} />
             <Fila label="Capital (+ utilidad acumulada)" val={balance.capital} />
           </tbody></table>
+          {balance.caja != null && (
+            <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+              <Text size="sm" fw={600} mb={4}>Liquidez: caja vs utilidad</Text>
+              <table style={{ width: '100%' }}><tbody>
+                <Fila label="💵 Caja y bancos (disponible hoy)" val={balance.caja} fuerte color={balance.caja >= 0 ? 'var(--green)' : 'var(--red)'} />
+                <Fila label="Utilidad acumulada" val={balance.utilidad_acumulada} />
+                <Fila label="No líquido (reinvertido/distribuido)" val={balance.no_liquido} />
+              </tbody></table>
+              <Text size="xs" c="dimmed" mt={4}>La utilidad no es dinero en caja: la diferencia está en inventario, cuentas por cobrar o ya se distribuyó.</Text>
+            </div>
+          )}
           <div className="card-header" style={{ marginTop: 16 }}><h3>Ticket promedio</h3></div>
           <table style={{ width: '100%' }}><tbody>
             <Fila label={`Este período (${ticket.pedidos} pedidos)`} val={ticket.actual} fuerte />
