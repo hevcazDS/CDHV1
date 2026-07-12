@@ -361,6 +361,11 @@ function requireSession(req, res, rolesPermitidos) {
     if (s && rolesPermitidos && rolesPermitidos.length) {
         const minRango = Math.min(...rolesPermitidos.map(rangoDe));
         autorizado = rangoDe(s.rol) >= minRango;
+        // Auditor = lectura total por diseño (permite() ya le da true en las
+        // rutas por-área; el gate global de server.js le bloquea toda escritura).
+        // Sin esto los GET gateados por rango (roles:['gerente'|'prime'] —
+        // métricas/reportes/config) le daban 401 pese a verse en su menú.
+        if (!autorizado && permisos.esAuditor(s.rol) && req.method === 'GET') autorizado = true;
     }
     if (!autorizado) {
         json(res, { ok: false, error: 'No autorizado' }, 401);

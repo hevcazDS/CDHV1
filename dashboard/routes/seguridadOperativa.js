@@ -160,12 +160,12 @@ function respaldoManual(req, res, ctx) {
 // POST /api/prime/restaurar-bd — sube respaldo (base64), descifra/valida SQLite
 // y lo deja en staging para el swap-on-boot. Revalida contraseña de prime.
 function restaurarBd(req, res, ctx, { ses }) {
-    const { db, json, readBody, hashPassword } = ctx;
+    const { db, json, readBody, hashPassword, safeEqual } = ctx;
     return readBody(req, body => {
         try {
             const d = JSON.parse(body || '{}');
             const yo = db.prepare('SELECT * FROM usuarios WHERE username=?').get(ses.username);
-            if (!yo || hashPassword(String(d.password || ''), yo.salt) !== yo.password_hash) {
+            if (!yo || !safeEqual(hashPassword(String(d.password || ''), yo.salt), yo.password_hash)) {
                 return json(res, { ok: false, error: 'Contrasena de Prime incorrecta' }, 403);
             }
             const _b64 = String(d.archivo_base64 || '');
@@ -220,13 +220,13 @@ function restaurarBd(req, res, ctx, { ses }) {
 // POST /api/prime/whatsapp/purgar-sesion — borra .wwebjs_auth/.wwebjs_cache
 // (HS-503). Prime + contraseña + 'BORRAR'. Desvincula el número.
 function purgarSesion(req, res, ctx, { ses }) {
-    const { db, json, readBody, log, hashPassword, pm2 } = ctx;
+    const { db, json, readBody, log, hashPassword, safeEqual, pm2 } = ctx;
     return readBody(req, body => {
         try {
             const d = JSON.parse(body || '{}');
             if (d.confirmacion !== 'BORRAR') return json(res, { ok: false, error: "Escribe BORRAR en 'confirmacion'" }, 400);
             const yo = db.prepare('SELECT * FROM usuarios WHERE username=?').get(ses.username);
-            if (!yo || hashPassword(String(d.password || ''), yo.salt) !== yo.password_hash) {
+            if (!yo || !safeEqual(hashPassword(String(d.password || ''), yo.salt), yo.password_hash)) {
                 return json(res, { ok: false, error: 'Contraseña incorrecta' }, 403);
             }
             log.warn('[HS-503] Purga de sesión de WhatsApp solicitada por ' + ses.username);

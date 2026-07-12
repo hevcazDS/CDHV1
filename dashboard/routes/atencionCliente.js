@@ -321,8 +321,8 @@ function preventasPost(req, res, ctx) {
 const RUTAS = [
     { metodo: 'GET',  path: '/api/cola_atencion',                       handler: colaAtencionGet },
     { metodo: 'PUT',  path: /^\/api\/cola_atencion\/(\d+)$/,            area: 'operacion', handler: colaAtencionPut },
-    { metodo: 'GET',  path: /^\/api\/pedidos\/(\d+)\/mensajes$/,        handler: pedidoMensajes },
-    { metodo: 'GET',  path: /^\/api\/clientes\/(\d+)\/mensajes$/,       handler: clienteMensajes },
+    { metodo: 'GET',  path: /^\/api\/pedidos\/(\d+)\/mensajes$/,        area: 'operacion', handler: pedidoMensajes },
+    { metodo: 'GET',  path: /^\/api\/clientes\/(\d+)\/mensajes$/,       area: 'operacion', handler: clienteMensajes },
     { metodo: 'PUT',  path: /^\/api\/clientes\/(\d+)\/reanudar-bot$/,   area: 'operacion', handler: reanudarBot },
     { metodo: 'POST', path: '/api/actualizar_guia',                     area: 'operacion', handler: actualizarGuia },
     { metodo: 'GET',  path: '/api/lista-espera',                        handler: listaEspera },
