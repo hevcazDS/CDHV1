@@ -39,6 +39,15 @@ export default function FacturacionTab() {
     } catch (e) { toastErr(e.message); } finally { setBusy(null); }
   };
   const bajar = (f, fmt) => window.open(`/api/erp/cfdi/${f.id_pedido}/${fmt}`, '_blank');
+  const rep = async (f) => {
+    if (!await confirmar({ titulo: 'Complemento de pago (REP)', mensaje: `Timbrar el recibo electrónico de pago del folio ${f.folio}? (solo para facturas a plazos/PPD ya cobradas)` })) return;
+    setBusy(f.id_pedido);
+    try {
+      const res = await api.post(`/api/erp/cfdi/${f.id_pedido}/rep`, {});
+      if (res.ok) { toastOk('Complemento de pago timbrado ✅ ' + (res.uuid || '')); qc.invalidateQueries({ queryKey: ['fact-pend'] }); }
+      else toastErr(res.error);
+    } catch (e) { toastErr(e.message); } finally { setBusy(null); }
+  };
 
   return (
     <Card withBorder radius="md" p="lg" className="card">
@@ -86,6 +95,7 @@ export default function FacturacionTab() {
                       {timbrado && <>
                         <Button size="compact-xs" variant="default" onClick={() => bajar(f, 'pdf')}>PDF</Button>
                         <Button size="compact-xs" variant="default" onClick={() => bajar(f, 'xml')}>XML</Button>
+                        <Button size="compact-xs" variant="default" loading={busy === f.id_pedido} onClick={() => rep(f)} title="Complemento de pago (facturas PPD cobradas)">REP</Button>
                         <Button size="compact-xs" variant="default" color="red" onClick={() => cancelar(f)}>Cancelar</Button>
                       </>}
                     </Group>

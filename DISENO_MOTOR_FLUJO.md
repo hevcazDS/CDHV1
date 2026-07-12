@@ -26,6 +26,143 @@ Fecha: 2026-07. Evidencia verificada en código (archivo:línea).
 
 ---
 
+# REPLANTEAMIENTO 2026-07-12: base juguetería → giros
+
+> **Corrección de enfoque del dueño (manda sobre el resto del doc).** El diseño de
+> abajo modelaba las plantillas partiendo de un ejemplo de **barbería desde cero**.
+> Eso es auto-sesgo: **ya tenemos el flujo COMPLETO de la juguetería** funcionando en
+> producción (buscar → carrito → checkout → entrega pickup/paquetería/repartidor →
+> pago → puntos/referidos). El trabajo NO es reinventar cada giro; es hacer **ESA base
+> modificable** para **derivar** los demás giros activando/apagando/parametrizando
+> nodos, más 1-2 nodos propios por giro. Toda la sección A-G sigue válida como
+> *mecánica* (tablas, intérprete, linter, frontera sellada); lo que cambia es **de qué
+> se parte**: la plantilla `jugueteria.json` **es** la plantilla base, y cada giro es un
+> **DELTA** sobre ella, no un flujo nuevo.
+
+## R.A — El principio: una base parametrizable, no un flujo por giro
+
+La plantilla base es el **grafo completo de juguetería**. Un giro = esa base con nodos
+activados/desactivados/parametrizados **+ a lo sumo 1-2 nodos propios** (cita, mesa,
+suscripción). Ni un solo giro reconstruye buscar/carrito/checkout/pago/dirección: los
+**reusa tal cual** porque ya son código sellado (`_shared.js`), y el motor solo enruta
+hacia ellos.
+
+**Tabla maestra — qué hace cada giro SOBRE la base juguetería** (evidencia en R.B/R.D):
+
+| Giro | Reusa TAL CUAL de la base JC | Apaga | Parametriza | Nodo(s) NUEVO(s) |
+|---|---|---|---|---|
+| **Barbería / estética / uñas / tatuajes** (cita) | `SHOW_CART`→`CONFIRM_ORDER`, `PAGO_METODO`, `insertarLinkPago`, `marcar-pagado`, `REFERIDOS`, puntos | `ASK_CP`/`SPLIT_*`/`DELIVERY` (no hay envío de paquete), `WIZARD` (quiz de regalo) | catálogo = `productos.tipo='servicio'` (ya lo hace `citasFlow.js:21`); menú: opción "agendar" en vez de "buscar" | `CITA_SERVICIO`/`FECHA`/`HORA`/`CONFIRMA` (**ya existen**, `citasFlow.js:15`) + `CITA_ANTICIPO` (solo si pide anticipo) |
+| **ISP / internet a domicilio** (cita-instalación) | Todo lo de barbería **+** `addressFlow` (`ASK_NOMBRE..ASK_REF`) **+** `buscarCobertura(cp)` (`_shared.js:332`) **+** `ASK_CP` | `SPLIT_*`/`DELIVERY` de paquetería (Estafeta), `WIZARD` | la cita es **a domicilio**: tras `CITA_HORA` enruta a `ASK_CP`→`addressFlow` (dirección de instalación) antes de confirmar | los mismos `CITA_*`; **cero nodo nuevo propio** — es barbería + reuso de dirección/CP que YA existen |
+| **Restaurante** (menú-entrega) | `SEARCHING`/`VIEW_PRODUCT`/`SHOW_CART`/`CONFIRM_ORDER`, `PAGO_METODO`, `addressFlow`, entrega repartidor (`entrega_repartidor_activo`) | `WIZARD` (quiz de regalo), `SPLIT_*` inter-sucursal, paquetería Estafeta | catálogo = "menú" (mismo `productos`, copy por `t()`/`vocab()`); entrega = domicilio/**mesa** | `MESA_*` (elegir mesa/consumo en local) — **módulo `mesas_activo` ya declarado** (`modulosDefaults.js:28,71`) pero **flow NO construido** aún |
+| **Freelancer** (proyecto / suscripción) | `CONFIRM_ORDER`→`PAGO_METODO`→`insertarLinkPago`→`marcar-pagado` (checkout + link de pago) | `SEARCHING`/`WIZARD`/`ASK_CP`/`SPLIT_*`/`DELIVERY`/pickup (no hay catálogo ni entrega física) | "producto" = 1 línea de **monto libre** (proyecto) reusando `insertarPedidoConCarrito` con un carrito de una línea | `PROYECTO_MONTO` (captura monto libre) — trivial; **`SUSCRIPCION_*` = cobro recurrente = GENUINAMENTE nuevo** (R.D) |
+
+**Lectura del dev:** ninguna columna "nodo nuevo" tiene más de lo estrictamente propio
+del giro. Buscar/carrito/checkout/pago/dirección/cobertura aparecen siempre en "reusa
+tal cual" — se construyen **una vez** (ya están) y se enrutan por datos.
+
+## R.B — El grafo de juguetería como PLANTILLA BASE
+
+Estos son los nodos reales de hoy (del enum `S`, `_shared.js:31-66`, y sus `handle()`).
+La columna **frontera** marca qué es *sistema sellado* (dinero/inventario/dirección — el
+motor lo **invoca**, nunca lo interpreta; sección D) vs. *conversación editable*
+(reordenable/parametrizable por datos):
+
+| Nodo (paso) | Rol | Frontera | Evidencia |
+|---|---|---|---|
+| `MENU` | raíz; opciones buscar/wizard/rastrear/asesor/referidos | conversación | `menuFlow.js` (STEPS) |
+| `SEARCHING` / `VIEW_PRODUCT` / `ADD_MORE` | buscar producto, verlo, agregar | conversación | `menuFlow.js`; `searchProducts` `_shared.js` |
+| `WIZARD_Q1..Q3` | quiz de regalo (edad/género) — **solo juguetería** | conversación | `_shared.js:36-38`, `wizardSearch` |
+| `SHOW_CART` | ver carrito, cantidades, cupón | **sistema** (math de carrito) | `cartFlow.js`; `agregarAlCarrito` `_shared.js:387` |
+| `CONFIRM_ORDER` | confirmar y grabar pedido | **SELLADO** | `grabarPedidoEnvio` `_shared.js:863` |
+| `ASK_CP` | pedir CP y calcular cobertura | **SELLADO** (contractual Estafeta) | `buscarCobertura` `_shared.js:332` |
+| `SPLIT_DELIVERY` / `SPLIT_CONFIRM` | partir carrito por stock por sucursal | **SELLADO** | `partirCarrito` `_shared.js:493` |
+| `DELIVERY` / `PICKUP_CONFIRM` | envío vs. recoger en tienda | **SELLADO** | `orderFlow.js`; `grabarPedidoPickup` `:819`, `grabarPedidoSplit` `:951` |
+| `ASK_NOMBRE..ASK_REF` | captura de dirección | **SELLADO** (orden fijo) | `addressFlow.js:1` |
+| `PAGO_METODO` | elegir método de pago | **SELLADO** | `registrarMetodoPago` `_shared.js:731`, `insertarLinkPago` `:745` |
+| `REFERIDOS` | código + submenú de referidos | conversación | `asesorFlow.js` / `referidosService` |
+
+**Sistema sellado (nunca interpretado, params whitelisted):** todo el bloque de checkout
+`SHOW_CART`→`CONFIRM_ORDER`, `ASK_CP`/`SPLIT_*`/`DELIVERY`/`PICKUP`, `addressFlow`,
+`PAGO_METODO`. **Conversación editable (reordenable por datos):** `MENU`, `SEARCHING`,
+`VIEW_PRODUCT`, `WIZARD`, `REFERIDOS`, y los `CITA_*`/`MESA_*` que los giros agregan.
+
+## R.C — Los 4 giros como DELTAS (no flujos nuevos)
+
+No hay "restauranteFlow desde cero". Cada giro es la plantilla base con aristas
+re-enrutadas y nodos apagados. Los `CITA_*` **ya están construidos** (`citasFlow.js:89-149`,
+registrados por giro en `giroFlows.js:27-37` para `servicios/isp/barberia/…`); el motor
+solo los expone como nodos de datos y les cuelga el resto.
+
+- **Barbería-cita** = base JC − (`ASK_CP`/`SPLIT`/`DELIVERY`/`WIZARD`) + `CITA_*`. El menú
+  cambia "buscar" → "agendar" (dato: `label`/`input` de la arista de `MENU`). El servicio
+  ES un producto `tipo='servicio'` (`citasFlow.js:21`), así que `CITA_CONFIRMA`→`SHOW_CART`
+  reusa el mismo carrito si el cliente además compra algo.
+- **ISP-cita-domicilio** = barbería-cita **+** re-enrutar `CITA_HORA`→`ASK_CP`→`addressFlow`
+  (la instalación necesita dirección + cobertura por CP, **ambas ya existen**). Cero nodo
+  propio: es composición de piezas selladas.
+- **Restaurante-menú-entrega** = base JC sin `WIZARD`, con entrega repartidor
+  (`entrega_repartidor_activo`, default OFF pero encendido por giro,
+  `modulosDefaults.js:71`) + nodo `MESA_*` opcional. El catálogo "menú" es el **mismo**
+  `productos` con copy por `vocab()`; nada de checkout cambia.
+- **Freelancer-proyecto/suscripción** = base JC reducida a `CONFIRM_ORDER`→`PAGO_METODO`
+  con un carrito de **una línea de monto libre** (`insertarPedidoConCarrito` acepta
+  cualquier carrito). La suscripción es lo único que agrega maquinaria nueva (R.D).
+
+**El caso agenda + compra sale GRATIS.** No hay "cobro combinado" especial: la cita y el
+producto son **dos pedidos** por la **misma** ruta `insertarLinkPago`→`marcar-pagado`
+(detalle en sección E, que sigue vigente tal cual). Como cita y compra reusan el **mismo**
+`SHOW_CART`/`CONFIRM_ORDER`, entrelazarlos es solo una arista `CITA_AGENDADA --"si"-->
+SEARCHING`. Cero duplicación.
+
+## R.D — Qué es GENUINAMENTE nuevo (poco)
+
+De todo lo anterior, **casi nada es código nuevo**. El inventario real de "nuevo":
+
+| Pieza | ¿Nuevo? | Por qué |
+|---|---|---|
+| Nodo **cita** (`CITA_*`) | **Ya existe** (`citasFlow.js`) | Solo hay que exponerlo como nodos de datos y colgarle checkout/anticipo. |
+| **Anticipo atado a cita** | Reusa patrón existente | El andamiaje (`porcentaje_anticipo`/`anticipo_pagado`/`saldo_pendiente`/`estatus='apartado'`) **ya vive** en `stockService.js:154-193` (`registrarPreventa`). El anticipo = un pedido normal por `insertarLinkPago` (sección E.1). Falta 1 columna en `citas`, no una tabla. |
+| Nodo **mesa** (`MESA_*`) restaurante | Semi-nuevo | El **módulo** `mesas_activo` ya está declarado (`modulosDefaults.js:28,71`) pero **el flow no está construido**. Es un picker simple (elegir mesa/consumo en local), análogo a `CITA_SERVICIO`. |
+| Nodo **proyecto monto libre** | Trivial | Una línea de carrito con monto capturado; reusa `insertarPedidoConCarrito` sin tocarlo. |
+| **Suscripción / cobro recurrente** | **NUEVO de verdad** | No existe nada recurrente en el código (grep `suscrip`/`recurren` → 0 hits en flows/servicios). Requiere: tabla `suscripciones` + un job en `stockWatcher` que re-genere el link de cobro cada ciclo (mismo patrón que las automatizaciones de marketing que ya empujan a `cola_notificaciones`). Es el **único** trabajo que no es parametrización. |
+
+Resumen: **1 pieza genuinamente nueva** (suscripción recurrente), **1 semi-nueva** (flow
+de mesa, módulo ya reservado), **el resto es parametrización** de una base que ya corre.
+
+## R.E — Fases y esfuerzo con este enfoque
+
+El enfoque "derivar de la base JC" **baja el esfuerzo** frente a "construir plantilla por
+giro", porque la plantilla base **no se escribe**: se **extrae** del flujo actual (que es
+justamente lo que el harness de regresión byte-idéntica de F.4 ya obliga a capturar). Se
+mantiene intacta la **frontera de checkout sellado** (sección D) y la **estrategia de
+pruebas** (sección F) del doc previo — no cambian.
+
+| Fase | Qué (enfoque base→delta) | Días | Δ vs. plan original |
+|---|---|---:|---|
+| **0. Red de seguridad** | Golden snapshot de JC (F.4.1) + baseline de los 117 tests. | 1 | igual |
+| **1. Extraer acciones** | `actions.js` envolviendo funciones **ya existentes** de `_shared.js` + migración `0027` (tablas motor + columnas anticipo en `citas`). | 3 | igual |
+| **2. Intérprete tras flag** | `interprete.js`+`matchInput`+`grafo.js`+linter, flag OFF. | 4 | igual |
+| **3. Plantilla base = JC** (antes "piloto citas") | Escribir `jugueteria.json` **derivándolo** del flujo actual (no un giro de laboratorio) y pasar el golden 100%. Esta plantilla base habilita **todos** los deltas. | 3 | **−1** (una sola plantilla, no barbería aparte) |
+| **4. Deltas de giro** | `barberia.json`/`isp`/`restaurante` = JC con nodos apagados + `CITA_*` colgados. Anticipo (reusa preventa). Test de integración agenda+compra (F.3). | 3 | **−1** (deltas pequeños, no 3 flujos completos) |
+| **5. Editor + onboarding** | Seeder de plantillas + endpoint con linter + UI de nodos en Prime. | 5 | igual |
+| **6. Nuevo real: suscripción + mesa** | Tabla `suscripciones` + job recurrente en stockWatcher; flow `MESA_*`. Lo único fuera de parametrización. | 3 | **+3** (antes implícito/omitido) |
+| **7. Apagar código viejo** | Borrar `handle()` de conversación cuando el golden sea estable N semanas. Los flows **sistema** se quedan para siempre. | 2 | igual |
+
+**Total: ~24 días-persona** (vs. ~25 del plan por-giro), **pero** con la suscripción
+recurrente ya incluida (antes no estaba presupuestada) y sin construir barbería/restaurante
+como flujos independientes. El ahorro real no es el número: es que **el dev construye UNA
+base parametrizable y N deltas de datos**, no N flujos — menos superficie de bug, menos
+código en el hot path de ventas, y la regresión byte-idéntica de JC protege todo porque la
+base **es** JC.
+
+> El resto del documento (secciones A-G) queda vigente como la mecánica del motor. Donde
+> aquel decía "plantilla de barbería", léase **"delta sobre `jugueteria.json`"**; donde
+> decía "piloto citas primero", el orden correcto es **base JC primero (Fase 3), luego los
+> deltas de giro (Fase 4)** — los `CITA_*` ya existen y se cuelgan de la base, no se pilotan
+> aislados.
+
+---
+
 ## Índice
 
 - [A. Modelo de datos definitivo](#a-modelo-de-datos-definitivo)

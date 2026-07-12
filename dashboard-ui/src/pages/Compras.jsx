@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { esAdminOMas } from '../lib/permisos';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
-import { confirmar, toastOk } from '../lib/ui';
+import { confirmar, toastOk, prompt } from '../lib/ui';
 
 // Rol Compras: solicitudes de adquisición (el administrador aprueba) e
 // ingreso de facturas de proveedor (→ CxP). Las OC viven en ERP > Compras.
@@ -24,10 +24,21 @@ export default function Compras() {
     onError: handleApiError,
   });
   const resolver = useMutation({
-    mutationFn: ({ id, accion }) => api.post(`/api/compras/solicitudes/${id}/${accion}`),
-    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); qc.invalidateQueries({ queryKey: ['compras-sol'] }); },
+    mutationFn: ({ id, accion, id_proveedor }) => api.post(`/api/compras/solicitudes/${id}/${accion}`, id_proveedor ? { id_proveedor } : {}),
+    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); if (r.oc) toastOk('Aprobada y OC generada: ' + r.oc.folio); qc.invalidateQueries({ queryKey: ['compras-sol'] }); qc.invalidateQueries({ queryKey: ['erp-ocs'] }); },
     onError: handleApiError,
   });
+  // Aprobar: si la solicitud tiene producto, ofrece elegir proveedor para
+  // generar la OC de una vez (si no, solo aprueba).
+  const aprobar = async (s) => {
+    if (!s.id_producto || !proveedores.length) return resolver.mutate({ id: s.id, accion: 'aprobar' });
+    const idProv = await prompt({
+      titulo: 'Aprobar y generar OC', mensaje: 'Elige proveedor para crear la orden de compra (o deja vacío para solo aprobar):',
+      opciones: [{ value: '', label: '— Solo aprobar —' }, ...proveedores.map(p => ({ value: String(p.id), label: p.nombre }))], valorInicial: '',
+    });
+    if (idProv === null) return;
+    resolver.mutate({ id: s.id, accion: 'aprobar', id_proveedor: idProv ? Number(idProv) : undefined });
+  };
   const crearFac = useMutation({
     mutationFn: () => api.post('/api/compras/factura', { ...fac, id_proveedor: Number(fac.id_proveedor), monto: Number(fac.monto) }),
     onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); toastOk('Factura registrada — vence ' + r.vence_en); setFac({ id_proveedor: null, monto: 0, referencia: '', es_mercancia: true }); },
@@ -113,7 +124,7 @@ export default function Compras() {
                     {esAdminOMas(user?.rol) && (
                       <td>{s.estatus === 'pendiente' && (
                         <Group gap={6} wrap="nowrap">
-                          <Button size="xs" onClick={() => resolver.mutate({ id: s.id, accion: 'aprobar' })}>Aprobar</Button>
+                          <Button size="xs" onClick={() => aprobar(s)}>Aprobar</Button>
                           <Button size="xs" variant="default" onClick={() => resolver.mutate({ id: s.id, accion: 'rechazar' })}>Rechazar</Button>
                         </Group>
                       )}</td>

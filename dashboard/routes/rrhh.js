@@ -227,6 +227,18 @@ function nominaTimbrar(req, res, ctx, { params }) {
         .catch(e => json(res, { ok: false, error: e.message }, 500));
 }
 
+// GET /api/rrhh/nomina/:id/:formato — descarga el PDF/XML del recibo timbrado
+function nominaDescargar(req, res, ctx, { params }) {
+    const { db, json } = ctx;
+    return require('../../services/pacService').descargarNominaCFDI(db, parseInt(params[0]), params[1])
+        .then(r => {
+            if (!r.ok) return json(res, r, 400);
+            res.writeHead(200, { 'Content-Type': r.contentType, 'Content-Disposition': 'attachment; filename="' + r.filename + '"', 'Content-Length': r.buffer.length });
+            res.end(r.buffer);
+        })
+        .catch(e => json(res, { ok: false, error: e.message }, 500));
+}
+
 const RUTAS = [
     { metodo: 'GET',    path: '/api/rrhh/empleados',                        area: 'rrhh', handler: empleadosGet },
     { metodo: 'POST',   path: '/api/rrhh/empleados',                        area: 'rrhh', handler: empleadosPost },
@@ -244,6 +256,7 @@ const RUTAS = [
     { metodo: 'POST',   path: /^\/api\/rrhh\/finiquito\/(\d+)$/,            area: 'rrhh', handler: finiquitoPreview },
     { metodo: 'POST',   path: /^\/api\/rrhh\/finiquito\/(\d+)\/pagar$/,     area: 'rrhh', pin: true, handler: finiquitoPagar },
     { metodo: 'POST',   path: /^\/api\/rrhh\/nomina\/(\d+)\/timbrar$/,      area: 'rrhh', handler: nominaTimbrar },
+    { metodo: 'GET',    path: /^\/api\/rrhh\/nomina\/(\d+)\/(pdf|xml)$/,    area: 'rrhh', handler: nominaDescargar },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/rrhh/', precondicion: rrhhActivo });

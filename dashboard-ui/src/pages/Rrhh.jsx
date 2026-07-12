@@ -180,7 +180,19 @@ export default function Rrhh() {
                     <td>{n.imss > 0 ? '$' + n.imss.toFixed(2) : '—'}</td>
                     <td style={{ fontWeight: 700 }}>${n.neto.toFixed(2)}</td>
                     {fiscal && <td className="text-muted">{n.imss_patronal > 0 ? '$' + n.imss_patronal.toFixed(2) : '—'}</td>}
-                    <td><span className={`badge ${n.estatus === 'pagada' ? 'badge-verde' : 'badge-amarillo'}`}>{n.estatus}</span></td>
+                    <td>
+                      <span className={`badge ${n.estatus === 'pagada' ? 'badge-verde' : 'badge-amarillo'}`}>{n.estatus}</span>
+                      {n.estatus === 'pagada' && !n.cfdi_uuid && (
+                        <Button size="compact-xs" variant="subtle" ml={6} onClick={async () => {
+                          const r = await api.post(`/api/rrhh/nomina/${n.id}/timbrar`, {}).catch(e => ({ ok: false, error: e.message }));
+                          if (r.ok) { toastOk('Recibo timbrado ✅'); qc.invalidateQueries({ queryKey: ['rrhh-nom'] }); } else handleApiError(new Error(r.error || r.motivo));
+                        }}>Timbrar</Button>
+                      )}
+                      {n.cfdi_uuid && <>
+                        <Button size="compact-xs" variant="default" ml={6} onClick={() => window.open(`/api/rrhh/nomina/${n.id}/pdf`, '_blank')}>PDF</Button>
+                        <Button size="compact-xs" variant="default" ml={4} onClick={() => window.open(`/api/rrhh/nomina/${n.id}/xml`, '_blank')}>XML</Button>
+                      </>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

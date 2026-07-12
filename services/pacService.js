@@ -256,6 +256,18 @@ function enviarComprobante(db, idPedido) {
     } catch (_) { return { ok: false }; }
 }
 
+// Descarga el CFDI (pdf|xml) de un RECIBO DE NÓMINA ya timbrado.
+async function descargarNominaCFDI(db, idNomina, formato) {
+    const fmt = formato === 'xml' ? 'xml' : 'pdf';
+    const n = db.prepare('SELECT id, cfdi_uuid FROM nominas WHERE id=?').get(idNomina);
+    if (!n?.cfdi_uuid) return { ok: false, error: 'Este recibo no está timbrado' };
+    const adap = require('./pacProviders').adaptador(_cfg(db, 'pac_proveedor'));
+    if (!adap?.descargar) return { ok: false, error: 'El proveedor no soporta descarga' };
+    const r = await adap.descargar({ api_key: secreto(db, 'pac_api_key') }, { uuid: n.cfdi_uuid, formato: fmt });
+    if (!r.ok) return r;
+    return { ok: true, buffer: r.buffer, contentType: r.contentType, filename: 'nomina_' + idNomina + '.' + fmt };
+}
+
 // Descarga el CFDI (pdf|xml) de un pedido YA timbrado, desde el PAC.
 async function descargarCFDI(db, idPedido, formato) {
     const fmt = formato === 'xml' ? 'xml' : 'pdf';
@@ -270,4 +282,4 @@ async function descargarCFDI(db, idPedido, formato) {
     return { ok: true, buffer: r.buffer, contentType: r.contentType, filename: (ped.folio || idPedido) + '.' + fmt };
 }
 
-module.exports = { estaConfigurado, activo, timbrar, timbrarNomina, timbrarREP, descargarCFDI, cancelarCFDI, enviarComprobante, esKeyOnly, cifrarSecreto, descifrarSecreto, cifradoActivo, secreto };
+module.exports = { estaConfigurado, activo, timbrar, timbrarNomina, timbrarREP, descargarCFDI, descargarNominaCFDI, cancelarCFDI, enviarComprobante, esKeyOnly, cifrarSecreto, descifrarSecreto, cifradoActivo, secreto };

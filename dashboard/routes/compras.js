@@ -44,15 +44,36 @@ function crearSolicitud(req, res, ctx, { ses }) {
 }
 
 // Aprobar/rechazar — gerente+ (separación de funciones), vía roles:['gerente'].
+// Al APROBAR, si se pasa { id_proveedor } y la solicitud tiene producto+cantidad,
+// se genera la OC automáticamente (costo de productos.costo si no se pasa) — así
+// aprobar deja de ser recaptura manual. Sin proveedor, solo aprueba (compat).
 function resolverSolicitud(req, res, ctx, { params, ses }) {
-    const { db, json } = ctx;
-    const id = parseInt(params[0]);
-    const accion = params[1] === 'aprobar' ? 'aprobada' : 'rechazada';
-    const sc = db.prepare("SELECT * FROM solicitudes_compra WHERE id=? AND estatus='pendiente'").get(id);
-    if (!sc) return json(res, { ok: false, error: 'Solicitud no encontrada o ya resuelta' }, 404);
-    db.prepare("UPDATE solicitudes_compra SET estatus=?, resuelta_por=?, resuelta_en=datetime('now','localtime') WHERE id=?")
-      .run(accion, ses.username, id);
-    return json(res, { ok: true, id, estatus: accion });
+    const { db, json, readBody, generarFolio } = ctx;
+    return readBody(req, body => {
+        try {
+            const d = (() => { try { return JSON.parse(body || '{}'); } catch (_) { return {}; } })();
+            const id = parseInt(params[0]);
+            const accion = params[1] === 'aprobar' ? 'aprobada' : 'rechazada';
+            const sc = db.prepare("SELECT * FROM solicitudes_compra WHERE id=? AND estatus='pendiente'").get(id);
+            if (!sc) return json(res, { ok: false, error: 'Solicitud no encontrada o ya resuelta' }, 404);
+            db.prepare("UPDATE solicitudes_compra SET estatus=?, resuelta_por=?, resuelta_en=datetime('now','localtime') WHERE id=?")
+              .run(accion, ses.username, id);
+            let oc = null;
+            if (accion === 'aprobada' && Number.isInteger(d.id_proveedor) && sc.id_producto && sc.cantidad > 0) {
+                const costo = Number(d.costo_unitario) > 0 ? Number(d.costo_unitario)
+                    : (Number(db.prepare('SELECT costo FROM productos WHERE id=?').get(sc.id_producto)?.costo) || 0);
+                const folio = generarFolio('oc');
+                oc = db.transaction(() => {
+                    const r = db.prepare('INSERT INTO ordenes_compra (folio, id_proveedor, total, notas) VALUES (?,?,?,?)')
+                        .run(folio, d.id_proveedor, Math.round(sc.cantidad * costo * 100) / 100, 'De solicitud #' + id + ': ' + sc.descripcion);
+                    db.prepare('INSERT INTO ordenes_compra_detalle (id_oc, id_producto, cantidad, costo_unitario) VALUES (?,?,?,?)')
+                        .run(r.lastInsertRowid, sc.id_producto, sc.cantidad, costo);
+                    return { id: r.lastInsertRowid, folio };
+                })();
+            }
+            return json(res, { ok: true, id, estatus: accion, oc });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
 }
 
 // Factura por XML (CFDI): parsea, da preview y al confirmar crea/matchea

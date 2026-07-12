@@ -22,10 +22,18 @@ aditivo/toggleable, JC byte-idéntico, white-label intacto.
 5. ✅ **Contabilidad electrónica SAT** — `GET /api/erp/contabilidad-electronica?tipo=catalogo|balanza`: XML catálogo (con código agrupador base) + balanza mensual desde `plan_cuentas`/`libroMayor`. UI en Gastos e impuestos → Reportes SAT. Borrador; el código agrupador SAT se amplía con el contador.
 
 ## Ola 3 — huecos operativos de los agentes (baratos, alto uso diario)
-6. **Solicitud→OC automática** al aprobar (compras) — PENDIENTE (necesita elegir proveedor+costo al aprobar; diseño abierto).
-7. ✅ **Recepción parcial de OC** — HECHA (migración 0056 `cantidad_recibida`): recibir por líneas, CxP+inventario por lo recibido, OC queda `parcial` hasta completar. UI con modal en ComprasTab. Contract test 8/8.
-8. **Cajero cobra fiado** — PENDIENTE (decidir separación de funciones vs botón "abono" en Fiados).
-9. **División de cuenta** en mesas — PENDIENTE.
+6. ✅ **Solicitud→OC automática** — HECHA: al aprobar se elige proveedor y se crea la OC (costo de productos.costo). UI con prompt de proveedor en Compras.jsx.
+7. ✅ **Recepción parcial de OC** — HECHA (migración 0056): recibir por líneas, CxP+inventario por lo recibido, OC `parcial` hasta completar. Contract test 8/8.
+8. ✅ **Cableado UI del backend fiscal** (hallazgo de los 2 reviews — backend listo, sin botón): **REP** en FacturacionTab, **timbrar recibo de nómina + PDF/XML** en Rrhh.jsx (+ ruta descarga nómina).
+9. **Cajero cobra fiado** / **división de cuenta** — PENDIENTES (diseño abierto).
+
+## Huecos de los reviews rol×ramo (2026-07-12) — PENDIENTES priorizados
+- 🔴 **Cita→cobro incompleto**: `citasFlow` no persiste `cita_servicio_precio` en la tabla `citas`, no hay columna precio ni botón "Cobrar" en Citas.jsx. Barbería/estética agendan pero cobran a mano. Fix en 3 puntos (persistir precio + columna + botón que arme carrito de servicio → cobro; `insertarPedidoConCarrito` ya soporta `tipo:'servicio'`).
+- 🟡 **Almacén no alcanza la recepción de OC**: `ocRecibir` es área `almacen` pero la UI vive en /compras (área compras/finanzas). Dar acceso a la recepción al rol almacén.
+- 🟡 **Catálogo agrupador SAT borrador**: `_COD_AGRUPADOR` mapea 14 cuentas; el resto cae a fallback inválido. Completar o UI para editarlo.
+- 🟡 **DIOT deriva IVA plano** en vez del IVA real del CFDI de proveedor cuando existe.
+- 🟡 **Rol mesero/comisionista** no existen; propina se guarda pero sin pantalla de reparto.
+- 🟡 **Distinguir PPD vs PUE** en FacturacionTab (para saber cuáles requieren REP).
 
 ## Ola 4 — flujo de efectivo · ~4-5 días
 10. **Conciliación bancaria** — importar estado de cuenta (CSV/OFX), casar contra `links_pago`/`cuentas_pagar`. El vacío de responsabilidad #1 (nadie lo cubre). Tras la pasarela.
