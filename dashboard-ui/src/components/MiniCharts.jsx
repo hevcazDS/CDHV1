@@ -104,6 +104,58 @@ export function BarraApilada({ segmentos = [], fmtValor = (v) => v, altura = 40 
   );
 }
 
+// ── Cascada de P&L (barra flotante: cuánto se come cada renglón del total) ──
+// items: [{ name, valor, tipo:'total'|'resta'|'resultado' }] en orden del P&L.
+export function CascadaPyL({ items = [], fmtMoneda = (v) => v, altura = 170 }) {
+  if (!items.length) return null;
+  let acum = 0;
+  const datos = items.map(it => {
+    if (it.tipo === 'total' || it.tipo === 'resultado') {
+      const base = it.tipo === 'total' ? 0 : 0; // totales arrancan del piso
+      const fila = { name: it.name, base, span: Math.abs(it.valor), signo: it.valor >= 0, tipo: it.tipo, real: it.valor };
+      acum = it.valor;
+      return fila;
+    }
+    // resta: barra flotante desde acum hasta acum - |valor|
+    const desde = acum;
+    acum = acum - Math.abs(it.valor);
+    return { name: it.name, base: acum, span: Math.abs(it.valor), signo: false, tipo: 'resta', real: -Math.abs(it.valor) };
+  });
+  const color = (d) => d.tipo === 'total' ? 'var(--brand)' : d.tipo === 'resta' ? 'var(--red)' : (d.signo ? 'var(--green)' : 'var(--red)');
+  return (
+    <ResponsiveContainer width="100%" height={altura}>
+      <BarChart data={datos} layout="vertical" margin={{ left: 4, right: 46, top: 2, bottom: 2 }}>
+        <XAxis type="number" hide />
+        <YAxis type="category" dataKey="name" width={132} tick={{ fontSize: 11, fill: 'var(--text-dim)' }} tickLine={false} axisLine={false} />
+        <Tooltip {...TT} formatter={(v, n, p) => [fmtMoneda(p?.payload?.real ?? v), null]} />
+        <Bar dataKey="base" stackId="a" fill="transparent" />
+        <Bar dataKey="span" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={22}>
+          {datos.map((d, i) => <Cell key={i} fill={color(d)} />)}
+          <LabelList dataKey="real" position="right" formatter={fmtMoneda} style={{ fontSize: 10, fill: 'var(--text-mute)' }} />
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Comparativo período: 2 métricas × (actual vs anterior) ───────────────
+export function Comparativo({ datos = [], fmtMoneda = (v) => v, altura = 150 }) {
+  if (!datos.length) return null;
+  return (
+    <ResponsiveContainer width="100%" height={altura}>
+      <BarChart data={datos} margin={{ left: 4, right: 8, top: 8, bottom: 2 }} barCategoryGap="30%">
+        <XAxis dataKey="name" stroke="var(--text-mute)" fontSize={11} tickLine={false} axisLine={false} />
+        <YAxis hide />
+        <Tooltip {...TT} formatter={(v, n) => [fmtMoneda(v), n === 'ant' ? 'Anterior' : 'Actual']} />
+        <Bar dataKey="ant" fill="var(--panel-2)" radius={[6, 6, 0, 0]} maxBarSize={38} name="ant" />
+        <Bar dataKey="act" fill="var(--brand)" radius={[6, 6, 0, 0]} maxBarSize={38} name="act">
+          <LabelList dataKey="delta" position="top" style={{ fontSize: 10.5, fill: 'var(--text-mute)' }} />
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 // ── Área de proyección (4 puntos; tramo bajo cero en rojo + línea de cero) ─
 export function AreaProyeccion({ datos = [], fmtMoneda = (v) => v, altura = 160 }) {
   if (!datos.length) return null;

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, TextInput, Group, Button, Text, Select } from '@mantine/core';
+const BarrasH = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.BarrasH })));
 import { api } from '../../api';
 import { exportarCSV } from '../../lib/csv';
 
@@ -44,6 +45,15 @@ export default function VentasProductoTab() {
         </Group>
       </div>
       {data && <Text size="sm" fw={700} mb="sm">Total vendido: ${Number(data.total || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</Text>}
+      {filas.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <Text size="xs" c="dimmed" mb={4}>Top 10 por venta</Text>
+          <Suspense fallback={null}>
+            <BarrasH fmtMoneda={(v) => '$' + Number(v).toLocaleString('es-MX')} nameKey="producto" dataKey="total"
+              datos={filas.slice(0, 10).map(f => ({ producto: f.producto, total: f.total }))} />
+          </Suspense>
+        </div>
+      )}
       <div className="table-wrap" style={{ maxHeight: 460, overflow: 'auto' }}>
         <table>
           <thead><tr><th>Producto</th><th>SKU</th><th>Unidades</th><th>Total</th></tr></thead>

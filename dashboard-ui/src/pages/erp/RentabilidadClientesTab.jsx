@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, TextInput, Group } from '@mantine/core';
+import { Card, TextInput, Group, Text } from '@mantine/core';
 import { api } from '../../api';
 import { money } from '../../lib/format';
 import { exportarCSV } from '../../lib/csv';
+const BarrasH = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.BarrasH })));
 
 // Rentabilidad por cliente: ventas pagadas, costo, margen y adeudo de fiado.
 // Ordena por margen (el 20% que da el 80%); marca a los de deuda alta.
@@ -27,6 +28,15 @@ export default function RentabilidadClientesTab() {
             ['cliente', 'pedidos', 'ventas', 'costo', 'margen', 'margen_pct', 'adeudo_fiado'],
             clientes.map(c => [c.nombre, c.pedidos, c.ventas, c.costo, c.margen, c.margen_pct, c.adeudo_fiado]))}>CSV</button>
         </div>
+        {clientes.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <Text size="xs" c="dimmed" mb={4}>Top 10 por margen (rojo = pérdida)</Text>
+            <Suspense fallback={null}>
+              <BarrasH fmtMoneda={money} nameKey="nombre" dataKey="margen"
+                datos={clientes.slice(0, 10).map(c => ({ nombre: c.nombre || '—', margen: c.margen }))} />
+            </Suspense>
+          </div>
+        )}
         <div className="table-wrap" style={{ maxHeight: 520, overflow: 'auto' }}>
           <table>
             <thead><tr><th>Cliente</th><th>Pedidos</th><th>Ventas</th><th>Margen</th><th>%</th><th>Debe (fiado)</th></tr></thead>

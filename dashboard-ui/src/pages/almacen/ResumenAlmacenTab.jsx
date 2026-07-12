@@ -2,9 +2,11 @@
 // stock crítico/agotados y llegadas próximas, con la lista de lo que urge
 // resurtir. Reusa /api/almacen/inventario y /api/erp/ordenes-compra (el área
 // almacén ya puede leer ambas) — cero backend nuevo.
+import { lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card } from '@mantine/core';
+import { Card, Text } from '@mantine/core';
 import { api } from '../../api';
+const BarraApilada = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.BarraApilada })));
 
 function Kpi({ valor, label, alerta }) {
   return (
@@ -33,6 +35,18 @@ export default function ResumenAlmacenTab() {
         <Kpi valor={llegadas.length} label="OC con llegada programada" />
         <Kpi valor={sinUbicar} label="Con stock sin ubicación física" />
       </div>
+      {conMinimo.length > 0 && (
+        <Card withBorder radius="md" p="md" className="card" style={{ marginBottom: 20 }}>
+          <Text size="xs" c="dimmed" mb={6}>Composición del inventario vigilado (productos con mínimo definido)</Text>
+          <Suspense fallback={null}>
+            <BarraApilada fmtValor={(v) => v + ' prod'} segmentos={[
+              { name: 'Agotado', value: agotados.length, color: 'var(--red)' },
+              { name: 'Crítico', value: criticos.length, color: 'var(--yellow)' },
+              { name: 'Sano', value: conMinimo.length - agotados.length - criticos.length, color: 'var(--green)' },
+            ]} />
+          </Suspense>
+        </Card>
+      )}
       <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Urge resurtir</h3></div>

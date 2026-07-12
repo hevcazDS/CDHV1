@@ -5,6 +5,9 @@ import { api } from '../../api';
 import { money } from '../../lib/format';
 import { useTextoEmoji } from '../../context/EmojiContext';
 const BarraApilada = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.BarraApilada })));
+const CascadaPyL = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.CascadaPyL })));
+const Comparativo = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.Comparativo })));
+const BarrasH = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.BarrasH })));
 
 // Tablero de dirección (comité Harvard+LSE+Oxford): estado de resultados,
 // balance, aging de CxC, rotación de inventario, margen por categoría y
@@ -64,6 +67,19 @@ export default function TableroTab() {
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Estado de resultados</h3>
             <span className={`badge ${pyl.margen_neto_pct >= 0 ? 'badge-verde' : 'badge-rojo'}`}>Margen neto {pyl.margen_neto_pct}%</span></div>
+          {pyl.ingresos > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <Suspense fallback={null}>
+                <CascadaPyL fmtMoneda={money} items={[
+                  { name: 'Ventas', valor: pyl.ingresos, tipo: 'total' },
+                  { name: 'Costo de ventas', valor: pyl.cogs, tipo: 'resta' },
+                  { name: 'Utilidad bruta', valor: pyl.utilidad_bruta, tipo: 'resultado' },
+                  { name: 'Gastos operativos', valor: pyl.gastos, tipo: 'resta' },
+                  { name: 'Utilidad operativa', valor: pyl.utilidad_operativa, tipo: 'resultado' },
+                ]} />
+              </Suspense>
+            </div>
+          )}
           <table style={{ width: '100%' }}><tbody>
             <Fila label="Ventas" val={pyl.ingresos} />
             <Fila label="− Costo de ventas (COGS)" val={-pyl.cogs} />
@@ -73,11 +89,14 @@ export default function TableroTab() {
           </tbody></table>
           <Text size="xs" c="dimmed" mt="xs">Margen bruto {pyl.margen_bruto_pct}% · requiere el módulo Contabilidad activo</Text>
           {comparativo && (
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--border)', display: 'flex', gap: 18, fontSize: 12, flexWrap: 'wrap' }}>
-              <span style={{ color: 'var(--text-mute)' }}>vs período anterior:</span>
-              <span>Ventas <strong style={{ color: varColor(comparativo.var_ingresos_pct) }}>{varTxt(comparativo.var_ingresos_pct) || '—'}</strong></span>
-              <span>Utilidad <strong style={{ color: varColor(comparativo.var_utilidad_pct) }}>{varTxt(comparativo.var_utilidad_pct) || '—'}</strong></span>
-              <span style={{ color: 'var(--text-mute)' }}>(margen ant. {comparativo.margen_neto_pct}%)</span>
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
+              <Text size="xs" c="dimmed" mb={4}>Actual vs período anterior</Text>
+              <Suspense fallback={null}>
+                <Comparativo fmtMoneda={money} datos={[
+                  { name: 'Ventas', act: pyl.ingresos, ant: comparativo.ingresos, delta: varTxt(comparativo.var_ingresos_pct) || '' },
+                  { name: 'Utilidad', act: pyl.utilidad_operativa, ant: comparativo.utilidad_operativa, delta: varTxt(comparativo.var_utilidad_pct) || '' },
+                ]} />
+              </Suspense>
             </div>
           )}
           {pe && (
@@ -158,6 +177,14 @@ export default function TableroTab() {
 
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Margen por categoría</h3></div>
+          {categorias.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <Suspense fallback={null}>
+                <BarrasH fmtMoneda={money} nameKey="categoria" dataKey="margen"
+                  datos={categorias.slice(0, 8).map(c => ({ categoria: c.categoria, margen: c.margen }))} />
+              </Suspense>
+            </div>
+          )}
           <div className="table-wrap" style={{ maxHeight: 320, overflow: 'auto' }}>
             <table>
               <thead><tr><th>Categoría</th><th>Ventas</th><th>Margen</th><th>%</th></tr></thead>
