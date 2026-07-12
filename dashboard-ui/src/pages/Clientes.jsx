@@ -7,6 +7,7 @@ import { api } from '../api';
 import { fdate, soloTelefono, fmt } from '../lib/format';
 import { useTextoEmoji } from '../context/EmojiContext';
 import Badge from '../components/Badge';
+import { SkelRows } from '../components/Skeleton';
 
 function capitalizar(nombre) {
   return nombre ? nombre.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : '-';
@@ -113,7 +114,7 @@ export default function Clientes() {
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Nombre</th><th>Teléfono</th><th>Canal</th><th>Cód. referido</th><th>Tags</th><th>Registro</th></tr></thead>
             <tbody>
-              {rows === undefined && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
+              {rows === undefined && <SkelRows cols={6} rows={6} />}
               {rows?.length === 0 && <tr><td colSpan={6} className="empty">Sin clientes<span className="empty-accion">Se registran solos al escribirle al bot de WhatsApp</span></td></tr>}
               {rows?.map(r => (
                 <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => setSel(r)}>

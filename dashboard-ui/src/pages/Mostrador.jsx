@@ -196,7 +196,8 @@ export default function Mostrador() {
               Subtotal: ${fmt(total)} · Descuento ({cuponInfo.codigo}): <span style={{ color: 'var(--green)' }}>-${fmt(descuento)}</span>
             </div>
           )}
-          <div className="pos-total money">Total: ${fmt(totalNeto)}</div>
+          {/* key={totalNeto}: remonta el nodo → corre pos-tick en cada cambio de monto */}
+          <div key={totalNeto} className="pos-total money">Total: ${fmt(totalNeto)}</div>
         </Card>
 
         <Card withBorder radius="md" p="lg">

@@ -26,7 +26,7 @@ export default function TableroTab() {
     queryFn: () => api.get(`/api/erp/tablero?desde=${r.desde}&hasta=${r.hasta}${suc ? `&sucursal=${encodeURIComponent(suc)}` : ''}`),
   });
 
-  if (!data) return <div className="empty">Cargando tablero...</div>;
+  if (!data) return <span className="skel skel-block" style={{ height: 320 }} />;
   const { pyl, comparativo, balance, aging, inventario, categorias, ticket, punto_equilibrio: pe } = data;
   const varTxt = (v) => v == null ? null : (v >= 0 ? '▲ +' + v + '%' : '▼ ' + v + '%');
   const varColor = (v) => v == null ? 'var(--text-mute)' : v >= 0 ? 'var(--green)' : 'var(--red)';

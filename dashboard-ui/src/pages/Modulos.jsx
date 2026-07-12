@@ -42,7 +42,7 @@ function MetodosPagoCard({ txt }) {
                   onBlur={e => mut.mutate({ id: m.id, body: { configuracion: { clabe: e.target.value.replace(/\s/g, '') } } })} />
               : <p>{m.requiere_link ? 'Genera link de pago' : 'Sin pasarela (efectivo/transferencia/OXXO)'}</p>}
           </div>
-          <Switch checked={!!m.activo} onChange={e => mut.mutate({ id: m.id, body: { activo: e.target.checked } })} color="blue" />
+          <Switch checked={!!m.activo} onChange={e => mut.mutate({ id: m.id, body: { activo: e.target.checked } })} color="var(--brand)" />
         </div>
       ))}
     </div>
@@ -167,7 +167,7 @@ export default function Modulos() {
         {MODULOS.map(m => (
           <div className="toggle-row" key={m.key}>
             <div className="info"><h4>{txt(m.titulo)}</h4><p>{m.desc}</p></div>
-            <Switch checked={activoDe(m.key)} onChange={e => toggle(m.key, e.target.checked)} color="blue" />
+            <Switch checked={activoDe(m.key)} onChange={e => toggle(m.key, e.target.checked)} color="var(--brand)" />
           </div>
         ))}
       </div>

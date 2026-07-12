@@ -76,6 +76,15 @@ const GRUPOS = [
   ]},
 ];
 
+// Regleta de módulo (SPEC_MOTION_UI §D): el data-modulo en el AppShell tiñe
+// el borde superior del contenido y el link activo del sidebar con el color
+// del dominio — orientación instantánea sin tocar ninguna página.
+const MODULO_DE_GRUPO = {
+  'Panel': 'panel', 'Ventas': 'ventas', 'Envíos': 'envios',
+  'Clientes y bot': 'clientes', 'Catálogo': 'catalogo', 'Almacén': 'almacen',
+  'Compras y finanzas': 'finanzas', 'Personal': 'personal', 'Ajustes': 'ajustes',
+};
+
 const ACCORDION_STYLES = {
   item: { border: 'none', background: 'transparent' },
   control: { padding: '10px 8px', minWidth: 0 },
@@ -176,7 +185,8 @@ export default function Layout() {
   // navbar sin breakpoint a propósito (sin versión móvil, es Electron/escritorio);
   // padding en el prop de AppShell, no en .content (pisaría el offset del navbar)
   return (
-    <AppShell layout="alt" header={{ height: 56 }} navbar={{ width: colapsado ? 64 : 252 }} padding={24}>
+    <AppShell layout="alt" header={{ height: 56 }} navbar={{ width: colapsado ? 64 : 252 }} padding={24}
+      data-modulo={MODULO_DE_GRUPO[grupoActivo] || 'panel'}>
       <AppShell.Header className="topbar">
         <BuscadorGlobal />
         <div className="topbar-right">

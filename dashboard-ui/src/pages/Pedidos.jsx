@@ -11,6 +11,7 @@ import Modal from '../components/Modal';
 import { useTextoEmoji } from '../context/EmojiContext';
 import { useAuth } from '../context/AuthContext';
 import { LEYENDA_FACTURACION } from '../lib/factura';
+import { SkelRows } from '../components/Skeleton';
 
 const ESTATUS = ['pendiente', 'confirmado', 'preparando', 'enviado', 'entregado', 'cancelado'];
 
@@ -161,7 +162,7 @@ export default function Pedidos() {
               <tr><th>Folio</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Estatus</th><th>Guía</th><th>Entrega est.</th><th></th></tr>
             </thead>
             <tbody>
-              {rows === undefined && <tr><td colSpan={8} className="empty">Cargando...</td></tr>}
+              {rows === undefined && <SkelRows cols={8} rows={6} />}
               {rows !== undefined && rowsFiltrados.length === 0 && <tr><td colSpan={8} className="empty">Sin pedidos con ese filtro</td></tr>}
               {rowsFiltrados.map(r => (
                 <tr key={r.id_pedido}>
@@ -177,7 +178,7 @@ export default function Pedidos() {
                   </td>
                   <td style={{ fontSize: 11 }}>{r.numero_guia ? <code>{r.numero_guia}</code> : '-'}</td>
                   <td className="text-muted" style={{ fontSize: 11 }}>{r.fecha_entrega_est || '-'}</td>
-                  <td>
+                  <td className="row-actions">
                     <Group gap={4} wrap="nowrap">
                       {r.pago_estatus === 'generado' && r.id_link_pago && (
                         <ActionIcon variant="light" color="teal" title="Confirmar pago recibido" onClick={() => setPagoModal(r)}><Check size={16} strokeWidth={1.75} /></ActionIcon>
