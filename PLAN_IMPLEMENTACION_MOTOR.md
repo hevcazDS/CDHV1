@@ -285,8 +285,9 @@ que ya corre en producción con menos riesgo.
    (hoy no está — `modulosDefaults.js`). OFF → JC byte-idéntico.
 3. **Fail-closed:** grafo ausente/inválido o acción que lanza → `undefined` → router viejo
    (coherente con `actionHandler.js:151-157`). El bot nunca queda mudo ni cobra a medias.
-4. **Migración = 0060** (no 0027, no 0058 — `ls migrations/ | tail -1` = `0059_repartos.sql` al
-   2026-07-12), espejada en `db/schema.sql`.
+4. **Migración = la siguiente libre al construir** (regla anti-drift: NO fijar un número en el diseño).
+   Al 2026-07-12 el último aplicado es `0060_conciliacion_banco.sql`, así que el motor sería **≥0061** —
+   verifica `ls migrations/ | tail -1` antes de crearla. Espejada en `db/schema.sql`.
 5. **Prerequisito de test:** extender el mock DB de `test_bot.js` para servir `flujo_*`, o los 100
    tests dejan de proteger la conducta con el flag ON. Esto es trabajo real, no gratis.
 
