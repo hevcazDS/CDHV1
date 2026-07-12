@@ -9,6 +9,7 @@ import { fdate } from '../../lib/format';
 import { fmtMoneda, pillEstatus, Kpi, diasSemana } from './comunes';
 
 const GraficaSemana = lazy(() => import('../../components/GraficaSemana'));
+const Sparkline = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.Sparkline })));
 const MODOS_GRAFICA = [
   { value: 'barras', label: 'Barras' },
   { value: 'linea', label: 'Línea' },
@@ -24,6 +25,12 @@ export default function VistaAdmin() {
   const { data: pedidos, error } = useQuery({ queryKey: ['pedidos'], queryFn: () => api.get('/api/pedidos') });
   const { data: stats } = useQuery({ queryKey: ['stats'], queryFn: () => api.get('/api/stats') });
   const { data: met } = useQuery({ queryKey: ['metricas'], queryFn: () => api.get('/api/metricas') });
+  // Fila "requiere tu acción" (Ola 3, patrón NetSuite Role Center §B): lo
+  // pendiente ANTES que los KPIs. Solo se pintan los chips con dato > 0.
+  const { data: cxp = [] } = useQuery({ queryKey: ['erp-cxp'], queryFn: () => api.get('/api/erp/cxp').catch(() => []) });
+  const { data: solicitudes = [] } = useQuery({ queryKey: ['compras-sol'], queryFn: () => api.get('/api/compras/solicitudes').catch(() => []) });
+  const cxpVencidas = cxp.filter(c => c.estatus !== 'pagada' && c.dias_para_vencer != null && c.dias_para_vencer < 0).length;
+  const solPendientes = solicitudes.filter(s => s.estatus === 'pendiente').length;
 
   const pendientes = pedidos?.filter(p => p.estatus !== 'entregado' && p.estatus !== 'cancelado').length || 0;
   const ventasHoy = stats?.ventas_hoy || 0;
@@ -59,9 +66,27 @@ export default function VistaAdmin() {
     espera: colaAtencion, esperaLabel: 'Esperando atención',
   };
 
+  const acciones = [
+    { n: colaAtencion, txt: 'esperando atención', to: '/cola' },
+    { n: solPendientes, txt: 'solicitudes de compra por aprobar', to: '/compras?tab=solicitudes' },
+    { n: cxpVencidas, txt: 'facturas de proveedor VENCIDAS', to: '/compras?tab=cxp', rojo: true },
+    { n: pagosPendientes, txt: 'pagos por cobrar', to: '/pedidos' },
+  ].filter(a => a.n > 0);
+
   return (
     <div className="pagina-llena" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {error && <div className="login-error mb-5">No se pudieron cargar los pedidos: {error.message}</div>}
+
+      {acciones.length > 0 && (
+        <div className="accion-strip">
+          <span className="accion-titulo">Requiere tu acción</span>
+          {acciones.map(a => (
+            <Link key={a.to + a.txt} to={a.to} className={'accion-chip' + (a.rojo ? ' rojo' : '')}>
+              <strong>{a.n}</strong> {a.txt}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="kpi-head">
         <button className={`swap-kpi${kpiPct ? '' : ' activo'}`} onClick={() => setKpiPct(false)} title="Números absolutos">123</button>
@@ -70,9 +95,11 @@ export default function VistaAdmin() {
       <div className="kpi-grid6">
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq kpi-dark">
           <Kpi Icono={Wallet} color="rgba(255,255,255,0.95)" label={kpis.ventasLabel}>{kpis.ventas}</Kpi>
+          {!kpiPct && <Suspense fallback={null}><Sparkline datos={dias.map(d => ({ v: d.t }))} color="rgba(255,255,255,0.6)" /></Suspense>}
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
           <Kpi Icono={ReceiptText} color="#4aa8ff" label={kpis.pedidosLabel}>{kpis.pedidos}</Kpi>
+          {!kpiPct && <Suspense fallback={null}><Sparkline datos={dias.map(d => ({ v: d.n }))} color="var(--info)" /></Suspense>}
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
           <Kpi Icono={MessageCircle} color="var(--accent)" label={kpis.chatsLabel}>{kpis.chats}</Kpi>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, TextInput, Group, Button, Text } from '@mantine/core';
+import { Card, TextInput, Group, Button, Text, Select } from '@mantine/core';
 import { api } from '../../api';
 import { exportarCSV } from '../../lib/csv';
 
@@ -10,9 +10,16 @@ export default function VentasProductoTab() {
   const hoy = new Date().toISOString().slice(0, 10);
   const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const [r, setR] = useState({ desde: hace30, hasta: hoy });
+  const [suc, setSuc] = useState('');
+  // Multitienda: selector solo con 2+ sucursales (y si el rol puede leer el catálogo)
+  const { data: sucursales = [] } = useQuery({
+    queryKey: ['prime-sucursales'],
+    queryFn: () => api.get('/api/prime/sucursales').catch(() => []),
+  });
+  const multitienda = Array.isArray(sucursales) && sucursales.length > 1;
   const { data } = useQuery({
-    queryKey: ['ventas-prod', r],
-    queryFn: () => api.get(`/api/erp/productos-vendidos?desde=${r.desde}&hasta=${r.hasta}`),
+    queryKey: ['ventas-prod', r, suc],
+    queryFn: () => api.get(`/api/erp/productos-vendidos?desde=${r.desde}&hasta=${r.hasta}${suc ? `&sucursal=${encodeURIComponent(suc)}` : ''}`),
   });
   const filas = data?.filas || [];
 
@@ -21,6 +28,11 @@ export default function VentasProductoTab() {
       <div className="card-header">
         <h3>Ventas por producto</h3>
         <Group gap="xs" align="end">
+          {multitienda && (
+            <Select size="xs" style={{ width: 170 }} allowDeselect={false}
+              data={[{ value: '', label: 'Todas las tiendas' }, ...sucursales.map(s => ({ value: s.nombre, label: s.nombre }))]}
+              value={suc} onChange={v => setSuc(v || '')} />
+          )}
           <TextInput type="date" size="xs" value={r.desde} onChange={e => setR({ ...r, desde: e.target.value })} />
           <TextInput type="date" size="xs" value={r.hasta} onChange={e => setR({ ...r, hasta: e.target.value })} />
           <Button variant="default" size="xs" disabled={!filas.length}

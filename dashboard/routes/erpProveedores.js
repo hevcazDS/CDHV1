@@ -8,7 +8,7 @@
 const costeo = require('../../services/costeoService');
 const { permite, rangoDe } = require('../permisos');
 const conta = require('../../services/contabilidadService');
-const { sucursalFacturacionDefault: _sucursalDefault } = require('../../services/sucursalService');
+const { sucursalFacturacionDefault: _sucursalDefault, sucursalDeSesion } = require('../../services/sucursalService');
 const construirModulo = require('./_construirModulo');
 
 // ── Proveedores ──────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ function ocGet(req, res, ctx) {
     const det = db.prepare('SELECT d.*, p2.name FROM ordenes_compra_detalle d JOIN productos p2 ON p2.id=d.id_producto WHERE d.id_oc=?');
     return json(res, ocs.map(oc => ({ ...oc, items: det.all(oc.id) })));
 }
-function ocPost(req, res, ctx) {
+function ocPost(req, res, ctx, { ses }) {
     const { db, json, readBody, generarFolio } = ctx;
     return readBody(req, body => {
         try {
@@ -54,12 +54,18 @@ function ocPost(req, res, ctx) {
                     return json(res, { ok: false, error: 'Item inválido (producto/cantidad/costo)' }, 400);
                 }
             }
+            // multitienda 0050: destino explícito (validado) o la tienda de la sesión
+            let sucDestino = String(d.sucursal_destino || '').trim() || null;
+            if (sucDestino && !db.prepare('SELECT 1 FROM sucursales WHERE nombre=?').get(sucDestino)) {
+                return json(res, { ok: false, error: 'Esa sucursal destino no existe en el catálogo' }, 400);
+            }
+            if (!sucDestino) sucDestino = sucursalDeSesion(db, ses);
             const total = items.reduce((s, it) => s + parseInt(it.cantidad, 10) * Number(it.costo_unitario), 0);
             const folio = generarFolio('oc');
             const r = db.transaction(() => {
                 const _lleg = /^\d{4}-\d{2}-\d{2}$/.test(d.fecha_llegada_est || '') ? d.fecha_llegada_est : null;
-                const oc = db.prepare('INSERT INTO ordenes_compra (folio, id_proveedor, total, notas, fecha_llegada_est) VALUES (?,?,?,?,?)')
-                    .run(folio, d.id_proveedor, Math.round(total * 100) / 100, String(d.notas || '').trim() || null, _lleg);
+                const oc = db.prepare('INSERT INTO ordenes_compra (folio, id_proveedor, total, notas, fecha_llegada_est, sucursal_destino) VALUES (?,?,?,?,?,?)')
+                    .run(folio, d.id_proveedor, Math.round(total * 100) / 100, String(d.notas || '').trim() || null, _lleg, sucDestino);
                 const ins = db.prepare('INSERT INTO ordenes_compra_detalle (id_oc, id_producto, cantidad, costo_unitario) VALUES (?,?,?,?)');
                 for (const it of items) ins.run(oc.lastInsertRowid, it.id_producto, parseInt(it.cantidad, 10), Number(it.costo_unitario));
                 return oc.lastInsertRowid;
@@ -83,8 +89,8 @@ function ocReordenar(req, res, ctx, { params }) {
     const total = items.reduce((s, it) => s + it.cantidad * it.costo_unitario, 0);
     const folio = generarFolio('oc');
     const nuevaId = db.transaction(() => {
-        const r = db.prepare('INSERT INTO ordenes_compra (folio, id_proveedor, total, notas) VALUES (?,?,?,?)')
-            .run(folio, oc.id_proveedor, Math.round(total * 100) / 100, 'Recompra de ' + (oc.folio || '#' + idOrig));
+        const r = db.prepare('INSERT INTO ordenes_compra (folio, id_proveedor, total, notas, sucursal_destino) VALUES (?,?,?,?,?)')
+            .run(folio, oc.id_proveedor, Math.round(total * 100) / 100, 'Recompra de ' + (oc.folio || '#' + idOrig), oc.sucursal_destino || null);
         const ins = db.prepare('INSERT INTO ordenes_compra_detalle (id_oc, id_producto, cantidad, costo_unitario) VALUES (?,?,?,?)');
         for (const it of items) ins.run(r.lastInsertRowid, it.id_producto, it.cantidad, it.costo_unitario);
         return r.lastInsertRowid;
@@ -105,13 +111,15 @@ function ocCancelar(req, res, ctx, { params }) {
 
 // Recepción: aumenta inventario + costeo promedio + CxP + asiento compra.
 // Separación de funciones: recibe ALMACÉN (o administrador+), no compras.
-function ocRecibir(req, res, ctx, { params }) {
+function ocRecibir(req, res, ctx, { params, ses }) {
     const { db, json, log } = ctx;
     const id = parseInt(params[0]);
     const oc = db.prepare('SELECT * FROM ordenes_compra WHERE id=?').get(id);
     if (!oc) return json(res, { ok: false, error: 'OC no encontrada' }, 404);
     if (oc.estatus !== 'abierta') return json(res, { ok: false, error: 'La OC no está abierta' }, 400);
-    const sucursal = _sucursalDefault(db);
+    // multitienda 0050: la mercancía entra a la tienda DESTINO de la OC; las OC
+    // viejas (NULL) entran a la tienda de la sesión que recibe (= default si no tiene)
+    const sucursal = oc.sucursal_destino || sucursalDeSesion(db, ses);
     if (!sucursal) return json(res, { ok: false, error: 'Configura la sucursal de facturación (Prime > General) antes de recibir' }, 400);
     try {
         const items = db.prepare('SELECT * FROM ordenes_compra_detalle WHERE id_oc=?').all(id);
@@ -136,7 +144,7 @@ function ocRecibir(req, res, ctx, { params }) {
             db.prepare('INSERT INTO cuentas_pagar (id_proveedor, id_oc, monto, vence_en) VALUES (?,?,?,?)').run(oc.id_proveedor, id, oc.total, vence);
             db.prepare("UPDATE ordenes_compra SET estatus='recibida', recibida_en=datetime('now','localtime') WHERE id=?").run(id);
         })();
-        try { conta.asientoCompra(oc.folio, oc.total); } catch (e) { log.warn('Asiento de compra falló: ' + e.message); }
+        try { conta.asientoCompra(oc.folio, oc.total, { sucursal }); } catch (e) { log.warn('Asiento de compra falló: ' + e.message); }
         return json(res, { ok: true, id, estatus: 'recibida' });
     } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
 }

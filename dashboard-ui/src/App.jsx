@@ -19,11 +19,8 @@ const Devoluciones = lazy(() => import('./pages/Devoluciones'));
 const Clientes = lazy(() => import('./pages/Clientes'));
 const Guias = lazy(() => import('./pages/Guias'));
 const ColaAtencion = lazy(() => import('./pages/ColaAtencion'));
-const ListaEspera = lazy(() => import('./pages/ListaEspera'));
-const Preventas = lazy(() => import('./pages/Preventas'));
-const Ofertas = lazy(() => import('./pages/Ofertas'));
-const Cupones = lazy(() => import('./pages/Cupones'));
-const Sustitutos = lazy(() => import('./pages/Sustitutos'));
+const MarketingModulo = lazy(() => import('./pages/MarketingModulo'));
+const CatalogoModulo = lazy(() => import('./pages/CatalogoModulo'));
 const Ranking = lazy(() => import('./pages/Ranking'));
 const Modulos = lazy(() => import('./pages/Modulos'));
 const Busquedas = lazy(() => import('./pages/Busquedas'));
@@ -31,12 +28,11 @@ const ColaEnvios = lazy(() => import('./pages/ColaEnvios'));
 const Beta = lazy(() => import('./pages/Beta'));
 const Metricas = lazy(() => import('./pages/Metricas'));
 const Notificaciones = lazy(() => import('./pages/Notificaciones'));
-const Etiquetas = lazy(() => import('./pages/Etiquetas'));
 const Mostrador = lazy(() => import('./pages/Mostrador'));
 const Prime = lazy(() => import('./pages/Prime'));
 const Erp = lazy(() => import('./pages/Erp'));
 const Almacen = lazy(() => import('./pages/Almacen'));
-const Compras = lazy(() => import('./pages/Compras'));
+const ComprasModulo = lazy(() => import('./pages/ComprasModulo'));
 const Rrhh = lazy(() => import('./pages/Rrhh'));
 const Citas = lazy(() => import('./pages/Citas'));
 const Mesas = lazy(() => import('./pages/Mesas'));
@@ -81,11 +77,14 @@ export default function App() {
         {permite(user.rol, 'operacion') && <Route path="/clientes" element={<Clientes />} />}
         <Route path="/guias" element={<Guias />} />
         <Route path="/cola" element={<ColaAtencion />} />
-        <Route path="/lista-espera" element={<ListaEspera />} />
-        <Route path="/preventas" element={<Preventas />} />
-        <Route path="/ofertas" element={<Ofertas />} />
-        <Route path="/cupones" element={<Cupones />} />
-        <Route path="/sustitutos" element={<Sustitutos />} />
+        {/* Ola 2: Marketing y Catálogo son módulos; las rutas viejas redirigen */}
+        {tieneRango(user.rol, 'gerente') && <Route path="/marketing" element={<MarketingModulo />} />}
+        {tieneRango(user.rol, 'gerente') && <Route path="/catalogo" element={<CatalogoModulo />} />}
+        <Route path="/lista-espera" element={<Navigate to="/marketing?tab=lista-espera" replace />} />
+        <Route path="/preventas" element={<Navigate to="/marketing?tab=preventas" replace />} />
+        <Route path="/ofertas" element={<Navigate to="/marketing?tab=ofertas" replace />} />
+        <Route path="/cupones" element={<Navigate to="/marketing?tab=cupones" replace />} />
+        <Route path="/sustitutos" element={<Navigate to="/catalogo?tab=relacionados" replace />} />
         <Route path="/ranking" element={<Ranking />} />
         <Route path="/modulos" element={<Modulos />} />
         <Route path="/busquedas" element={<Busquedas />} />
@@ -93,11 +92,12 @@ export default function App() {
         {tieneRango(user.rol, 'prime') && <Route path="/beta" element={<Beta />} />}
         <Route path="/metricas" element={<Metricas />} />
         {permite(user.rol, 'operacion') && <Route path="/notificaciones" element={<Notificaciones />} />}
-        <Route path="/etiquetas" element={<Etiquetas />} />
+        <Route path="/etiquetas" element={<Navigate to="/catalogo?tab=etiquetas" replace />} />
         {permite(user.rol, 'pos') && <Route path="/mostrador" element={<Mostrador />} />}
         {tieneRango(user.rol, 'gerente') && <Route path="/prime" element={<Prime />} />}
-        {(permite(user.rol, 'finanzas') || permite(user.rol, 'compras')) && <Route path="/erp" element={<Erp />} />}
-        {(permite(user.rol, 'compras') || permite(user.rol, 'finanzas')) && <Route path="/compras" element={<Compras />} />}
+        {/* Ola 2: /erp es solo finanzas — el ciclo de compras vive en /compras */}
+        {permite(user.rol, 'finanzas') && <Route path="/erp" element={<Erp />} />}
+        {(permite(user.rol, 'compras') || permite(user.rol, 'finanzas')) && <Route path="/compras" element={<ComprasModulo />} />}
         {(permite(user.rol, 'almacen') || permite(user.rol, 'almacen_lectura')) && <Route path="/almacen" element={<Almacen />} />}
         {permite(user.rol, 'rrhh') && <Route path="/rrhh" element={<Rrhh />} />}
               {permite(user.rol, 'operacion') && <Route path="/citas" element={<Citas />} />}

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, TextInput, Group, Text } from '@mantine/core';
+import { Card, TextInput, Group, Text, Select } from '@mantine/core';
 import { api } from '../../api';
 import { money } from '../../lib/format';
 import { useTextoEmoji } from '../../context/EmojiContext';
+const BarraApilada = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.BarraApilada })));
 
 // Tablero de dirección (comité Harvard+LSE+Oxford): estado de resultados,
 // balance, aging de CxC, rotación de inventario, margen por categoría y
@@ -14,12 +15,19 @@ export default function TableroTab() {
   const hoy = new Date().toISOString().slice(0, 10);
   const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const [r, setR] = useState({ desde: hace30, hasta: hoy });
+  const [suc, setSuc] = useState('');
+  // Multitienda: selector de tienda solo con 2+ sucursales en el catálogo
+  const { data: sucursales = [] } = useQuery({
+    queryKey: ['prime-sucursales'],
+    queryFn: () => api.get('/api/prime/sucursales').catch(() => []),
+  });
+  const multitienda = Array.isArray(sucursales) && sucursales.length > 1;
   const { data } = useQuery({
-    queryKey: ['erp-tablero', r],
-    queryFn: () => api.get(`/api/erp/tablero?desde=${r.desde}&hasta=${r.hasta}`),
+    queryKey: ['erp-tablero', r, suc],
+    queryFn: () => api.get(`/api/erp/tablero?desde=${r.desde}&hasta=${r.hasta}${suc ? `&sucursal=${encodeURIComponent(suc)}` : ''}`),
   });
 
-  if (!data) return <div className="empty">Cargando tablero...</div>;
+  if (!data) return <span className="skel skel-block" style={{ height: 320 }} />;
   const { pyl, comparativo, balance, aging, inventario, categorias, ticket, punto_equilibrio: pe } = data;
   const varTxt = (v) => v == null ? null : (v >= 0 ? '▲ +' + v + '%' : '▼ ' + v + '%');
   const varColor = (v) => v == null ? 'var(--text-mute)' : v >= 0 ? 'var(--green)' : 'var(--red)';
@@ -32,10 +40,18 @@ export default function TableroTab() {
 
   return (
     <div>
-      <Group mb="md" gap="sm">
+      <Group mb="md" gap="sm" align="end">
         <TextInput type="date" label="Desde" value={r.desde} onChange={e => setR({ ...r, desde: e.target.value })} />
         <TextInput type="date" label="Hasta" value={r.hasta} onChange={e => setR({ ...r, hasta: e.target.value })} />
+        {multitienda && (
+          <Select label="Tienda" style={{ width: 190 }} allowDeselect={false}
+            data={[{ value: '', label: 'Todo el negocio' }, ...sucursales.map(s => ({ value: s.nombre, label: s.nombre }))]}
+            value={suc} onChange={v => setSuc(v || '')} />
+        )}
       </Group>
+      {data.nota_sucursal && (
+        <Text size="xs" c="dimmed" mb="sm">{data.nota_sucursal}</Text>
+      )}
 
       {data.conta_activa === false && (
         <Card withBorder radius="md" p="md" mb="md" style={{ borderColor: 'var(--yellow)', background: 'rgba(234,179,8,0.08)' }}>
@@ -114,6 +130,18 @@ export default function TableroTab() {
 
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Antigüedad de cuentas por cobrar</h3></div>
+          {Object.values(aging).some(v => v > 0) && (
+            <div style={{ marginBottom: 12 }}>
+              <Suspense fallback={null}>
+                <BarraApilada fmtValor={money} segmentos={[
+                  { name: '0-30 días', value: aging['0-30'] || 0, color: 'var(--green)' },
+                  { name: '31-60 días', value: aging['31-60'] || 0, color: 'var(--info)' },
+                  { name: '61-90 días', value: aging['61-90'] || 0, color: 'var(--yellow)' },
+                  { name: '90+ días', value: aging['90+'] || 0, color: 'var(--red)' },
+                ]} />
+              </Suspense>
+            </div>
+          )}
           <table style={{ width: '100%' }}><tbody>
             {Object.entries(aging).map(([k, v]) => (
               <tr key={k}><td style={{ padding: '5px 0' }}>{k} días</td>

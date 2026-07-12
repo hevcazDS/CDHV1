@@ -42,7 +42,7 @@ function MetodosPagoCard({ txt }) {
                   onBlur={e => mut.mutate({ id: m.id, body: { configuracion: { clabe: e.target.value.replace(/\s/g, '') } } })} />
               : <p>{m.requiere_link ? 'Genera link de pago' : 'Sin pasarela (efectivo/transferencia/OXXO)'}</p>}
           </div>
-          <Switch checked={!!m.activo} onChange={e => mut.mutate({ id: m.id, body: { activo: e.target.checked } })} color="blue" />
+          <Switch checked={!!m.activo} onChange={e => mut.mutate({ id: m.id, body: { activo: e.target.checked } })} color="var(--brand)" />
         </div>
       ))}
     </div>
@@ -158,28 +158,18 @@ export default function Modulos() {
       <div className="page-title">Módulos</div>
       <div className="page-sub">Funciones del bot y modo de conversación</div>
 
-      <div className="kpi-grid" style={{ gridTemplateColumns: '1.3fr 1fr', alignItems: 'start' }}>
-        <div className="card">
-          <div className="card-header"><h3>{txt('⚙️ Módulos del sistema')}</h3></div>
-          <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 14 }}>Activa o desactiva funciones sin reiniciar el bot.</p>
-          {MODULOS.map(m => (
-            <div className="toggle-row" key={m.key}>
-              <div className="info"><h4>{txt(m.titulo)}</h4><p>{m.desc}</p></div>
-              <Switch checked={activoDe(m.key)} onChange={e => toggle(m.key, e.target.checked)} color="blue" />
-            </div>
-          ))}
-        </div>
-
-        <div className="card">
-          <div className="card-header"><h3>{txt('📋 Estado de módulos')}</h3></div>
-          {estado === undefined && <div className="empty">Cargando...</div>}
-          {estado?.map(r => (
-            <div key={r.key} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
-              <code style={{ fontSize: 12 }}>{r.key}</code>
-              <span className={`badge badge-${r.activo ? 'verde' : 'rojo'}`}>{txt(r.activo ? 'Activo' : 'Inactivo')}</span>
-            </div>
-          ))}
-        </div>
+      {/* El panel "Estado de módulos" (claves crudas tipo `puntos_activo`) se
+          retiró: jerga interna redundante con los toggles — se percibía como
+          panel de debug olvidado (PROPUESTA_UI_ERP §A4). */}
+      <div className="card" style={{ maxWidth: 860 }}>
+        <div className="card-header"><h3>{txt('⚙️ Módulos del sistema')}</h3></div>
+        <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 14 }}>Activa o desactiva funciones sin reiniciar el bot.</p>
+        {MODULOS.map(m => (
+          <div className="toggle-row" key={m.key}>
+            <div className="info"><h4>{txt(m.titulo)}</h4><p>{m.desc}</p></div>
+            <Switch checked={activoDe(m.key)} onChange={e => toggle(m.key, e.target.checked)} color="var(--brand)" />
+          </div>
+        ))}
       </div>
 
       <MetodosPagoCard txt={txt} />

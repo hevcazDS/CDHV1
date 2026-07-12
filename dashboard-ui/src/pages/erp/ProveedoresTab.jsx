@@ -43,7 +43,7 @@ export default function ProveedoresTab() {
           <table>
             <thead><tr><th>Nombre</th><th>RFC</th><th>Contacto</th><th>Crédito</th></tr></thead>
             <tbody>
-              {proveedores.length === 0 && <tr><td colSpan={4} className="empty">Sin proveedores todavía</td></tr>}
+              {proveedores.length === 0 && <tr><td colSpan={4} className="empty">Sin proveedores todavía<span className="empty-accion">← Registra el primero con el formulario, o cárgalos desde una factura XML en Compras</span></td></tr>}
               {proveedores.map(pr => (
                 <tr key={pr.id}>
                   <td><strong>{pr.nombre}</strong></td>

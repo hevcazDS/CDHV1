@@ -23,8 +23,11 @@ function validarEnv() {
     }
     if (!process.env.ASESOR_WHATSAPP)
         log.warn('⚠️  ASESOR_WHATSAPP no configurado — escaladas no llegarán al asesor');
-    if (!process.env.DASHBOARD_PASS || process.env.DASHBOARD_PASS === 'cambiar_esto_urgente')
-        log.warn('⚠️  DASHBOARD_PASS usa valor por defecto inseguro');
+    // El default REAL de server.js es 'cambiar_esto' (REVISION_SEGURIDAD H1: el
+    // aviso comparaba contra otra cadena y NUNCA disparaba — un clon quedaba con
+    // gerente/cambiar_esto operativo sin alerta). Se cubren ambas por si acaso.
+    if (!process.env.DASHBOARD_PASS || ['cambiar_esto', 'cambiar_esto_urgente'].includes(process.env.DASHBOARD_PASS))
+        log.warn('⚠️  DASHBOARD_PASS usa el valor por defecto INSEGURO — cámbialo en .env antes de exponer el panel');
     return { ok: true };
 }
 
@@ -253,6 +256,7 @@ const UsuarioSchema = z.object({
     password: z.string().min(8, 'password debe tener al menos 8 caracteres').max(200),
     rol:      z.enum(['cajero', 'operador', 'almacen', 'compras', 'rh', 'contabilidad', 'auditor', 'usuario', 'gerente', 'prime']),
     nombre:   z.string().trim().min(1).max(80).optional(),
+    sucursal: z.string().trim().max(80).optional(),  // multitienda 0049: '' = sin tienda (default)
 });
 // El PUT admite los MISMOS roles que el alta (antes solo usuario/gerente/prime →
 // re-asignar a un rol especialista daba 400 aunque el panel lo ofrecía). La
@@ -262,6 +266,7 @@ const UsuarioUpdateSchema = z.object({
     password: z.string().min(8).max(200).optional(),
     rol:      z.enum(['cajero', 'operador', 'almacen', 'compras', 'rh', 'contabilidad', 'auditor', 'usuario', 'gerente', 'prime']).optional(),
     nombre:   z.string().trim().min(1).max(80).optional(),
+    sucursal: z.string().trim().max(80).optional(),  // multitienda 0049: '' = quitar tienda (default)
 });
 
 // Helper: convertir error Zod a string legible

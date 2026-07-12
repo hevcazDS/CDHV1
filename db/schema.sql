@@ -68,9 +68,12 @@ CREATE TABLE IF NOT EXISTS usuarios (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     username      TEXT NOT NULL UNIQUE,
     nombre        TEXT NOT NULL DEFAULT '',
+    email         TEXT,     -- legacy del sistema Python; los INSERT de server.js/onboarding/alta la escriben ('user@local')
     password_hash TEXT NOT NULL,
     salt          TEXT NOT NULL,
+    id_rol        INTEGER,  -- legacy (1=normal, 2=prime); los INSERT la escriben
     rol           TEXT NOT NULL CHECK(rol IN ('cajero','operador','almacen','compras','rh','contabilidad','auditor','usuario','gerente','admin','prime')),  -- migrations/0017 y 0023
+    sucursal      TEXT,     -- migrations/0049: tienda del usuario (nombre en `sucursales`); NULL = sucursal default
     creado_en     TEXT DEFAULT (datetime('now','localtime'))
 );
 
@@ -157,6 +160,22 @@ CREATE TABLE IF NOT EXISTS series_folios (
     longitud    INTEGER NOT NULL DEFAULT 6
 );
 
+-- Semilla de series (espejo de los valores reales de producción): sin estas
+-- filas una instalación fresca no truena, pero generarFolio() cae al fallback
+-- feo `PEDIDO-<timestamp>` en vez de HEV-PED-000123, y stockService no puede
+-- foliar listas de espera/preventas.
+INSERT OR IGNORE INTO series_folios (tipo, prefijo, ultimo_folio, longitud) VALUES
+    ('pedido',         'HEV-PED-', 0, 6),
+    ('ticket',         'HEV-TKT-', 0, 6),
+    ('transferencia',  'HEV-TRF-', 0, 6),
+    ('devolucion',     'HEV-DEV-', 0, 6),
+    ('factura',        'HEV-FAC-', 0, 6),
+    ('guia_estafeta',  'EST-SIM-', 0, 8),
+    ('preventa',       'PREV-',    0, 6),
+    ('lista_espera',   'ESP-',     0, 6),
+    ('ticket_qr',      'TK-',      0, 8),
+    ('regalo_lealtad', 'REGALO-',  0, 6);
+
 -- Catálogo de categorías de producto (lookup, referenciado por nombre desde
 -- productos.cat y por id desde productos.id_categoria/promociones.id_categoria).
 -- Estuvo sin ningún código que la leyera/escribiera hasta que
@@ -195,12 +214,15 @@ CREATE TABLE IF NOT EXISTS cobertura (
 -- el catálogo interno de inventario. Se mantienen separadas para no romper
 -- el flujo de pickup existente al introducir el módulo de inventario.
 CREATE TABLE IF NOT EXISTS puntos_entrega (
-    id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    estado   TEXT,
-    ciudad   TEXT,
-    telefono TEXT,
-    horario  TEXT,
-    activo   INTEGER NOT NULL DEFAULT 1
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    estado    TEXT,
+    ciudad    TEXT,
+    telefono  TEXT,
+    horario   TEXT,
+    activo    INTEGER NOT NULL DEFAULT 1,
+    nombre    TEXT,   -- migrations/0052: producción ya los tenía (orderFlow los renderiza)
+    direccion TEXT,
+    maps_url  TEXT
 );
 
 -- ──────────────────────────────────────────────────────────────────────────
@@ -504,6 +526,7 @@ CREATE TABLE IF NOT EXISTS cortes_caja (
     efectivo_contado REAL,
     diferencia       REAL,
     detalle_json     TEXT,
+    sucursal         TEXT,   -- migrations/0049: tienda donde se cerró el corte
     creado_en        TEXT DEFAULT (datetime('now','localtime'))
 );
 
@@ -928,6 +951,7 @@ CREATE TABLE IF NOT EXISTS ordenes_compra (
     total        REAL NOT NULL DEFAULT 0,
     notas        TEXT,
     fecha_llegada_est TEXT,                          -- migrations/0040 (proyección de entrada)
+    sucursal_destino TEXT,                           -- migrations/0050: a qué tienda entra al recibir (NULL = sesión/default)
     creada_en    TEXT DEFAULT (datetime('now','localtime')),
     recibida_en  TEXT
 );
@@ -979,6 +1003,7 @@ CREATE TABLE IF NOT EXISTS asientos (
     concepto        TEXT NOT NULL,
     referencia_tipo TEXT,   -- venta|costo_venta|compra|pago_cxp|manual
     referencia_id   TEXT,
+    sucursal        TEXT,   -- migrations/0051: centro de costos ligero (NULL = global/histórico)
     creado_en       TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE TABLE IF NOT EXISTS asientos_detalle (
@@ -1168,6 +1193,7 @@ CREATE TABLE IF NOT EXISTS mesas (
     numero     TEXT NOT NULL,
     estatus    TEXT NOT NULL DEFAULT 'abierta' CHECK(estatus IN ('abierta','cobrada')),
     id_pedido  INTEGER,
+    sucursal   TEXT,   -- migrations/0050: local de la mesa (NULL = local único)
     abierta_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     cerrada_en TEXT
 );

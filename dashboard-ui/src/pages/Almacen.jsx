@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Tabs } from '@mantine/core';
 import { useAuth } from '../context/AuthContext';
 import { permite, esAdminOMas, esAuditor } from '../lib/permisos';
+import ResumenAlmacenTab from './almacen/ResumenAlmacenTab';
 import InventarioTab from './almacen/InventarioTab';
 import ConteoTab from './almacen/ConteoTab';
 import MovimientosTab from './almacen/MovimientosTab';
@@ -17,6 +18,7 @@ export default function Almacen() {
   const veReportes = esAdminOMas(user?.rol); // muestran costo/margen → gerente+
   const opera = !soloLectura;
   const TABS = [
+    { key: 'resumen', label: 'Resumen', C: ResumenAlmacenTab },
     { key: 'inventario', label: 'Inventario y ubicaciones', C: InventarioTab },
     { key: 'calendario', label: 'Calendario de mercancía', C: CalendarioTab },
     ...(veReportes ? [{ key: 'reportes', label: 'Reportes (stock/margen/rotación)', C: ReportesTab }] : []),
@@ -26,7 +28,7 @@ export default function Almacen() {
     ] : []),
     ...(veKardex ? [{ key: 'kardex', label: 'Kardex (auditoría)', C: KardexTab }] : []),
   ];
-  const [tab, setTab] = useState('inventario');
+  const [tab, setTab] = useState('resumen');
   const Activo = TABS.find(t => t.key === tab)?.C;
   return (
     <div>

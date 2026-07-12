@@ -15,7 +15,22 @@ const crypto = require('crypto');
 require('dotenv').config({ quiet: true });
 
 // ── Configuracion ──────────────────────────────────────────────────
-const DB_PATH   = process.env.DB_PATH  || path.join(__dirname, 'jugueteria.db');
+// El backup debe respaldar la TIENDA ACTIVA, no siempre la del .env
+// (REVISION_ARQUITECTURA H2): si hay puntero de instancia (mismo mecanismo
+// que bot/db_connection.js), se respalda ESE .db. Sin puntero → el del env.
+function _dbPathEfectivo() {
+    const base = process.env.DB_PATH || path.join(__dirname, 'jugueteria.db');
+    try {
+        const ptr = path.join(__dirname, '..', 'dashboard', '.instancia_activa');
+        if (fs.existsSync(ptr)) {
+            const ruta = fs.readFileSync(ptr, 'utf8').trim();
+            const dirInst = path.resolve(path.join(__dirname, '..', 'instancias'));
+            if (ruta && path.resolve(ruta).startsWith(dirInst + path.sep) && fs.existsSync(ruta)) return ruta;
+        }
+    } catch (_) {}
+    return base;
+}
+const DB_PATH   = _dbPathEfectivo();
 const IMG_DIR   = path.join(__dirname, 'imagenes_clientes');
 const SMTP_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
 const SMTP_PORT = parseInt(process.env.EMAIL_PORT || '587');

@@ -63,6 +63,29 @@ function palabrasFiltroDelete(req, res, ctx, { params }) {
 }
 
 // ── Sucursales ──────────────────────────────────────────────────────────────
+
+// multitienda Ola D: espejo sucursal → punto de pickup del bot. Los dos
+// catálogos siguen separados a propósito (puntos_entrega es la lista pública,
+// sucursales el inventario interno), pero al guardar una sucursal CON código
+// postal cuya zona tiene cobertura, se crea su punto de recolección si no
+// existe uno con ese nombre — así un negocio nuevo multitienda no captura dos
+// catálogos y el bot ofrece pickup en la tienda correcta por CP. JC no cambia:
+// sus puntos ya existen por nombre. Nunca borra ni edita puntos existentes.
+function _espejoPuntoEntrega(db, log, { nombre, direccion, codigo_postal }) {
+    try {
+        const pref = String(codigo_postal || '').replace(/\D/g, '').slice(0, 2);
+        if (pref.length < 2 || !nombre) return;
+        // misma semántica de zona que _shared.buscarCobertura (prefijo 2 dígitos)
+        const cob = db.prepare('SELECT cp, estado FROM cobertura WHERE activa=1').all()
+            .find(r => r.cp && String(r.cp).startsWith(pref));
+        if (!cob) return; // sin cobertura el bot no llega a esa zona de todos modos
+        if (db.prepare('SELECT 1 FROM puntos_entrega WHERE nombre=? LIMIT 1').get(nombre)) return;
+        db.prepare('INSERT INTO puntos_entrega (estado, activo, nombre, direccion) VALUES (?,1,?,?)')
+          .run(cob.estado, nombre, direccion || null);
+        log.info('[prime] punto de pickup espejado para sucursal: ' + nombre + ' (' + cob.estado + ')');
+    } catch (e) { log.debug('Espejo punto de entrega omitido: ' + e.message); }
+}
+
 function sucursalesGet(req, res, ctx) {
     const { db, json } = ctx;
     try { return json(res, db.prepare('SELECT * FROM sucursales ORDER BY nombre').all()); }
@@ -76,6 +99,7 @@ function sucursalesPost(req, res, ctx) {
             if (!datos) return;
             const { nombre, codigo, direccion, codigo_postal } = datos;
             const r = db.prepare('INSERT INTO sucursales (nombre, codigo, direccion, codigo_postal) VALUES (?, ?, ?, ?)').run(nombre, codigo || null, direccion || null, codigo_postal || null);
+            _espejoPuntoEntrega(db, log, { nombre, direccion, codigo_postal });
             log.info('[prime] sucursal creada: ' + nombre);
             return json(res, { ok: true, id: r.lastInsertRowid });
         } catch (e) {
@@ -93,6 +117,9 @@ function sucursalesPut(req, res, ctx, { params }) {
             if (!datos) return;
             if (!db.prepare('SELECT id FROM sucursales WHERE id=?').get(id)) return json(res, { ok: false, error: 'Sucursal no encontrada' }, 404);
             if (!actualizarCampos('sucursales', id, datos)) return json(res, { ok: false, error: 'Nada que actualizar' }, 400);
+            // Si al editar se completó el CP, intentar el espejo de pickup ahora
+            const _s = db.prepare('SELECT nombre, direccion, codigo_postal FROM sucursales WHERE id=?').get(id);
+            if (_s) _espejoPuntoEntrega(db, ctx.log, _s);
             return json(res, { ok: true, id });
         } catch (e) {
             if (String(e.message).includes('UNIQUE')) return json(res, { ok: false, error: 'Ya existe una sucursal con ese código' }, 400);
@@ -347,7 +374,7 @@ function inventarioMovimientos(req, res, ctx) {
 // cuentas prime (y el DELETE + tocar admin/prime siguen prime-only aparte).
 function usuariosGet(req, res, ctx) {
     const { db, json } = ctx;
-    try { return json(res, db.prepare("SELECT id, username, nombre, rol, creado_en FROM usuarios WHERE rol != 'prime' ORDER BY id").all()); }
+    try { return json(res, db.prepare("SELECT id, username, nombre, rol, sucursal, creado_en FROM usuarios WHERE rol != 'prime' ORDER BY id").all()); }
     catch (e) { return json(res, { ok: false, error: e.message }, 500); }
 }
 

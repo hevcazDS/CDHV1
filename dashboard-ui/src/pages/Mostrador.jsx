@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Group, Title, Table, Button, TextInput, NumberInput, Select, ActionIcon, Checkbox } from '@mantine/core';
@@ -7,6 +7,8 @@ import { fmt } from '../lib/format';
 import { alertar, prompt, toastErr, toastOk } from '../lib/ui';
 import { LEYENDA_FACTURACION } from '../lib/factura';
 import { useTextoEmoji } from '../context/EmojiContext';
+// recharts SOLO se carga al abrir el corte — el flujo de cobro/escaneo no lo paga
+const Dona = lazy(() => import('../components/MiniCharts').then(m => ({ default: m.Dona })));
 
 // Punto de venta de mostrador (Bloque 2B). Cajero (usuario+) cobra ventas
 // presenciales; el corte de caja es gerente+.
@@ -14,6 +16,10 @@ export default function Mostrador() {
   const txt = useTextoEmoji();
 
   const { data: config } = useQuery({ queryKey: ['pos-config'], queryFn: () => api.get('/api/pos/config') });
+  // Multitienda: gerente+ recibe config.sucursales (2+) y puede operar la caja
+  // de otra tienda; '' = la sucursal de su sesión. El cajero nunca ve esto.
+  const [sucursalSel, setSucursalSel] = useState('');
+  const paramSucursal = sucursalSel ? `&sucursal=${encodeURIComponent(sucursalSel)}` : '';
   const [busqueda, setBusqueda] = useState('');
   const [resultados, setResultados] = useState([]);
   const [carrito, setCarrito] = useState([]);
@@ -30,13 +36,14 @@ export default function Mostrador() {
   const [cuponInfo, setCuponInfo] = useState(null);
   const reimprimir = () => { try { const t = JSON.parse(localStorage.getItem('pos-ultimo-ticket') || 'null'); if (t) setTicket(t); else alertar({ titulo: 'Sin ticket', mensaje: 'No hay ticket previo en esta caja' }); } catch (_) {} };
   const [cobrando, setCobrando] = useState(false);
+  const [mostrarCorte, setMostrarCorte] = useState(false);
 
   useEffect(() => { if (config?.metodos?.length) setMetodoPago(config.metodos[0]); }, [config]);
 
   const buscar = async (q) => {
     setBusqueda(q);
     if (q.trim().length < 1) { setResultados([]); return; }
-    try { const r = await api.get(`/api/pos/productos?q=${encodeURIComponent(q.trim())}`); setResultados(r.items || []); }
+    try { const r = await api.get(`/api/pos/productos?q=${encodeURIComponent(q.trim())}${paramSucursal}`); setResultados(r.items || []); }
     catch (e) { setMsg({ ok: false, t: e.message }); }
   };
   // Escáner de código de barras: los lectores USB teclean el código y mandan
@@ -47,7 +54,7 @@ export default function Mostrador() {
     if (!codigo) return;
     e.currentTarget.value = '';
     try {
-      const r = await api.get(`/api/pos/productos?q=${encodeURIComponent(codigo)}`);
+      const r = await api.get(`/api/pos/productos?q=${encodeURIComponent(codigo)}${paramSucursal}`);
       const exacto = (r.items || []).find(x => x.upc === codigo || x.sku === codigo) || (r.items || [])[0];
       if (!exacto) return setMsg({ ok: false, t: 'Código no encontrado: ' + codigo });
       agregar(exacto);
@@ -101,6 +108,7 @@ export default function Mostrador() {
         razon_social: razonSocial || undefined,
         rfc: rfc || undefined,
         cupon: cupon.trim() || undefined,
+        sucursal: sucursalSel || undefined,
         pin,
       });
       let r = await armarVenta();
@@ -119,9 +127,17 @@ export default function Mostrador() {
   };
 
   return (
-    <div>
+    <div className="pos-mode">
       <div className="page-title">Mostrador</div>
-      <div className="page-sub">Punto de venta — cobra ventas presenciales{config?.sucursal ? ` · sucursal: ${config.sucursal}` : ''}</div>
+      <div className="page-sub">Punto de venta — cobra ventas presenciales{config?.sucursal ? ` · sucursal: ${sucursalSel || config.sucursal}` : ''}</div>
+      {Array.isArray(config?.sucursales) && config.sucursales.length > 1 && (
+        <Group gap="xs" mb="sm">
+          <Select size="xs" style={{ maxWidth: 260 }} allowDeselect={false}
+            data={[{ value: '', label: `Mi sucursal (${config.sucursal || 'default'})` }, ...config.sucursales.map(s => ({ value: s, label: s }))]}
+            value={sucursalSel} onChange={v => { setSucursalSel(v || ''); setResultados([]); setCarrito([]); }} />
+          <span className="text-muted" style={{ fontSize: 12 }}>Operar la caja de otra tienda (vacía el carrito al cambiar)</span>
+        </Group>
+      )}
       {config && config.inventario === false && (
         <div style={{ marginBottom: 12, padding: '9px 14px', borderRadius: 8, background: 'rgba(251,189,35,0.15)', border: '1px solid var(--yellow)', color: 'var(--text)', fontSize: 13 }}>
           ⚠️ El <strong>control de inventario está desactivado</strong>: estas ventas <strong>no descuentan stock</strong>. Actívalo en Módulos si tu negocio maneja existencias.
@@ -182,7 +198,8 @@ export default function Mostrador() {
               Subtotal: ${fmt(total)} · Descuento ({cuponInfo.codigo}): <span style={{ color: 'var(--green)' }}>-${fmt(descuento)}</span>
             </div>
           )}
-          <div style={{ textAlign: 'right', fontSize: 20, fontWeight: 700, marginTop: 4 }}>Total: ${fmt(totalNeto)}</div>
+          {/* key={totalNeto}: remonta el nodo → corre pos-tick en cada cambio de monto */}
+          <div key={totalNeto} className="pos-total money">Total: ${fmt(totalNeto)}</div>
         </Card>
 
         <Card withBorder radius="md" p="lg">
@@ -191,8 +208,15 @@ export default function Mostrador() {
             value={metodoPago} onChange={v => setMetodoPago(v || 'efectivo')} mb="sm" allowDeselect={false} />
           {metodoPago === 'efectivo' && (
             <>
-              <NumberInput label="Efectivo recibido" min={0} value={efectivo} onChange={setEfectivo} mb="xs" />
-              {cambio !== null && <div style={{ fontSize: 14, marginBottom: 8 }}>Cambio: <strong>${fmt(cambio)}</strong></div>}
+              <NumberInput label="Efectivo recibido" min={0} value={efectivo} onChange={setEfectivo} mb={6} />
+              {/* Montos rápidos (patrón Square §B6): un toque en vez de teclear */}
+              <Group gap={6} mb="xs" wrap="wrap">
+                <Button size="compact-sm" variant="default" disabled={!carrito.length} onClick={() => setEfectivo(totalNeto)}>Exacto</Button>
+                {[50, 100, 200, 500].map(m => (
+                  <Button key={m} size="compact-sm" variant="default" onClick={() => setEfectivo(m)}>${m}</Button>
+                ))}
+              </Group>
+              {cambio !== null && <div className="pos-cambio">Cambio: <strong className="money">${fmt(cambio)}</strong></div>}
             </>
           )}
           <TextInput label={aCredito ? 'Teléfono del cliente (requerido para fiado)' : 'Teléfono del cliente (opcional, para puntos)'} value={clienteTel} onChange={e => setClienteTel(e.target.value)} mb="xs" />
@@ -253,7 +277,12 @@ export default function Mostrador() {
         </Card>
       </div>
 
-      <CorteCaja txt={txt} />
+      {/* El corte es un evento de FIN DE TURNO — no convive con la pantalla de
+          cobro (Ola 4 §A4): vive detrás de "Cerrar turno". */}
+      {!mostrarCorte && (
+        <Button variant="default" mt="md" onClick={() => setMostrarCorte(true)}>🧾 Cerrar turno (corte de caja)</Button>
+      )}
+      {mostrarCorte && <CorteCaja txt={txt} />}
     </div>
   );
 }
@@ -285,15 +314,25 @@ function CorteCaja({ txt }) {
         <TextInput type="date" value={fecha} onChange={e => setFecha(e.target.value)} size="xs" />
       </Group>
       {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginBottom: 10, fontSize: 13 }}>{msg.t}</div>}
-      <Table verticalSpacing="xs">
-        <thead><tr><th>Método</th><th style={{ textAlign: 'right' }}>Ventas</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
-        <tbody>
-          {(data?.por_metodo || []).length === 0 && <tr><td colSpan={3} className="empty">Sin ventas pagadas este día</td></tr>}
-          {(data?.por_metodo || []).map((r, i) => (
-            <tr key={i}><td style={{ textTransform: 'capitalize' }}>{r.metodo}</td><td style={{ textAlign: 'right' }}>{r.n}</td><td style={{ textAlign: 'right' }}>${fmt(r.total)}</td></tr>
-          ))}
-        </tbody>
-      </Table>
+      <div style={{ display: 'grid', gridTemplateColumns: (data?.por_metodo || []).length ? '160px 1fr' : '1fr', gap: 16, alignItems: 'center' }}>
+        {(data?.por_metodo || []).length > 0 && (
+          <Suspense fallback={null}>
+            <Dona
+              datos={data.por_metodo.map(r => ({ name: r.metodo, value: r.total }))}
+              centro={'$' + fmt(data.total_sistema || 0)} sub="del día"
+              fmtMoneda={(v) => '$' + fmt(v)} />
+          </Suspense>
+        )}
+        <Table verticalSpacing="xs">
+          <thead><tr><th>Método</th><th className="num">Ventas</th><th className="num">Total</th></tr></thead>
+          <tbody>
+            {(data?.por_metodo || []).length === 0 && <tr><td colSpan={3} className="empty">Sin ventas pagadas este día</td></tr>}
+            {(data?.por_metodo || []).map((r, i) => (
+              <tr key={i}><td style={{ textTransform: 'capitalize' }}>{r.metodo}</td><td className="num">{r.n}</td><td className="num">${fmt(r.total)}</td></tr>
+            ))}
+          </tbody>
+        </Table>
+      </div>
       <div style={{ textAlign: 'right', fontWeight: 700, marginTop: 6 }}>Total del día: ${fmt(data?.total_sistema || 0)}</div>
       <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 12 }}>
         <div style={{ fontSize: 13, marginBottom: 6 }}>Efectivo esperado en caja: <strong>${fmt(data?.efectivo_sistema || 0)}</strong></div>

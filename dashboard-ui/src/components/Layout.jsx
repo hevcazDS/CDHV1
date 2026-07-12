@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
+import InstanciaSwitcher from './InstanciaSwitcher';
 import ThemeSwitcher from './ThemeSwitcher';
 import NotificationBell from './NotificationBell';
 import SoporteWidget from './SoporteWidget';
@@ -25,62 +26,64 @@ import { permite, etiquetaRol, esAuditor } from '../lib/permisos';
 // menú "se sentía revuelto"). El especialista ve solo su rebanada; el dueño ve
 // la lista completa que empieza como la de un operador. Nombres de negocio, no
 // técnicos. Poda por giro reusando módulos (ej. entrega_paqueteria_activo).
+// Ola 2 (PROPUESTA_UI_ERP §C): 9 grupos por dominio de negocio. Marketing,
+// Compras y Catálogo son páginas-módulo (sus antiguas páginas viven dentro
+// como tabs; las rutas viejas redirigen en App.jsx).
 const GRUPOS = [
   { titulo: 'Panel', enlaces: [
     { to: '/', label: 'Inicio', Icono: Home },
     { to: '/tareas', label: 'Tareas', Icono: ClipboardList },
   ]},
-  { titulo: 'Mostrador', enlaces: [
+  { titulo: 'Ventas', enlaces: [
     { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo', area: 'pos' },
     { to: '/mesas', label: 'Mesas', Icono: Utensils, area: 'pos', moduloRequerido: 'mesas_activo' },
     { to: '/citas', label: 'Citas', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'citas_activo' },
-    { to: '/fiados', label: 'Fiados', Icono: Wallet, areas: ['pos', 'finanzas'], moduloRequerido: 'ventas_credito_activo' },
-  ]},
-  { titulo: 'Pedidos y atención', enlaces: [
     { to: '/pedidos', area: 'operacion', label: 'Pedidos', Icono: Package },
-    { to: '/cola', area: 'operacion', label: 'Cola de atención', Icono: MessagesSquare },
-    { to: '/notificaciones', area: 'operacion', label: 'Chat y mensajes', Icono: MessageCircle },
     { to: '/devoluciones', area: 'operacion', label: 'Devoluciones', Icono: Undo2 },
-  ]},
-  { titulo: 'Clientes', enlaces: [
-    { to: '/clientes', area: 'operacion', label: 'Clientes', Icono: Users },
-    { to: '/ranking', area: 'operacion', label: 'Ranking', Icono: Trophy },
+    { to: '/fiados', label: 'Fiados', Icono: Wallet, areas: ['pos', 'finanzas'], moduloRequerido: 'ventas_credito_activo' },
   ]},
   { titulo: 'Envíos', enlaces: [
     { to: '/guias', label: 'Guías Estafeta', Icono: Truck, rolRequerido: 'gerente', moduloRequerido: 'entrega_paqueteria_activo' },
     { to: '/cola-envios', label: 'Cola de envíos', Icono: Send, rolRequerido: 'gerente', moduloRequerido: 'entrega_paqueteria_activo' },
-    { to: '/lista-espera', label: 'Lista de Espera', Icono: BellRing, rolRequerido: 'gerente', moduloRequerido: 'entrega_paqueteria_activo' },
-    { to: '/preventas', label: 'Preventas', Icono: CalendarDays, rolRequerido: 'gerente', moduloRequerido: 'entrega_paqueteria_activo' },
   ]},
-  { titulo: 'Promociones', enlaces: [
-    { to: '/ofertas', label: 'Ofertas', Icono: Tag, rolRequerido: 'gerente' },
-    { to: '/cupones', label: 'Cupones', Icono: Ticket, rolRequerido: 'gerente' },
+  { titulo: 'Clientes y bot', enlaces: [
+    { to: '/cola', area: 'operacion', label: 'Cola de atención', Icono: MessagesSquare },
+    { to: '/notificaciones', area: 'operacion', label: 'Chat y mensajes', Icono: MessageCircle },
+    { to: '/clientes', area: 'operacion', label: 'Clientes', Icono: Users },
+    { to: '/ranking', area: 'operacion', label: 'Ranking', Icono: Trophy },
+    { to: '/marketing', label: 'Marketing', Icono: Tag, rolRequerido: 'gerente' },
   ]},
-  { titulo: 'Catálogo e inventario', enlaces: [
+  { titulo: 'Catálogo', enlaces: [
+    { to: '/catalogo', label: 'Productos', Icono: Tags, rolRequerido: 'gerente' },
+  ]},
+  { titulo: 'Almacén', enlaces: [
     { to: '/almacen', label: 'Almacén', Icono: Warehouse, areas: ['almacen', 'almacen_lectura'] },
-    { to: '/sustitutos', label: 'Productos relacionados', Icono: RefreshCw, rolRequerido: 'gerente' },
-    { to: '/etiquetas', label: 'Etiquetas', Icono: Tags, rolRequerido: 'gerente' },
-  ]},
-  { titulo: 'Reportes', enlaces: [
-    { to: '/metricas', label: 'Métricas', Icono: BarChart3, rolRequerido: 'gerente' },
-    { to: '/busquedas', label: 'Búsquedas', Icono: Search, rolRequerido: 'gerente' },
   ]},
   { titulo: 'Compras y finanzas', enlaces: [
-    // Se muestra a quien la RUTA ya deja entrar (finanzas O compras); Almacén
-    // incluye almacen_lectura (compras lo tiene por diseño).
-    { to: '/erp', label: 'Finanzas', Icono: Landmark, areas: ['finanzas', 'compras'] },
     { to: '/compras', label: 'Compras', Icono: ShoppingCart, areas: ['compras', 'finanzas'] },
+    { to: '/erp', label: 'Finanzas', Icono: Landmark, area: 'finanzas' },
+    { to: '/metricas', label: 'Métricas', Icono: BarChart3, rolRequerido: 'gerente' },
+    { to: '/busquedas', label: 'Búsquedas', Icono: Search, rolRequerido: 'gerente' },
   ]},
   { titulo: 'Personal', enlaces: [
     { to: '/rrhh', label: 'Recursos Humanos', Icono: IdCard, area: 'rrhh', moduloRequerido: 'rrhh_activo' },
   ]},
-  { titulo: 'Configuración', enlaces: [
+  { titulo: 'Ajustes', enlaces: [
     { to: '/prime?tab=usuarios', label: 'Usuarios', Icono: UserCog, rolRequerido: 'gerente' },
     { to: '/modulos', label: 'Módulos', Icono: Settings, rolRequerido: 'gerente' },
     { to: '/prime', label: 'Configuración', Icono: Star, rolRequerido: 'gerente' },
     { to: '/beta', label: 'Beta / Pruebas', Icono: FlaskConical, rolRequerido: 'prime' },
   ]},
 ];
+
+// Regleta de módulo (SPEC_MOTION_UI §D): el data-modulo en el AppShell tiñe
+// el borde superior del contenido y el link activo del sidebar con el color
+// del dominio — orientación instantánea sin tocar ninguna página.
+const MODULO_DE_GRUPO = {
+  'Panel': 'panel', 'Ventas': 'ventas', 'Envíos': 'envios',
+  'Clientes y bot': 'clientes', 'Catálogo': 'catalogo', 'Almacén': 'almacen',
+  'Compras y finanzas': 'finanzas', 'Personal': 'personal', 'Ajustes': 'ajustes',
+};
 
 const ACCORDION_STYLES = {
   item: { border: 'none', background: 'transparent' },
@@ -97,35 +100,22 @@ const ACCORDION_STYLES = {
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const { data: posActivo } = useQuery({
-    queryKey: ['modulo', 'pos_activo'],
-    queryFn: () => api.get('/api/modulo/pos_activo').then(r => !!r.activo).catch(() => false),
+  // Módulos que gobiernan links del sidebar: UNA sola query batch (antes eran 6
+  // requests sueltos a /api/modulo/:clave y los grupos iban APARECIENDO conforme
+  // respondían → el sidebar "brincaba" al cargar). El último snapshot vive en
+  // localStorage como initialData: en recargas el menú sale completo al instante
+  // y solo se corrige si algo cambió de verdad.
+  const CLAVES_SIDEBAR = 'pos_activo,rrhh_activo,mesas_activo,citas_activo,ventas_credito_activo,entrega_paqueteria_activo';
+  const { data: modulosActivos = {} } = useQuery({
+    queryKey: ['modulos-sidebar'],
+    queryFn: () => api.get('/api/modulos?claves=' + CLAVES_SIDEBAR).then(m => {
+      try { localStorage.setItem('modulos-sidebar', JSON.stringify(m)); } catch (_) {}
+      return m;
+    }).catch(() => ({ entrega_paqueteria_activo: true })),
+    initialData: () => {
+      try { return JSON.parse(localStorage.getItem('modulos-sidebar') || '') || undefined; } catch (_) { return undefined; }
+    },
   });
-  const { data: rrhhActivo } = useQuery({
-    queryKey: ['modulo', 'rrhh_activo'],
-    queryFn: () => api.get('/api/modulo/rrhh_activo').then(r => !!r.activo).catch(() => false),
-  });
-  const { data: mesasActivo } = useQuery({
-    queryKey: ['modulo', 'mesas_activo'],
-    queryFn: () => api.get('/api/modulo/mesas_activo').then(r => !!r.activo).catch(() => false),
-  });
-  const { data: citasActivo } = useQuery({
-    queryKey: ['modulo', 'citas_activo'],
-    queryFn: () => api.get('/api/modulo/citas_activo').then(r => !!r.activo).catch(() => false),
-  });
-  // ventas_credito_activo faltaba en el mapa → Fiados quedaba oculto SIEMPRE
-  // (incluso para prime), porque modulosActivos[clave] daba undefined.
-  const { data: creditoActivo } = useQuery({
-    queryKey: ['modulo', 'ventas_credito_activo'],
-    queryFn: () => api.get('/api/modulo/ventas_credito_activo').then(r => !!r.activo).catch(() => false),
-  });
-  // Poda por giro: el grupo "Envíos" (paquetería) desaparece si el negocio no
-  // entrega por paquetería (barbería/servicios). default ON → JC igual.
-  const { data: paqueteriaActivo } = useQuery({
-    queryKey: ['modulo', 'entrega_paqueteria_activo'],
-    queryFn: () => api.get('/api/modulo/entrega_paqueteria_activo').then(r => !!r.activo).catch(() => true),
-  });
-  const modulosActivos = { pos_activo: posActivo, rrhh_activo: rrhhActivo, mesas_activo: mesasActivo, citas_activo: citasActivo, ventas_credito_activo: creditoActivo, entrega_paqueteria_activo: paqueteriaActivo };
   // rolRequerido es rango mínimo, no match exacto
   const grupos = GRUPOS
     .map(g => ({ ...g, enlaces: g.enlaces.filter(e => {
@@ -143,9 +133,19 @@ export default function Layout() {
     }) }))
     .filter(g => g.enlaces.length > 0);
 
-  const [nombreNegocio, setNombreNegocio] = useState('Julio Cepeda');
+  // Marca del negocio: arranca del último nombre visto (localStorage), NUNCA de
+  // un nombre hardcodeado — un clon white-label flasheaba "Julio Cepeda" en cada
+  // carga. Con '' el hueco de la marca simplemente queda vacío ese primer render.
+  const [nombreNegocio, setNombreNegocio] = useState(() => {
+    try { return localStorage.getItem('nombre-negocio') || ''; } catch (_) { return ''; }
+  });
   useEffect(() => {
-    api.get('/api/negocio').then(d => d?.nombre_negocio && setNombreNegocio(d.nombre_negocio)).catch(() => {});
+    api.get('/api/negocio').then(d => {
+      if (d?.nombre_negocio) {
+        setNombreNegocio(d.nombre_negocio);
+        try { localStorage.setItem('nombre-negocio', d.nombre_negocio); } catch (_) {}
+      }
+    }).catch(() => {});
   }, []);
 
   const iniciales = (user?.username || '?').slice(0, 2).toUpperCase();
@@ -185,10 +185,13 @@ export default function Layout() {
   // navbar sin breakpoint a propósito (sin versión móvil, es Electron/escritorio);
   // padding en el prop de AppShell, no en .content (pisaría el offset del navbar)
   return (
-    <AppShell layout="alt" header={{ height: 56 }} navbar={{ width: colapsado ? 64 : 252 }} padding={24}>
+    <AppShell layout="alt" header={{ height: 56 }} navbar={{ width: colapsado ? 64 : 252 }} padding={24}
+      data-modulo={MODULO_DE_GRUPO[grupoActivo] || 'panel'}>
       <AppShell.Header className="topbar">
         <BuscadorGlobal />
         <div className="topbar-right">
+          {/* Selector de tienda (una BD por tienda) — solo Prime y solo con 2+ instancias */}
+          <InstanciaSwitcher />
           <ThemeSwitcher />
           <NotificationBell />
           {/* El bot es un módulo (no la base): solo operación/gerente lo ven y controlan */}

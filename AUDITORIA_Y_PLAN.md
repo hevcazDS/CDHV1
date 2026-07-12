@@ -31,6 +31,153 @@ Lo de abajo (plan histórico) queda como referencia — NO seguirlo directo.
 - [x] 2026-07-09 — Guiones de venta: aplicados V1 (urgencia honesta en carrito 2h), V2 (fuera promesas medibles), V3 (ETA concreto al escalar), V4 (sin ofertas -> sugiere el más vendido), V5 (empatía en devolución), V9 (cupón "no acumulable"), V10 (dormidos con gancho), V12 (alerta interna sobria). V6 ya vigilado (gratis solo envío); V7/V8/V11 descartados: bajo valor vs riesgo de romper copy probado
 - [x] 2026-07-09 — Datos demo POR MÓDULO (Odoo): demoMetricas aplicar|revertir [citas|rrhh|gastos] — citas próximas 5 días, 2 empleados+14d horarios, 3 gastos (que se ANULAN con asiento inverso, respetando la inmutabilidad de libros). Probado ida y vuelta
 
+## 🏬 AUDITORÍA MULTITIENDA (2026-07-11) — veredicto: multi-sucursal en INVENTARIO, mono-sucursal en OPERACIÓN
+
+Auditado contra el CÓDIGO (no contra datos: la BD demo trae existencias de
+almacenes de ejemplo — irrelevante), módulo por módulo usando el índice canónico
+(`node scripts/rutas/inventario.js` — 239 rutas / 20 módulos). **No existe ningún
+flag `multitienda_activo` ni equivalente** en `modulosDefaults.js` ni en
+`configuracion`: la multitienda NO es hoy un módulo configurable, es un hueco.
+
+El catálogo `sucursales`, el stock
+(`inventarios`/`inventario_variantes` por sucursal), el kardex inmutable, traslados
+con PIN, conteo físico, ubicaciones y el split del bot por stock de sucursal YA son
+multitienda. Pero **toda venta/compra/corte cae siempre en
+`configuracion.sucursal_facturacion_default`** (`services/sucursalService.js`) — el
+sistema hoy es "una tienda que vende + N bodegas", no un ERP multitienda.
+
+### ✅ Ya cumple (no reabrir)
+- Catálogo `sucursales` (+CP, editable en Prime) e inventario por sucursal con `stock_minimo`
+- Kardex universal inmutable POR sucursal + traslados entre bodegas con PIN + conteo UPC + ubicaciones
+- Variantes talla×color con stock POR sucursal; `pedido_detalle.sucursal_origen` por línea
+- Bot: split pickup/envío por stock de cada sucursal (`partirCarrito`)
+- **Canal WhatsApp es multitienda end-to-end**: al pagar, el kardex descuenta de `pedido_detalle.sucursal_origen` (comunicacionPedidos.js:262) y la devolución repone a esa misma sucursal (:384) — el hueco es la capa PRESENCIAL/administrativa, no el bot
+
+### 🔴 Brechas críticas (sin esto no es multitienda)
+1. **Usuario sin sucursal**: `usuarios` no tiene columna sucursal — un cajero de la tienda B vende y descuenta stock de la tienda A (la default). Falta: `usuarios.sucursal` + que la sesión la fije. `POST /api/pos/venta` YA acepta `d.sucursal` (pos.js:91) pero `Mostrador.jsx` nunca la manda y `GET /api/pos/config|productos` ignoran cualquier sucursal (siempre default).
+2. **Corte de caja mezcla tiendas**: `cortes_caja` no tiene sucursal; `corteGet` suma TODAS las ventas del día sin importar dónde se cobraron. Corte por usuario ya existe; falta la dimensión tienda.
+3. **Compras entran siempre a la default**: recepción de OC (`erpProveedores.js:114`), carga CFDI (`compras.js:104`) y entrada-mercancía — `ordenes_compra` no tiene `sucursal_destino`. Para surtir la tienda B hay que recibir en A y trasladar a mano.
+4. **Reportes sin dimensión sucursal**: tablero de dirección, ventas por producto, corte, `/api/stats` de Inicio — cero filtros por tienda. No se puede responder "¿cuánto vendió la sucursal X?" (solo aproximar por `pedido_detalle.sucursal_origen`).
+5. **Contabilidad sin centro de costos**: `asientos` no registra sucursal → P&L/margen por tienda imposible. Mínimo viable: columna `sucursal` en asientos poblada desde el chokepoint de pago.
+6. **Mesas cableadas a la default** (`mesas.js:119`): un restaurante de 2 locales no puede.
+
+### 🟡 Brechas medias
+7. `empleados` sin sucursal → nómina/comisiones no se pueden ver por tienda
+8. Gastos del contador sin sucursal → el P&L por tienda quedaría incompleto aun con el punto 5
+9. Traslados son instantáneos (salida+entrada en un paso) — sin estado "en tránsito"/recepción en destino; suficiente hoy, insuficiente con distancias reales
+10. Dos catálogos paralelos de "dónde recoger": `puntos_recoleccion` (bot pickup) vs `sucursales` — unificar o ligar por id
+11. **[bug ya conocido]** la búsqueda del bot filtra por `productos.stock_*` (columnas muertas), no por `inventarios` — en multitienda real el bot ofrecería/negaría productos con datos falsos
+12. Precio único por producto — listas de precios por sucursal solo si un cliente lo pide (muchas cadenas MX operan precio único; NO construir por especulación)
+
+### PLAN APROBADO 2026-07-11 (dueño) — olas multitienda
+Principios: SIN flag nuevo (multitienda se activa sola con 2+ sucursales en Prime;
+con 1 sucursal todo colapsa al comportamiento actual → JC byte-idéntico);
+formal/informal ya resuelto por toggles (inventario/contabilidad/facturación OFF)
+y cada paso debe no-opear igual con ellos apagados; el bot ya es multitienda por
+dentro (sucursal_origen), solo falta hacérselo visible al cliente.
+
+- [x] 2026-07-11 **Ola R — replicable de cero (Win/Linux/Mac)**: `crear-nueva` sella las
+      migraciones como baseline (migrate.js re-corría la historia y tronaba en 0023);
+      `schema.sql` siembra `series_folios` y reconcilia `usuarios` (email/id_rol legacy).
+      Probado: crear → migrate "nada pendiente" → dashboard arranca y sirve onboarding.
+- [x] 2026-07-11 **Ola A — la sesión conoce su tienda**: migración 0049, `sucursalDeSesion()`,
+      POS por sucursal de sesión (cajero fijo, gerente+ con selector en Mostrador), corte
+      persiste la tienda, campo Sucursal en UsuariosTab. Contract test 8 casos.
+- [x] 2026-07-11 **Ola B — compras y mesas**: migración 0050; OC con sucursal_destino
+      (recepción/reorden la respetan), CFDI a la tienda de la sesión, mesas por local
+      (mesero ve su local, gerente todo, cobrar inventaría en el local de la mesa).
+- [x] 2026-07-11 **Ola C — reportes/contabilidad**: migración 0051 (`asientos.sucursal`,
+      derivada de sucursal_origen en ventas, destino de OC en compras, opcional en
+      gastos/pólizas); `?sucursal=` en tablero/ventas-producto/libro-mayor con selector UI;
+      balance/aging siguen globales con nota honesta.
+- [ ] **Ola D — bot de cara al cliente**: ligar `puntos_recoleccion`↔`sucursales` (pickup
+      por CP del cliente) + fix búsqueda del bot a `SUM(inventarios.stock)` (columnas muertas).
+      ⚠️ OJO: el fix de búsqueda CAMBIA lo que el bot de JC muestra hoy (filtra con datos
+      muertos) — rompe deliberadamente el byte-idéntico; requiere OK del dueño antes.
+- [ ] **Ola E — por demanda real**: `empleados.sucursal`, traslados en tránsito, listas de precios
+
+Transversal por ola: migración versionada + espejo schema.sql, contract test,
+`node scripts/rutas/inventario.js --check` + `npm run test:bot` en verde, y prueba
+de oro: con 1 sucursal → byte-idéntico.
+
+## 🧪 AUDITORÍA GIROS × ROLES × UI (2026-07-11) — 3 loops, verificado con navegador real
+
+Loop 3 corrido con Puppeteer + Chrome contra el dashboard vivo (screenshots de
+login/Inicio/Pedidos/Mostrador/ERP/Almacén/Módulos/Prime/Tareas/Clientes + captura
+temprana vs estable + errores de consola + métricas de layout).
+
+### Loop 1 — ¿cada giro tiene lo correcto y completo? → CASI: falta el preset de módulos
+- ✅ Vocabulario/frases/menú adaptativo por giro correctos (`_giros.js`): servicios
+  ofrecen "cita" (si el módulo está ON), retail omite el wizard de regalo, restaurante/JC intactos.
+- 🔴 **El onboarding NO activa los módulos del giro** (`negocioOnboarding.js` no toca
+  ningún `*_activo`): una barbería recién configurada queda SIN Citas, un restaurante
+  SIN Mesas, cualquier tienda física SIN POS — todos en `DEFAULT_OFF` hasta que el dueño
+  descubra Módulos. La opción "cita" del menú del bot ni aparece (menuItemsActivos la poda).
+  **Fix propuesto**: mapa giro→módulos sugeridos aplicado UNA vez al terminar el onboarding
+  (solo instancias nuevas ⇒ JC intacto): servicios/barbería/tatuajes/estética/uñas/
+  mantenimiento/isp → citas_activo; restaurante → mesas_activo+pos_activo; retail/abarrotes/
+  carnicería/ferretería/juguetería → pos_activo.
+
+### Loop 2 — ¿cada rol tiene su dashboard con SUS herramientas? → SÍ, con 2 asperezas
+- ✅ Sidebar filtra por área/rango/módulo (Layout), especialistas solo ven lo suyo,
+  auditor todo menos Prime/Módulos, candado GET global. Coherente con el índice canónico.
+- 🟡 **Finanzas muestra los 12 tabs a todos** (`Erp.jsx` no filtra por área): un rol
+  `compras` ve "Tablero de dirección"/"Contabilidad" y recibe 403/"Sin permiso" al
+  abrirlos. Fix: etiquetar cada tab con su área y podar como hace el sidebar.
+- 🟡 Rol creado sin su módulo (cajero sin pos_activo, rh sin rrhh_activo) aterriza en
+  un dashboard casi vacío — se resuelve solo con el preset del Loop 1.
+
+### Loop 3 — ¿se rompe el diseño al cargar? → NO se rompe; hay LAYOUT SHIFT de ~1-2s
+- ✅ Sin overflow horizontal, escala correcta (html 16px — el fix f6a218a), todas las
+  páginas renderizan bien, 0 errores de consola reales (solo 401 pre-login y un 403
+  esperado de gerente en endpoint prime).
+- 🟡 **El sidebar "brinca" al cargar**: `Layout.jsx` dispara 6 useQuery separados
+  (`/api/modulo/:clave`) y los links con `moduloRequerido` aparecen conforme responden
+  (el grupo Envíos entra tarde, los grupos se recorren). Existe `GET /api/modulos`
+  (batch, v1.02) y Layout NO lo usa. Fix: 1 query batch + `initialData` desde un
+  snapshot en localStorage ⇒ cero brinco en recargas.
+- 🔴 **Marca hardcodeada**: `Layout.jsx:146` arranca con `useState('Julio Cepeda')` y
+  luego cambia a lo que diga `/api/negocio` — en JC solo salta de 1 a 2 líneas, pero
+  en CUALQUIER clon white-label el dashboard FLASHEA "Julio Cepeda" en cada carga.
+  Fix: default desde localStorage (último nombre visto) con fallback '' — nunca el
+  nombre de otro negocio.
+- 🟡 Menor: 2 pedidos DEMO muestran el select de ESTATUS en blanco (su valor no está
+  en las opciones del dropdown de Pedidos.jsx).
+
+## 🎬 PLAN "PULIDO PRO" (aprobado por el dueño 2026-07-12) — motion + gráficas + arquitectura + seguridad
+
+Contexto: las 4 olas de PROPUESTA_UI_ERP están hechas; el dueño quiere subir otro
+nivel: quitar la vista de "app genérica" (motion/hovers/micro-interacciones,
+aunque implique rehacer CSS y actualizar dependencias), graficar la información
+que hoy se tira como texto, y revisión de arquitectura + seguridad del código.
+
+### Fase 0 — 4 agentes en paralelo (cada uno entrega un .md accionable)
+- [ ] **Experto UI/motion** → `SPEC_MOTION_UI.md`: crítica visual con capturas frescas +
+      sistema de movimiento (hovers con elevación, transiciones de página/drawer, focus
+      rings, feedback táctil POS, skeleton loaders en vez de "Cargando...", regleta de
+      módulo por dominio). Postura inicial: CSS puro + prefers-reduced-motion; framer-motion
+      solo si el experto lo justifica (lazy). `npm outdated` + subir deps seguras.
+- [ ] **Experto ERP datos→gráficas** → `SPEC_GRAFICAS_ERP.md`: página por página qué
+      texto/tabla debe ser visual (corte por método, aging CxC, flujo de caja, sparklines
+      en KPIs/Resúmenes, P&L). recharts YA existe (lazy en Métricas) — sin dep nueva.
+- [ ] **Arquitecto** → `REVISION_ARQUITECTURA.md`: 2 procesos + SQLite WAL, instancias/
+      puntero, migraciones baseline, registro de rutas, bridge del bot, qué truena a
+      10-50 clientes. Priorizado con fix.
+- [ ] **Seguridad** → `REVISION_SEGURIDAD.md`: CSP unsafe-inline, cookie sin Secure,
+      rate limits, PIN/RBAC/sesiones, parser CFDI, instancias, PII en logs/cola_emails,
+      credenciales semilla. Con archivo:línea y fix.
+
+### Fases 1-4 — ejecución con lo entregado
+- [x] Fase 0: 4 specs entregadas (SPEC_MOTION_UI, SPEC_GRAFICAS_ERP, REVISION_ARQUITECTURA, REVISION_SEGURIDAD)
+- [x] Fase 1 (commit 82fb88b): motion CSS completo + skeletons + regleta por dominio + switch a --brand; 0 KB (sin framer-motion, deps minors seguros)
+- [x] Fase 3 (commit 02d8c09) PRIORIZADA sobre Fase 2: 6 fixes reales — marcar-pagado atómico, backup respeta instancia, bot anti split-brain, aviso password default reparado, XSS Fiados escapado, lockout de PIN (probado 4/4)
+- [x] Fase 2 lote 0+1 (commit 19c32df): MiniCharts.jsx lazy + sparklines Inicio + dona corte + aging CxC + área proyección caja
+- [ ] Fase 2 lotes 2-3 PENDIENTES: cascada P&L, comparativo, margen categoría, bullet equilibrio, barras divergentes, top productos/clientes, composición inventario, IVA
+- [ ] Fase 4: code-review del diff EN CURSO; batería verde (bot 117, multitienda 18, erp 30, índice 241/21, instalación fresca OK)
+
+Restricciones: sin Google Fonts (CSP), white-label (identidad del producto), JC no
+pierde nada, commits por fase.
+
 ## 🆕 v1.01 — Cola del comité de 16 auditorías (2026-07-09)
 
 Hallazgos verificados contra el código (falsos positivos ya descartados:
@@ -117,6 +264,9 @@ Registradas para no re-discutirlas cada auditoría:
 
 ## 🔁 Recurrentes antes de cada deploy
 
+- [ ] **`node scripts/migrate.js` ANTES de reiniciar los procesos** — el código nuevo
+      asume las columnas de sus migraciones (p.ej. 0049-0052 multitienda: INSERT de
+      corte/mesas y libroMayor truenan sobre una BD sin migrar)
 - [ ] `node scripts/demoMetricas.js revertir` (si se sembró demo)
 - [ ] Borrar usuarios de prueba (caja1, auditor1, alm1)
 - [ ] `TRUST_PROXY=1` + SOPORTE_HEVCAZ_* en el .env del servidor

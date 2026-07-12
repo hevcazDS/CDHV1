@@ -24,6 +24,13 @@ function planCuentas(req, res, ctx) {
     return ctx.json(res, ctx.db.prepare('SELECT * FROM plan_cuentas ORDER BY codigo').all());
 }
 
+// multitienda 0051: ?sucursal= validada contra el catálogo ('' = todo el negocio)
+function _sucursalParam(req, db) {
+    const s = ((new URL(req.url, 'http://x')).searchParams.get('sucursal') || '').trim();
+    if (!s) return '';
+    try { return db.prepare('SELECT 1 FROM sucursales WHERE nombre=?').get(s) ? s : ''; } catch (_) { return ''; }
+}
+
 function asientosGet(req, res, ctx) {
     const { db, json } = ctx;
     const { desde, hasta } = _rango(req);
@@ -34,7 +41,8 @@ function asientosGet(req, res, ctx) {
 
 function libroMayor(req, res, ctx) {
     const { desde, hasta } = _rango(req);
-    return ctx.json(res, { desde, hasta, cuentas: conta.libroMayor(desde, hasta) });
+    const suc = _sucursalParam(req, ctx.db);
+    return ctx.json(res, { desde, hasta, sucursal: suc || null, cuentas: conta.libroMayor(desde, hasta, suc || null) });
 }
 
 // GET /api/erp/rastro — cadena completa desde un folio
@@ -60,6 +68,7 @@ function rastro(req, res, ctx) {
 function productosVendidos(req, res, ctx) {
     const { db, json } = ctx;
     const { desde, hasta } = _rango(req);
+    const suc = _sucursalParam(req, db);   // multitienda 0051: qué vendió CADA tienda
     const filas = db.prepare(`
         SELECT COALESCE(pr.name, d.id_producto) producto, pr.sku,
                ROUND(SUM(d.cantidad),3) unidades, ROUND(SUM(d.precio_unitario * d.cantidad),2) total
@@ -67,10 +76,10 @@ function productosVendidos(req, res, ctx) {
         JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
         JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
         LEFT JOIN productos pr ON pr.id = d.id_producto
-        WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?
-        GROUP BY d.id_producto ORDER BY total DESC LIMIT 500`).all(desde, hasta);
+        WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ? AND (? = '' OR d.sucursal_origen = ?)
+        GROUP BY d.id_producto ORDER BY total DESC LIMIT 500`).all(desde, hasta, suc, suc);
     const totalGeneral = filas.reduce((s, f) => s + (f.total || 0), 0);
-    return json(res, { desde, hasta, filas, total: Math.round(totalGeneral * 100) / 100 });
+    return json(res, { desde, hasta, sucursal: suc || null, filas, total: Math.round(totalGeneral * 100) / 100 });
 }
 
 function facturacionPendiente(req, res, ctx) {
@@ -89,7 +98,11 @@ function facturacionPendiente(req, res, ctx) {
 function tablero(req, res, ctx) {
     const { db, json } = ctx;
     const { desde, hasta } = _rango(req);
-    const may = conta.libroMayor(desde, hasta);
+    // multitienda 0051: con ?sucursal= el P&L/punto de equilibrio/categorías/
+    // ticket se acotan a esa tienda; balance y aging siguen siendo del negocio
+    // completo (no hay balance por tienda sin contabilidad segmentada plena).
+    const suc = _sucursalParam(req, db);
+    const may = conta.libroMayor(desde, hasta, suc || null);
     const cta = (c) => may.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
     const ingresos = r2(cta('401').haber - cta('401').debe);
     const cogs = r2(cta('501').debe - cta('501').haber);
@@ -135,7 +148,7 @@ function tablero(req, res, ctx) {
     } catch (_) {}
     let inventario = {};
     try {
-        const valorInv = db.prepare('SELECT COALESCE(SUM(i.stock * COALESCE(pr.costo,0)),0) v FROM inventarios i JOIN productos pr ON pr.id = i.id_producto').get().v;
+        const valorInv = db.prepare("SELECT COALESCE(SUM(i.stock * COALESCE(pr.costo,0)),0) v FROM inventarios i JOIN productos pr ON pr.id = i.id_producto WHERE (? = '' OR i.sucursal = ?)").get(suc, suc).v;
         const diasPeriodo = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
         const cogsDiario = cogs / diasPeriodo;
         inventario = {
@@ -153,8 +166,8 @@ function tablero(req, res, ctx) {
             JOIN pedidos p2 ON p2.id_pedido = d.id_pedido
             JOIN productos pr ON pr.id = d.id_producto
             JOIN links_pago lp ON lp.id_pedido = p2.id_pedido AND lp.estatus='pagado'
-            WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ?
-            GROUP BY categoria ORDER BY ventas DESC LIMIT 20`).all(desde, hasta)
+            WHERE date(lp.pagado_en) >= ? AND date(lp.pagado_en) <= ? AND (? = '' OR d.sucursal_origen = ?)
+            GROUP BY categoria ORDER BY ventas DESC LIMIT 20`).all(desde, hasta, suc, suc)
             .map(c => ({ ...c, margen: r2(c.ventas - c.costo), margen_pct: c.ventas ? r2((c.ventas - c.costo) / c.ventas * 100) : 0 }));
     } catch (_) {}
     let ticket = {};
@@ -162,7 +175,7 @@ function tablero(req, res, ctx) {
         const dias = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
         const prevHasta = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
         const prevDesde = new Date(Date.parse(desde) - dias * 86400000).toISOString().slice(0, 10);
-        const q = (d1, d2) => db.prepare(`SELECT COALESCE(SUM(monto),0) t, COUNT(DISTINCT id_pedido) n FROM links_pago WHERE estatus='pagado' AND date(pagado_en)>=? AND date(pagado_en)<=?`).get(d1, d2);
+        const q = (d1, d2) => db.prepare(`SELECT COALESCE(SUM(monto),0) t, COUNT(DISTINCT id_pedido) n FROM links_pago WHERE estatus='pagado' AND date(pagado_en)>=? AND date(pagado_en)<=? AND (? = '' OR id_pedido IN (SELECT id_pedido FROM pedido_detalle WHERE sucursal_origen=?))`).get(d1, d2, suc, suc);
         const act = q(desde, hasta), prev = q(prevDesde, prevHasta);
         const tAct = act.n ? act.t / act.n : 0, tPrev = prev.n ? prev.t / prev.n : 0;
         ticket = { actual: r2(tAct), anterior: r2(tPrev), pedidos: act.n, variacion_pct: tPrev ? r2((tAct - tPrev) / tPrev * 100) : null };
@@ -172,7 +185,7 @@ function tablero(req, res, ctx) {
         const diasP = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
         const prevH = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
         const prevD = new Date(Date.parse(desde) - diasP * 86400000).toISOString().slice(0, 10);
-        const mayP = conta.libroMayor(prevD, prevH);
+        const mayP = conta.libroMayor(prevD, prevH, suc || null);
         const ctaP = (c) => mayP.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
         const ingP = r2(ctaP('401').haber - ctaP('401').debe);
         const cogsP = r2(ctaP('501').debe - ctaP('501').haber);
@@ -185,7 +198,8 @@ function tablero(req, res, ctx) {
             var_ingresos_pct: varPct(ingresos, ingP), var_utilidad_pct: varPct(utilidad_operativa, utopP),
         };
     } catch (_) {}
-    return json(res, { desde, hasta, pyl, comparativo, punto_equilibrio: puntoEquilibrio, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo() });
+    return json(res, { desde, hasta, sucursal: suc || null, pyl, comparativo, punto_equilibrio: puntoEquilibrio, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo(),
+        ...(suc ? { nota_sucursal: 'Balance y antigüedad de CxC son del negocio completo; P&L, categorías, ticket e inventario están acotados a ' + suc } : {}) });
 }
 
 function periodoCierreGet(req, res, ctx) {
@@ -354,7 +368,10 @@ function gastosPost(req, res, ctx, { ses }) {
                 }
                 require('../../services/configAudit').logCambio(db, 'gasto_mes_cerrado', (fecha || '').slice(0, 7) + ' · ' + String(d.concepto).trim() + ' $' + monto, ses.username);
             }
-            const id = conta.asientoGasto(String(d.concepto).trim(), monto, d.metodo === 'bancos' ? 'bancos' : 'caja', !!d.con_iva, { fecha, override: !!mesCerrado });
+            // multitienda 0051: gasto atribuible a una tienda (opcional)
+            let sucGasto = String(d.sucursal || '').trim() || null;
+            if (sucGasto && !db.prepare('SELECT 1 FROM sucursales WHERE nombre=?').get(sucGasto)) sucGasto = null;
+            const id = conta.asientoGasto(String(d.concepto).trim(), monto, d.metodo === 'bancos' ? 'bancos' : 'caja', !!d.con_iva, { fecha, override: !!mesCerrado, sucursal: sucGasto });
             return json(res, { ok: true, id_asiento: id, en_mes_cerrado: !!mesCerrado });
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
     });
@@ -388,7 +405,7 @@ function impuestos(req, res, ctx) {
 
 // POST /api/erp/asientos — asiento manual
 function asientosPost(req, res, ctx) {
-    const { json, readBody } = ctx;
+    const { db, json, readBody } = ctx;
     return readBody(req, body => {
         try {
             const d = JSON.parse(body || '{}');
@@ -396,11 +413,15 @@ function asientosPost(req, res, ctx) {
             // dejaría el asiento invisible en los rangos BETWEEN de los reportes.
             const fecha = String(d.fecha || '').slice(0, 10);
             if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return json(res, { ok: false, error: 'Fecha inválida (YYYY-MM-DD)' }, 400);
+            // multitienda 0051: póliza atribuible a una tienda (opcional)
+            let sucManual = String(d.sucursal || '').trim() || null;
+            if (sucManual && !db.prepare('SELECT 1 FROM sucursales WHERE nombre=?').get(sucManual)) sucManual = null;
             const id = conta.registrarAsiento({
                 concepto: String(d.concepto || '').trim() || 'Asiento manual',
                 referencia_tipo: 'manual',
                 partidas: Array.isArray(d.partidas) ? d.partidas : [],
                 fecha: fecha || null,
+                sucursal: sucManual,
             });
             return json(res, { ok: true, id });
         } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
