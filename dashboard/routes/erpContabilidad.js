@@ -278,6 +278,22 @@ function timbrar(req, res, ctx, { params }) {
         .catch(e => json(res, { ok: false, error: e.message }, 500));
 }
 
+// GET /api/erp/cfdi/:id/:formato — descarga el PDF/XML del CFDI ya timbrado.
+function cfdiDescargar(req, res, ctx, { params }) {
+    const { db, json } = ctx;
+    return require('../../services/pacService').descargarCFDI(db, parseInt(params[0]), params[1])
+        .then(r => {
+            if (!r.ok) return json(res, r, 400);
+            res.writeHead(200, {
+                'Content-Type': r.contentType,
+                'Content-Disposition': 'attachment; filename="' + r.filename + '"',
+                'Content-Length': r.buffer.length,
+            });
+            res.end(r.buffer);
+        })
+        .catch(e => json(res, { ok: false, error: e.message }, 500));
+}
+
 function saludFinanciera(req, res, ctx) {
     const { json } = ctx;
     if (!conta.activo()) return json(res, { conta_activa: false });
@@ -442,6 +458,7 @@ const RUTAS = [
     { metodo: 'GET',  path: '/api/erp/rentabilidad-clientes',     area: 'finanzas', handler: rentabilidadClientes },
     { metodo: 'GET',  path: '/api/erp/rentabilidad-vendedores',   area: 'finanzas', handler: rentabilidadVendedores },
     { metodo: 'POST', path: /^\/api\/erp\/timbrar\/(\d+)$/,       area: 'finanzas', handler: timbrar },
+    { metodo: 'GET',  path: /^\/api\/erp\/cfdi\/(\d+)\/(pdf|xml)$/, area: 'finanzas', handler: cfdiDescargar },
     { metodo: 'GET',  path: '/api/erp/salud-financiera',          area: 'finanzas', handler: saludFinanciera },
     { metodo: 'GET',  path: '/api/erp/flujo-caja',                area: 'finanzas', handler: flujoCaja },
     { metodo: 'POST', path: '/api/erp/gastos',                    area: 'finanzas', handler: gastosPost },

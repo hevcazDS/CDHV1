@@ -1196,6 +1196,7 @@ CREATE TABLE IF NOT EXISTS mesas (
     estatus    TEXT NOT NULL DEFAULT 'abierta' CHECK(estatus IN ('abierta','cobrada')),
     id_pedido  INTEGER,
     sucursal   TEXT,   -- migrations/0050: local de la mesa (NULL = local único)
+    propina    REAL NOT NULL DEFAULT 0,   -- migrations/0054 (aparte del subtotal)
     abierta_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     cerrada_en TEXT
 );

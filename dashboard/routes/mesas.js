@@ -123,6 +123,9 @@ function cerrarMesa(req, res, ctx, { params, ses }) {
             if (!items.length) return json(res, { ok: false, error: 'La mesa no tiene consumo' }, 400);
             const carrito = items.map(i => ({ id: i.id_producto, name: i.nombre, price: i.precio, cantidad: i.cantidad, tipo: 'consumible' }));
             const metodoPago = d.metodo_pago || 'efectivo';
+            // Propina: se cobra APARTE del subtotal (no es venta gravada), se suma
+            // al total del pago y se guarda en la mesa para el reparto a meseros.
+            const propina = Math.max(0, Math.round((Number(d.propina) || 0) * 100) / 100);
             // multitienda 0050: cobra e inventaría en el local de la MESA (las
             // viejas sin local caen a la tienda de la sesión = default)
             const sucursal = mesa.sucursal || sucursalDeSesion(db, ses) || '';
@@ -130,12 +133,13 @@ function cerrarMesa(req, res, ctx, { params, ses }) {
             const r = db.transaction(() => {
                 const { pedidoRowid, subtotal } = shared.insertarPedidoConCarrito(
                     'Mesa ' + mesa.numero, carrito, '', 'entregado', sucursal, folio, null, 'mostrador');
+                const totalConPropina = Math.round((subtotal + propina) * 100) / 100;
                 db.prepare("UPDATE pedidos SET subtotal=?, total=?, metodo_pago=?, metodo_entrega='pickup', cobrado_por=?, actualizado_en=datetime('now','localtime') WHERE id_pedido=?")
-                  .run(subtotal, subtotal, metodoPago, ses.username || null, pedidoRowid);
+                  .run(subtotal, totalConPropina, metodoPago, ses.username || null, pedidoRowid);
                 const met = db.prepare('SELECT id FROM metodos_pago WHERE nombre=?').get(metodoPago);
                 db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
-                  .run(pedidoRowid, met ? met.id : null, subtotal);
-                db.prepare("UPDATE mesas SET estatus='cobrada', id_pedido=?, cerrada_en=datetime('now','localtime') WHERE id=?").run(pedidoRowid, idMesa);
+                  .run(pedidoRowid, met ? met.id : null, totalConPropina);
+                db.prepare("UPDATE mesas SET estatus='cobrada', id_pedido=?, propina=?, cerrada_en=datetime('now','localtime') WHERE id=?").run(pedidoRowid, propina, idMesa);
                 // Descontar inventario (igual que el POS): platillos del catálogo
                 // con id_producto y sucursal; texto libre (sin id) y servicios no.
                 const invActivo = flagActivo(db, 'inventario_activo', true);

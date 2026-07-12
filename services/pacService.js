@@ -184,4 +184,18 @@ async function timbrarNomina(db, idNomina) {
     } catch (e) { return { ok: false, error: 'Error al conectar con el PAC: ' + e.message }; }
 }
 
-module.exports = { estaConfigurado, activo, timbrar, timbrarNomina, esKeyOnly, cifrarSecreto, descifrarSecreto, cifradoActivo, secreto };
+// Descarga el CFDI (pdf|xml) de un pedido YA timbrado, desde el PAC.
+async function descargarCFDI(db, idPedido, formato) {
+    const fmt = formato === 'xml' ? 'xml' : 'pdf';
+    const ped = db.prepare('SELECT folio, cfdi_uuid FROM pedidos WHERE id_pedido=?').get(idPedido);
+    if (!ped?.cfdi_uuid) return { ok: false, error: 'Este pedido no está timbrado' };
+    const prov = _cfg(db, 'pac_proveedor');
+    const adap = require('./pacProviders').adaptador(prov);
+    if (!adap || !adap.descargar) return { ok: false, error: 'El proveedor no soporta descarga' };
+    const cfg = { api_key: secreto(db, 'pac_api_key') };
+    const r = await adap.descargar(cfg, { uuid: ped.cfdi_uuid, formato: fmt });
+    if (!r.ok) return r;
+    return { ok: true, buffer: r.buffer, contentType: r.contentType, filename: (ped.folio || idPedido) + '.' + fmt };
+}
+
+module.exports = { estaConfigurado, activo, timbrar, timbrarNomina, descargarCFDI, esKeyOnly, cifrarSecreto, descifrarSecreto, cifradoActivo, secreto };

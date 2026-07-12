@@ -12,8 +12,15 @@ const sessionManager = require('../sessionManager');
 const { S, getValor, vocab, moduloActivo, logEvento } = require('./_shared');
 const log = require('../logger');
 
-const STEPS = [S.CITA_FECHA, S.CITA_HORA, S.CITA_CONFIRMA];
+const STEPS = [S.CITA_SERVICIO, S.CITA_FECHA, S.CITA_HORA, S.CITA_CONFIRMA];
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+// Servicios del catálogo (productos tipo 'servicio') para elegir al agendar.
+// Si no hay ninguno, el flujo salta directo a fecha (compatible hacia atrás).
+function serviciosDisponibles() {
+    try { return db.prepare("SELECT id, name, price FROM productos WHERE tipo='servicio' AND activo=1 ORDER BY name LIMIT 9").all(); }
+    catch (_) { return []; }
+}
 
 function _cfg(clave, def) {
     const v = parseInt(getValor(clave, ''), 10);
@@ -55,14 +62,28 @@ function diasDisponibles() {
     return dias;
 }
 
-// Entrada desde el menú (opción "citas") — menuFlow nos delega aquí
-function iniciar(userId, data) {
+// Muestra la lista de días (paso fecha)
+function _pedirFecha(userId, data) {
     const dias = diasDisponibles();
     if (!dias.length) return '📅 Por ahora no tengo fechas disponibles. Escribe *asesor* y te atendemos directo.';
     sessionManager.updateSession(userId, S.CITA_FECHA, { ...data, cita_dias: dias });
-    return '📅 ¡Agendemos tu cita! ¿Qué día te queda?\n\n' +
+    return '📅 ¿Qué día te queda?\n\n' +
         dias.map((d, i) => `${i + 1}️⃣  ${d.label}`).join('\n') +
         '\n\n_Escribe el número del día._';
+}
+
+// Entrada desde el menú (opción "citas") — menuFlow nos delega aquí. Si el
+// negocio tiene servicios en el catálogo, primero pregunta cuál; si no, va
+// directo a la fecha (barbería sin catálogo = comportamiento anterior).
+function iniciar(userId, data) {
+    const servicios = serviciosDisponibles();
+    if (servicios.length) {
+        sessionManager.updateSession(userId, S.CITA_SERVICIO, { ...data, cita_servicios: servicios });
+        return '💈 ¡Agendemos tu cita! ¿Qué servicio quieres?\n\n' +
+            servicios.map((s, i) => `${i + 1}️⃣  ${s.name}${s.price > 0 ? ' — $' + Number(s.price).toFixed(0) : ''}`).join('\n') +
+            '\n\n_Escribe el número del servicio._';
+    }
+    return _pedirFecha(userId, data);
 }
 
 async function handle(ctx) {
@@ -70,6 +91,14 @@ async function handle(ctx) {
     if (!moduloActivo('citas_activo')) { // fail closed → menú
         sessionManager.updateSession(userId, S.MENU, {});
         return null;
+    }
+
+    if (step === S.CITA_SERVICIO) {
+        const servicios = data.cita_servicios || serviciosDisponibles();
+        const i = parseInt(action, 10) - 1;
+        if (!(i >= 0 && i < servicios.length)) return 'Elige el número de uno de los servicios de la lista, o escribe *menu* para regresar.';
+        const sv = servicios[i];
+        return _pedirFecha(userId, { ...data, cita_servicio: sv.name, cita_servicio_id: sv.id, cita_servicio_precio: sv.price });
     }
 
     if (step === S.CITA_FECHA) {
@@ -92,7 +121,8 @@ async function handle(ctx) {
         const j = parseInt(action, 10) - 1;
         if (!(j >= 0 && j < slots.length)) return 'Elige el número de una de las horas de la lista.';
         sessionManager.updateSession(userId, S.CITA_CONFIRMA, { ...data, cita_hora: slots[j] });
-        return `✅ Quedaría así:\n\n📅 *${data.cita_label}* a las *${slots[j]}*\n\n1️⃣  Confirmar cita\n2️⃣  Cambiar el día`;
+        const _sv = data.cita_servicio ? `💈 *${data.cita_servicio}*${data.cita_servicio_precio > 0 ? ' — $' + Number(data.cita_servicio_precio).toFixed(0) : ''}\n` : '';
+        return `✅ Quedaría así:\n\n${_sv}📅 *${data.cita_label}* a las *${slots[j]}*\n\n1️⃣  Confirmar cita\n2️⃣  Cambiar el día`;
     }
 
     if (step === S.CITA_CONFIRMA) {
@@ -112,7 +142,7 @@ async function handle(ctx) {
         log.info(`Cita agendada ${data.cita_fecha} ${data.cita_hora}`, tel);
         sessionManager.updateSession(userId, S.MENU, {});
         const V = vocab();
-        return `🎉 ¡Listo! Tu cita quedó agendada:\n\n📅 *${data.cita_label}* a las *${data.cita_hora}*\n\n` +
+        return `🎉 ¡Listo! Tu cita quedó agendada:\n\n${data.cita_servicio ? '💈 *' + data.cita_servicio + '*\n' : ''}📅 *${data.cita_label}* a las *${data.cita_hora}*\n\n` +
             `Te mandaré un recordatorio un día antes. Si necesitas cambiarla, escribe *asesor*.\n\n_Escribe *menu* para volver al inicio._`;
     }
 

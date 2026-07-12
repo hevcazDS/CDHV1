@@ -49,6 +49,7 @@ const {
     UMBRAL_ENVIO_GRA,
     COSTO_ENVIO_STD,
     MAX_MISMO_PROD,
+    maxMismoProd,
     _STOPWORDS,
     _MessageMedia,
     t,
@@ -115,13 +116,14 @@ async function handle(ctx) {
         if (_cantMatch) {
             const _pos  = parseInt(_cantMatch[1]) - 1; // número del producto en lista
             const _cant = parseInt(_cantMatch[2]);
-            if (_pos >= 0 && _pos < carrito.length && _cant >= 1 && _cant <= MAX_MISMO_PROD) {
+            const _tope = maxMismoProd();
+            if (_pos >= 0 && _pos < carrito.length && _cant >= 1 && _cant <= _tope) {
                 const _newC = [...carrito];
                 _newC[_pos] = { ..._newC[_pos], cantidad: _cant };
                 sessionManager.updateSession(userId, S.SHOW_CART, { ...data, carrito: _newC });
                 return `✅ Actualizado: *${_newC[_pos].name}* — ${_cant} unidad${_cant > 1 ? 'es' : ''}.\n\n` + mostrarCarrito(_newC);
             }
-            if (_cant > MAX_MISMO_PROD) return `⚠️ Máximo *${MAX_MISMO_PROD} unidades* por producto. Escribe un asesor para pedidos mayoristas.`;
+            if (_cant > _tope) return `⚠️ Máximo *${_tope} unidades* por producto. Escribe un asesor para pedidos mayoristas.`;
         }
 
         // Mostrar carrito con instrucciones

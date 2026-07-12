@@ -57,6 +57,7 @@ const S = {
     CUPON:           'CUPON',
     REFERIDOS:       'REFERIDOS',
     PAGO_METODO:     'PAGO_METODO',
+    CITA_SERVICIO:   'CITA_SERVICIO',
     CITA_FECHA:      'CITA_FECHA',
     CITA_HORA:       'CITA_HORA',
     CITA_CONFIRMA:   'CITA_CONFIRMA',
@@ -88,7 +89,13 @@ function msgHorarioAsesor() {
 const _RE_DEVOLUCION = /devolver|devolv|devoluci[oó]n|devuelta|cambiar.*producto|cambio.*producto|quiero.*devolver|quiero.*cambiar|repetido|duplicado|ya.*tenía|me.*llegó.*mal|llegó.*incorrecto|no.*funciona|está.*roto|está.*dañado|garantia|garantía|me.*equivoqué|pedido.*mal|llegó.*dañado|producto.*dañado|dañado/i;
 const UMBRAL_ENVIO_GRA = 699;
 const COSTO_ENVIO_STD  = 99;
-const MAX_MISMO_PROD   = 2;   // máximo unidades del mismo producto sin escalar a asesor
+const MAX_MISMO_PROD   = 2;   // default; el tope REAL sale de config por giro (abarrotes/carnicería venden 6 refrescos, no 2)
+// Tope de unidades del mismo producto sin escalar a asesor. Configurable
+// (configuracion.max_unidades_producto) — juguetería mantiene 2, abarrotes/
+// carnicería/ferretería suben a 20-99. Lee de la cache de config del bot.
+function maxMismoProd() {
+    return Math.max(1, parseInt(getValor('max_unidades_producto', String(MAX_MISMO_PROD)), 10) || MAX_MISMO_PROD);
+}
 
 function calcularFlete(precioTotal, costoEnvFijo = null) {
     if (costoEnvFijo !== null) return costoEnvFijo;
@@ -383,7 +390,7 @@ function agregarAlCarrito(carritoActual, producto) {
     const idx     = carrito.findIndex(i => i.id === producto.id && (i.id_variante || null) === (producto.id_variante || null));
     const cantidadActual = idx >= 0 ? carrito[idx].cantidad : 0;
 
-    if (cantidadActual >= MAX_MISMO_PROD) {
+    if (cantidadActual >= maxMismoProd()) {
         return { ok: false, escalar: true, cantidadActual, carrito, total: totalCarrito(carrito) };
     }
 
@@ -1315,6 +1322,7 @@ module.exports = {
     UMBRAL_ENVIO_GRA,
     COSTO_ENVIO_STD,
     MAX_MISMO_PROD,
+    maxMismoProd,
     _STOPWORDS,
     _MessageMedia,
     t,

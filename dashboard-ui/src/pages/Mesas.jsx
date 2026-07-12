@@ -49,9 +49,18 @@ export default function Mesas() {
       opciones: [{ value: 'efectivo', label: 'Efectivo' }, { value: 'tarjeta', label: 'Tarjeta' }, { value: 'transferencia', label: 'Transferencia' }],
     });
     if (!metodo_pago) return;
-    const r = await api.post(`/api/mesas/${sel}/cerrar`, { metodo_pago }).catch(e => ({ ok: false, error: e.message }));
+    // Propina: se cobra aparte del consumo. Se sugiere sobre el subtotal de la mesa.
+    const sub = Number(mesaSel?.total || 0);
+    const propTxt = await prompt({
+      titulo: 'Propina (opcional)',
+      mensaje: `Consumo $${sub.toFixed(2)}. Escribe la propina en pesos (10% = $${(sub * 0.1).toFixed(2)} · 15% = $${(sub * 0.15).toFixed(2)}), o deja 0.`,
+      valorInicial: '0', tipo: 'text',
+    });
+    if (propTxt === null) return;
+    const propina = Math.max(0, Number(String(propTxt).replace(/[^0-9.]/g, '')) || 0);
+    const r = await api.post(`/api/mesas/${sel}/cerrar`, { metodo_pago, propina }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return handleApiError(new Error(r.error));
-    toastOk(`Mesa cobrada · Folio ${r.folio} · $${Number(r.total).toFixed(2)}`);
+    toastOk(`Mesa cobrada · Folio ${r.folio} · $${Number(r.total).toFixed(2)}${propina > 0 ? ` (incl. propina $${propina.toFixed(2)})` : ''}`);
     setSel(null); refrescar();
   };
 

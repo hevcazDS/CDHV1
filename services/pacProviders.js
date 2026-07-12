@@ -12,6 +12,21 @@
 // y devuelve { ok, uuid?, xml?, error? }. cfg = { api_key, ambiente }.
 const https = require('https');
 
+// GET con Bearer; devuelve { status, buffer, contentType } (para bajar PDF/XML).
+function _get(host, ruta, headers) {
+    return new Promise((resolve, reject) => {
+        const req = https.request({ host, path: ruta, method: 'GET', timeout: 20000, headers },
+            (res) => {
+                const chunks = [];
+                res.on('data', c => { chunks.push(c); });
+                res.on('end', () => resolve({ status: res.statusCode, buffer: Buffer.concat(chunks), contentType: res.headers['content-type'] }));
+            });
+        req.on('error', reject);
+        req.on('timeout', () => req.destroy(new Error('Timeout con el PAC (20s)')));
+        req.end();
+    });
+}
+
 // POST JSON con Bearer/Basic; resuelve { status, body } sin lanzar por HTTP≠2xx.
 function _post(host, ruta, headers, bodyObj) {
     return new Promise((resolve, reject) => {
@@ -47,6 +62,19 @@ const facturapi = {
         const r = await _post(this._host, '/v2/invoices', this._auth(cfg), { ...payload, type: 'payroll' });
         if (r.status >= 200 && r.status < 300 && r.body?.uuid) return { ok: true, uuid: r.body.uuid, id_pac: r.body.id };
         return { ok: false, error: r.body?.message || ('El PAC respondió ' + r.status), detalle: r.body };
+    },
+    // Descarga el CFDI ya timbrado. formato: 'pdf' | 'xml'. Facturapi indexa por
+    // su id interno; si solo tenemos el UUID, primero lo resolvemos.
+    async descargar(cfg, { id_pac, uuid, formato }) {
+        let id = id_pac;
+        if (!id && uuid) {
+            const r = await _get(this._host, '/v2/invoices?q=' + encodeURIComponent(uuid), this._auth(cfg));
+            try { const arr = JSON.parse(r.buffer.toString('utf8')); id = (arr.data || arr)[0]?.id; } catch (_) {}
+        }
+        if (!id) return { ok: false, error: 'No encontré el CFDI en el PAC' };
+        const r = await _get(this._host, `/v2/invoices/${id}/${formato}`, this._auth(cfg));
+        if (r.status >= 200 && r.status < 300) return { ok: true, buffer: r.buffer, contentType: r.contentType || (formato === 'pdf' ? 'application/pdf' : 'application/xml') };
+        return { ok: false, error: 'El PAC respondió ' + r.status };
     },
 };
 

@@ -58,6 +58,9 @@ function onboarding(req, res, ctx) {
                 const { MODULOS_POR_GIRO } = require('../../bot/flows/modulosDefaults');
                 for (const m of (MODULOS_POR_GIRO[giro] || [])) setCfg(m, '1');
             } catch (_) {}
+            // Tope de unidades por producto en el bot: juguetería/retail 2 (regalo);
+            // abarrotes/carnicería/ferretería venden por volumen → 30.
+            setCfg('max_unidades_producto', ['abarrotes', 'carniceria', 'ferreteria'].includes(giro) ? '30' : '2');
             setCfg('moneda', String(d.moneda || 'MXN'));
             setCfg('iva_pct', String(d.iva_pct ?? '16'));
             if (['A', 'B', 'C', 'D'].includes(d.tono)) setCfg('tono_bot', d.tono);
