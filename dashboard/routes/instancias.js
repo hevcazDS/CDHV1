@@ -8,8 +8,32 @@
 // Prime-only: cambiar de base es la operación más invasiva del panel.
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
 const Database = require('better-sqlite3');
 const construirModulo = require('./_construirModulo');
+
+const PM2_BIN = process.platform === 'win32' ? 'pm2.cmd' : 'pm2';
+// Anti-DoS: cambiar de tienda tumba y levanta procesos — máximo 1 vez/minuto.
+let _ultimoCambio = 0;
+
+// Split-brain guard: el bot es OTRO proceso pm2 y también lee el puntero al
+// arrancar — si está corriendo hay que reiniciarlo, o seguiría vendiendo
+// contra la BD de la tienda ANTERIOR mientras el dashboard ya abrió la nueva.
+// Solo restart si está online (pm2 restart sobre un stopped lo ARRANCARÍA,
+// y el bot es bajo-demanda). Fire-and-forget: el exit(0) propio espera 2.5s.
+function _reiniciarBotSiCorre(log) {
+    const cmd = (args, cb) => process.platform === 'win32'
+        ? execFile('cmd.exe', ['/d', '/s', '/c', `"${[PM2_BIN, ...args].map(a => `"${a}"`).join(' ')}"`], { timeout: 15000, windowsHide: true, windowsVerbatimArguments: true }, cb)
+        : execFile(PM2_BIN, args, { timeout: 15000, windowsHide: true }, cb);
+    cmd(['jlist'], (err, stdout) => {
+        if (err) return log.warn('[instancia] No pude consultar pm2 (jlist): ' + err.message);
+        let online = false;
+        try { online = JSON.parse(stdout).some(p => p.name === 'bot-whatsapp' && p.pm2_env?.status === 'online'); } catch (_) {}
+        if (!online) return;
+        log.info('[instancia] Bot en línea → reiniciándolo para que abra la misma tienda');
+        cmd(['restart', 'bot-whatsapp'], (e2) => { if (e2) log.warn('[instancia] restart del bot falló: ' + e2.message); });
+    });
+}
 
 const DIR_INSTANCIAS = path.resolve(path.join(__dirname, '..', '..', 'instancias'));
 const PUNTERO = path.join(__dirname, '..', '.instancia_activa');
@@ -58,6 +82,9 @@ function abrir(req, res, ctx, { ses }) {
         try {
             const clave = String(JSON.parse(body || '{}').clave || '').trim();
             if (!clave) return json(res, { ok: false, error: 'Falta la tienda a abrir' }, 400);
+            if (Date.now() - _ultimoCambio < 60000) {
+                return json(res, { ok: false, error: 'Espera un minuto entre cambios de tienda (el sistema se reinicia en cada cambio)' }, 429);
+            }
             if (clave === 'principal') {
                 try { fs.unlinkSync(PUNTERO); } catch (_) {}
             } else {
@@ -69,12 +96,14 @@ function abrir(req, res, ctx, { ses }) {
                 if (!fs.existsSync(ruta)) return json(res, { ok: false, error: 'Esa tienda no existe en instancias/' }, 404);
                 fs.writeFileSync(PUNTERO, path.resolve(ruta), 'utf8');
             }
+            _ultimoCambio = Date.now();
             try { require('../../services/configAudit').logCambio(db, 'instancia_activa', clave, ses.username); } catch (_) {}
-            log.info('[instancia] ' + ses.username + ' abre la tienda: ' + clave + ' — reiniciando dashboard');
+            log.info('[instancia] ' + ses.username + ' abre la tienda: ' + clave + ' — reiniciando dashboard' );
+            _reiniciarBotSiCorre(log);
             json(res, { ok: true, reiniciando: true, clave });
-            // Salida limpia diferida: pm2 (autorestart) vuelve a levantar el
-            // proceso, que ya abrirá la BD del puntero. La respuesta sale antes.
-            setTimeout(() => process.exit(0), 500);
+            // Salida limpia diferida (pm2 autorestart nos levanta con la BD del
+            // puntero); 2.5s dan tiempo a que el restart del bot se emita.
+            setTimeout(() => process.exit(0), 2500);
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
     });
 }

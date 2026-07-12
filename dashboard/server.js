@@ -365,7 +365,9 @@ function requireSession(req, res, rolesPermitidos) {
         // rutas por-área; el gate global de server.js le bloquea toda escritura).
         // Sin esto los GET gateados por rango (roles:['gerente'|'prime'] —
         // métricas/reportes/config) le daban 401 pese a verse en su menú.
-        if (!autorizado && permisos.esAuditor(s.rol) && req.method === 'GET') autorizado = true;
+        // TECHO: solo hasta rango gerente — las superficies prime-only
+        // (instancias, credenciales/integraciones) NO son de auditoría.
+        if (!autorizado && permisos.esAuditor(s.rol) && req.method === 'GET' && minRango <= rangoDe('gerente')) autorizado = true;
     }
     if (!autorizado) {
         json(res, { ok: false, error: 'No autorizado' }, 401);

@@ -22,7 +22,9 @@ try {
         const _dirInstancias = path.resolve(path.join(__dirname, '..', 'instancias'));
         // Solo se honran rutas DENTRO de instancias/ (el puntero no puede
         // apuntar a un archivo arbitrario del sistema).
-        if (_ruta && path.resolve(_ruta).startsWith(_dirInstancias) && fs.existsSync(_ruta)) {
+        // startsWith con separador: sin él, una carpeta hermana "instancias-x/"
+        // pasaría el filtro (el escritor valida basename, pero simetría defensiva)
+        if (_ruta && path.resolve(_ruta).startsWith(_dirInstancias + path.sep) && fs.existsSync(_ruta)) {
             DB_PATH = _ruta;
             console.log('[instancia] Abriendo la tienda: ' + path.basename(_ruta));
         }

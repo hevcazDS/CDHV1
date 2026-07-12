@@ -15,6 +15,12 @@
   --accent:    #5b8cff;
   --accent-2:  #7c5cff;
   --accent-soft: rgba(91, 140, 255, 0.12);
+  /* Firma del producto: definida también aquí (base/dark) para que ningún
+     var(--brand) quede indefinido en dark/color/confort (hueco de la Ola 1) */
+  --brand:      #2e8b6a;
+  --brand-soft: rgba(46, 139, 106, 0.14);
+  --brand-ink:  #1a4d3e;
+  --info:       #5b8cff;
   --green:     #36d399;
   --yellow:    #fbbd23;
   --red:       #f4566c;
