@@ -47,6 +47,9 @@ function crear(req, res, ctx, { ses }) {
             let area = String(d.area || '').trim() || null;
             let asignadoA = String(d.asignado_a || '').trim() || null;
             if (rangoDe(ses.rol) < 2) { area = null; asignadoA = ses.username; } // recordatorio propio
+            // Sin destino (gerente+ dejó "Para mí") → asignarla a él mismo; si no,
+            // quedaría con asignado_a NULL y fuera de la campana/pendientes-count.
+            if (!area && !asignadoA) asignadoA = ses.username;
             const r = db.prepare(`INSERT INTO tareas (titulo, notas, fecha, area, asignado_a, creado_por) VALUES (?,?,?,?,?,?)`)
                 .run(titulo, String(d.notas || '').trim() || null, String(d.fecha || '').slice(0, 10) || null, area, asignadoA, ses.username);
             return json(res, { ok: true, id: r.lastInsertRowid });

@@ -392,11 +392,15 @@ function asientosPost(req, res, ctx) {
     return readBody(req, body => {
         try {
             const d = JSON.parse(body || '{}');
+            // Fecha malformada pasaría el candado lexicográfico de mes cerrado y
+            // dejaría el asiento invisible en los rangos BETWEEN de los reportes.
+            const fecha = String(d.fecha || '').slice(0, 10);
+            if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return json(res, { ok: false, error: 'Fecha inválida (YYYY-MM-DD)' }, 400);
             const id = conta.registrarAsiento({
                 concepto: String(d.concepto || '').trim() || 'Asiento manual',
                 referencia_tipo: 'manual',
                 partidas: Array.isArray(d.partidas) ? d.partidas : [],
-                fecha: String(d.fecha || '').slice(0, 10) || null,
+                fecha: fecha || null,
             });
             return json(res, { ok: true, id });
         } catch (e) { return json(res, { ok: false, error: e.message }, 400); }

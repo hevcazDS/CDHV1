@@ -101,7 +101,7 @@ export default function Tareas() {
               {pendientes.length === 0 && <tr><td colSpan={6} className="empty">Sin pendientes 🎉</td></tr>}
               {pendientes.map(t => (
                 <tr key={t.id}>
-                  <td><Checkbox checked={false} onChange={() => palomear.mutate({ id: t.id, hecha: true })} title="Marcar hecha" /></td>
+                  <td><Checkbox checked={false} onChange={() => palomear.mutate({ id: t.id, hecha: true })} title="Marcar hecha" aria-label="Marcar hecha" /></td>
                   <td><strong>{t.titulo}</strong>{t.notas && <div className="text-muted" style={{ fontSize: 12 }}>{t.notas}</div>}</td>
                   <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>{t.fecha || '—'}</td>
                   <td>{quien(t)}</td>
@@ -123,7 +123,7 @@ export default function Tareas() {
                 <tbody>
                   {hechas.map(t => (
                     <tr key={t.id} style={{ opacity: 0.55 }}>
-                      <td style={{ width: 36 }}><Checkbox checked onChange={() => palomear.mutate({ id: t.id, hecha: false })} title="Regresar a pendiente" /></td>
+                      <td style={{ width: 36 }}><Checkbox checked onChange={() => palomear.mutate({ id: t.id, hecha: false })} title="Regresar a pendiente" aria-label="Regresar a pendiente" /></td>
                       <td><s>{t.titulo}</s></td>
                       <td className="text-muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{fdate(t.hecha_en)}</td>
                       <td>{quien(t)}</td>
