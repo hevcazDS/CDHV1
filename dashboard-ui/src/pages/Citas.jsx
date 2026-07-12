@@ -4,6 +4,7 @@ import { Card, Button, TextInput, Group, Text, Select, SegmentedControl } from '
 import { CalendarDays } from 'lucide-react';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
+import { prompt, toastOk } from '../lib/ui';
 import Calendario from '../components/Calendario';
 
 const ESTATUS_BADGE = { pendiente: 'badge-amarillo', confirmada: 'badge-azul', completada: 'badge-verde', cancelada: 'badge-rojo', no_asistio: 'badge-rojo' };
@@ -34,6 +35,20 @@ export default function Citas() {
     },
     onError: handleApiError,
   });
+  // Cobrar el servicio de la cita: pide precio (prefill del servicio) y método,
+  // arma la venta reusando el POS. Cierra el círculo agendar→cobrar.
+  const cobrarCita = async (c) => {
+    const precio = await prompt({ titulo: 'Cobrar cita', mensaje: `Servicio: ${c.servicio || 'servicio'}. Precio a cobrar:`, valorInicial: String(c.servicio_precio || ''), tipo: 'text' });
+    if (precio === null) return;
+    const p = Number(String(precio).replace(/[^0-9.]/g, '')) || 0;
+    if (!(p > 0)) return handleApiError(new Error('Captura un precio válido'));
+    const metodo = await prompt({ titulo: 'Método de pago', mensaje: '¿Cómo pagó?', valorInicial: 'efectivo',
+      opciones: [{ value: 'efectivo', label: 'Efectivo' }, { value: 'tarjeta', label: 'Tarjeta' }, { value: 'transferencia', label: 'Transferencia' }] });
+    if (!metodo) return;
+    const r = await api.post(`/api/citas/${c.id}/cobrar`, { precio: p, metodo_pago: metodo }).catch(e => ({ ok: false, error: e.message }));
+    if (r.ok) { toastOk(`Cobrado · Folio ${r.folio} · $${Number(r.total).toFixed(2)}`); qc.invalidateQueries({ queryKey: ['citas'] }); }
+    else handleApiError(new Error(r.error));
+  };
   const marcar = useMutation({
     mutationFn: ({ id, estatus }) => api.put(`/api/citas/${id}`, { estatus }),
     onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); qc.invalidateQueries({ queryKey: ['citas'] }); },
@@ -89,16 +104,24 @@ export default function Citas() {
                     {lista.map(c => (
                       <tr key={c.id}>
                         <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{c.hora}</td>
-                        <td><strong>{c.nombre || c.telefono}</strong>{c.servicio && <div className="text-muted" style={{ fontSize: 11 }}>{c.servicio}</div>}</td>
-                        <td><span className={`badge ${ESTATUS_BADGE[c.estatus] || 'badge-azul'}`}>{c.estatus.replace('_', ' ')}</span></td>
+                        <td><strong>{c.nombre || c.telefono}</strong>{c.servicio && <div className="text-muted" style={{ fontSize: 11 }}>{c.servicio}{c.servicio_precio > 0 ? ' · $' + Number(c.servicio_precio).toFixed(0) : ''}</div>}</td>
                         <td>
-                          <Select size="xs" w={150} value={c.estatus} allowDeselect={false}
-                            onChange={v => v && v !== c.estatus && marcar.mutate({ id: c.id, estatus: v })}
-                            data={[
-                              { value: 'pendiente', label: 'Pendiente' }, { value: 'confirmada', label: 'Confirmada' },
-                              { value: 'completada', label: 'Completada' }, { value: 'cancelada', label: 'Cancelada' },
-                              { value: 'no_asistio', label: 'No asistió' },
-                            ]} />
+                          <span className={`badge ${ESTATUS_BADGE[c.estatus] || 'badge-azul'}`}>{c.estatus.replace('_', ' ')}</span>
+                          {c.id_pedido && <span className="badge badge-verde" style={{ marginLeft: 6 }}>cobrada</span>}
+                        </td>
+                        <td>
+                          <Group gap={6} wrap="nowrap">
+                            <Select size="xs" w={130} value={c.estatus} allowDeselect={false}
+                              onChange={v => v && v !== c.estatus && marcar.mutate({ id: c.id, estatus: v })}
+                              data={[
+                                { value: 'pendiente', label: 'Pendiente' }, { value: 'confirmada', label: 'Confirmada' },
+                                { value: 'completada', label: 'Completada' }, { value: 'cancelada', label: 'Cancelada' },
+                                { value: 'no_asistio', label: 'No asistió' },
+                              ]} />
+                            {!c.id_pedido && c.estatus !== 'cancelada' && c.estatus !== 'no_asistio' && (
+                              <Button size="compact-xs" color="teal" onClick={() => cobrarCita(c)}>Cobrar</Button>
+                            )}
+                          </Group>
                         </td>
                       </tr>
                     ))}

@@ -136,8 +136,8 @@ async function handle(ctx) {
             try { return db.prepare('SELECT nombre FROM clientes WHERE telefono=?').get(tel)?.nombre || null; }
             catch (_) { return null; }
         })();
-        db.prepare('INSERT INTO citas (telefono, nombre, servicio, fecha, hora) VALUES (?,?,?,?,?)')
-          .run(tel, nombre, data.cita_servicio || null, data.cita_fecha, data.cita_hora);
+        db.prepare('INSERT INTO citas (telefono, nombre, servicio, servicio_precio, id_servicio, fecha, hora) VALUES (?,?,?,?,?,?,?)')
+          .run(tel, nombre, data.cita_servicio || null, Number(data.cita_servicio_precio) || 0, data.cita_servicio_id || null, data.cita_fecha, data.cita_hora);
         logEvento('cita_agendada', (data.cita_fecha || '') + ' ' + (data.cita_hora || '') + (data.cita_servicio ? ' · ' + data.cita_servicio : ''), tel);
         log.info(`Cita agendada ${data.cita_fecha} ${data.cita_hora}`, tel);
         sessionManager.updateSession(userId, S.MENU, {});

@@ -27,8 +27,8 @@ aditivo/toggleable, JC byte-idéntico, white-label intacto.
 8. ✅ **Cableado UI del backend fiscal** (hallazgo de los 2 reviews — backend listo, sin botón): **REP** en FacturacionTab, **timbrar recibo de nómina + PDF/XML** en Rrhh.jsx (+ ruta descarga nómina).
 9. **Cajero cobra fiado** / **división de cuenta** — PENDIENTES (diseño abierto).
 
-## Huecos de los reviews rol×ramo (2026-07-12) — PENDIENTES priorizados
-- 🔴 **Cita→cobro incompleto**: `citasFlow` no persiste `cita_servicio_precio` en la tabla `citas`, no hay columna precio ni botón "Cobrar" en Citas.jsx. Barbería/estética agendan pero cobran a mano. Fix en 3 puntos (persistir precio + columna + botón que arme carrito de servicio → cobro; `insertarPedidoConCarrito` ya soporta `tipo:'servicio'`).
+## Huecos de los reviews rol×ramo (2026-07-12)
+- ✅ **Cita→cobro** — HECHO (migración 0057 `citas.servicio_precio/id_servicio/id_pedido`): citasFlow persiste el precio; `POST /api/citas/:id/cobrar` arma la venta reusando el POS (servicio sin stock) + asiento + puntos; botón "Cobrar" en Citas.jsx (pide precio y método) con badge "cobrada". Cierra el círculo agendar→cobrar de barbería/estética/uñas. **Es la Fase 1 del piloto del motor de flujo** (giro cita completo end-to-end).
 - 🟡 **Almacén no alcanza la recepción de OC**: `ocRecibir` es área `almacen` pero la UI vive en /compras (área compras/finanzas). Dar acceso a la recepción al rol almacén.
 - 🟡 **Catálogo agrupador SAT borrador**: `_COD_AGRUPADOR` mapea 14 cuentas; el resto cae a fallback inválido. Completar o UI para editarlo.
 - 🟡 **DIOT deriva IVA plano** en vez del IVA real del CFDI de proveedor cuando existe.

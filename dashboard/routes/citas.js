@@ -62,10 +62,55 @@ function actualizar(req, res, ctx, { params }) {
     });
 }
 
+// POST /api/citas/:id/cobrar — cobra el servicio de la cita reusando la
+// maquinaria del POS (insertarPedidoConCarrito con tipo 'servicio' = sin stock).
+// Cierra el círculo agendar→cobrar de los giros de servicio. Cajero/operador.
+function cobrar(req, res, ctx, { params, ses }) {
+    const { db, json, readBody } = ctx;
+    const id = parseInt(params[0]);
+    return readBody(req, body => {
+        try {
+            const d = (() => { try { return JSON.parse(body || '{}'); } catch (_) { return {}; } })();
+            const cita = db.prepare('SELECT * FROM citas WHERE id=?').get(id);
+            if (!cita) return json(res, { ok: false, error: 'Cita no encontrada' }, 404);
+            if (cita.id_pedido) return json(res, { ok: false, error: 'Esta cita ya fue cobrada' }, 400);
+            const precio = Number(d.precio) > 0 ? Number(d.precio) : Number(cita.servicio_precio) || 0;
+            if (!(precio > 0)) return json(res, { ok: false, error: 'Captura el precio del servicio' }, 400);
+            const shared = require('../../bot/flows/_shared');
+            const metodoPago = String(d.metodo_pago || 'efectivo').trim();
+            const nombre = cita.nombre || 'Cliente';
+            const carrito = [{ id: cita.id_servicio || null, name: cita.servicio || 'Servicio', price: precio, cantidad: 1, tipo: 'servicio' }];
+            const { sucursalDeSesion } = require('../../services/sucursalService');
+            const sucursal = sucursalDeSesion(db, ses) || '';
+            const folio = shared.generarFolio('pedido');
+            let idCliente = null;
+            if (cita.telefono) { try { const c = shared.upsertCliente(cita.telefono, nombre); idCliente = c?.id || null; } catch (_) {} }
+            const r = db.transaction(() => {
+                const { pedidoRowid, subtotal } = shared.insertarPedidoConCarrito(nombre, carrito, '', 'entregado', sucursal, folio, idCliente, 'mostrador');
+                db.prepare("UPDATE pedidos SET subtotal=?, total=?, metodo_pago=?, metodo_entrega='pickup', cobrado_por=?, actualizado_en=datetime('now','localtime') WHERE id_pedido=?")
+                  .run(subtotal, subtotal, metodoPago, ses.username || null, pedidoRowid);
+                const met = db.prepare('SELECT id FROM metodos_pago WHERE nombre=?').get(metodoPago);
+                db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
+                  .run(pedidoRowid, met ? met.id : null, subtotal);
+                db.prepare("UPDATE citas SET id_pedido=?, estatus='completada' WHERE id=?").run(pedidoRowid, id);
+                try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('cita_cobrada','mostrador',?,?)").run(String(subtotal), cita.telefono || null); } catch (_) {}
+                return { pedidoRowid, subtotal, folio };
+            })();
+            try {
+                const _conta = require('../../services/contabilidadService');
+                _conta.asientoVenta(r.pedidoRowid, r.subtotal, metodoPago);
+            } catch (_) {}
+            try { if (idCliente) require('../../bot/handlers/puntosService').otorgarPuntosPorCompra(r.pedidoRowid); } catch (_) {}
+            return json(res, { ok: true, folio: r.folio, total: r.subtotal, id_pedido: r.pedidoRowid });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
+}
+
 const RUTAS = [
     { metodo: 'GET',  path: '/api/citas',            area: 'operacion', handler: listar },
     { metodo: 'POST', path: '/api/citas',            area: 'operacion', handler: crear },
     { metodo: 'PUT',  path: /^\/api\/citas\/(\d+)$/, area: 'operacion', handler: actualizar },
+    { metodo: 'POST', path: /^\/api\/citas\/(\d+)\/cobrar$/, areas: ['pos', 'operacion'], handler: cobrar },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/citas' });

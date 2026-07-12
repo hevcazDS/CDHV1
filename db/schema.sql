@@ -1132,6 +1132,9 @@ CREATE TABLE IF NOT EXISTS citas (
     telefono             TEXT NOT NULL,
     nombre               TEXT,
     servicio             TEXT,
+    servicio_precio      REAL NOT NULL DEFAULT 0,   -- migrations/0057
+    id_servicio          INTEGER,                   -- migrations/0057 (producto tipo servicio)
+    id_pedido            INTEGER,                   -- migrations/0057 (cobrada = id_pedido != NULL)
     fecha                TEXT NOT NULL,
     hora                 TEXT NOT NULL,
     estatus              TEXT NOT NULL DEFAULT 'pendiente'
