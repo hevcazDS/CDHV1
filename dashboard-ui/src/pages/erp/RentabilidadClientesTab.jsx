@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, TextInput, Group } from '@mantine/core';
 import { api } from '../../api';
+import { money } from '../../lib/format';
 import { exportarCSV } from '../../lib/csv';
 
 // Rentabilidad por cliente: ventas pagadas, costo, margen y adeudo de fiado.
 // Ordena por margen (el 20% que da el 80%); marca a los de deuda alta.
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
 export default function RentabilidadClientesTab() {
   const hoy = new Date().toISOString().slice(0, 10);

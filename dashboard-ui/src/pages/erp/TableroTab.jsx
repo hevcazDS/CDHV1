@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, TextInput, Group, Text } from '@mantine/core';
 import { api } from '../../api';
+import { money } from '../../lib/format';
 import { useTextoEmoji } from '../../context/EmojiContext';
 
 // Tablero de dirección (comité Harvard+LSE+Oxford): estado de resultados,
 // balance, aging de CxC, rotación de inventario, margen por categoría y
 // ticket vs período anterior. Responde "¿gano?", no solo "¿vendo?".
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function TableroTab() {
   const txt = useTextoEmoji();

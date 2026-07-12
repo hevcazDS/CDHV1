@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Title, Text } from '@mantine/core';
 import { api } from '../../api';
-import { fmt } from '../../lib/format';
+import { fmt, money } from '../../lib/format';
 import { prompt as pedir, toastOk } from '../../lib/ui';
 import { handleApiError } from '../../lib/apiError';
 import { useTextoEmoji } from '../../context/EmojiContext';
@@ -32,7 +32,6 @@ export default function ReportesTab() {
   const stockBajo = data?.stock_bajo || [];
   const margen = data?.margen || [];
   const muertos = data?.muertos || [];
-  const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
   return (
     <div style={{ display: 'grid', gap: 18 }}>

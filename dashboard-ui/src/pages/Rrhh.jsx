@@ -5,6 +5,7 @@ import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 import { toastOk, alertar, confirmar, prompt } from '../lib/ui';
 import { useTextoEmoji } from '../context/EmojiContext';
+import { money } from '../lib/format';
 
 // RRHH: empleados, horarios por plantilla (CSV que Excel abre nativo) y
 // nómina MX con/sin impuestos. El ISR/IMSS es aproximado — validar con
@@ -224,8 +225,6 @@ function Liquidaciones({ empleados }) {
     }
     return r;
   };
-
-  const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
   const pagarAguinaldo = async () => {
     if (!empId) return;

@@ -8,7 +8,7 @@ import { Card, Group, Title, ActionIcon, Button, Text, RingProgress } from '@man
 import PuntosGrafica from '../components/PuntosGrafica';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../api';
-import { fmt, fdate } from '../lib/format';
+import { fmt, fdate, money } from '../lib/format';
 import { Emoji, useTextoEmoji } from '../context/EmojiContext';
 
 const ESTILOS_CHART = [
@@ -97,7 +97,6 @@ export default function Metricas() {
 
   const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); refetchCanales(); refetchOper(); refetchBot(); refetchSeg(); refetchEmbudos(); };
   const canalLabel = (c) => c === 'directo' ? 'Directo' : c === 'whatsapp' ? 'WhatsApp' : c.startsWith('promo:') ? '🔗 ' + c.slice(6) : c;
-  const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
   const dias = d?.por_dia || [];
   const porEstatus = d?.por_estatus || [];

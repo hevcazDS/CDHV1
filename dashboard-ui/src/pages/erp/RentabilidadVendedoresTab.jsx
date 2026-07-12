@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, TextInput, Group, Text } from '@mantine/core';
 import { api } from '../../api';
+import { money } from '../../lib/format';
 import { exportarCSV } from '../../lib/csv';
 
 // Rentabilidad por vendedor (cobrado_por): ventas, margen, comisión y el fiado
 // que dejó sin cobrar. Comisionar solo por venta cobrada es ciego al margen.
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
 export default function RentabilidadVendedoresTab() {
   const hoy = new Date().toISOString().slice(0, 10);

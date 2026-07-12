@@ -4,6 +4,7 @@ import { Card, Button, TextInput, NumberInput, Select, Checkbox, Group, Text } f
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
 import { exportarCSV } from '../../lib/csv';
+import { money } from '../../lib/format';
 import { useTextoEmoji } from '../../context/EmojiContext';
 
 // Herramientas diarias del contador: captura de gastos (renta/luz/etc. →
@@ -35,8 +36,6 @@ export default function GastosImpuestosTab() {
     },
     onError: handleApiError,
   });
-
-  const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
   return (
     <div>
