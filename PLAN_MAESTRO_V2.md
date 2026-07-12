@@ -45,9 +45,39 @@ Prioridad máxima: sin esto "factura" está a medias ante el SAT.
 - **Panel de flota Hevcaz** (multi-cliente) — ver §D viabilidad + cuando haya 3+ clientes.
 
 ## §D — Multi-ERP en red (LAN/remoto) + intercomunicación
-> Pendiente del agente de viabilidad (`VIABILIDAD_MULTI_ERP.md`). Se integra aquí
-> al terminar: fases LAN multiusuario → multi-instancia en 1 server → remoto
-> seguro → intercomunicación entre instancias (consolidado, transferencias, flota).
+Del agente de viabilidad (`VIABILIDAD_MULTI_ERP.md`, verificado en código). Titular:
+**los 3 escenarios de despliegue ya son viables casi sin código — es configuración,
+no reingeniería. La intercomunicación no existe pero es barata para lo que importa.
+NO se justifica Postgres/microservicios/K8s.**
+
+Ya existe (no había que construirlo): `DASHBOARD_HOST` conmutable (server.js:685 → LAN
+con 0.0.0.0), `DASHBOARD_COOKIE_SECURE` (:85), `TRUST_PROXY` (:100), rate-limit por IP
+(:97), lockout por usuario (:129), sesiones firmadas HMAC con secreto por instancia.
+
+- **Fase D0 — 1 instancia, varios usuarios LAN (horas)**: `DASHBOARD_HOST=0.0.0.0`, las
+  cajas entran por IP LAN. WAL aguanta 5-10 cajas (1 escritor serializado + busy_timeout
+  5s). ✅ viable hoy.
+- **Fase D1 — varias instancias en 1 servidor (½ día)**: N pares de procesos pm2, cada
+  uno `DB_PATH` FIJO y **sin** `.instancia_activa`, puertos distintos + reverse proxy
+  (nginx/Caddy). OJO: el selector de instancias actual (exit+restart, un proceso = una
+  tienda) es para navegar demos en 1 equipo, **no** para hosting concurrente — para N
+  negocios simultáneos NO se usa el puntero.
+- **Fase D2 — remoto seguro (1 día)**: antes de exponer a internet — `DASHBOARD_COOKIE_SECURE=1`,
+  `TRUST_PROXY=1`, HTTPS (Caddy auto-TLS), quitar `'unsafe-inline'` del CSP (server.js:386),
+  y **validar `Origin` en el guard anti-CSRF** (`rejectCrossSiteForm` server.js:586 hoy solo
+  valida content-type, ~10 líneas). Recomendado para pyme: **Tailscale/WireGuard** (VPN,
+  resuelve NAT gratis) en vez de exponer el puerto directo.
+- **Fase D3 — intercomunicación / panel de flota (2-4 días)**: hoy no hay NADA saliente
+  (cero http.request; cola_notificaciones es bus intra-.db). Recomendación: **hub PULL de
+  solo-lectura** — cada instancia expone `GET /api/flota/status` con token (~40 líneas,
+  patrón `construirModulo`) publicando versión/ventas-hoy/bot-online/último-backup/errores;
+  un agregador central pollea. Cubre **panel de flota Hevcaz + consolidado multi-tienda del
+  mismo dueño (80% del valor)** sin romper instancia-por-tenant. Transferencia de stock A↔B
+  y "proveedor que es otra instancia" (B2B): **diferir** — requieren escritura cruzada,
+  conflictos y auth mutua; caro y arriesgado para el valor que dan hoy.
+
+Riesgo transversal: el proceso es **síncrono monohilo** → un reporte pesado bloquea a todas
+las cajas. Mitigación: forkear los reportes pesados como ya hace `stockWatcher.worker.js`.
 
 ## Lo que NO se hace (fuera del segmento)
 Manufactura/MRP, proyectos/timesheets, consolidación multi-empresa contable,
