@@ -8,7 +8,7 @@ import { api } from '../../api';
 import Modal from '../../components/Modal';
 import { CamposProducto, armarDatosProducto, PRODUCTO_VACIO } from './productoCampos';
 import VariantesModal from './VariantesModal';
-import { Shirt } from 'lucide-react';
+import { Shirt, Inbox, Pencil } from 'lucide-react';
 
 export default function CatalogoTab() {
   const queryClient = useQueryClient();
