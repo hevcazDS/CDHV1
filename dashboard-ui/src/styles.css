@@ -577,6 +577,20 @@ tr:last-child td { border-bottom: none; }
    no duplicar, sin reescribir las páginas. */
 .modulo-embebido .page-title { display: none; }
 .modulo-embebido > div > .page-sub:first-of-type { display: none; }
+/* POS modo caja (Ola 4 §B6, patrón Square): la pantalla que más horas ve un
+   cajero — tipografía y toques más grandes que el resto del admin. */
+.pos-mode .mantine-TextInput-input, .pos-mode .mantine-NumberInput-input, .pos-mode .mantine-Select-input {
+  min-height: 44px; font-size: 15px;
+}
+.pos-mode .mantine-Button-root { min-height: 40px; }
+.pos-mode table td { font-size: 14.5px; }
+.pos-total {
+  text-align: right; font-size: 30px; font-weight: 800; margin-top: 10px;
+  letter-spacing: -0.01em;
+}
+.pos-cambio { font-size: 17px; margin-bottom: 8px; }
+.pos-cambio strong { font-size: 21px; color: var(--green); }
+
 /* Fila "Requiere tu acción" del Inicio (Ola 3 §C): lo pendiente antes que los KPIs */
 .accion-strip {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;

@@ -77,7 +77,7 @@ function me(req, res, ctx) {
 function pedidos(req, res, ctx) {
     const { db, json } = ctx;
     const rows = db.prepare(`
-        SELECT p.id_pedido, p.folio, p.cliente, p.estatus, p.ciudad_envio,
+        SELECT p.id_pedido, p.folio, p.cliente, p.id_cliente, p.estatus, p.ciudad_envio,
                p.email_notificado, p.creado_en, p.a_credito, p.cobrado_por,
                p.metodo_entrega, p.repartidor_nombre, p.repartidor_telefono,
                lp.id AS id_link_pago, lp.monto AS total, lp.estatus AS pago_estatus, lp.url_link,

@@ -34,6 +34,7 @@ export default function Mostrador() {
   const [cuponInfo, setCuponInfo] = useState(null);
   const reimprimir = () => { try { const t = JSON.parse(localStorage.getItem('pos-ultimo-ticket') || 'null'); if (t) setTicket(t); else alertar({ titulo: 'Sin ticket', mensaje: 'No hay ticket previo en esta caja' }); } catch (_) {} };
   const [cobrando, setCobrando] = useState(false);
+  const [mostrarCorte, setMostrarCorte] = useState(false);
 
   useEffect(() => { if (config?.metodos?.length) setMetodoPago(config.metodos[0]); }, [config]);
 
@@ -124,7 +125,7 @@ export default function Mostrador() {
   };
 
   return (
-    <div>
+    <div className="pos-mode">
       <div className="page-title">Mostrador</div>
       <div className="page-sub">Punto de venta — cobra ventas presenciales{config?.sucursal ? ` · sucursal: ${sucursalSel || config.sucursal}` : ''}</div>
       {Array.isArray(config?.sucursales) && config.sucursales.length > 1 && (
@@ -195,7 +196,7 @@ export default function Mostrador() {
               Subtotal: ${fmt(total)} · Descuento ({cuponInfo.codigo}): <span style={{ color: 'var(--green)' }}>-${fmt(descuento)}</span>
             </div>
           )}
-          <div style={{ textAlign: 'right', fontSize: 20, fontWeight: 700, marginTop: 4 }}>Total: ${fmt(totalNeto)}</div>
+          <div className="pos-total money">Total: ${fmt(totalNeto)}</div>
         </Card>
 
         <Card withBorder radius="md" p="lg">
@@ -204,8 +205,15 @@ export default function Mostrador() {
             value={metodoPago} onChange={v => setMetodoPago(v || 'efectivo')} mb="sm" allowDeselect={false} />
           {metodoPago === 'efectivo' && (
             <>
-              <NumberInput label="Efectivo recibido" min={0} value={efectivo} onChange={setEfectivo} mb="xs" />
-              {cambio !== null && <div style={{ fontSize: 14, marginBottom: 8 }}>Cambio: <strong>${fmt(cambio)}</strong></div>}
+              <NumberInput label="Efectivo recibido" min={0} value={efectivo} onChange={setEfectivo} mb={6} />
+              {/* Montos rápidos (patrón Square §B6): un toque en vez de teclear */}
+              <Group gap={6} mb="xs" wrap="wrap">
+                <Button size="compact-sm" variant="default" disabled={!carrito.length} onClick={() => setEfectivo(totalNeto)}>Exacto</Button>
+                {[50, 100, 200, 500].map(m => (
+                  <Button key={m} size="compact-sm" variant="default" onClick={() => setEfectivo(m)}>${m}</Button>
+                ))}
+              </Group>
+              {cambio !== null && <div className="pos-cambio">Cambio: <strong className="money">${fmt(cambio)}</strong></div>}
             </>
           )}
           <TextInput label={aCredito ? 'Teléfono del cliente (requerido para fiado)' : 'Teléfono del cliente (opcional, para puntos)'} value={clienteTel} onChange={e => setClienteTel(e.target.value)} mb="xs" />
@@ -266,7 +274,12 @@ export default function Mostrador() {
         </Card>
       </div>
 
-      <CorteCaja txt={txt} />
+      {/* El corte es un evento de FIN DE TURNO — no convive con la pantalla de
+          cobro (Ola 4 §A4): vive detrás de "Cerrar turno". */}
+      {!mostrarCorte && (
+        <Button variant="default" mt="md" onClick={() => setMostrarCorte(true)}>🧾 Cerrar turno (corte de caja)</Button>
+      )}
+      {mostrarCorte && <CorteCaja txt={txt} />}
     </div>
   );
 }
