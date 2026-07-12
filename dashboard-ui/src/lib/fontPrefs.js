@@ -17,7 +17,12 @@ const FAMILIAS = {
     sourcesans: '"Source Sans 3", -apple-system, "Segoe UI", system-ui, Roboto, sans-serif',
 };
 
-const TAMANOS = { pequeno: '13px', normal: '15px', grande: '17px' };
+// 'normal' DEBE ser 16px: es la base sobre la que Mantine calcula TODOS sus
+// rem (ancho del navbar, offset del header, spacing, fuentes, radios). Con
+// 15px todo Mantine se encogía a 93.75% mientras la CSS a mano en px fijos
+// (.topbar 56, kpi-grids, paddings) NO escalaba → el "desfase de tamaño".
+// 14/18 mantienen el chico/grande alrededor de la base correcta.
+const TAMANOS = { pequeno: '14px', normal: '16px', grande: '18px' };
 
 function aplicarPreferenciasFuente(familia, tamano) {
     const fam = FAMILIAS[familia] || FAMILIAS.inter;
