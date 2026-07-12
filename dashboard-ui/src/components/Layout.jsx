@@ -26,56 +26,49 @@ import { permite, etiquetaRol, esAuditor } from '../lib/permisos';
 // menú "se sentía revuelto"). El especialista ve solo su rebanada; el dueño ve
 // la lista completa que empieza como la de un operador. Nombres de negocio, no
 // técnicos. Poda por giro reusando módulos (ej. entrega_paqueteria_activo).
+// Ola 2 (PROPUESTA_UI_ERP §C): 9 grupos por dominio de negocio. Marketing,
+// Compras y Catálogo son páginas-módulo (sus antiguas páginas viven dentro
+// como tabs; las rutas viejas redirigen en App.jsx).
 const GRUPOS = [
   { titulo: 'Panel', enlaces: [
     { to: '/', label: 'Inicio', Icono: Home },
     { to: '/tareas', label: 'Tareas', Icono: ClipboardList },
   ]},
-  { titulo: 'Mostrador', enlaces: [
+  { titulo: 'Ventas', enlaces: [
     { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo', area: 'pos' },
     { to: '/mesas', label: 'Mesas', Icono: Utensils, area: 'pos', moduloRequerido: 'mesas_activo' },
     { to: '/citas', label: 'Citas', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'citas_activo' },
-    { to: '/fiados', label: 'Fiados', Icono: Wallet, areas: ['pos', 'finanzas'], moduloRequerido: 'ventas_credito_activo' },
-  ]},
-  { titulo: 'Pedidos y atención', enlaces: [
     { to: '/pedidos', area: 'operacion', label: 'Pedidos', Icono: Package },
-    { to: '/cola', area: 'operacion', label: 'Cola de atención', Icono: MessagesSquare },
-    { to: '/notificaciones', area: 'operacion', label: 'Chat y mensajes', Icono: MessageCircle },
     { to: '/devoluciones', area: 'operacion', label: 'Devoluciones', Icono: Undo2 },
-  ]},
-  { titulo: 'Clientes', enlaces: [
-    { to: '/clientes', area: 'operacion', label: 'Clientes', Icono: Users },
-    { to: '/ranking', area: 'operacion', label: 'Ranking', Icono: Trophy },
+    { to: '/fiados', label: 'Fiados', Icono: Wallet, areas: ['pos', 'finanzas'], moduloRequerido: 'ventas_credito_activo' },
   ]},
   { titulo: 'Envíos', enlaces: [
     { to: '/guias', label: 'Guías Estafeta', Icono: Truck, rolRequerido: 'gerente', moduloRequerido: 'entrega_paqueteria_activo' },
     { to: '/cola-envios', label: 'Cola de envíos', Icono: Send, rolRequerido: 'gerente', moduloRequerido: 'entrega_paqueteria_activo' },
-    { to: '/lista-espera', label: 'Lista de Espera', Icono: BellRing, rolRequerido: 'gerente', moduloRequerido: 'entrega_paqueteria_activo' },
-    { to: '/preventas', label: 'Preventas', Icono: CalendarDays, rolRequerido: 'gerente', moduloRequerido: 'entrega_paqueteria_activo' },
   ]},
-  { titulo: 'Promociones', enlaces: [
-    { to: '/ofertas', label: 'Ofertas', Icono: Tag, rolRequerido: 'gerente' },
-    { to: '/cupones', label: 'Cupones', Icono: Ticket, rolRequerido: 'gerente' },
+  { titulo: 'Clientes y bot', enlaces: [
+    { to: '/cola', area: 'operacion', label: 'Cola de atención', Icono: MessagesSquare },
+    { to: '/notificaciones', area: 'operacion', label: 'Chat y mensajes', Icono: MessageCircle },
+    { to: '/clientes', area: 'operacion', label: 'Clientes', Icono: Users },
+    { to: '/ranking', area: 'operacion', label: 'Ranking', Icono: Trophy },
+    { to: '/marketing', label: 'Marketing', Icono: Tag, rolRequerido: 'gerente' },
   ]},
-  { titulo: 'Catálogo e inventario', enlaces: [
+  { titulo: 'Catálogo', enlaces: [
+    { to: '/catalogo', label: 'Productos', Icono: Tags, rolRequerido: 'gerente' },
+  ]},
+  { titulo: 'Almacén', enlaces: [
     { to: '/almacen', label: 'Almacén', Icono: Warehouse, areas: ['almacen', 'almacen_lectura'] },
-    { to: '/sustitutos', label: 'Productos relacionados', Icono: RefreshCw, rolRequerido: 'gerente' },
-    { to: '/etiquetas', label: 'Etiquetas', Icono: Tags, rolRequerido: 'gerente' },
-  ]},
-  { titulo: 'Reportes', enlaces: [
-    { to: '/metricas', label: 'Métricas', Icono: BarChart3, rolRequerido: 'gerente' },
-    { to: '/busquedas', label: 'Búsquedas', Icono: Search, rolRequerido: 'gerente' },
   ]},
   { titulo: 'Compras y finanzas', enlaces: [
-    // Se muestra a quien la RUTA ya deja entrar (finanzas O compras); Almacén
-    // incluye almacen_lectura (compras lo tiene por diseño).
-    { to: '/erp', label: 'Finanzas', Icono: Landmark, areas: ['finanzas', 'compras'] },
     { to: '/compras', label: 'Compras', Icono: ShoppingCart, areas: ['compras', 'finanzas'] },
+    { to: '/erp', label: 'Finanzas', Icono: Landmark, area: 'finanzas' },
+    { to: '/metricas', label: 'Métricas', Icono: BarChart3, rolRequerido: 'gerente' },
+    { to: '/busquedas', label: 'Búsquedas', Icono: Search, rolRequerido: 'gerente' },
   ]},
   { titulo: 'Personal', enlaces: [
     { to: '/rrhh', label: 'Recursos Humanos', Icono: IdCard, area: 'rrhh', moduloRequerido: 'rrhh_activo' },
   ]},
-  { titulo: 'Configuración', enlaces: [
+  { titulo: 'Ajustes', enlaces: [
     { to: '/prime?tab=usuarios', label: 'Usuarios', Icono: UserCog, rolRequerido: 'gerente' },
     { to: '/modulos', label: 'Módulos', Icono: Settings, rolRequerido: 'gerente' },
     { to: '/prime', label: 'Configuración', Icono: Star, rolRequerido: 'gerente' },

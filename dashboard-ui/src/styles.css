@@ -572,6 +572,26 @@ td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: 
 tbody tr:hover td { background: var(--panel-2); }
 tr:last-child td { border-bottom: none; }
 .empty { text-align: center; color: var(--text-mute); padding: 28px !important; }
+/* Página embebida como tab de un módulo (Ola 2): el contenedor ya pone el
+   título "Módulo · Sección" — se oculta el título propio de la página para
+   no duplicar, sin reescribir las páginas. */
+.modulo-embebido .page-title { display: none; }
+.modulo-embebido > div > .page-sub:first-of-type { display: none; }
+/* Sub-navegación vertical de módulo (patrón Zoho/Stripe — Ola 2 §B2):
+   para módulos con >6 secciones en vez de tabs desbordados en 2 renglones */
+.modulo-layout { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: start; }
+.subnav { position: sticky; top: 76px; display: flex; flex-direction: column; gap: 2px; }
+.subnav-grupo {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-mute); padding: 12px 10px 5px;
+}
+.subnav-item {
+  display: block; width: 100%; text-align: left; background: none; border: none;
+  padding: 7px 10px; border-radius: 8px; font-size: 13px; color: var(--text-dim);
+}
+.subnav-item:hover { background: var(--panel-2); color: var(--text); }
+.subnav-item.activo { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+@media (max-width: 900px) { .modulo-layout { grid-template-columns: 1fr; } .subnav { position: static; flex-direction: row; flex-wrap: wrap; } }
 /* Empty state accionable (regla D6.3): el botón/verbo del siguiente paso */
 .empty-accion { display: block; margin-top: 6px; font-size: 12.5px; color: var(--accent); font-weight: 600; }
 .text-muted { color: var(--text-mute); }

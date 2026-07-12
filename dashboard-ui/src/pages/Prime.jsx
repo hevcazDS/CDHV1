@@ -11,22 +11,19 @@ import { useTextoEmoji } from '../context/EmojiContext';
 import { useAuth } from '../context/AuthContext';
 import GeneralTab from './prime/GeneralTab';
 import SucursalesTab from './prime/SucursalesTab';
-import InventarioTab from './prime/InventarioTab';
-import CatalogoTab from './prime/CatalogoTab';
 import UsuariosTab from './prime/UsuariosTab';
 import DatosLLMTab from './prime/DatosLLMTab';
 import BotEditorTab from './prime/BotEditorTab';
 import FiltrosTab from './prime/FiltrosTab';
 
 // soloPrime: integraciones, identidad del negocio, gestión de usuarios y
-// exportación de datos del LLM son exclusivas de prime. El gerente ve
-// sucursales/inventario/catálogo/filtros (operación del catálogo), coherente
-// con los permisos del backend.
+// exportación de datos del LLM son exclusivas de prime.
+// Ola 2 (PROPUESTA_UI_ERP §C): los tabs de OPERACIÓN salieron de aquí —
+// Catálogo es página propia (/catalogo) e Inventario vive en Almacén; esta
+// página queda como ajustes reales (era el "cajón de sastre" del diagnóstico).
 const TABS = [
   { key: 'general', label: 'General', soloPrime: true, Componente: GeneralTab },
   { key: 'sucursales', label: 'Sucursales', Componente: SucursalesTab },
-  { key: 'inventario', label: 'Inventario', Componente: InventarioTab },
-  { key: 'catalogo', label: 'Catálogo', Componente: CatalogoTab },
   { key: 'usuarios', label: 'Usuarios', soloPrime: false, Componente: UsuariosTab },
   { key: 'bot', label: 'Editor del bot', soloPrime: true, Componente: BotEditorTab },
   { key: 'datos', label: 'Datos LLM', soloPrime: true, Componente: DatosLLMTab },
@@ -53,8 +50,8 @@ export default function Prime() {
 
   return (
     <div>
-      <div className="page-title">{esPrime ? 'Prime' : 'Gestión'}</div>
-      <div className="page-sub">{esPrime ? 'Configuración avanzada — rol prime' : 'Sucursales, inventario y catálogo'}</div>
+      <div className="page-title">Configuración</div>
+      <div className="page-sub">{esPrime ? 'Identidad del negocio, sucursales, usuarios y bot — rol prime' : 'Sucursales, usuarios y filtros'}</div>
 
       <Tabs value={tab} onChange={setTab} mb="md">
         <Tabs.List>

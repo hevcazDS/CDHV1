@@ -37,7 +37,7 @@ export default function Compras() {
   return (
     <div>
       <div className="page-title">Compras</div>
-      <div className="page-sub">Solicitudes de adquisición y facturas de proveedor · las órdenes de compra están en ERP → Órdenes de compra</div>
+      <div className="page-sub">Solicitudes de adquisición y facturas de proveedor</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 20, alignItems: 'start' }}>
         <div>
           <Card withBorder radius="md" p="lg" className="card" mb="lg">
