@@ -144,6 +144,38 @@ temprana vs estable + errores de consola + métricas de layout).
 - 🟡 Menor: 2 pedidos DEMO muestran el select de ESTATUS en blanco (su valor no está
   en las opciones del dropdown de Pedidos.jsx).
 
+## 🎬 PLAN "PULIDO PRO" (aprobado por el dueño 2026-07-12) — motion + gráficas + arquitectura + seguridad
+
+Contexto: las 4 olas de PROPUESTA_UI_ERP están hechas; el dueño quiere subir otro
+nivel: quitar la vista de "app genérica" (motion/hovers/micro-interacciones,
+aunque implique rehacer CSS y actualizar dependencias), graficar la información
+que hoy se tira como texto, y revisión de arquitectura + seguridad del código.
+
+### Fase 0 — 4 agentes en paralelo (cada uno entrega un .md accionable)
+- [ ] **Experto UI/motion** → `SPEC_MOTION_UI.md`: crítica visual con capturas frescas +
+      sistema de movimiento (hovers con elevación, transiciones de página/drawer, focus
+      rings, feedback táctil POS, skeleton loaders en vez de "Cargando...", regleta de
+      módulo por dominio). Postura inicial: CSS puro + prefers-reduced-motion; framer-motion
+      solo si el experto lo justifica (lazy). `npm outdated` + subir deps seguras.
+- [ ] **Experto ERP datos→gráficas** → `SPEC_GRAFICAS_ERP.md`: página por página qué
+      texto/tabla debe ser visual (corte por método, aging CxC, flujo de caja, sparklines
+      en KPIs/Resúmenes, P&L). recharts YA existe (lazy en Métricas) — sin dep nueva.
+- [ ] **Arquitecto** → `REVISION_ARQUITECTURA.md`: 2 procesos + SQLite WAL, instancias/
+      puntero, migraciones baseline, registro de rutas, bridge del bot, qué truena a
+      10-50 clientes. Priorizado con fix.
+- [ ] **Seguridad** → `REVISION_SEGURIDAD.md`: CSP unsafe-inline, cookie sin Secure,
+      rate limits, PIN/RBAC/sesiones, parser CFDI, instancias, PII en logs/cola_emails,
+      credenciales semilla. Con archivo:línea y fix.
+
+### Fases 1-4 — ejecución con lo entregado
+- [ ] Fase 1: motion + skeletons + regleta (rehacer CSS si hace falta; Puppeteer antes/después)
+- [ ] Fase 2: gráficas texto→visual con recharts lazy (bundle inicial intacto)
+- [ ] Fase 3: fixes REALES de arquitectura/seguridad
+- [ ] Fase 4: verificación total (tests + índice + build + capturas + code-review del diff)
+
+Restricciones: sin Google Fonts (CSP), white-label (identidad del producto), JC no
+pierde nada, commits por fase.
+
 ## 🆕 v1.01 — Cola del comité de 16 auditorías (2026-07-09)
 
 Hallazgos verificados contra el código (falsos positivos ya descartados:
