@@ -347,7 +347,7 @@ function inventarioMovimientos(req, res, ctx) {
 // cuentas prime (y el DELETE + tocar admin/prime siguen prime-only aparte).
 function usuariosGet(req, res, ctx) {
     const { db, json } = ctx;
-    try { return json(res, db.prepare("SELECT id, username, nombre, rol, creado_en FROM usuarios WHERE rol != 'prime' ORDER BY id").all()); }
+    try { return json(res, db.prepare("SELECT id, username, nombre, rol, sucursal, creado_en FROM usuarios WHERE rol != 'prime' ORDER BY id").all()); }
     catch (e) { return json(res, { ok: false, error: e.message }, 500); }
 }
 

@@ -253,6 +253,7 @@ const UsuarioSchema = z.object({
     password: z.string().min(8, 'password debe tener al menos 8 caracteres').max(200),
     rol:      z.enum(['cajero', 'operador', 'almacen', 'compras', 'rh', 'contabilidad', 'auditor', 'usuario', 'gerente', 'prime']),
     nombre:   z.string().trim().min(1).max(80).optional(),
+    sucursal: z.string().trim().max(80).optional(),  // multitienda 0049: '' = sin tienda (default)
 });
 // El PUT admite los MISMOS roles que el alta (antes solo usuario/gerente/prime →
 // re-asignar a un rol especialista daba 400 aunque el panel lo ofrecía). La
@@ -262,6 +263,7 @@ const UsuarioUpdateSchema = z.object({
     password: z.string().min(8).max(200).optional(),
     rol:      z.enum(['cajero', 'operador', 'almacen', 'compras', 'rh', 'contabilidad', 'auditor', 'usuario', 'gerente', 'prime']).optional(),
     nombre:   z.string().trim().min(1).max(80).optional(),
+    sucursal: z.string().trim().max(80).optional(),  // multitienda 0049: '' = quitar tienda (default)
 });
 
 // Helper: convertir error Zod a string legible

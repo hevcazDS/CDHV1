@@ -68,9 +68,12 @@ CREATE TABLE IF NOT EXISTS usuarios (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     username      TEXT NOT NULL UNIQUE,
     nombre        TEXT NOT NULL DEFAULT '',
+    email         TEXT,     -- legacy del sistema Python; los INSERT de server.js/onboarding/alta la escriben ('user@local')
     password_hash TEXT NOT NULL,
     salt          TEXT NOT NULL,
+    id_rol        INTEGER,  -- legacy (1=normal, 2=prime); los INSERT la escriben
     rol           TEXT NOT NULL CHECK(rol IN ('cajero','operador','almacen','compras','rh','contabilidad','auditor','usuario','gerente','admin','prime')),  -- migrations/0017 y 0023
+    sucursal      TEXT,     -- migrations/0049: tienda del usuario (nombre en `sucursales`); NULL = sucursal default
     creado_en     TEXT DEFAULT (datetime('now','localtime'))
 );
 
@@ -520,6 +523,7 @@ CREATE TABLE IF NOT EXISTS cortes_caja (
     efectivo_contado REAL,
     diferencia       REAL,
     detalle_json     TEXT,
+    sucursal         TEXT,   -- migrations/0049: tienda donde se cerró el corte
     creado_en        TEXT DEFAULT (datetime('now','localtime'))
 );
 

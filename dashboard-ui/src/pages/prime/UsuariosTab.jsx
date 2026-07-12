@@ -22,16 +22,26 @@ const ROLES_OPCIONES = [
 
 export default function UsuariosTab() {
   const queryClient = useQueryClient();
-  const usuarioForm = useForm({ initialValues: { username: '', password: '', rol: 'operador' } });
+  const usuarioForm = useForm({ initialValues: { username: '', password: '', rol: 'operador', sucursal: '' } });
   const [msgUsuarios, setMsgUsuarios] = useState('');
   const [usuarioEditando, setUsuarioEditando] = useState(null);
-  const editarUsuarioForm = useForm({ initialValues: { nombre: '', password: '' } });
+  const editarUsuarioForm = useForm({ initialValues: { nombre: '', password: '', sucursal: '' } });
   const [msgEditarUsuario, setMsgEditarUsuario] = useState('');
 
   const { data: usuarios = [] } = useQuery({
     queryKey: ['prime-usuarios'],
     queryFn: () => api.get('/api/prime/usuarios'),
   });
+  // Multitienda: el selector de tienda solo aparece con 2+ sucursales
+  const { data: sucursales = [] } = useQuery({
+    queryKey: ['prime-sucursales'],
+    queryFn: () => api.get('/api/prime/sucursales'),
+  });
+  const multitienda = sucursales.length > 1;
+  const sucursalOpciones = [
+    { value: '', label: 'Sucursal default' },
+    ...sucursales.map(s => ({ value: s.nombre, label: s.nombre })),
+  ];
 
   const crearUsuarioMutation = useMutation({
     mutationFn: (values) => api.post('/api/prime/usuarios', values),
@@ -41,7 +51,11 @@ export default function UsuariosTab() {
     },
     onError: (e) => setMsgUsuarios(e.message),
   });
-  const crearUsuario = () => { setMsgUsuarios(''); crearUsuarioMutation.mutate(usuarioForm.values); };
+  const crearUsuario = () => {
+    setMsgUsuarios('');
+    const v = usuarioForm.values;
+    crearUsuarioMutation.mutate(multitienda ? v : { username: v.username, password: v.password, rol: v.rol });
+  };
 
   const cambiarRolUsuarioMutation = useMutation({
     mutationFn: ({ id, rol }) => api.put(`/api/prime/usuarios/${id}`, { rol }),
@@ -67,7 +81,7 @@ export default function UsuariosTab() {
   });
   const abrirEdicionUsuario = (u) => {
     setMsgEditarUsuario('');
-    editarUsuarioForm.setValues({ nombre: u.nombre || '', password: '' });
+    editarUsuarioForm.setValues({ nombre: u.nombre || '', password: '', sucursal: u.sucursal || '' });
     setUsuarioEditando(u);
   };
   const guardarEdicionUsuario = () => {
@@ -79,6 +93,7 @@ export default function UsuariosTab() {
       if (v.password.length < 8) { setMsgEditarUsuario('La nueva contraseña debe tener al menos 8 caracteres.'); return; }
       datos.password = v.password;
     }
+    if (multitienda && v.sucursal !== (usuarioEditando.sucursal || '')) datos.sucursal = v.sucursal;
     if (!Object.keys(datos).length) { setMsgEditarUsuario('Nada que actualizar.'); return; }
     editarUsuarioMutation.mutate({ id: usuarioEditando.id, datos });
   };
@@ -96,15 +111,19 @@ export default function UsuariosTab() {
         <PasswordInput placeholder="Password (mín. 8)" {...usuarioForm.getInputProps('password')} style={{ minWidth: 160 }} />
         <Select data={ROLES_OPCIONES} style={{ minWidth: 220 }}
           allowDeselect={false} {...usuarioForm.getInputProps('rol')} />
+        {multitienda && (
+          <Select data={sucursalOpciones} style={{ minWidth: 180 }} placeholder="Sucursal"
+            allowDeselect={false} {...usuarioForm.getInputProps('sucursal')} />
+        )}
         <Button disabled={!usuarioForm.values.username.trim() || !usuarioForm.values.password} onClick={crearUsuario}>
           Crear usuario
         </Button>
       </Group>
       <div className="table-wrap">
         <Table highlightOnHover verticalSpacing="xs">
-          <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
+          <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th>{multitienda && <th>Sucursal</th>}<th>Creado</th><th></th></tr></thead>
           <tbody>
-            {usuarios.length === 0 && <tr><td colSpan={5} className="empty">Sin usuarios</td></tr>}
+            {usuarios.length === 0 && <tr><td colSpan={multitienda ? 6 : 5} className="empty">Sin usuarios</td></tr>}
             {usuarios.map(u => (
               <tr key={u.id}>
                 <td>{u.username}</td>
@@ -124,6 +143,7 @@ export default function UsuariosTab() {
                     comboboxProps={{ withinPortal: true }}
                   />
                 </td>
+                {multitienda && <td>{u.sucursal || 'Default'}</td>}
                 <td>{u.creado_en}</td>
                 <td>
                   <Group gap={4} wrap="nowrap">
@@ -146,6 +166,10 @@ export default function UsuariosTab() {
           {msgEditarUsuario && <div className="login-error" style={{ marginBottom: 12 }}>{msgEditarUsuario}</div>}
           <TextInput label="Nombre" {...editarUsuarioForm.getInputProps('nombre')} mb="sm" />
           <PasswordInput label="Nueva contraseña (dejar vacío para no cambiar)" {...editarUsuarioForm.getInputProps('password')} />
+          {multitienda && (
+            <Select label="Sucursal" data={sucursalOpciones} mt="sm"
+              allowDeselect={false} {...editarUsuarioForm.getInputProps('sucursal')} />
+          )}
         </Modal>
       )}
     </Card>

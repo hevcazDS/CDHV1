@@ -18,4 +18,19 @@ function sucursalFacturacionDefault(db) {
     } catch (_) { return null; }
 }
 
-module.exports = { sucursalFacturacionDefault };
+// Sucursal EFECTIVA de una sesión del dashboard (multitienda, migración 0049):
+// la tienda asignada al usuario (usuarios.sucursal) si existe en el catálogo;
+// si no tiene (NULL — todos los usuarios pre-multitienda) cae a la sucursal de
+// facturación default. Con una sola sucursal esto colapsa al comportamiento de
+// siempre. Devuelve el nombre (string) o null.
+function sucursalDeSesion(db, ses) {
+    try {
+        const s = ses && ses.username
+            ? db.prepare('SELECT sucursal FROM usuarios WHERE username=?').get(ses.username)?.sucursal
+            : null;
+        if (s && db.prepare('SELECT 1 FROM sucursales WHERE nombre=?').get(s)) return s;
+    } catch (_) { /* columna aún no migrada → default */ }
+    return sucursalFacturacionDefault(db);
+}
+
+module.exports = { sucursalFacturacionDefault, sucursalDeSesion };

@@ -21,7 +21,7 @@ const kardexService = require('../../services/kardexService');
 const autorizacion = require('../autorizacion');
 const { rangoDe } = require('../permisos');
 const { flagActivo } = require('../../services/configFlags');
-const { sucursalFacturacionDefault } = require('../../services/sucursalService');
+const { sucursalFacturacionDefault, sucursalDeSesion } = require('../../services/sucursalService');
 const construirModulo = require('./_construirModulo');
 
 // ── Estado del módulo / config (por request, contra `configuracion`) ──────────
@@ -32,19 +32,34 @@ const inventarioActivo = (db) => flagActivo(db, 'inventario_activo', true);
 const creditoActivo = (db) => flagActivo(db, 'ventas_credito_activo');
 const sucursalDefault = (db) => sucursalFacturacionDefault(db);
 
+// Sucursal donde OPERA esta petición (multitienda): la de la sesión (usuario→
+// tienda, migración 0049), con override explícito solo para gerente+ (el
+// cajero queda fijo a la suya — no puede vender "en" otra tienda).
+function _sucursalOperativa(db, ses, override) {
+    const o = String(override || '').trim();
+    if (o && rangoDe(ses?.rol) >= 2 && db.prepare('SELECT 1 FROM sucursales WHERE nombre=?').get(o)) return o;
+    return sucursalDeSesion(db, ses);
+}
+
 // GET /api/pos/config — sucursal + métodos de pago activos (cualquier sesión POS)
-function configGet(req, res, ctx) {
+function configGet(req, res, ctx, { ses }) {
     const { db, json } = ctx;
     if (!posActivo(db)) return json(res, { ok: false, error: 'El módulo de punto de venta está desactivado' }, 403);
     let metodos = [];
     try { metodos = db.prepare('SELECT nombre FROM metodos_pago WHERE activo=1 ORDER BY id').all().map(m => m.nombre); } catch (_) {}
     let facturacion = false;
     try { const r = db.prepare("SELECT valor FROM configuracion WHERE clave='facturacion_activo' LIMIT 1").get(); facturacion = !!r && (r.valor === '1' || r.valor === 'true'); } catch (_) {}
-    return json(res, { sucursal: sucursalDefault(db), metodos, facturacion, credito: creditoActivo(db), inventario: inventarioActivo(db) });
+    // gerente+ recibe el catálogo para el selector de tienda (con 1 sucursal el
+    // frontend no muestra nada — colapsa al comportamiento actual)
+    let sucursales;
+    if (rangoDe(ses?.rol) >= 2) {
+        try { sucursales = db.prepare('SELECT nombre FROM sucursales ORDER BY nombre').all().map(s => s.nombre); } catch (_) {}
+    }
+    return json(res, { sucursal: _sucursalOperativa(db, ses), metodos, facturacion, credito: creditoActivo(db), inventario: inventarioActivo(db), ...(sucursales && sucursales.length > 1 ? { sucursales } : {}) });
 }
 
 // GET /api/pos/productos?q= — búsqueda ligera (variante por código primero)
-function productosGet(req, res, ctx) {
+function productosGet(req, res, ctx, { ses }) {
     const { db, json } = ctx;
     {
         const q0 = ((new URL(req.url, 'http://x')).searchParams.get('q') || '').trim();
@@ -53,7 +68,7 @@ function productosGet(req, res, ctx) {
     }
     if (!posActivo(db)) return json(res, { ok: false, error: 'El módulo de punto de venta está desactivado' }, 403);
     const q = (new URL(req.url, 'http://x').searchParams.get('q') || '').trim();
-    const suc = sucursalDefault(db);
+    const suc = _sucursalOperativa(db, ses, new URL(req.url, 'http://x').searchParams.get('sucursal'));
     const rows = db.prepare(`
         SELECT p.id, p.name, p.price, p.sku, p.upc, p.tipo,
                COALESCE((SELECT stock FROM inventarios WHERE id_producto=p.id AND sucursal=?), 0) AS stock
@@ -88,7 +103,9 @@ function ventaPost(req, res, ctx, { ses }) {
             if (!items.length) return json(res, { ok: false, error: 'Agrega al menos un producto' }, 400);
             const metodoPago = String(d.metodo_pago || 'efectivo').trim();
             const esCredito = !!d.a_credito && creditoActivo(db);
-            const sucursal = String(d.sucursal || '').trim() || sucursalDefault(db);
+            // d.sucursal solo lo honra gerente+ (_sucursalOperativa lo valida);
+            // el cajero vende SIEMPRE en su tienda de sesión.
+            const sucursal = _sucursalOperativa(db, ses, d.sucursal);
             if (!sucursal) return json(res, { ok: false, error: 'No hay sucursal de facturación configurada (Prime > General)' }, 400);
             if (esCredito && !(d.cliente && (d.cliente.telefono || d.cliente.nombre))) {
                 return json(res, { ok: false, error: 'Una venta a crédito (fiado) requiere identificar al cliente' }, 400);
@@ -253,8 +270,8 @@ function cortePost(req, res, ctx, { ses }) {
             const efectivo_sistema = porMetodo.filter(r => r.metodo === 'efectivo').reduce((s, r) => s + (r.total || 0), 0);
             const efectivo_contado = (d.efectivo_contado !== undefined && d.efectivo_contado !== null && d.efectivo_contado !== '') ? Number(d.efectivo_contado) : null;
             const diferencia = efectivo_contado !== null ? parseFloat((efectivo_contado - efectivo_sistema).toFixed(2)) : null;
-            const r = db.prepare(`INSERT INTO cortes_caja (fecha, usuario, total_sistema, efectivo_sistema, efectivo_contado, diferencia, detalle_json)
-                                  VALUES (?,?,?,?,?,?,?)`).run(fecha, ses.username, total_sistema, efectivo_sistema, efectivo_contado, diferencia, JSON.stringify(porMetodo));
+            const r = db.prepare(`INSERT INTO cortes_caja (fecha, usuario, total_sistema, efectivo_sistema, efectivo_contado, diferencia, detalle_json, sucursal)
+                                  VALUES (?,?,?,?,?,?,?,?)`).run(fecha, ses.username, total_sistema, efectivo_sistema, efectivo_contado, diferencia, JSON.stringify(porMetodo), _sucursalOperativa(db, ses));
             return json(res, { ok: true, id: r.lastInsertRowid, alcance: esGlobal ? 'global' : 'propio', total_sistema, efectivo_sistema, efectivo_contado, diferencia });
         } catch (e) {
             if (/UNIQUE/.test(e.message)) return json(res, { ok: false, error: 'Ya cerraste tu corte de hoy — un corte por usuario por día' }, 400);

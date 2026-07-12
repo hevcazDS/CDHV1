@@ -27,11 +27,16 @@ function usuariosPost(req, res, ctx, { ses }) {
             if (db.prepare('SELECT id FROM usuarios WHERE username=?').get(username)) {
                 return json(res, { ok: false, error: 'Ese usuario ya existe' }, 400);
             }
+            // multitienda 0049: tienda del usuario ('' = ninguna → opera en la default)
+            let sucursal = String(datos.sucursal || '').trim() || null;
+            if (sucursal && !db.prepare('SELECT 1 FROM sucursales WHERE nombre=?').get(sucursal)) {
+                return json(res, { ok: false, error: 'Esa sucursal no existe en el catálogo' }, 400);
+            }
             const salt = crypto.randomBytes(16).toString('hex');
             const email = `${String(username).trim().toLowerCase()}@local`;
             const idRol = rol === 'prime' ? 2 : 1;
-            const r = db.prepare('INSERT INTO usuarios (username, nombre, email, password_hash, id_rol, salt, rol) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                .run(username, nombre, email, hashPassword(password, salt), idRol, salt, rol);
+            const r = db.prepare('INSERT INTO usuarios (username, nombre, email, password_hash, id_rol, salt, rol, sucursal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+                .run(username, nombre, email, hashPassword(password, salt), idRol, salt, rol, sucursal);
             log.info('[prime] usuario creado: ' + username + ' (' + rol + ')');
             return json(res, { ok: true, id: r.lastInsertRowid, username, nombre, rol });
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
@@ -72,6 +77,13 @@ function usuariosPut(req, res, ctx, { params, ses }) {
                 db.prepare('UPDATE usuarios SET nombre=? WHERE id=?').run(nombre, id);
             }
             if (datos.rol) db.prepare('UPDATE usuarios SET rol=? WHERE id=?').run(datos.rol, id);
+            if (datos.sucursal !== undefined) {
+                const suc = String(datos.sucursal || '').trim() || null;
+                if (suc && !db.prepare('SELECT 1 FROM sucursales WHERE nombre=?').get(suc)) {
+                    return json(res, { ok: false, error: 'Esa sucursal no existe en el catálogo' }, 400);
+                }
+                db.prepare('UPDATE usuarios SET sucursal=? WHERE id=?').run(suc, id);
+            }
             if (datos.password) {
                 const salt = crypto.randomBytes(16).toString('hex');
                 db.prepare('UPDATE usuarios SET password_hash=?, salt=? WHERE id=?').run(hashPassword(datos.password, salt), salt, id);

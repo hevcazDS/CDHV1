@@ -14,6 +14,10 @@ export default function Mostrador() {
   const txt = useTextoEmoji();
 
   const { data: config } = useQuery({ queryKey: ['pos-config'], queryFn: () => api.get('/api/pos/config') });
+  // Multitienda: gerente+ recibe config.sucursales (2+) y puede operar la caja
+  // de otra tienda; '' = la sucursal de su sesión. El cajero nunca ve esto.
+  const [sucursalSel, setSucursalSel] = useState('');
+  const paramSucursal = sucursalSel ? `&sucursal=${encodeURIComponent(sucursalSel)}` : '';
   const [busqueda, setBusqueda] = useState('');
   const [resultados, setResultados] = useState([]);
   const [carrito, setCarrito] = useState([]);
@@ -36,7 +40,7 @@ export default function Mostrador() {
   const buscar = async (q) => {
     setBusqueda(q);
     if (q.trim().length < 1) { setResultados([]); return; }
-    try { const r = await api.get(`/api/pos/productos?q=${encodeURIComponent(q.trim())}`); setResultados(r.items || []); }
+    try { const r = await api.get(`/api/pos/productos?q=${encodeURIComponent(q.trim())}${paramSucursal}`); setResultados(r.items || []); }
     catch (e) { setMsg({ ok: false, t: e.message }); }
   };
   // Escáner de código de barras: los lectores USB teclean el código y mandan
@@ -47,7 +51,7 @@ export default function Mostrador() {
     if (!codigo) return;
     e.currentTarget.value = '';
     try {
-      const r = await api.get(`/api/pos/productos?q=${encodeURIComponent(codigo)}`);
+      const r = await api.get(`/api/pos/productos?q=${encodeURIComponent(codigo)}${paramSucursal}`);
       const exacto = (r.items || []).find(x => x.upc === codigo || x.sku === codigo) || (r.items || [])[0];
       if (!exacto) return setMsg({ ok: false, t: 'Código no encontrado: ' + codigo });
       agregar(exacto);
@@ -101,6 +105,7 @@ export default function Mostrador() {
         razon_social: razonSocial || undefined,
         rfc: rfc || undefined,
         cupon: cupon.trim() || undefined,
+        sucursal: sucursalSel || undefined,
         pin,
       });
       let r = await armarVenta();
@@ -121,7 +126,15 @@ export default function Mostrador() {
   return (
     <div>
       <div className="page-title">Mostrador</div>
-      <div className="page-sub">Punto de venta — cobra ventas presenciales{config?.sucursal ? ` · sucursal: ${config.sucursal}` : ''}</div>
+      <div className="page-sub">Punto de venta — cobra ventas presenciales{config?.sucursal ? ` · sucursal: ${sucursalSel || config.sucursal}` : ''}</div>
+      {Array.isArray(config?.sucursales) && config.sucursales.length > 1 && (
+        <Group gap="xs" mb="sm">
+          <Select size="xs" style={{ maxWidth: 260 }} allowDeselect={false}
+            data={[{ value: '', label: `Mi sucursal (${config.sucursal || 'default'})` }, ...config.sucursales.map(s => ({ value: s, label: s }))]}
+            value={sucursalSel} onChange={v => { setSucursalSel(v || ''); setResultados([]); setCarrito([]); }} />
+          <span className="text-muted" style={{ fontSize: 12 }}>Operar la caja de otra tienda (vacía el carrito al cambiar)</span>
+        </Group>
+      )}
       {config && config.inventario === false && (
         <div style={{ marginBottom: 12, padding: '9px 14px', borderRadius: 8, background: 'rgba(251,189,35,0.15)', border: '1px solid var(--yellow)', color: 'var(--text)', fontSize: 13 }}>
           ⚠️ El <strong>control de inventario está desactivado</strong>: estas ventas <strong>no descuentan stock</strong>. Actívalo en Módulos si tu negocio maneja existencias.
