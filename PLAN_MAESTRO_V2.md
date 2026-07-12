@@ -58,10 +58,47 @@ flujo de venta). La ruta de mejor ROI:
 
 ## Ola 5 — módulos por segmento (proyectos aparte, por demanda de cliente)
 12. **Recetas/insumos** (restaurante) — descontar ingredientes al vender un platillo; sin esto el costeo de comida es ficticio. Es lo que separa "POS con mesas" de "sistema de restaurante".
-13. **Planes recurrentes** (ISP) — facturación mensual recurrente; hoy todo es contado.
+13. ~~**Planes recurrentes** (ISP)~~ → **absorbido por F5.1** (suscripción mensual en `servicios`; ISP se elimina como giro).
 14. **Órdenes de trabajo** (servicios/mantenimiento) — equipo/falla/refacciones/horas/estatus.
 15. **Anticipo en citas** (tatuajes) — reusar la mecánica de apartado de preventas.
 16. **Estatus de cocina / KDS** (restaurante con volumen) — `enviado_cocina` binario → enum preparando/listo/servido.
+
+## FASE 5 — pendientes del dueño (2026-07-12) · A CONSTRUIR
+Nuevos requerimientos + limpieza de giros. Filosofía intacta: aditivo/toggleable, JC byte-idéntico,
+boring-tech, instancia-por-cliente. Orden sugerido: F5.0 (limpieza, rápido) → F5.1 (suscripción, alto
+valor comercial) → F5.4 (baúl, cierra el ciclo fiscal) → F5.2 (documentos) → F5.3 (reportes imprimibles).
+
+- **F5.0 — Limpieza de giros (rápido):**
+  - **Quitar ISP** del onboarding/giros (`_giros.js`, `modulosDefaults.js`): hoy se comporta como
+    barbería y NO factura recurrente → vendía una capacidad inexistente. Se elimina como giro.
+  - **freelancer = servicios**: NO es giro propio; se aliasa a `servicios` (mismo vocab/flujo). Si se
+    selecciona, opera como servicios.
+
+- **F5.1 — Suscripción mensual toggleable en `servicios` (alto valor):** módulo `suscripcion_activo`
+  (default OFF). Captura cliente + datos de referencia + monto + periodicidad (mensual) y genera el
+  **cobro recurrente**. CLAVE: la suscripción debe **proyectarse a ventas con números** (MRR / ingreso
+  recurrente esperado del mes) para poder proyectar. Reusa `links_pago`/`marcar-pagado` y el flujo de
+  cobro sellado; cubre también lo que el ISP habría necesitado (recurrencia), ahora como opción de
+  servicios, no un giro aparte. Nueva tabla `suscripciones` (cliente, monto, periodicidad, día de corte,
+  estatus activa/suspendida, próximo_cobro). El stockWatcher (o un tick) genera el cobro del mes.
+
+- **F5.2 — Documentos: cotizaciones / pagarés / contratos (clientes, personal y/o proveedores):**
+  generador de documentos con **plantillas estándar + plantilla propia por sucursal** (la sucursal sube
+  la suya). Tipos: **cotización** (→ convertible a pedido), **pagaré** (ligado al fiado/CxC), **contrato**
+  (personal = empleados; proveedores). Tabla `documentos` (tipo, plantilla, contraparte, montos, estatus,
+  pdf/render) + `plantillas_documento` (por sucursal/estándar). Salida imprimible (PDF/print), como la
+  constancia de fiado que ya existe.
+
+- **F5.3 — Reportes imprimibles/exportables:** capa de impresión/PDF sobre datos que YA existen —
+  cortes de caja, libros contables (diario/mayor/balanza), órdenes de compra, entradas de mercancía,
+  transferencias entre sucursales, etc. No es lógica nueva: es render imprimible + export (CSV/PDF) de
+  reportes existentes, con encabezado del negocio/sucursal.
+
+- **F5.4 — Baúl de contabilidad (repositorio de CFDIs):** donde caen las facturas que devuelve el PAC.
+  Guarda y **organiza en carpetas locales** los CFDI (XML + PDF) emitidos/recibidos (por mes/tipo/RFC), y
+  permite **exportar por lote** (zip) para el contador. Reusa el patrón de `scripts/backup.js` (SMTP con
+  adjunto) y el `datasetExport` (gzip). Es el "archivero fiscal" que el contador pide: todo el mes en una
+  carpeta/zip. Se alimenta de lo que `pacService` ya timbra/descarga (PDF/XML).
 
 ## Recombinaciones de alto ROI (reusar lo que ya existe)
 - **Valuación de inventario** (kardex+costeo ya calculan el valor) → reporte "valor a fecha X por sucursal". Barato.
