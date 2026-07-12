@@ -38,6 +38,7 @@ const GRUPOS = [
     { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo', area: 'pos' },
     { to: '/mesas', label: 'Mesas', Icono: Utensils, area: 'pos', moduloRequerido: 'mesas_activo' },
     { to: '/citas', label: 'Citas', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'citas_activo' },
+    { to: '/suscripciones', label: 'Suscripciones', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'suscripcion_activo' },
     { to: '/pedidos', area: 'operacion', label: 'Pedidos', Icono: Package },
     { to: '/devoluciones', area: 'operacion', label: 'Devoluciones', Icono: Undo2 },
     { to: '/fiados', label: 'Fiados', Icono: Wallet, areas: ['pos', 'finanzas'], moduloRequerido: 'ventas_credito_activo' },
@@ -105,7 +106,7 @@ export default function Layout() {
   // respondían → el sidebar "brincaba" al cargar). El último snapshot vive en
   // localStorage como initialData: en recargas el menú sale completo al instante
   // y solo se corrige si algo cambió de verdad.
-  const CLAVES_SIDEBAR = 'pos_activo,rrhh_activo,mesas_activo,citas_activo,ventas_credito_activo,entrega_paqueteria_activo';
+  const CLAVES_SIDEBAR = 'pos_activo,rrhh_activo,mesas_activo,citas_activo,suscripcion_activo,ventas_credito_activo,entrega_paqueteria_activo';
   const { data: modulosActivos = {} } = useQuery({
     queryKey: ['modulos-sidebar'],
     queryFn: () => api.get('/api/modulos?claves=' + CLAVES_SIDEBAR).then(m => {

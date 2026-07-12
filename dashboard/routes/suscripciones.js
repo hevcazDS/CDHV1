@@ -1,0 +1,135 @@
+'use strict';
+// suscripciones.js — F5.1: suscripción mensual (giro servicios, módulo
+// suscripcion_activo). Captura cliente + monto + día de corte; el MRR (SUM de
+// activas) proyecta el ingreso recurrente. Cobrar un período REUSA la ruta de
+// dinero sellada (pedido + links_pago 'generado'): el cobro real se confirma en
+// marcar-pagado, igual que todo. No inventa cobro nuevo.
+const construirModulo = require('./_construirModulo');
+const { flagActivo } = require('../../services/configFlags');
+
+const activo = (db) => flagActivo(db, 'suscripcion_activo');
+
+// Próxima fecha (YYYY-MM-DD) con ese día de corte, en o después de hoy.
+function proximaFecha(diaCorte) {
+    const d = Math.min(Math.max(parseInt(diaCorte) || 1, 1), 28);
+    const hoy = new Date();
+    let y = hoy.getFullYear(), m = hoy.getMonth();
+    if (hoy.getDate() > d) m += 1;              // ya pasó este mes → el siguiente
+    const f = new Date(y, m, d);
+    return f.toISOString().slice(0, 10);
+}
+function sumarMes(fechaISO) {
+    const [y, m, d] = fechaISO.split('-').map(Number);
+    const f = new Date(y, (m - 1) + 1, Math.min(d, 28));
+    return f.toISOString().slice(0, 10);
+}
+
+function listar(req, res, ctx) {
+    const { db, json } = ctx;
+    if (!activo(db)) return json(res, { ok: false, error: 'El módulo de suscripciones está desactivado' }, 403);
+    const subs = db.prepare('SELECT * FROM suscripciones ORDER BY estatus, proximo_cobro').all();
+    const hoy = new Date().toISOString().slice(0, 10);
+    const r2 = n => Math.round(n * 100) / 100;
+    const activas = subs.filter(s => s.estatus === 'activa');
+    return json(res, {
+        suscripciones: subs,
+        resumen: {
+            mrr: r2(activas.reduce((s, x) => s + x.monto, 0)),   // ingreso recurrente mensual proyectado
+            activas: activas.length,
+            suspendidas: subs.filter(s => s.estatus === 'suspendida').length,
+            por_cobrar_hoy: activas.filter(s => s.proximo_cobro && s.proximo_cobro <= hoy).length,
+        },
+    });
+}
+
+function crear(req, res, ctx, { ses }) {
+    const { db, json, readBody } = ctx;
+    if (!activo(db)) return json(res, { ok: false, error: 'Módulo desactivado' }, 403);
+    return readBody(req, body => {
+        try {
+            const d = JSON.parse(body || '{}');
+            const monto = Number(d.monto);
+            if (!String(d.nombre || '').trim()) return json(res, { ok: false, error: 'Falta el nombre del cliente' }, 400);
+            if (!(monto > 0)) return json(res, { ok: false, error: 'Monto inválido' }, 400);
+            const diaCorte = Math.min(Math.max(parseInt(d.dia_corte) || 1, 1), 28);
+            const suc = require('../../services/sucursalService').sucursalDeSesion(db, ses) || null;
+            const r = db.prepare(`INSERT INTO suscripciones (id_cliente, nombre, telefono, concepto, monto, dia_corte, proximo_cobro, referencia, sucursal, creado_por)
+                VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
+                d.id_cliente || null, String(d.nombre).trim(), String(d.telefono || '').replace(/\D/g, '') || null,
+                String(d.concepto || '').trim() || 'Suscripción mensual', Math.round(monto * 100) / 100,
+                diaCorte, proximaFecha(diaCorte), String(d.referencia || '').trim() || null, suc, ses.username || null);
+            return json(res, { ok: true, id: r.lastInsertRowid });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
+}
+
+function actualizar(req, res, ctx, { params }) {
+    const { db, json, readBody } = ctx;
+    return readBody(req, body => {
+        try {
+            const id = parseInt(params[0]);
+            const d = JSON.parse(body || '{}');
+            const s = db.prepare('SELECT * FROM suscripciones WHERE id=?').get(id);
+            if (!s) return json(res, { ok: false, error: 'Suscripción no encontrada' }, 404);
+            if (d.estatus && ['activa', 'suspendida', 'cancelada'].includes(d.estatus)) db.prepare('UPDATE suscripciones SET estatus=? WHERE id=?').run(d.estatus, id);
+            if (d.monto != null && Number(d.monto) > 0) db.prepare('UPDATE suscripciones SET monto=? WHERE id=?').run(Math.round(Number(d.monto) * 100) / 100, id);
+            if (d.dia_corte != null) { const dc = Math.min(Math.max(parseInt(d.dia_corte) || 1, 1), 28); db.prepare('UPDATE suscripciones SET dia_corte=?, proximo_cobro=? WHERE id=?').run(dc, proximaFecha(dc), id); }
+            if (d.referencia !== undefined) db.prepare('UPDATE suscripciones SET referencia=? WHERE id=?').run(String(d.referencia).trim() || null, id);
+            return json(res, { ok: true, id });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
+}
+
+// Genera el cargo de UN período: pedido (canal 'suscripcion') + links_pago
+// 'generado'. Avanza proximo_cobro un mes. El cobro real = marcar-pagado.
+function _generarCargo(db, s, ses) {
+    const shared = require('../../bot/flows/_shared');
+    const { sucursalDeSesion } = require('../../services/sucursalService');
+    const sucursal = s.sucursal || sucursalDeSesion(db, ses) || '';
+    const folio = shared.generarFolio('pedido');
+    const carrito = [{ id: null, name: s.concepto || 'Suscripción', price: s.monto, cantidad: 1, tipo: 'servicio' }];
+    let idCliente = s.id_cliente || null;
+    if (!idCliente && s.telefono) { try { idCliente = shared.upsertCliente(s.telefono, s.nombre)?.id || null; } catch (_) {} }
+    const r = db.transaction(() => {
+        const { pedidoRowid, subtotal } = shared.insertarPedidoConCarrito(s.nombre, carrito, '', 'pendiente', sucursal, folio, idCliente, 'suscripcion');
+        db.prepare("UPDATE pedidos SET subtotal=?, total=?, metodo_entrega='pickup' WHERE id_pedido=?").run(subtotal, subtotal, pedidoRowid);
+        db.prepare("INSERT INTO links_pago (id_pedido, monto, moneda, estatus, creado_en) VALUES (?,?,'MXN','generado',datetime('now','localtime'))").run(pedidoRowid, subtotal);
+        const nuevo = sumarMes(s.proximo_cobro || new Date().toISOString().slice(0, 10));
+        db.prepare('UPDATE suscripciones SET proximo_cobro=? WHERE id=?').run(nuevo, s.id);
+        return { pedidoRowid, subtotal, folio, proximo: nuevo };
+    })();
+    return r;
+}
+
+function cobrar(req, res, ctx, { params, ses }) {
+    const { db, json } = ctx;
+    if (!activo(db)) return json(res, { ok: false, error: 'Módulo desactivado' }, 403);
+    const id = parseInt(params[0]);
+    const s = db.prepare('SELECT * FROM suscripciones WHERE id=?').get(id);
+    if (!s) return json(res, { ok: false, error: 'Suscripción no encontrada' }, 404);
+    if (s.estatus !== 'activa') return json(res, { ok: false, error: 'La suscripción no está activa' }, 400);
+    try { const r = _generarCargo(db, s, ses); return json(res, { ok: true, folio: r.folio, id_pedido: r.pedidoRowid, total: r.subtotal, proximo_cobro: r.proximo }); }
+    catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+}
+
+// Genera los cargos de TODAS las activas vencidas hoy (o antes). Botón manual;
+// un tick (stockWatcher) puede llamar la misma lógica más adelante.
+function generarCobros(req, res, ctx, { ses }) {
+    const { db, json } = ctx;
+    if (!activo(db)) return json(res, { ok: false, error: 'Módulo desactivado' }, 403);
+    const hoy = new Date().toISOString().slice(0, 10);
+    const pend = db.prepare("SELECT * FROM suscripciones WHERE estatus='activa' AND proximo_cobro IS NOT NULL AND proximo_cobro<=?").all(hoy);
+    let generados = 0, total = 0;
+    for (const s of pend) { try { const r = _generarCargo(db, s, ses); generados++; total += r.subtotal; } catch (_) {} }
+    return json(res, { ok: true, generados, total: Math.round(total * 100) / 100 });
+}
+
+const RUTAS = [
+    { metodo: 'GET',  path: '/api/suscripciones',                     area: 'operacion', handler: listar },
+    { metodo: 'POST', path: '/api/suscripciones',                     area: 'operacion', handler: crear },
+    { metodo: 'POST', path: '/api/suscripciones/generar-cobros',      area: 'operacion', handler: generarCobros },
+    { metodo: 'PUT',  path: /^\/api\/suscripciones\/(\d+)$/,          area: 'operacion', handler: actualizar },
+    { metodo: 'POST', path: /^\/api\/suscripciones\/(\d+)\/cobrar$/,  area: 'operacion', handler: cobrar },
+];
+
+module.exports = construirModulo(RUTAS, { prefijo: '/api/suscripciones' });

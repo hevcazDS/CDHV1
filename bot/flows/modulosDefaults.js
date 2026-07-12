@@ -50,6 +50,12 @@ const DEFAULT_OFF = [
     // Reparto de propinas/comisiones entre el personal (pestaña opt-in en POS,
     // para restaurantes y tiendas de materiales que lo pidan).
     'reparto_activo',
+    // F5.1: suscripción mensual (servicios) — cobro recurrente + proyección MRR.
+    'suscripcion_activo',
+    // F5.2: documentos (cotizaciones/pagarés/contratos con plantillas).
+    'documentos_activo',
+    // F5.4: baúl de contabilidad (archivero local de CFDIs + export por lote).
+    'baul_contable_activo',
 ];
 
 // Dependencias entre módulos (idea Odoo): activar la llave exige que sus
@@ -77,7 +83,6 @@ const MODULOS_POR_GIRO = {
     restaurante:   ['pos_activo', 'mesas_activo', 'entrega_repartidor_activo', 'propina_activo', 'reparto_activo'],
     servicios:     ['citas_activo'],
     mantenimiento: ['citas_activo'],
-    isp:           ['citas_activo'],
     barberia:      ['citas_activo', 'pos_activo'],
     tatuajes:      ['citas_activo', 'pos_activo'],
     estetica:      ['citas_activo', 'pos_activo'],

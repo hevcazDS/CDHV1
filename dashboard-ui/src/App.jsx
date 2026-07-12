@@ -35,6 +35,7 @@ const Almacen = lazy(() => import('./pages/Almacen'));
 const ComprasModulo = lazy(() => import('./pages/ComprasModulo'));
 const Rrhh = lazy(() => import('./pages/Rrhh'));
 const Citas = lazy(() => import('./pages/Citas'));
+const Suscripciones = lazy(() => import('./pages/Suscripciones'));
 const Mesas = lazy(() => import('./pages/Mesas'));
 const Fiados = lazy(() => import('./pages/Fiados'));
 const Tareas = lazy(() => import('./pages/Tareas'));
@@ -101,6 +102,7 @@ export default function App() {
         {(permite(user.rol, 'almacen') || permite(user.rol, 'almacen_lectura')) && <Route path="/almacen" element={<Almacen />} />}
         {permite(user.rol, 'rrhh') && <Route path="/rrhh" element={<Rrhh />} />}
               {permite(user.rol, 'operacion') && <Route path="/citas" element={<Citas />} />}
+              {permite(user.rol, 'operacion') && <Route path="/suscripciones" element={<Suscripciones />} />}
               {(permite(user.rol, 'pos') || permite(user.rol, 'operacion')) && <Route path="/mesas" element={<Mesas />} />}
               {(permite(user.rol, 'pos') || permite(user.rol, 'finanzas')) && <Route path="/fiados" element={<Fiados />} />}
         <Route path="*" element={<Navigate to="/" replace />} />

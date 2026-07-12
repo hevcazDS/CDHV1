@@ -532,6 +532,26 @@ CREATE TABLE IF NOT EXISTS cortes_caja (
     creado_en        TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- 0062: suscripciones mensuales (F5.1, módulo suscripcion_activo). MRR + cobro recurrente.
+CREATE TABLE IF NOT EXISTS suscripciones (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente    INTEGER,
+    nombre        TEXT NOT NULL,
+    telefono      TEXT,
+    concepto      TEXT,
+    monto         REAL NOT NULL,
+    periodicidad  TEXT NOT NULL DEFAULT 'mensual',
+    dia_corte     INTEGER,
+    estatus       TEXT NOT NULL DEFAULT 'activa',
+    proximo_cobro TEXT,
+    referencia    TEXT,
+    sucursal      TEXT,
+    creado_por    TEXT,
+    creado_en     TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_suscripciones_estatus ON suscripciones(estatus);
+CREATE INDEX IF NOT EXISTS idx_suscripciones_proximo ON suscripciones(proximo_cobro);
+
 -- 0060: conciliación bancaria — líneas del estado de cuenta casadas contra
 -- links_pago pagados (ingresos) y cuentas_pagar pagadas (egresos).
 CREATE TABLE IF NOT EXISTS movimientos_banco (

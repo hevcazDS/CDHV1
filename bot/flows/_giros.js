@@ -57,11 +57,6 @@ const GIROS = {
         vocab: { item: 'producto', items: 'productos', emoji: '🔧' },
         frases: {},
     },
-    isp: {
-        label: '📡 Internet / TV (planes)',
-        vocab: { item: 'plan', items: 'planes', emoji: '📡' },
-        frases: {},
-    },
     servicios: {
         label: '🛠️ Servicios',
         vocab: { item: 'servicio', items: 'servicios', emoji: '🛠️' },
@@ -129,7 +124,6 @@ const MENU_GIRO = {
     carniceria:    _MENU_SIN_WIZARD,
     ferreteria:    _MENU_SIN_WIZARD,
     servicios:     _MENU_SERVICIO,
-    isp:           _MENU_SERVICIO,
     mantenimiento: _MENU_SERVICIO,
     barberia:      _MENU_SERVICIO,
     tatuajes:      _MENU_SERVICIO,
@@ -144,8 +138,13 @@ function menuDeGiro(clave) {
     return MENU_GIRO[clave] || null;
 }
 
+// Alias de giros: 'freelancer' se cubre como 'servicios' (mismo vocab/flujo);
+// no es un giro propio en el selector. 'isp' se retiró (se comportaba como
+// barbería sin facturación recurrente) — cae al default si quedó configurado.
+const _ALIAS_GIRO = { freelancer: 'servicios' };
 function getGiro(clave) {
-    return GIROS[clave] || GIROS[GIRO_DEFAULT];
+    const c = _ALIAS_GIRO[clave] || clave;
+    return GIROS[c] || GIROS[GIRO_DEFAULT];
 }
 
 // Lista para el selector del onboarding: [{ clave, label }]
