@@ -10,6 +10,7 @@ export default function ComprasTab() {
   const qc = useQueryClient();
   const [idProveedor, setIdProveedor] = useState(null);
   const [llegada, setLlegada] = useState('');
+  const [sucDestino, setSucDestino] = useState('');
   const [items, setItems] = useState([]);
   const [prodSel, setProdSel] = useState(null);
   const [cant, setCant] = useState(1);
@@ -18,6 +19,13 @@ export default function ComprasTab() {
   const { data: proveedores = [] } = useQuery({ queryKey: ['erp-proveedores'], queryFn: () => api.get('/api/erp/proveedores') });
   const { data: productos = [] } = useQuery({ queryKey: ['erp-productos'], queryFn: () => api.get('/api/pos/productos').catch(() => []) });
   const { data: ocs = [] } = useQuery({ queryKey: ['erp-ocs'], queryFn: () => api.get('/api/erp/ordenes-compra') });
+  // Multitienda: gerente+ puede dirigir la OC a otra tienda (rol compras no ve
+  // el catálogo → sus OC entran a su propia tienda, que es lo correcto).
+  const { data: sucursales = [] } = useQuery({
+    queryKey: ['prime-sucursales'],
+    queryFn: () => api.get('/api/prime/sucursales').catch(() => []),
+  });
+  const multitienda = Array.isArray(sucursales) && sucursales.length > 1;
 
   const agregar = () => {
     if (!prodSel || !(cant > 0)) return;
@@ -28,10 +36,10 @@ export default function ComprasTab() {
   const total = items.reduce((s, it) => s + it.cantidad * it.costo_unitario, 0);
 
   const crear = useMutation({
-    mutationFn: () => api.post('/api/erp/ordenes-compra', { id_proveedor: Number(idProveedor), items, fecha_llegada_est: llegada || undefined }),
+    mutationFn: () => api.post('/api/erp/ordenes-compra', { id_proveedor: Number(idProveedor), items, fecha_llegada_est: llegada || undefined, sucursal_destino: sucDestino || undefined }),
     onSuccess: (r) => {
       if (!r.ok) return handleApiError(new Error(r.error));
-      setItems([]); setIdProveedor(null); setLlegada('');
+      setItems([]); setIdProveedor(null); setLlegada(''); setSucDestino('');
       qc.invalidateQueries({ queryKey: ['erp-ocs'] });
     },
     onError: handleApiError,
@@ -64,6 +72,11 @@ export default function ComprasTab() {
         ))}
         {items.length > 0 && <div className="modal-row total"><span>Total</span><span>${total.toFixed(2)}</span></div>}
         <TextInput type="date" label="Llegada estimada (opcional)" description="Aparece en el calendario de almacén" value={llegada} onChange={e => setLlegada(e.target.value)} mt="sm" />
+        {multitienda && (
+          <Select label="Sucursal destino" description="A qué tienda entra la mercancía al recibir" mt="sm"
+            data={[{ value: '', label: 'Mi sucursal' }, ...sucursales.map(s => ({ value: s.nombre, label: s.nombre }))]}
+            value={sucDestino} onChange={v => setSucDestino(v || '')} allowDeselect={false} />
+        )}
         <Button fullWidth mt="md" onClick={() => crear.mutate()} disabled={!idProveedor || !items.length || crear.isPending}>Crear OC</Button>
       </Card>
 

@@ -101,7 +101,9 @@ function facturaXml(req, res, ctx, { ses }) {
             // Cargar los CONCEPTOS al inventario (opcional, solo mercancía).
             const carga = { entradas: 0, creados: 0, omitidos: [] };
             if (d.cargar_conceptos && d.es_mercancia) {
-                const suc = sucursalFacturacionDefault(db);
+                // multitienda 0050: los conceptos entran a la tienda de la sesión
+                // (= default para usuarios sin tienda — comportamiento anterior)
+                const suc = require('../../services/sucursalService').sucursalDeSesion(db, ses);
                 if (!suc) return json(res, { ok: false, error: 'Configura la sucursal de facturación antes de cargar conceptos' }, 400);
                 db.transaction(() => {
                     for (const c of cfdi.conceptos) {

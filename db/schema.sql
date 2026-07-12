@@ -948,6 +948,7 @@ CREATE TABLE IF NOT EXISTS ordenes_compra (
     total        REAL NOT NULL DEFAULT 0,
     notas        TEXT,
     fecha_llegada_est TEXT,                          -- migrations/0040 (proyección de entrada)
+    sucursal_destino TEXT,                           -- migrations/0050: a qué tienda entra al recibir (NULL = sesión/default)
     creada_en    TEXT DEFAULT (datetime('now','localtime')),
     recibida_en  TEXT
 );
@@ -1188,6 +1189,7 @@ CREATE TABLE IF NOT EXISTS mesas (
     numero     TEXT NOT NULL,
     estatus    TEXT NOT NULL DEFAULT 'abierta' CHECK(estatus IN ('abierta','cobrada')),
     id_pedido  INTEGER,
+    sucursal   TEXT,   -- migrations/0050: local de la mesa (NULL = local único)
     abierta_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     cerrada_en TEXT
 );

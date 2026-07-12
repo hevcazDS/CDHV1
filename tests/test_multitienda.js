@@ -68,13 +68,43 @@ test('el corte persiste la sucursal y se puede filtrar por tienda', () => {
     assert(norte === 500, 'el corte de Norte no debe mezclar el de Centro (esperaba 500, dio ' + norte + ')');
 });
 
-console.log('\n【4】 db/schema.sql declara las columnas de la ola');
-test('schema.sql: usuarios.sucursal y cortes_caja.sucursal presentes', () => {
+console.log('\n【4】 Ola B — compras y mesas por tienda (migración 0050)');
+db.exec(`
+    CREATE TABLE ordenes_compra (id INTEGER PRIMARY KEY AUTOINCREMENT, folio TEXT, sucursal_destino TEXT);
+    CREATE TABLE mesas (id INTEGER PRIMARY KEY AUTOINCREMENT, numero TEXT, estatus TEXT DEFAULT 'abierta', sucursal TEXT);
+`);
+test('recepción de OC: entra a la sucursal DESTINO, no a la default', () => {
+    db.prepare("INSERT INTO ordenes_compra (folio, sucursal_destino) VALUES ('OC-1', 'Norte')").run();
+    const oc = db.prepare("SELECT * FROM ordenes_compra WHERE folio='OC-1'").get();
+    // la semántica de ocRecibir: destino de la OC ‖ tienda de la sesión que recibe
+    const donde = oc.sucursal_destino || sucursalDeSesion(db, { username: 'cajero_viejo' });
+    assert(donde === 'Norte', 'esperaba Norte, dio ' + donde);
+});
+test('OC vieja (destino NULL): entra a la tienda de quien recibe → default byte-idéntico', () => {
+    db.prepare("INSERT INTO ordenes_compra (folio) VALUES ('OC-2')").run();
+    const oc = db.prepare("SELECT * FROM ordenes_compra WHERE folio='OC-2'").get();
+    const donde = oc.sucursal_destino || sucursalDeSesion(db, { username: 'cajero_viejo' });
+    assert(donde === 'Centro', 'esperaba Centro, dio ' + donde);
+});
+test('mesas: nacen en el local de quien las abre y el filtro por local no mezcla', () => {
+    db.prepare("INSERT INTO mesas (numero, sucursal) VALUES ('M1', ?)").run(sucursalDeSesion(db, { username: 'cajera_norte' }));
+    db.prepare("INSERT INTO mesas (numero, sucursal) VALUES ('M2', NULL)").run(); // pre-migración
+    // la semántica de listarMesas para no-gerente: mi local + las sin local
+    const visibles = db.prepare("SELECT numero FROM mesas WHERE estatus='abierta' AND (sucursal IS NULL OR sucursal=?)").all('Norte').map(m => m.numero);
+    assert(visibles.includes('M1') && visibles.includes('M2'), 'la mesera de Norte debe ver M1 y la legacy M2');
+    const centro = db.prepare("SELECT numero FROM mesas WHERE estatus='abierta' AND (sucursal IS NULL OR sucursal=?)").all('Centro').map(m => m.numero);
+    assert(!centro.includes('M1'), 'la mesa de Norte NO debe verse en Centro');
+});
+
+console.log('\n【5】 db/schema.sql declara las columnas de las olas');
+test('schema.sql: columnas 0049 (usuarios/cortes) y 0050 (OC/mesas) presentes', () => {
     const fs = require('fs'); const path = require('path');
     const sql = fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8');
     const bloque = (tabla) => (sql.match(new RegExp('CREATE TABLE IF NOT EXISTS ' + tabla + '\\s*\\(([\\s\\S]*?)\\n\\);')) || [])[1] || '';
     assert(/\bsucursal\s+TEXT/.test(bloque('usuarios')), 'usuarios.sucursal falta en schema.sql');
     assert(/\bsucursal\s+TEXT/.test(bloque('cortes_caja')), 'cortes_caja.sucursal falta en schema.sql');
+    assert(/\bsucursal_destino\s+TEXT/.test(bloque('ordenes_compra')), 'ordenes_compra.sucursal_destino falta en schema.sql');
+    assert(/\bsucursal\s+TEXT/.test(bloque('mesas')), 'mesas.sucursal falta en schema.sql');
 });
 
 console.log(`\nRESULTADO: ${pasa} ✅  |  ${falla} ❌`);

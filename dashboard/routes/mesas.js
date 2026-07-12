@@ -7,17 +7,23 @@
 const shared = require('../../bot/flows/_shared');
 const kardexService = require('../../services/kardexService');
 const { flagActivo } = require('../../services/configFlags');
-const { sucursalFacturacionDefault } = require('../../services/sucursalService');
+const { sucursalFacturacionDefault, sucursalDeSesion } = require('../../services/sucursalService');
+const { rangoDe } = require('../permisos');
 const construirModulo = require('./_construirModulo');
 
 // Precondición: el módulo Mesas debe estar activo (corre tras el gate de auth).
 const mesasActivo = construirModulo.precondModulo('mesas_activo', 'Activa el módulo Mesas en Módulos', 400);
 
 // GET /api/mesas — mesas abiertas con sus items y total
-function listarMesas(req, res, ctx) {
+function listarMesas(req, res, ctx, { ses }) {
     const { db, json } = ctx;
     // Un solo SELECT de items de TODAS las mesas abiertas (no N+1).
-    const mesas = db.prepare("SELECT * FROM mesas WHERE estatus='abierta' ORDER BY numero").all();
+    // multitienda 0050: el mesero ve las mesas de SU local (+ las sin local,
+    // que son todas las previas a la migración → local único idéntico);
+    // gerente+ ve todos los locales.
+    const mesas = rangoDe(ses?.rol) >= 2
+        ? db.prepare("SELECT * FROM mesas WHERE estatus='abierta' ORDER BY numero").all()
+        : db.prepare("SELECT * FROM mesas WHERE estatus='abierta' AND (sucursal IS NULL OR sucursal=?) ORDER BY numero").all(sucursalDeSesion(db, ses) || '');
     if (!mesas.length) return json(res, []);
     const ids = mesas.map(m => m.id);
     const items = db.prepare(`SELECT * FROM mesa_items WHERE id_mesa IN (${ids.map(() => '?').join(',')}) ORDER BY id`).all(...ids);
@@ -29,7 +35,7 @@ function listarMesas(req, res, ctx) {
 }
 
 // POST /api/mesas — abrir una mesa (numero)
-function abrirMesa(req, res, ctx) {
+function abrirMesa(req, res, ctx, { ses }) {
     const { db, json, readBody } = ctx;
     return readBody(req, body => {
         try {
@@ -38,7 +44,8 @@ function abrirMesa(req, res, ctx) {
             if (db.prepare("SELECT 1 FROM mesas WHERE numero=? AND estatus='abierta'").get(numero)) {
                 return json(res, { ok: false, error: 'Esa mesa ya está abierta' }, 400);
             }
-            const r = db.prepare('INSERT INTO mesas (numero) VALUES (?)').run(numero);
+            // multitienda 0050: la mesa nace en el local de quien la abre
+            const r = db.prepare('INSERT INTO mesas (numero, sucursal) VALUES (?,?)').run(numero, sucursalDeSesion(db, ses));
             try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor) VALUES ('mesa_abierta','mostrador',?)").run(String(numero)); } catch (_) {}
             return json(res, { ok: true, id: r.lastInsertRowid, numero });
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
@@ -116,7 +123,9 @@ function cerrarMesa(req, res, ctx, { params, ses }) {
             if (!items.length) return json(res, { ok: false, error: 'La mesa no tiene consumo' }, 400);
             const carrito = items.map(i => ({ id: i.id_producto, name: i.nombre, price: i.precio, cantidad: i.cantidad, tipo: 'consumible' }));
             const metodoPago = d.metodo_pago || 'efectivo';
-            const sucursal = sucursalFacturacionDefault(db) || '';
+            // multitienda 0050: cobra e inventaría en el local de la MESA (las
+            // viejas sin local caen a la tienda de la sesión = default)
+            const sucursal = mesa.sucursal || sucursalDeSesion(db, ses) || '';
             const folio = shared.generarFolio('pedido');
             const r = db.transaction(() => {
                 const { pedidoRowid, subtotal } = shared.insertarPedidoConCarrito(
