@@ -31,9 +31,11 @@ const DEFAULT_OFF = [
     // Look minimalista: el panel arranca sin emojis (iconos de línea);
     // el toggle en Módulos permite reactivarlos por instancia.
     'emojis_dashboard_activo',
-    // Asientos contables automáticos (ERP Fase 6) — se enciende cuando el
-    // negocio quiere contabilidad; apagado no cambia nada del flujo.
-    'contabilidad_activo',
+    // NOTA: contabilidad_activo antes arrancaba APAGADA y era la causa de que el
+    // tablero mostrara $0 sobre un negocio con ventas reales (los asientos
+    // no-opean si el módulo está off, sin backfill). Ahora arranca ENCENDIDA:
+    // un ERP con ventas debe llevar sus libros. Se puede apagar en Módulos
+    // (solo Prime) para negocios que no quieran contabilidad.
     // RRHH/nómina — módulo opcional (una pyme sin RH opera igual sin él)
     'rrhh_activo',
     'nomina_fiscal_activo',

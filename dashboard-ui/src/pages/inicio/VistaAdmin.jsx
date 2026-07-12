@@ -2,7 +2,7 @@ import { lazy, Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Card } from '@mantine/core';
-import { Wallet, ReceiptText, Users, CreditCard, Headset, TriangleAlert, TrendingUp, Package, MessageCircle } from 'lucide-react';
+import { Wallet, ReceiptText, Users, CreditCard, Headset, TrendingUp, Package, MessageCircle } from 'lucide-react';
 import { api } from '../../api';
 import PuntosGrafica from '../../components/PuntosGrafica';
 import { fdate } from '../../lib/format';
@@ -26,7 +26,6 @@ export default function VistaAdmin() {
   const { data: met } = useQuery({ queryKey: ['metricas'], queryFn: () => api.get('/api/metricas') });
 
   const pendientes = pedidos?.filter(p => p.estatus !== 'entregado' && p.estatus !== 'cancelado').length || 0;
-  const emailsError = stats?.emails_error || 0;
   const ventasHoy = stats?.ventas_hoy || 0;
   const pagadosHoy = stats?.pedidos_pagados_hoy || 0;
   const colaAtencion = stats?.cola_atencion || 0;
@@ -63,9 +62,6 @@ export default function VistaAdmin() {
   return (
     <div className="pagina-llena" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {error && <div className="login-error mb-5">No se pudieron cargar los pedidos: {error.message}</div>}
-      {emailsError > 0 && (
-        <div className="banner-alerta"><TriangleAlert size={14} strokeWidth={1.75} /> {emailsError} email{emailsError === 1 ? '' : 's'} de confirmación con error — revisa la configuración SMTP</div>
-      )}
 
       <div className="kpi-head">
         <button className={`swap-kpi${kpiPct ? '' : ' activo'}`} onClick={() => setKpiPct(false)} title="Números absolutos">123</button>
