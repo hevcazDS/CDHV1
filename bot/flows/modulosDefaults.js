@@ -59,18 +59,21 @@ const DEPENDE_DE = {
 // instancias nuevas — Julio Cepeda nunca pasa por aquí). Sin esto, una barbería
 // quedaba sin Citas y un restaurante sin Mesas/POS hasta descubrir Módulos.
 // El dueño puede apagarlos después; esto solo es el punto de partida correcto.
+// Ajustes por auditoría de ramos (2026-07-12): abarrotes/ferretería suelen
+// fiar → ventas_credito; restaurante casi siempre da domicilio → repartidor;
+// tatuajes cobra en mostrador → pos.
 const MODULOS_POR_GIRO = {
     jugueteria:    ['pos_activo'],
     retail:        ['pos_activo'],
-    abarrotes:     ['pos_activo'],
-    carniceria:    ['pos_activo'],
-    ferreteria:    ['pos_activo'],
-    restaurante:   ['pos_activo', 'mesas_activo'],
+    abarrotes:     ['pos_activo', 'ventas_credito_activo'],
+    carniceria:    ['pos_activo', 'ventas_credito_activo'],
+    ferreteria:    ['pos_activo', 'ventas_credito_activo'],
+    restaurante:   ['pos_activo', 'mesas_activo', 'entrega_repartidor_activo'],
     servicios:     ['citas_activo'],
     mantenimiento: ['citas_activo'],
     isp:           ['citas_activo'],
     barberia:      ['citas_activo', 'pos_activo'],
-    tatuajes:      ['citas_activo'],
+    tatuajes:      ['citas_activo', 'pos_activo'],
     estetica:      ['citas_activo', 'pos_activo'],
     unas:          ['citas_activo', 'pos_activo'],
     custom:        [],
