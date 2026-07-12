@@ -291,6 +291,87 @@ function cfdiCancelar(req, res, ctx, { params }) {
     });
 }
 
+// GET /api/erp/diot?mes=YYYY-MM — DIOT: operaciones con proveedores del mes,
+// agrupadas por RFC, con base e IVA acreditable. ?formato=txt baja el archivo
+// del SAT (batch pipe-delimitado). BORRADOR: la base/IVA se derivan al iva_pct
+// configurado sobre el total de cada CxP — el contador valida antes de enviar.
+function diot(req, res, ctx) {
+    const { db, json } = ctx;
+    const sp = new URL(req.url, 'http://x').searchParams;
+    const mes = (sp.get('mes') || new Date().toISOString().slice(0, 7)).slice(0, 7);
+    const iva = (parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='iva_pct'").get()?.valor) || 16) / 100;
+    // Agrupa las CxP del mes (por creada_en) por proveedor con RFC
+    const filas = db.prepare(`
+        SELECT pr.rfc, pr.nombre, ROUND(SUM(cp.monto),2) total
+        FROM cuentas_pagar cp JOIN proveedores pr ON pr.id=cp.id_proveedor
+        WHERE pr.rfc IS NOT NULL AND pr.rfc != '' AND strftime('%Y-%m', cp.creada_en)=?
+        GROUP BY pr.rfc ORDER BY total DESC`).all(mes).map(r => {
+        const base = Math.round((r.total / (1 + iva)) * 100) / 100;
+        const ivaAcred = Math.round((r.total - base) * 100) / 100;
+        return { rfc: r.rfc, nombre: r.nombre, total: r.total, base, iva_acreditable: ivaAcred };
+    });
+    if (sp.get('formato') === 'txt') {
+        // Formato batch DIOT (simplificado): tipo_tercero(04 nacional)|
+        // tipo_operacion(85 otros)|RFC|||valor_actos_16|iva_acreditable_16
+        const lineas = filas.map(f => ['04', '85', f.rfc, '', '', String(Math.round(f.base)), String(Math.round(f.iva_acreditable))].join('|'));
+        const txt = lineas.join('\r\n') + (lineas.length ? '\r\n' : '');
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="DIOT_${mes}.txt"` });
+        return res.end(txt);
+    }
+    const tot = filas.reduce((s, f) => ({ base: s.base + f.base, iva: s.iva + f.iva_acreditable }), { base: 0, iva: 0 });
+    return json(res, { mes, iva_pct: iva * 100, filas, total_base: Math.round(tot.base * 100) / 100, total_iva_acreditable: Math.round(tot.iva * 100) / 100 });
+}
+
+// GET /api/erp/contabilidad-electronica?tipo=catalogo|balanza&mes=YYYY-MM
+// Genera el XML del SAT (contabilidad electrónica). BORRADOR: el código
+// agrupador SAT se mapea con una tabla base de las cuentas estándar; el
+// contador debe revisar/ampliar el mapeo antes de enviar al SAT.
+const _COD_AGRUPADOR = { // cuenta interna → código agrupador SAT (c_CuentaSAT)
+    '101': '101.01', '102': '102.01', '105': '105.01', '115': '115.01',
+    '119': '118.01', '201': '201.01', '208': '208.01', '209': '209.01',
+    '210': '216.01', '211': '213.01', '301': '301.01', '401': '401.01',
+    '501': '501.01', '601': '601.84',
+};
+const _xmlEsc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function contabilidadElectronica(req, res, ctx) {
+    const { db, json } = ctx;
+    const sp = new URL(req.url, 'http://x').searchParams;
+    const tipo = sp.get('tipo') === 'balanza' ? 'balanza' : 'catalogo';
+    const mes = (sp.get('mes') || new Date().toISOString().slice(0, 7)).slice(0, 7);
+    const rfc = db.prepare("SELECT valor FROM configuracion WHERE clave='pac_rfc'").get()?.valor
+        || db.prepare("SELECT valor FROM configuracion WHERE clave='rfc'").get()?.valor || 'XAXX010101000';
+    const [anio, m] = mes.split('-');
+    let xml;
+    if (tipo === 'catalogo') {
+        const cuentas = db.prepare('SELECT codigo, nombre, tipo FROM plan_cuentas ORDER BY codigo').all();
+        const rows = cuentas.map(c => {
+            const cod = _COD_AGRUPADOR[c.codigo] || (c.codigo + '.01');
+            const natur = ['activo', 'costo', 'gasto'].includes(c.tipo) ? 'D' : 'A';
+            return `  <catalogocuentas:Ctas CodAgrup="${cod}" NumCta="${_xmlEsc(c.codigo)}" Desc="${_xmlEsc(c.nombre)}" Nivel="1" Natur="${natur}"/>`;
+        }).join('\n');
+        xml = `<?xml version="1.0" encoding="UTF-8"?>\n<catalogocuentas:Catalogo xmlns:catalogocuentas="http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/CatalogoCuentas" Version="1.3" RFC="${_xmlEsc(rfc)}" Mes="${m}" Anio="${anio}">\n${rows}\n</catalogocuentas:Catalogo>`;
+    } else {
+        // Balanza: saldo final por cuenta del mes (desde el libro mayor acumulado)
+        const desde = mes + '-01';
+        const hasta = mes + '-31';
+        const mayor = conta.libroMayor('1900-01-01', hasta);
+        const mayorMes = conta.libroMayor(desde, hasta);
+        const rows = mayor.map(c => {
+            const cod = _COD_AGRUPADOR[c.cuenta] || (c.cuenta + '.01');
+            const mm = mayorMes.find(x => x.cuenta === c.cuenta) || { debe: 0, haber: 0 };
+            const saldoFin = Math.round((c.debe - c.haber) * 100) / 100;
+            const saldoIni = Math.round((saldoFin - (mm.debe - mm.haber)) * 100) / 100;
+            return `  <BCE:Ctas NumCta="${_xmlEsc(c.cuenta)}" SaldoIni="${saldoIni.toFixed(2)}" Debe="${(mm.debe || 0).toFixed(2)}" Haber="${(mm.haber || 0).toFixed(2)}" SaldoFin="${saldoFin.toFixed(2)}"/>`;
+        }).join('\n');
+        xml = `<?xml version="1.0" encoding="UTF-8"?>\n<BCE:Balanza xmlns:BCE="http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/BalanzaComprobacion" Version="1.3" RFC="${_xmlEsc(rfc)}" Mes="${m}" Anio="${anio}" TipoEnvio="N">\n${rows}\n</BCE:Balanza>`;
+    }
+    if (sp.get('descargar') === '1') {
+        res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Content-Disposition': `attachment; filename="${tipo}_${mes}.xml"` });
+        return res.end(xml);
+    }
+    return json(res, { tipo, mes, rfc, xml, nota: 'Borrador: valida el código agrupador SAT con tu contador antes de enviar.' });
+}
+
 // POST /api/erp/cfdi/:id/rep — timbra el complemento de pago (factura PPD pagada)
 function cfdiREP(req, res, ctx, { params }) {
     const { db, json } = ctx;
@@ -487,6 +568,8 @@ const RUTAS = [
     { metodo: 'POST', path: '/api/erp/gastos',                    area: 'finanzas', handler: gastosPost },
     { metodo: 'GET',  path: '/api/erp/gastos',                    area: 'finanzas', handler: gastosGet },
     { metodo: 'GET',  path: '/api/erp/impuestos',                 area: 'finanzas', handler: impuestos },
+    { metodo: 'GET',  path: '/api/erp/diot',                      area: 'finanzas', handler: diot },
+    { metodo: 'GET',  path: '/api/erp/contabilidad-electronica',  area: 'finanzas', handler: contabilidadElectronica },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/erp/' });

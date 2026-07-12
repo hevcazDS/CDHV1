@@ -12,15 +12,14 @@ aditivo/toggleable, JC byte-idéntico, white-label intacto.
 - **4 fixes rol×ramo**: puente cita→servicio, cantidad por bot configurable, descarga CFDI, propina en mesa.
 - **Presets por giro**: fiado en abarrotes/carnicería/ferretería, repartidor en restaurante, POS en tatuajes.
 
-## Ola 1 — cerrar el ciclo fiscal MX (lo que más duele al vender) · ~3 días
-Prioridad máxima: sin esto "factura" está a medias ante el SAT.
-1. **Complemento de pago (REP)** — factura PPD cobrada exige recibo de pago timbrado. Disparar desde `marcar-pagado` cuando la factura es a crédito. `pacProviders.timbrarPago()`.
-2. **Cancelación de CFDI** — `DELETE /v2/invoices/:id` con motivo SAT. Botón en Pedidos cuando hay `cfdi_uuid`.
-3. **Adjuntar CFDI al correo/WhatsApp** — ya se puede descargar; falta enviarlo automático al timbrar (reusar emailService + cola_notificaciones).
+## ✅ Ola 1 — ciclo fiscal MX — HECHA (2026-07-12)
+1. ✅ Complemento de pago (REP) — `POST /api/erp/cfdi/:id/rep` (manual, factura PPD). Payload a validar vs PPD real.
+2. ✅ Cancelación de CFDI — `POST /api/erp/cfdi/:id/cancelar` + botón en FacturacionTab.
+3. ✅ Aviso al cliente al timbrar (WhatsApp) + descarga PDF/XML. (Correo con adjunto = follow-up con el SMTP de backup.js.)
 
-## Ola 2 — reportería fiscal (datos ya existen, es reporte no captura) · ~3 días
-4. **DIOT** — agrupar IVA acreditable por proveedor desde los CFDI ya parseados → TXT del SAT.
-5. **Contabilidad electrónica SAT** — XML de catálogo de cuentas + balanza mensual desde `asientos`/`plan_cuentas`. Lo laborioso es el mapeo a código agrupador SAT. Toggle.
+## ✅ Ola 2 — reportería fiscal — HECHA (2026-07-12)
+4. ✅ **DIOT** — `GET /api/erp/diot?mes=&formato=txt`: agrupa CxP por proveedor, deriva base+IVA, exporta TXT del SAT. Borrador que el contador valida.
+5. ✅ **Contabilidad electrónica SAT** — `GET /api/erp/contabilidad-electronica?tipo=catalogo|balanza`: XML catálogo (con código agrupador base) + balanza mensual desde `plan_cuentas`/`libroMayor`. UI en Gastos e impuestos → Reportes SAT. Borrador; el código agrupador SAT se amplía con el contador.
 
 ## Ola 3 — huecos operativos de los agentes (baratos, alto uso diario) · ~3-4 días
 6. **Solicitud→OC automática** al aprobar (compras) — hoy recaptura manual.
@@ -31,6 +30,20 @@ Prioridad máxima: sin esto "factura" está a medias ante el SAT.
 ## Ola 4 — flujo de efectivo · ~4-5 días
 10. **Conciliación bancaria** — importar estado de cuenta (CSV/OFX), casar contra `links_pago`/`cuentas_pagar`. El vacío de responsabilidad #1 (nadie lo cubre). Tras la pasarela.
 11. **Pasarela de pago real** — conectar 1 gateway (Clip/MercadoPago) key-only, mismo patrón del PAC. El stub `pagoLinkService` ya existe.
+
+## Bot data-driven (frases fuera del código) — ver ARQUITECTURA_BOT_DATADRIVEN.md
+El dueño tiene razón: en multitienda las frases NO deben vivir en código. Pero el
+motor ComfyUI completo (flujo interpretado) es over-engineering (rompe ~100 tests,
+mete superficie de fallo en el hot path de ventas, y ninguna tienda recablea su
+flujo de venta). La ruta de mejor ROI:
+- **Fase 1 — frases 100% en datos (2-3 días, riesgo bajo)**: mover TODOS los
+  literales inline (58 en menuFlow, 26 cartFlow, 27 orderFlow) a `t()`. La tubería
+  `configuracion.frase_<clave>` por instancia YA existe; hoy solo ~12 de ~130
+  respuestas pasan por ella. Esto resuelve el 90% del dolor multitienda. Piloto:
+  citasFlow (aislado, sin dinero) → los de dinero al final, tocando solo su texto.
+- **Fase 2 — mapa visual solo-lectura (3-4 días)**: la sensación ComfyUI (ves el
+  grafo, editas texto por nodo) sin aristas reconectables.
+- **Fase 3 — motor interpretado completo: DESCARTADO** salvo necesidad concreta.
 
 ## Ola 5 — módulos por segmento (proyectos aparte, por demanda de cliente)
 12. **Recetas/insumos** (restaurante) — descontar ingredientes al vender un platillo; sin esto el costeo de comida es ficticio. Es lo que separa "POS con mesas" de "sistema de restaurante".

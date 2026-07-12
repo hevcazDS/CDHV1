@@ -106,6 +106,47 @@ export default function GastosImpuestosTab() {
           </div>
         </Card>
       </div>
+
+      <ReportesSat />
     </div>
+  );
+}
+
+// DIOT + Contabilidad electrónica SAT (Ola 2). Reportes sobre datos existentes;
+// el contador valida/envía. Ambos exportan el archivo del SAT.
+function ReportesSat() {
+  const [mes, setMes] = useState(new Date().toISOString().slice(0, 7));
+  const { data: diot } = useQuery({ queryKey: ['erp-diot', mes], queryFn: () => api.get('/api/erp/diot?mes=' + mes) });
+  const bajar = (url) => window.open(url, '_blank');
+  return (
+    <Card withBorder radius="md" p="lg" className="card" style={{ marginTop: 16 }}>
+      <div className="card-header">
+        <h3>Reportes SAT (DIOT · contabilidad electrónica)</h3>
+        <TextInput type="month" size="xs" value={mes} onChange={e => setMes(e.target.value)} />
+      </div>
+      <Text size="xs" c="dimmed" mb="sm">Borradores generados de tus datos. Descarga el archivo del SAT y valídalo con tu contador antes de enviarlo.</Text>
+      <Group mb="md" gap="xs">
+        <Button size="xs" variant="default" onClick={() => bajar('/api/erp/diot?formato=txt&mes=' + mes)}>DIOT (TXT)</Button>
+        <Button size="xs" variant="default" onClick={() => bajar('/api/erp/contabilidad-electronica?tipo=catalogo&descargar=1&mes=' + mes)}>Catálogo de cuentas (XML)</Button>
+        <Button size="xs" variant="default" onClick={() => bajar('/api/erp/contabilidad-electronica?tipo=balanza&descargar=1&mes=' + mes)}>Balanza (XML)</Button>
+      </Group>
+      <div className="table-wrap" style={{ maxHeight: 300, overflow: 'auto' }}>
+        <table>
+          <thead><tr><th>Proveedor (DIOT)</th><th>RFC</th><th className="num">Base</th><th className="num">IVA acred.</th></tr></thead>
+          <tbody>
+            {(!diot?.filas || diot.filas.length === 0) && <tr><td colSpan={4} className="empty">Sin operaciones con proveedores (RFC) en el mes</td></tr>}
+            {(diot?.filas || []).map((f, i) => (
+              <tr key={i}>
+                <td>{f.nombre}</td>
+                <td className="text-muted" style={{ fontSize: 11 }}>{f.rfc}</td>
+                <td className="num">{money(f.base)}</td>
+                <td className="num">{money(f.iva_acreditable)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {diot && diot.filas?.length > 0 && <Text size="xs" fw={600} mt="xs" style={{ textAlign: 'right' }}>Total IVA acreditable: {money(diot.total_iva_acreditable)}</Text>}
+    </Card>
   );
 }
