@@ -36,6 +36,15 @@ function validarPin(db, pin) {
 // usuario tras 5 fallos, con backoff creciente (30s × fallos-sobre-5, tope 5min).
 const _fallos = new Map(); // username → { n, hasta }
 const MAX_INTENTOS = 5;
+// Poda horaria: sin esto el mapa crecería sin límite (una entrada por cada
+// usuario que falle alguna vez el PIN). Se descartan las entradas ya expiradas
+// hace >1h. unref() para no mantener vivo el proceso por este timer.
+setInterval(() => {
+    const ahora = Date.now();
+    for (const [user, f] of _fallos) {
+        if (!f.hasta || ahora > f.hasta + 3600_000) _fallos.delete(user);
+    }
+}, 3600_000).unref();
 function _bloqueoRestante(user) {
     const f = _fallos.get(user);
     if (!f || !f.hasta) return 0;
