@@ -44,6 +44,12 @@ const DEFAULT_OFF = [
     'ventas_credito_activo',
     // Recordatorio de cobranza de fiado vencido (por WhatsApp, una vez).
     'recordatorio_fiado_activo',
+    // Propina: en México NO entra al costo/ingreso gravado — es solo un mensaje
+    // sugerido en el ticket. Off por defecto: hay lugares donde no se da propina.
+    'propina_activo',
+    // Reparto de propinas/comisiones entre el personal (pestaña opt-in en POS,
+    // para restaurantes y tiendas de materiales que lo pidan).
+    'reparto_activo',
 ];
 
 // Dependencias entre módulos (idea Odoo): activar la llave exige que sus
@@ -68,7 +74,7 @@ const MODULOS_POR_GIRO = {
     abarrotes:     ['pos_activo', 'ventas_credito_activo'],
     carniceria:    ['pos_activo', 'ventas_credito_activo'],
     ferreteria:    ['pos_activo', 'ventas_credito_activo'],
-    restaurante:   ['pos_activo', 'mesas_activo', 'entrega_repartidor_activo'],
+    restaurante:   ['pos_activo', 'mesas_activo', 'entrega_repartidor_activo', 'propina_activo', 'reparto_activo'],
     servicios:     ['citas_activo'],
     mantenimiento: ['citas_activo'],
     isp:           ['citas_activo'],

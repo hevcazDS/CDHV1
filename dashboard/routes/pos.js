@@ -55,7 +55,50 @@ function configGet(req, res, ctx, { ses }) {
     if (rangoDe(ses?.rol) >= 2) {
         try { sucursales = db.prepare('SELECT nombre FROM sucursales ORDER BY nombre').all().map(s => s.nombre); } catch (_) {}
     }
-    return json(res, { sucursal: _sucursalOperativa(db, ses), metodos, facturacion, credito: creditoActivo(db), inventario: inventarioActivo(db), ...(sucursales && sucursales.length > 1 ? { sucursales } : {}) });
+    // Propina (México): NO es ingreso gravado, solo un mensaje sugerido en el
+    // ticket. `propina` = mostrar la sugerencia; `reparto` = pestaña de reparto.
+    const propina = flagActivo(db, 'propina_activo');
+    const reparto = flagActivo(db, 'reparto_activo');
+    const propinaMensaje = db.prepare("SELECT valor FROM configuracion WHERE clave='propina_mensaje'").get()?.valor
+        || 'La propina no está incluida y es voluntaria. Si el servicio fue de tu agrado, ¡gracias por dejarla!';
+    return json(res, { sucursal: _sucursalOperativa(db, ses), metodos, facturacion, credito: creditoActivo(db), inventario: inventarioActivo(db), propina, reparto, propina_mensaje: propinaMensaje, ...(sucursales && sucursales.length > 1 ? { sucursales } : {}) });
+}
+
+// GET /api/pos/reparto?desde=&hasta= — bolsa de propinas cobradas en el rango vs
+// lo ya repartido, + el historial. Para la pestaña de reparto (restaurantes/
+// materiales). Ver ≠ repartir: lo ven pos/cortes/finanzas.
+function repartoGet(req, res, ctx) {
+    const { db, json } = ctx;
+    const sp = new URL(req.url, 'http://x').searchParams;
+    const hoy = new Date().toISOString().slice(0, 10);
+    const desde = (sp.get('desde') || hoy).slice(0, 10);
+    const hasta = (sp.get('hasta') || hoy).slice(0, 10);
+    let pool = 0;
+    try { pool = db.prepare("SELECT ROUND(COALESCE(SUM(propina),0),2) p FROM mesas WHERE propina>0 AND date(cerrada_en)>=? AND date(cerrada_en)<=?").get(desde, hasta).p; } catch (_) {}
+    const repartos = db.prepare('SELECT id, fecha, concepto, beneficiario, monto, creado_por FROM repartos WHERE fecha>=? AND fecha<=? ORDER BY fecha DESC, id DESC').all(desde, hasta);
+    const repartido = Math.round(repartos.reduce((s, r) => s + r.monto, 0) * 100) / 100;
+    // empleados para el selector = usuarios operativos del panel
+    let empleados = [];
+    try { empleados = db.prepare("SELECT username FROM usuarios ORDER BY username").all().map(u => u.username); } catch (_) {}
+    return json(res, { desde, hasta, pool_propinas: pool, repartido, pendiente: Math.round((pool - repartido) * 100) / 100, repartos, empleados });
+}
+
+// POST /api/pos/reparto — registra un reparto (una o varias líneas empleado→monto)
+function repartoPost(req, res, ctx, { ses }) {
+    const { db, json, readBody } = ctx;
+    return readBody(req, body => {
+        try {
+            const d = JSON.parse(body || '{}');
+            const fecha = /^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '') ? d.fecha : new Date().toISOString().slice(0, 10);
+            const concepto = ['propina', 'comision', 'otro'].includes(d.concepto) ? d.concepto : 'propina';
+            const lineas = (Array.isArray(d.lineas) ? d.lineas : []).map(l => ({ beneficiario: String(l.beneficiario || '').trim(), monto: Math.round((Number(l.monto) || 0) * 100) / 100 })).filter(l => l.beneficiario && l.monto > 0);
+            if (!lineas.length) return json(res, { ok: false, error: 'Captura al menos un empleado con monto' }, 400);
+            const suc = sucursalDeSesion(db, ses) || null;
+            const ins = db.prepare("INSERT INTO repartos (fecha, concepto, beneficiario, monto, sucursal, creado_por) VALUES (?,?,?,?,?,?)");
+            const total = db.transaction(() => { let t = 0; for (const l of lineas) { ins.run(fecha, concepto, l.beneficiario, l.monto, suc, ses.username || null); t += l.monto; } return Math.round(t * 100) / 100; })();
+            return json(res, { ok: true, lineas: lineas.length, total });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
 }
 
 // GET /api/pos/productos?q= — búsqueda ligera (variante por código primero)
@@ -354,6 +397,23 @@ function fiadoAbono(req, res, ctx, { params, ses }) {
     });
 }
 
+// GET/POST /api/pos/propina-mensaje — el mensaje personalizable que se sugiere
+// en el ticket. GET lo ve el POS; editar es del gerente (política del negocio).
+function propinaMensajeGet(req, res, ctx) {
+    const { db, json } = ctx;
+    return json(res, { mensaje: db.prepare("SELECT valor FROM configuracion WHERE clave='propina_mensaje'").get()?.valor || '' });
+}
+function propinaMensajePost(req, res, ctx) {
+    const { db, json, readBody } = ctx;
+    return readBody(req, body => {
+        try {
+            const msg = String((JSON.parse(body || '{}')).mensaje || '').trim().slice(0, 300);
+            db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('propina_mensaje', ?, datetime('now','localtime'))").run(msg);
+            return json(res, { ok: true, mensaje: msg });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
+}
+
 // PUT /api/pos/cliente/:id/limite — fijar límite de crédito (gerente+)
 function limitePut(req, res, ctx, { params }) {
     const { db, json, readBody } = ctx;
@@ -380,6 +440,10 @@ const RUTAS = [
     { metodo: 'POST', path: '/api/pos/corte',                     areas: ['pos', 'cortes', 'finanzas'], handler: cortePost },
     { metodo: 'GET',  path: '/api/pos/fiados',                    areas: ['pos', 'cortes', 'finanzas'], handler: fiadosGet },
     { metodo: 'POST', path: /^\/api\/pos\/fiados\/(\d+)\/abono$/, area: 'pos', handler: fiadoAbono },
+    { metodo: 'GET',  path: '/api/pos/reparto',                   areas: ['pos', 'cortes', 'finanzas'], handler: repartoGet },
+    { metodo: 'POST', path: '/api/pos/reparto',                   area: 'pos', handler: repartoPost },
+    { metodo: 'GET',  path: '/api/pos/propina-mensaje',           areas: ['pos', 'cortes', 'finanzas'], handler: propinaMensajeGet },
+    { metodo: 'POST', path: '/api/pos/propina-mensaje',           roles: ['gerente'], handler: propinaMensajePost },
     { metodo: 'PUT',  path: /^\/api\/pos\/cliente\/(\d+)\/limite$/, roles: ['gerente'], handler: limitePut },
 ];
 

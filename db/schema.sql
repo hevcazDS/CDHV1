@@ -531,6 +531,19 @@ CREATE TABLE IF NOT EXISTS cortes_caja (
     creado_en        TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- 0059: reparto de propinas/comisiones al personal (módulo reparto_activo).
+CREATE TABLE IF NOT EXISTS repartos (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha        TEXT NOT NULL DEFAULT (date('now','localtime')),
+    concepto     TEXT NOT NULL DEFAULT 'propina',  -- propina|comision|otro
+    beneficiario TEXT NOT NULL,
+    monto        REAL NOT NULL,
+    sucursal     TEXT,
+    creado_por   TEXT,
+    creado_en    TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_repartos_fecha ON repartos(fecha);
+
 INSERT OR IGNORE INTO metodos_pago (id, nombre, activo, requiere_link) VALUES
     (1, 'efectivo',      1, 0),
     (2, 'transferencia', 1, 0),

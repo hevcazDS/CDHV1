@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Switch, TextInput } from '@mantine/core';
+import { Switch, TextInput, Textarea, Button } from '@mantine/core';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 import { confirmar, toastOk } from '../lib/ui';
@@ -86,6 +86,8 @@ const MODULOS = [
   { key: 'vision_activo', titulo: 'Búsqueda por imagen', desc: 'Vision API para búsqueda con fotos' },
   { key: 'referidos_activo', titulo: 'Programa de referidos', desc: 'Código de referido y puntos en la primera compra' },
   { key: 'mesas_activo', titulo: '🍽️ Mesas (restaurante)', desc: 'Abrir mesas, agregar platillos con comentarios (sin chile/mitad), preticket a cocina y cobrar' },
+  { key: 'propina_activo', titulo: '💵 Sugerir propina en el ticket', desc: 'Muestra un mensaje voluntario de propina en el ticket (la propina NO es ingreso gravado del negocio). Hay lugares donde no se da propina: déjalo apagado' },
+  { key: 'reparto_activo', titulo: '🧑‍🍳 Reparto de propinas/comisiones', desc: 'Pestaña en el POS para repartir la bolsa de propinas o comisiones entre el personal (restaurantes y tiendas de materiales que lo pidan)' },
   { key: 'recompra_activo', titulo: '🔁 Recompra', desc: 'Compras: reordenar a proveedores desde el historial. Cliente: el bot recuerda recomprar consumibles' },
   { key: 'pago_link_activo', titulo: '🔗 Link de pago', desc: 'Enviar por WhatsApp un link de pago (tu Clip/Mercado Pago/PayPal, o un gateway) desde el bot y el POS' },
   { key: 'recordatorio_pago_activo', titulo: '⏰ Recordatorio de link por vencer', desc: 'El bot recuerda al cliente su link de pago sin pagar ~12h antes de que expire (una sola vez, por la cola anti-baneo)' },
@@ -104,6 +106,29 @@ const MODULOS = [
   { key: 'nomina_fiscal_activo', titulo: '🧾 Nómina fiscal (LFT)', desc: 'Nómina completa: horas extra, comisiones, aguinaldo, finiquito, vacaciones LFT. Apagado = nómina sencilla' },
   { key: 'rrhh_activo', titulo: 'Recursos Humanos', desc: 'Empleados, horarios por Excel y nómina MX (con/sin impuestos)' },
 ];
+
+// Mensaje personalizable que se sugiere en el ticket (solo cuando la propina
+// está activa). Editarlo es del gerente — es política del negocio.
+function PropinaMensajeCard({ txt }) {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ['propina-msg'], queryFn: () => api.get('/api/pos/propina-mensaje') });
+  const [msg, setMsg] = useState('');
+  useEffect(() => { if (data?.mensaje != null) setMsg(data.mensaje); }, [data]);
+  const guardar = useMutation({
+    mutationFn: () => api.post('/api/pos/propina-mensaje', { mensaje: msg }),
+    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); toastOk('Mensaje de propina actualizado'); qc.invalidateQueries({ queryKey: ['propina-msg'] }); qc.invalidateQueries({ queryKey: ['pos-config'] }); },
+    onError: handleApiError,
+  });
+  return (
+    <div className="card" style={{ maxWidth: 860, marginTop: 14 }}>
+      <div className="card-header"><h3>{txt('💵 Mensaje de propina en el ticket')}</h3></div>
+      <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 10 }}>Se imprime en el ticket junto a una sugerencia de 10%/15%. Vacío = usa el texto por defecto.</p>
+      <Textarea autosize minRows={2} maxLength={300} value={msg} onChange={e => setMsg(e.currentTarget.value)}
+        placeholder="La propina no está incluida y es voluntaria. Si el servicio fue de tu agrado, ¡gracias por dejarla!" />
+      <Button size="xs" mt="sm" onClick={() => guardar.mutate()} loading={guardar.isPending}>Guardar mensaje</Button>
+    </div>
+  );
+}
 
 const TONOS = [
   { id: 'A', titulo: 'Formal', desc: 'Trato de usted, lenguaje corporativo. Para clientes mayores o B2B.', ejemplo: 'Bienvenido a Julio Cepeda Jugueterías. Es un gusto atenderle.' },
@@ -171,6 +196,8 @@ export default function Modulos() {
           </div>
         ))}
       </div>
+
+      {activoDe('propina_activo') && <PropinaMensajeCard txt={txt} />}
 
       <MetodosPagoCard txt={txt} />
           <PinCard txt={txt} />

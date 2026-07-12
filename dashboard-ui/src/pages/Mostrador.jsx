@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { Trash2 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { Card, Group, Title, Table, Button, TextInput, NumberInput, Select, ActionIcon, Checkbox } from '@mantine/core';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Card, Group, Title, Table, Text, Button, TextInput, NumberInput, Select, ActionIcon, Checkbox } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
 import { alertar, prompt, toastErr, toastOk } from '../lib/ui';
@@ -263,6 +263,12 @@ export default function Mostrador() {
               {ticket.descuento > 0 && <div style={{ color: 'var(--text-mute)' }}>Subtotal: ${fmt(ticket.subtotal)} · Descuento{ticket.cupon ? ' (' + ticket.cupon.codigo + ')' : ''}: -${fmt(ticket.descuento)}</div>}
               <div style={{ marginTop: 6 }}>Total: <strong>${fmt(ticket.total)}</strong> ({ticket.metodo_pago})</div>
               {ticket.cambio !== null && <div>Cambio: <strong>${fmt(ticket.cambio)}</strong></div>}
+              {config?.propina && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--border)', color: 'var(--text-mute)', fontSize: 12 }}>
+                  <div>{config.propina_mensaje}</div>
+                  <div style={{ marginTop: 3 }}>Sugerencia: 10% ${fmt(ticket.total * 0.10)} · 15% ${fmt(ticket.total * 0.15)}</div>
+                </div>
+              )}
               {(ticket.razon_social || ticket.rfc) && (
                 <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
                   <div style={{ fontWeight: 600 }}>Comprobante para facturación</div>
@@ -283,7 +289,63 @@ export default function Mostrador() {
         <Button variant="default" mt="md" onClick={() => setMostrarCorte(true)}>🧾 Cerrar turno (corte de caja)</Button>
       )}
       {mostrarCorte && <CorteCaja txt={txt} />}
+
+      {config?.reparto && <RepartoPropinas txt={txt} />}
     </div>
+  );
+}
+
+// Reparto de propinas/comisiones (módulo reparto_activo): opt-in para
+// restaurantes y tiendas de materiales. Muestra la bolsa de propinas cobradas
+// en el rango vs lo repartido, y registra quién recibió cuánto. Sin contabilidad
+// (la propina no es ingreso gravado del negocio).
+function RepartoPropinas({ txt }) {
+  const qc = useQueryClient();
+  const hoy = new Date().toISOString().slice(0, 10);
+  const [rango, setRango] = useState({ desde: hoy, hasta: hoy });
+  const [concepto, setConcepto] = useState('propina');
+  const [lineas, setLineas] = useState([{ beneficiario: '', monto: '' }]);
+  const { data } = useQuery({ queryKey: ['pos-reparto', rango], queryFn: () => api.get(`/api/pos/reparto?desde=${rango.desde}&hasta=${rango.hasta}`) });
+  const setLinea = (i, k, v) => setLineas(ls => ls.map((l, j) => j === i ? { ...l, [k]: v } : l));
+  const guardar = async () => {
+    const payload = lineas.map(l => ({ beneficiario: l.beneficiario.trim(), monto: Number(l.monto) })).filter(l => l.beneficiario && l.monto > 0);
+    if (!payload.length) return alertar({ titulo: 'Reparto', mensaje: 'Captura al menos un empleado con monto' });
+    const r = await api.post('/api/pos/reparto', { fecha: rango.hasta, concepto, lineas: payload }).catch(e => ({ ok: false, error: e.message }));
+    if (!r.ok) return alertar({ titulo: 'Reparto', mensaje: r.error });
+    setLineas([{ beneficiario: '', monto: '' }]);
+    qc.invalidateQueries({ queryKey: ['pos-reparto'] });
+  };
+  return (
+    <Card withBorder radius="md" p="lg" className="card" mt="md">
+      <div className="card-header"><Title order={4}>{txt('🧑‍🍳 Reparto de propinas / comisiones')}</Title></div>
+      <Group gap="xs" mb="sm" align="end">
+        <TextInput type="date" size="xs" label="Desde" value={rango.desde} onChange={e => setRango({ ...rango, desde: e.target.value })} />
+        <TextInput type="date" size="xs" label="Hasta" value={rango.hasta} onChange={e => setRango({ ...rango, hasta: e.target.value })} />
+      </Group>
+      <Group gap="lg" mb="md">
+        <div><Text size="xs" c="dimmed">Propinas cobradas</Text><Text fw={700}>${fmt(data?.pool_propinas)}</Text></div>
+        <div><Text size="xs" c="dimmed">Repartido</Text><Text fw={700}>${fmt(data?.repartido)}</Text></div>
+        <div><Text size="xs" c="dimmed">Pendiente</Text><Text fw={700} c={data?.pendiente > 0 ? 'orange' : undefined}>${fmt(data?.pendiente)}</Text></div>
+      </Group>
+      <Select size="xs" label="Concepto" value={concepto} onChange={v => setConcepto(v || 'propina')} mb="sm" w={180}
+        data={[{ value: 'propina', label: 'Propina' }, { value: 'comision', label: 'Comisión' }, { value: 'otro', label: 'Otro' }]} allowDeselect={false} />
+      {lineas.map((l, i) => (
+        <Group key={i} gap="xs" mb="xs">
+          <Select size="xs" placeholder="Empleado" searchable value={l.beneficiario} onChange={v => setLinea(i, 'beneficiario', v || '')} w={200}
+            data={(data?.empleados || []).map(e => ({ value: e, label: e }))} />
+          <TextInput size="xs" placeholder="Monto" value={l.monto} onChange={e => setLinea(i, 'monto', e.target.value)} w={110} />
+          {i === lineas.length - 1 && <Button size="compact-xs" variant="default" onClick={() => setLineas([...lineas, { beneficiario: '', monto: '' }])}>+ línea</Button>}
+        </Group>
+      ))}
+      <Button size="xs" mt="sm" onClick={guardar}>Guardar reparto</Button>
+      {(data?.repartos || []).length > 0 && (
+        <div className="table-wrap" style={{ marginTop: 14 }}>
+          <table><thead><tr><th>Fecha</th><th>Concepto</th><th>Empleado</th><th className="num">Monto</th></tr></thead>
+            <tbody>{data.repartos.map(r => <tr key={r.id}><td>{r.fecha}</td><td>{r.concepto}</td><td>{r.beneficiario}</td><td className="num">${fmt(r.monto)}</td></tr>)}</tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }
 
