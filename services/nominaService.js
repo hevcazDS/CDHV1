@@ -133,11 +133,14 @@ function calcular(desde, hasta) {
             // 1 día de descanso obligatorio.
             for (const wk in semanas) if (semanas[wk] >= 6) septimoDia += e.salario_diario;
             septimoDia = _r2(septimoDia);
-            // comisiones = % sobre lo COBRADO por el empleado (liga por username)
-            if (e.comision_pct > 0 && e.username) {
-                const ventas = db.prepare("SELECT COALESCE(SUM(lp.monto),0) v FROM links_pago lp JOIN pedidos p ON p.id_pedido=lp.id_pedido WHERE lp.estatus='pagado' AND p.cobrado_por=? AND date(lp.pagado_en)>=? AND date(lp.pagado_en)<=?").get(e.username, desde, hasta)?.v || 0;
-                comisiones = _r2(ventas * (e.comision_pct / 100));
-            }
+        }
+        // comisiones = % sobre lo COBRADO por el empleado (liga por username).
+        // Aplica en modo SIMPLE y FISCAL: un vendedor con comisión debe cobrarla
+        // aunque el negocio no lleve la nómina fiscal completa (antes vivía dentro
+        // del if(fiscal) y se perdía en modo simple).
+        if (e.comision_pct > 0 && e.username) {
+            const ventas = db.prepare("SELECT COALESCE(SUM(lp.monto),0) v FROM links_pago lp JOIN pedidos p ON p.id_pedido=lp.id_pedido WHERE lp.estatus='pagado' AND p.cobrado_por=? AND date(lp.pagado_en)>=? AND date(lp.pagado_en)<=?").get(e.username, desde, hasta)?.v || 0;
+            comisiones = _r2(ventas * (e.comision_pct / 100));
         }
         const primaDominical = _r2(horasDomingo * tarifaHora * 0.25);
         const bruto = _r2(horasNormales * tarifaHora + horasExtra * tarifaHora * 2 + comisiones + primaDominical + septimoDia);

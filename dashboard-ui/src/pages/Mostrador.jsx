@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, Table, Text, Button, TextInput, NumberInput, Select, ActionIcon, Checkbox } from '@mantine/core';
 import { api } from '../api';
 import { fmt } from '../lib/format';
-import { alertar, prompt, toastErr, toastOk } from '../lib/ui';
+import { alertar, prompt, toastErr, toastOk, confirmar } from '../lib/ui';
 import { LEYENDA_FACTURACION } from '../lib/factura';
 import { imprimirReporte } from '../lib/reporteImprimible';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -36,6 +36,24 @@ export default function Mostrador() {
   const [cupon, setCupon] = useState('');
   const [cuponInfo, setCuponInfo] = useState(null);
   const reimprimir = () => { try { const t = JSON.parse(localStorage.getItem('pos-ultimo-ticket') || 'null'); if (t) setTicket(t); else alertar({ titulo: 'Sin ticket', mensaje: 'No hay ticket previo en esta caja' }); } catch (_) {} };
+  // Cancelar la venta del ticket mostrado: revierte inventario + puntos
+  // (reversionService). Es operación con PIN (gerente pasa sin PIN) — si el
+  // backend lo exige, se pide y se reintenta.
+  const cancelarVenta = async () => {
+    if (!ticket?.id_pedido) return;
+    if (!await confirmar({ titulo: 'Cancelar venta', mensaje: `¿Cancelar la venta ${ticket.folio}? Se revierte el inventario y los puntos.`, peligro: true, textoOk: 'Cancelar venta' })) return;
+    const intento = async (pin) => { try { return await api.post(`/api/pos/venta/${ticket.id_pedido}/cancelar`, pin ? { pin } : {}); } catch (e) { return { ok: false, error: e.message, pin_requerido: e.data?.pin_requerido }; } };
+    let r = await intento();
+    if (!r.ok && r.pin_requerido) {
+      const pin = await prompt({ titulo: 'PIN de autorización', mensaje: 'Cancelar una venta requiere el PIN de autorización.', tipo: 'password' });
+      if (!pin) return;
+      r = await intento(pin);
+    }
+    if (!r.ok) return toastErr(r.error);
+    toastOk('Venta cancelada — inventario y puntos revertidos');
+    setTicket(null);
+    try { localStorage.removeItem('pos-ultimo-ticket'); } catch (_) {}
+  };
   const [cobrando, setCobrando] = useState(false);
   const [mostrarCorte, setMostrarCorte] = useState(false);
 
@@ -277,6 +295,12 @@ export default function Mostrador() {
                   {ticket.razon_social && <div>Razón social: {ticket.razon_social}</div>}
                   {ticket.rfc && <div>RFC: {ticket.rfc}</div>}
                   <div style={{ marginTop: 4, color: 'var(--text-mute)', fontSize: 11 }}>{LEYENDA_FACTURACION}</div>
+                </div>
+              )}
+              {ticket.id_pedido && (
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
+                  <Button size="compact-xs" variant="light" color="red" onClick={cancelarVenta}>Cancelar esta venta</Button>
+                  <Text size="xs" c="dimmed" mt={4}>Revierte inventario y puntos. Requiere PIN (gerente pasa sin PIN).</Text>
                 </div>
               )}
             </div>

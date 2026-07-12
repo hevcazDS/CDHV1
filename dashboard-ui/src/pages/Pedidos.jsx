@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bike, Check, History, Link2, ReceiptText, RefreshCw } from 'lucide-react';
+import { Bike, Check, History, Link2, ReceiptText, RefreshCw, X } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Table, Select, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
@@ -193,6 +193,19 @@ export default function Pedidos() {
                           const rr = await api.post(`/api/pagos/${r.id_pedido}/enviar-link`).catch(e => ({ ok: false, error: e.message }));
                           if (rr.ok) toastOk('Link de pago enviado al cliente por WhatsApp'); else handleApiError(new Error(rr.error || 'No se pudo'));
                         }}><Link2 size={16} strokeWidth={1.75} /></ActionIcon>
+                      )}
+                      {r.id_link_pago && (r.pago_estatus === 'generado' || r.pago_estatus === 'pagado') && (
+                        <ActionIcon variant="default" color="red" title={r.pago_estatus === 'pagado' ? 'Cancelar y revertir el cobro' : 'Cancelar link de pago'} onClick={async () => {
+                          if (!await confirmar({ titulo: 'Cancelar pago', mensaje: r.pago_estatus === 'pagado' ? '¿Cancelar el cobro? Se revierte inventario y puntos.' : '¿Cancelar el link de pago?', peligro: true, textoOk: 'Cancelar' })) return;
+                          const rr = await api.post(`/api/pagos/${r.id_link_pago}/cancelar`).catch(e => ({ ok: false, error: e.message }));
+                          if (rr.ok) { toastOk(rr.cobro_revertido ? 'Cobro revertido' : 'Link cancelado'); queryClient.invalidateQueries({ queryKey: ['pedidos'] }); } else handleApiError(new Error(rr.error || 'No se pudo'));
+                        }}><X size={16} strokeWidth={1.75} /></ActionIcon>
+                      )}
+                      {r.id_link_pago && (r.pago_estatus === 'cancelado' || r.pago_estatus === 'expirado') && (
+                        <ActionIcon variant="default" title="Regenerar link de pago (48h)" onClick={async () => {
+                          const rr = await api.post(`/api/pagos/${r.id_link_pago}/regenerar`).catch(e => ({ ok: false, error: e.message }));
+                          if (rr.ok) { toastOk('Link regenerado (vence en 48h)'); queryClient.invalidateQueries({ queryKey: ['pedidos'] }); } else handleApiError(new Error(rr.error || 'No se pudo'));
+                        }}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
                       )}
                     </Group>
                   </td>

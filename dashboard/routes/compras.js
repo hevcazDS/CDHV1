@@ -115,6 +115,14 @@ function facturaXml(req, res, ctx, { ses }) {
             const r = db.prepare('INSERT INTO cuentas_pagar (id_proveedor, monto, vence_en, referencia, base, iva) VALUES (?,?,?,?,?,?)')
                 .run(prov.id, cfdi.total, vence, cfdi.uuid || [cfdi.serie, cfdi.folio].filter(Boolean).join('-') || null, _baseCfdi, _ivaCfdi);
             try {
+                // NOTA (auditoría): el asiento carga 115/601 por `base`=cfdi.subtotal
+                // (todo el comprobante), pero la carga FÍSICA al inventario de abajo
+                // usa SUM(cantidad·valor_unitario) de los conceptos. Coinciden en el
+                // caso normal (sin descuento a nivel comprobante y todo mercancía);
+                // divergen si el CFDI trae Descuento global o conceptos NO-mercancía
+                // mezclados. El fix exacto requiere el Descuento/Impuestos del CFDI a
+                // nivel comprobante (el parser aún no los expone). Documentado para no
+                // confiar el cuadre 115↔kardex a ciegas en esos casos borde.
                 conta.asientoCompra('cfdi:' + (cfdi.uuid || r.lastInsertRowid), cfdi.total, {
                     cuentaCargo: d.es_mercancia ? '115' : '601',
                     base: cfdi.subtotal, // subtotal exacto del CFDI → IVA acreditable real
