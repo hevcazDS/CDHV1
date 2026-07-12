@@ -35,7 +35,7 @@ export default function UsuariosTab() {
   // Multitienda: el selector de tienda solo aparece con 2+ sucursales
   const { data: sucursales = [] } = useQuery({
     queryKey: ['prime-sucursales'],
-    queryFn: () => api.get('/api/prime/sucursales'),
+    queryFn: () => api.get('/api/prime/sucursales').catch(() => []),
   });
   const multitienda = sucursales.length > 1;
   const sucursalOpciones = [

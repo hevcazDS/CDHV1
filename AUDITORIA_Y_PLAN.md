@@ -186,6 +186,9 @@ Registradas para no re-discutirlas cada auditoría:
 
 ## 🔁 Recurrentes antes de cada deploy
 
+- [ ] **`node scripts/migrate.js` ANTES de reiniciar los procesos** — el código nuevo
+      asume las columnas de sus migraciones (p.ej. 0049-0052 multitienda: INSERT de
+      corte/mesas y libroMayor truenan sobre una BD sin migrar)
 - [ ] `node scripts/demoMetricas.js revertir` (si se sembró demo)
 - [ ] Borrar usuarios de prueba (caja1, auditor1, alm1)
 - [ ] `TRUST_PROXY=1` + SOPORTE_HEVCAZ_* en el .env del servidor
