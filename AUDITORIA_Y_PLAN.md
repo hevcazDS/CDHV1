@@ -172,8 +172,13 @@ que hoy se tira como texto, y revisión de arquitectura + seguridad del código.
 - [x] Fase 1 (commit 82fb88b): motion CSS completo + skeletons + regleta por dominio + switch a --brand; 0 KB (sin framer-motion, deps minors seguros)
 - [x] Fase 3 (commit 02d8c09) PRIORIZADA sobre Fase 2: 6 fixes reales — marcar-pagado atómico, backup respeta instancia, bot anti split-brain, aviso password default reparado, XSS Fiados escapado, lockout de PIN (probado 4/4)
 - [x] Fase 2 lote 0+1 (commit 19c32df): MiniCharts.jsx lazy + sparklines Inicio + dona corte + aging CxC + área proyección caja
-- [ ] Fase 2 lotes 2-3 PENDIENTES: cascada P&L, comparativo, margen categoría, bullet equilibrio, barras divergentes, top productos/clientes, composición inventario, IVA
-- [ ] Fase 4: code-review del diff EN CURSO; batería verde (bot 117, multitienda 18, erp 30, índice 241/21, instalación fresca OK)
+- [x] Fase 2 lotes 2-3 (main 711bf4b): cascada P&L, comparativo, margen categoría barras H, top productos/clientes, composición inventario apilada. Faltan menores (bullet equilibrio, barras divergentes flujo, IVA enfrentado) por demanda.
+- [x] Fase 4: code-review limpio (1 fix: leak del lockout PIN, corregido 9222008). Batería verde.
+- [x] MERGE A MAIN + PUSH hechos (4228f15 merge, 711bf4b graficas+specs). El dueño autorizó el push.
+
+## 📐 CONVERGENCIA UI + BRECHA ERP (2026-07-12, 2 agentes) — PENDIENTES DE EJECUCIÓN
+- `SPEC_CONVERGENCIA_UI.md`: converger las 4 refs (Ynex/Starline/etc.) en UI original. Sistema visual YA maduro; la brecha es DENSIDAD (delta "vs ayer" en KPIs + badges de pendientes en sidebar = mayor impacto). Bloqueo: /api/stats no devuelve el valor de ayer. Plan 4 olas aditivas CSS-first.
+- `BRECHA_ODOO_DYNAMICS.md`: NO es "un Odoo"; es "Square+bot WhatsApp+contabilidad ligera+pre-nómina MX". Brecha #1 = timbrado CFDI 4.0 (conectar PAC, no construir — andamiaje listo). Siguen complemento de pago, contabilidad electrónica SAT, conciliación, DIOT (DIOT y cont. electrónica ya tienen los datos = reporte, no captura).
 
 Restricciones: sin Google Fonts (CSP), white-label (identidad del producto), JC no
 pierde nada, commits por fase.
