@@ -10,6 +10,7 @@ import RentabilidadClientesTab from './erp/RentabilidadClientesTab';
 import RentabilidadVendedoresTab from './erp/RentabilidadVendedoresTab';
 import FlujoCajaTab from './erp/FlujoCajaTab';
 import ConciliacionTab from './erp/ConciliacionTab';
+import BaulTab from './erp/BaulTab';
 
 // Ola 2 (PROPUESTA_UI_ERP §C): Proveedores/OC/CxP se mudaron al módulo
 // Compras (/compras) — Finanzas queda con sus 9 secciones en sub-navegación
@@ -21,6 +22,7 @@ const TABS = [
   { grupo: 'FINANZAS', key: 'gastos', label: 'Gastos e impuestos', Componente: GastosImpuestosTab },
   { grupo: 'FINANZAS', key: 'facturacion', label: 'Facturación pendiente', Componente: FacturacionTab },
   { grupo: 'FINANZAS', key: 'conciliacion', label: 'Conciliación bancaria', Componente: ConciliacionTab },
+  { grupo: 'FINANZAS', key: 'baul', label: 'Baúl contable (CFDI)', Componente: BaulTab },
   { grupo: 'REPORTES', key: 'ventas-prod', label: 'Ventas por producto', Componente: VentasProductoTab },
   { grupo: 'REPORTES', key: 'rent-clientes', label: 'Rentabilidad por cliente', Componente: RentabilidadClientesTab },
   { grupo: 'REPORTES', key: 'rent-vend', label: 'Rentabilidad por vendedor', Componente: RentabilidadVendedoresTab },

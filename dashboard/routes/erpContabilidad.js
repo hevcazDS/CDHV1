@@ -277,9 +277,35 @@ function rentabilidadVendedores(req, res, ctx) {
 // POST /api/erp/timbrar/:id — timbra el CFDI vía el PAC (async, hoy inerte)
 function timbrar(req, res, ctx, { params }) {
     const { db, json } = ctx;
-    return require('../../services/pacService').timbrar(db, parseInt(params[0]))
-        .then(r => json(res, r.ok ? r : { ok: false, ...r }, r.ok ? 200 : 400))
+    const idP = parseInt(params[0]);
+    return require('../../services/pacService').timbrar(db, idP)
+        .then(r => {
+            // F5.4: al timbrar, archiva el CFDI en el baúl local (best-effort, no bloquea).
+            if (r.ok) { try { require('../../services/baulContable').archivar(db, idP).catch(() => {}); } catch (_) {} }
+            return json(res, r.ok ? r : { ok: false, ...r }, r.ok ? 200 : 400);
+        })
         .catch(e => json(res, { ok: false, error: e.message }, 500));
+}
+
+// GET /api/erp/baul?mes=YYYY-MM — archivero fiscal: CFDI del mes + estado de archivo
+function baulGet(req, res, ctx) {
+    const { db, json } = ctx;
+    const baul = require('../../services/baulContable');
+    if (!baul.activo(db)) return json(res, { ok: false, error: 'Activa el módulo "Baúl contable" en Módulos' }, 400);
+    const mes = new URL(req.url, 'http://x').searchParams.get('mes');
+    return json(res, { ok: true, ...baul.listar(db, mes) });
+}
+// GET /api/erp/baul/exportar?mes=YYYY-MM — descarga el .zip con los XML del mes
+function baulExportar(req, res, ctx) {
+    const { db, json } = ctx;
+    const baul = require('../../services/baulContable');
+    if (!baul.activo(db)) return json(res, { ok: false, error: 'Activa el módulo "Baúl contable" en Módulos' }, 400);
+    const mes = new URL(req.url, 'http://x').searchParams.get('mes');
+    return baul.exportarZip(db, mes).then(r => {
+        if (!r.ok) return json(res, r, 400);
+        res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${r.nombre}"`, 'Content-Length': r.zip.length });
+        return res.end(r.zip);
+    }).catch(e => json(res, { ok: false, error: e.message }, 500));
 }
 
 // POST /api/erp/cfdi/:id/cancelar — cancela el CFDI ante el SAT (motivo opcional)
@@ -691,6 +717,8 @@ const RUTAS = [
     { metodo: 'POST', path: '/api/erp/conciliacion/importar',     area: 'finanzas', handler: conciliacionImportar },
     { metodo: 'GET',  path: '/api/erp/conciliacion',              area: 'finanzas', handler: conciliacionGet },
     { metodo: 'POST', path: /^\/api\/erp\/conciliacion\/(\d+)$/,  area: 'finanzas', handler: conciliacionConciliar },
+    { metodo: 'GET',  path: '/api/erp/baul',                      area: 'finanzas', handler: baulGet },
+    { metodo: 'GET',  path: '/api/erp/baul/exportar',             area: 'finanzas', handler: baulExportar },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/erp/' });
