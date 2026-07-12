@@ -165,9 +165,9 @@ export default function Pedidos() {
               {rows !== undefined && rowsFiltrados.length === 0 && <tr><td colSpan={8} className="empty">Sin pedidos con ese filtro</td></tr>}
               {rowsFiltrados.map(r => (
                 <tr key={r.id_pedido}>
-                  <td><code>{r.folio || `#${r.id_pedido}`}</code></td>
+                  <td><span className="folio">{r.folio || `#${r.id_pedido}`}</span></td>
                   <td>{r.cliente || '-'}</td>
-                  <td><strong>${fmt(r.total)}</strong></td>
+                  <td className="num"><strong>${fmt(r.total)}</strong></td>
                   <td>
                     <Badge value={r.pago_estatus} map="pago" />
                     {!!r.a_credito && r.pago_estatus === 'generado' && <span className="chip" style={{ marginLeft: 4, background: 'var(--yellow)', color: '#000' }} title={r.cobrado_por ? 'Vendió: ' + r.cobrado_por : ''}>fiado</span>}

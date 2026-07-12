@@ -18,34 +18,59 @@
   --green:     #36d399;
   --yellow:    #fbbd23;
   --red:       #f4566c;
-  --radius:    16px;
-  --radius-lg: 24px;
-  --font-titulos: 'Poppins', 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  /* Radios sobrios (16/24px + pills = look "template"; un ERP se ve serio a 10/14) */
+  --radius:    10px;
+  --radius-lg: 14px;
+  /* Sin Google Fonts (CSP): Poppins/Inter nunca cargaban — el stack real ES el
+     del sistema. Se declara honesto, con Segoe UI Variable para Win11. */
+  --font-titulos: -apple-system, "Segoe UI Variable Display", "Segoe UI", system-ui, Roboto, sans-serif;
+  --font-mono: "Cascadia Code", ui-monospace, "Segoe UI Mono", Consolas, monospace;
   --shadow:    0 8px 24px rgba(0,0,0,0.35);
-  font-family: 'Inter', -apple-system, 'Segoe UI', system-ui, Roboto, sans-serif;
+  font-family: -apple-system, "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, sans-serif;
 }
 
-/* Tema claro minimalista (default; referencia visual del cliente) */
+/* ── Reglas de composición del ERP (ver PROPUESTA_UI_ERP.md §D6) ──
+   1. La tabla manda: lista a lo ancho; crear/editar en modal, no form permanente.
+   2. Una sola acción primaria (--accent relleno) por vista.
+   3. Todo empty state dice el siguiente paso (verbo + dónde), nunca solo "Sin datos".
+   4. Número = tabular + derecha (+2 decimales en dinero), sin excepción. */
+.money, .kpi-value, td.num, .folio, .mono {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+td.num { text-align: right; }
+.folio { font-family: var(--font-mono); font-size: 12px; }
+
+/* Tema claro minimalista (default; referencia visual del cliente).
+   Identidad del PRODUCTO (white-label): la tinta --brand es la firma del ERP
+   (como el morado de Odoo), NO el color del cliente — un cliente puede
+   sobrescribirla vía configuracion.color_marca sin recompilar. */
 [data-mantine-color-scheme="light"] {
-  --bg:        #eceef1;
+  --bg:        #eef0f2;
   --bg-soft:   #ffffff;
   --panel:     #ffffff;
-  --panel-2:   #f2f3f6;
-  --border:    #e6e8ec;
+  --panel-2:   #f4f5f7;
+  --border:    #e4e7ea;
   --text:      #17181c;
   --text-dim:  #6b7078;
   --text-mute: #9aa0a8;
-  --accent:    #1d1f24;
-  --accent-2:  #34363c;
-  --accent-soft: rgba(29, 31, 36, 0.07);
-  --green:     #12a150;
-  --yellow:    #b8860b;
-  --red:       #d23652;
-  --shadow:    0 1px 2px rgba(16,17,20,0.05), 0 10px 28px rgba(16,17,20,0.07);
+  --brand:      #1a4d3e;   /* tinta verde bosque — firma del producto */
+  --brand-soft: rgba(26, 77, 62, 0.08);
+  --brand-ink:  #0e2b22;   /* hover/pressed */
+  --accent:    var(--brand);
+  --accent-2:  #2c6a56;
+  --accent-soft: var(--brand-soft);
+  --green:     #0e8a4d;
+  --yellow:    #b07100;
+  --red:       #cc2f4d;
+  --info:      #245a8f;
+  --shadow:    0 1px 2px rgba(16,17,20,0.05), 0 4px 12px rgba(16,17,20,0.05);
 }
+/* Cards de ERP: borde define, la sombra solo despega 1px (la sombra flotante
+   de 28px era estética de landing SaaS, no de herramienta de trabajo) */
 [data-mantine-color-scheme="light"] .card,
 [data-mantine-color-scheme="light"] .kpi-card {
-  box-shadow: 0 1px 2px rgba(16,17,20,0.04), 0 6px 18px rgba(16,17,20,0.05);
+  box-shadow: 0 1px 2px rgba(16,17,20,0.04);
 }
 
 /* Tema "Color" (2a referencia visual): claro con lienzo degradado
@@ -164,7 +189,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-weight: 650;
+  font-size: 11.5px;
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 999px;
@@ -489,8 +515,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .kpi-dark .mantine-RingProgress-root svg circle:first-of-type { stroke: rgba(255,255,255,0.18); }
 .kpi-card { display: flex; flex-direction: column; gap: 6px; }
 .kpi-label { font-size: 13px; color: var(--text-dim); }
-.kpi-value { font-size: 26px; font-weight: 700; }
+.kpi-value { font-size: 24px; font-weight: 700; }
 .kpi-num { font-family: var(--font-titulos); letter-spacing: -0.02em; }
+/* La card héroe usa la tinta del producto en el tema claro (no negro "muerto") */
+[data-mantine-color-scheme="light"] .kpi-dark {
+  background: linear-gradient(150deg, var(--brand), var(--brand-ink)) !important;
+}
 .kpi-dark {
   background: linear-gradient(150deg, #26282d, #131417) !important;
   border-color: transparent !important;
@@ -530,10 +560,14 @@ a.kpi-chip { text-decoration: none; }
 .tabla-sticky th:first-child, .tabla-sticky td:first-child { position: sticky; left: 0; background: var(--panel); z-index: 1; }
 .tabla-sticky thead th:first-child { z-index: 3; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { text-align: left; padding: 10px 12px; color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid var(--border); white-space: nowrap; }
-td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+th { text-align: left; padding: 8px 12px; color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--border); white-space: nowrap; }
+/* Filas a ~40px: un ERP se juzga por cuántas filas caben sin scroll */
+td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tbody tr:hover td { background: var(--panel-2); }
 tr:last-child td { border-bottom: none; }
 .empty { text-align: center; color: var(--text-mute); padding: 28px !important; }
+/* Empty state accionable (regla D6.3): el botón/verbo del siguiente paso */
+.empty-accion { display: block; margin-top: 6px; font-size: 12.5px; color: var(--accent); font-weight: 600; }
 .text-muted { color: var(--text-mute); }
 
 .badge-verde    { background: rgba(54,211,153,0.15); color: var(--green); }

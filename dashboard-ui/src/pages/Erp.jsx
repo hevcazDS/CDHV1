@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Tabs } from '@mantine/core';
 import { useAuth } from '../context/AuthContext';
 import { permite } from '../lib/permisos';
@@ -35,17 +36,26 @@ const TABS = [
 
 export default function Erp() {
   const { user } = useAuth();
+  const [sp, setSp] = useSearchParams();
   const visibles = TABS.filter(t => t.areas.some(a => permite(user?.rol, a)));
-  // Recuerda el último tab abierto (no volver a Proveedores tras F5).
+  // Tab deep-linkeable (/erp?tab=cxp — se puede mandar el link a un empleado);
+  // sin ?tab= cae al último abierto (localStorage) y luego al primero visible.
   const [tab, setTab] = useState(() => {
+    const deUrl = sp.get('tab');
+    if (visibles.some(x => x.key === deUrl)) return deUrl;
     const t = (typeof localStorage !== 'undefined') && localStorage.getItem('erp-tab');
     return visibles.some(x => x.key === t) ? t : (visibles[0]?.key || 'proveedores');
   });
-  const cambiar = (t) => { setTab(t); try { localStorage.setItem('erp-tab', t); } catch (_) {} };
-  const Activo = visibles.find(t => t.key === tab)?.Componente;
+  const cambiar = (t) => {
+    setTab(t);
+    setSp({ tab: t }, { replace: true });
+    try { localStorage.setItem('erp-tab', t); } catch (_) {}
+  };
+  const activoDef = visibles.find(t => t.key === tab);
+  const Activo = activoDef?.Componente;
   return (
     <div>
-      <div className="page-title">ERP · Finanzas</div>
+      <div className="page-title">Finanzas{activoDef ? ' · ' + activoDef.label : ''}</div>
       <div className="page-sub">Proveedores, compras, cuentas por pagar y libro mayor</div>
       <Tabs value={tab} onChange={cambiar} mb="md">
         <Tabs.List>
