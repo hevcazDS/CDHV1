@@ -349,7 +349,7 @@ que ya corre en producción con menos riesgo.
 3. **Fail-closed:** grafo ausente/inválido o acción que lanza → `undefined` → router viejo
    (coherente con `actionHandler.js:151-157`). El bot nunca queda mudo ni cobra a medias.
 4. **Migración = la siguiente libre al construir** (regla anti-drift: NO fijar un número en el diseño).
-   Al 2026-07-12 el último aplicado es `0060_conciliacion_banco.sql`, así que el motor sería **≥0061** —
+   Al 2026-07-12 el último aplicado es `0061_pedido_detalle_costo.sql`, así que el motor sería **≥0062** —
    verifica `ls migrations/ | tail -1` antes de crearla. Espejada en `db/schema.sql`.
 5. **Prerequisito de test:** extender el mock DB de `test_bot.js` para servir `flujo_*`, o los 100
    tests dejan de proteger la conducta con el flag ON. Esto es trabajo real, no gratis.
@@ -396,10 +396,10 @@ por adelantado.
 Antes de nada, cuatro hechos que corrigen números obsoletos en `DISENO_MOTOR_FLUJO.md`:
 
 1. **Última migración aplicada = `0060_conciliacion_banco.sql`** (`ls migrations/ | sort | tail -1`).
-   Por tanto la migración del motor es **`0061_flujo_motor.sql`** — verifica `tail -1` de nuevo al
+   Por tanto la migración del motor es **`0062_flujo_motor.sql`** — verifica `tail -1` de nuevo al
    construir (la regla anti-drift es "el siguiente libre AL construir", no un número pineado). El
    encabezado y §A.3/§H de `DISENO_MOTOR_FLUJO.md` todavía dicen `0058`/`≥0059`: **están obsoletos**,
-   léase `0061`. `PLAN` §Fase 2+ punto 4 ya dice `≥0061` — correcto.
+   léase `0061`. `PLAN` §Fase 2+ punto 4 ya dice `≥0062` — correcto.
 2. **`motor_flujo_activo` NO está en `DEFAULT_OFF`** (`modulosDefaults.js:16-53`, confirmado). Hay que
    **añadirlo** en Fase 2. Con el flag OFF + `FLOWS` intacto, JC es byte-idéntico.
 3. **El slot del producto en curso es `data.viewing`** (`menuFlow.js:428,502,557`), no `selectedProduct`.
@@ -553,7 +553,7 @@ en memoria (estilo `tests/test_citas.js`), **sin framework nuevo**.
 - **Fail-closed:** grafo ausente/inválido o acción que lanza → el `handle` del motor devuelve
   `undefined` → cae al router viejo (coherente con `actionHandler.js:151-158`). El bot nunca enmudece
   ni cobra a medias (las funciones de dinero ya son transaccionales).
-- **Migración = siguiente libre = `0061_flujo_motor.sql`** (verificar `tail -1` al construir).
+- **Migración = siguiente libre = `0062_flujo_motor.sql`** (verificar `tail -1` al construir).
   Añade `flujo_grafo`/`flujo_nodo`/`flujo_arista` + columnas `anticipo`/`saldo_pendiente` en `citas`
   (NO re-agregar `id_pedido`/`servicio_precio`/`id_servicio` — ya existen desde 0057). Espejo en
   `db/schema.sql` (regla CLAUDE.md). Añadir `motor_flujo_activo` a `DEFAULT_OFF` (`modulosDefaults.js`).
@@ -565,8 +565,8 @@ en memoria (estilo `tests/test_citas.js`), **sin framework nuevo**.
 Cierra las inconsistencias detectadas; aplicar cuando se toque cada doc (este plan no edita código):
 
 1. **`DISENO_MOTOR_FLUJO.md` — número de migración obsoleto.** El encabezado dice "hoy ≥`0059`",
-   §A.3 dice `0059`, §H y §R.E dicen "≥`0059`". **Reemplazar por `0061`** (último aplicado real =
-   `0060_conciliacion_banco.sql`). El `PLAN` §Fase 2+ punto 4 ya está correcto (`≥0061`).
+   §A.3 dice `0059`, §H y §R.E dicen "≥`0059`". **Reemplazar por "siguiente libre al construir"** (último
+   aplicado real = `0061_pedido_detalle_costo.sql`, hoy sería `0062`). El `PLAN` §Fase 2+ punto 4 ya está correcto.
 2. **`DISENO_MOTOR_FLUJO.md` §D.7 (auditoría) — slot resuelto.** El punto "verificar `selectedProduct`
    vs `viewing`" queda **cerrado: es `viewing`** (`menuFlow.js:428,502`). `agregar_carrito` usa
    `ctx.data.viewing`.
