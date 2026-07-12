@@ -1192,3 +1192,20 @@ CREATE INDEX IF NOT EXISTS idx_links_pago_pedido_estatus ON links_pago(id_pedido
 
 -- 0047: devoluciones por pedido (historial + clamp de cantidad devolvible).
 CREATE INDEX IF NOT EXISTS idx_devoluciones_pedido ON devoluciones(id_pedido, id_producto);
+
+-- 0048: tareas/recordatorios — gerente+ asigna trabajo a un área/usuario;
+-- cualquier rol crea sus propios recordatorios con fecha (los de almacén
+-- aparecen en el calendario de Almacén).
+CREATE TABLE IF NOT EXISTS tareas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    titulo TEXT NOT NULL,
+    notas TEXT,
+    fecha TEXT,
+    area TEXT,
+    asignado_a TEXT,
+    creado_por TEXT NOT NULL,
+    estatus TEXT NOT NULL DEFAULT 'pendiente',
+    creado_en TEXT DEFAULT (datetime('now','localtime')),
+    hecha_en TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_tareas_estatus ON tareas(estatus, fecha);

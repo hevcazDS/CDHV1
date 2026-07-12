@@ -41,6 +41,7 @@ const Rrhh = lazy(() => import('./pages/Rrhh'));
 const Citas = lazy(() => import('./pages/Citas'));
 const Mesas = lazy(() => import('./pages/Mesas'));
 const Fiados = lazy(() => import('./pages/Fiados'));
+const Tareas = lazy(() => import('./pages/Tareas'));
 
 export default function App() {
   const { user, cargando } = useAuth();
@@ -74,6 +75,7 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Inicio />} />
+        <Route path="/tareas" element={<Tareas />} />
         <Route path="/pedidos" element={<Pedidos />} />
         <Route path="/devoluciones" element={<Devoluciones />} />
         {permite(user.rol, 'operacion') && <Route path="/clientes" element={<Clientes />} />}

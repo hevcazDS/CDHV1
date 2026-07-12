@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Text, TextInput, Group } from '@mantine/core';
+import { Card, Text, TextInput, Group, Select, NumberInput } from '@mantine/core';
 import { api } from '../../api';
 import { Button } from '@mantine/core';
-import { confirmar, toastErr } from '../../lib/ui';
+import { Trash2 } from 'lucide-react';
+import Modal from '../../components/Modal';
+import { confirmar, toastErr, toastOk } from '../../lib/ui';
 import { exportarCSV } from '../../lib/csv';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -44,6 +46,7 @@ export default function ContabilidadTab() {
           asientos.flatMap(a => (a.partidas || []).map(pa => [a.fecha, a.concepto, pa.cuenta + ' ' + (pa.nombre || ''), pa.debe.toFixed(2), pa.haber.toFixed(2)])))}>
           Exportar diario (CSV)
         </Button>
+        <PolizaManual />
       </Group>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 20, alignItems: 'start' }}>
@@ -99,6 +102,90 @@ export default function ContabilidadTab() {
   );
 }
 
+
+// Póliza (asiento) manual: lo que todo contador pide — ajustes, aportaciones,
+// depreciación... El backend valida el cuadre (registrarAsiento lanza si
+// debe ≠ haber); aquí se muestra en vivo para no mandar pólizas descuadradas.
+function PolizaManual() {
+  const qc = useQueryClient();
+  const [abierta, setAbierta] = useState(false);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const [fecha, setFecha] = useState(hoy);
+  const [concepto, setConcepto] = useState('');
+  const [partidas, setPartidas] = useState([{ cuenta: '', debe: 0, haber: 0 }, { cuenta: '', debe: 0, haber: 0 }]);
+
+  const { data: plan = [] } = useQuery({
+    queryKey: ['erp-plan-cuentas'],
+    queryFn: () => api.get('/api/erp/plan-cuentas'),
+    enabled: abierta,
+  });
+  const cuentasOpc = plan.map(c => ({ value: c.codigo, label: c.codigo + ' — ' + c.nombre }));
+
+  const totalDebe = partidas.reduce((s, p) => s + (Number(p.debe) || 0), 0);
+  const totalHaber = partidas.reduce((s, p) => s + (Number(p.haber) || 0), 0);
+  const cuadra = Math.abs(totalDebe - totalHaber) < 0.01 && totalDebe > 0;
+  const completa = partidas.every(p => p.cuenta && ((Number(p.debe) || 0) > 0) !== ((Number(p.haber) || 0) > 0));
+
+  const setP = (i, campo, v) => setPartidas(ps => ps.map((p, j) => (j === i ? { ...p, [campo]: v } : p)));
+  const cerrar = () => { setAbierta(false); setConcepto(''); setPartidas([{ cuenta: '', debe: 0, haber: 0 }, { cuenta: '', debe: 0, haber: 0 }]); setFecha(hoy); };
+
+  const guardar = useMutation({
+    mutationFn: () => api.post('/api/erp/asientos', {
+      fecha, concepto,
+      partidas: partidas.map(p => ({ cuenta: p.cuenta, debe: Number(p.debe) || 0, haber: Number(p.haber) || 0 })),
+    }),
+    onSuccess: (r) => {
+      if (r.ok === false) return toastErr(r.error);
+      toastOk('Póliza registrada');
+      qc.invalidateQueries({ queryKey: ['erp-asientos'] });
+      qc.invalidateQueries({ queryKey: ['erp-mayor'] });
+      cerrar();
+    },
+    onError: (e) => toastErr(e.message),
+  });
+
+  return (
+    <>
+      <Button size="xs" onClick={() => setAbierta(true)}>+ Póliza manual</Button>
+      {abierta && (
+        <Modal title="Póliza manual" onClose={cerrar} actions={
+          <>
+            <Button variant="default" onClick={cerrar}>Cancelar</Button>
+            <Button disabled={!cuadra || !completa || !concepto.trim() || guardar.isPending} onClick={() => guardar.mutate()}>Registrar</Button>
+          </>
+        }>
+          <Group gap="sm" mb="sm">
+            <TextInput type="date" label="Fecha" value={fecha} onChange={e => setFecha(e.target.value)} />
+            <TextInput label="Concepto" placeholder="Ej. aportación del socio" value={concepto}
+              onChange={e => setConcepto(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
+          </Group>
+          {partidas.map((p, i) => (
+            <Group key={i} gap="xs" mb={6} align="end" wrap="nowrap">
+              <Select placeholder="Cuenta" data={cuentasOpc} value={p.cuenta || null} searchable
+                onChange={v => setP(i, 'cuenta', v || '')} style={{ flex: 1, minWidth: 170 }} />
+              <NumberInput placeholder="Cargo" min={0} decimalScale={2} hideControls value={p.debe || ''}
+                onChange={v => setP(i, 'debe', v)} style={{ width: 110 }} />
+              <NumberInput placeholder="Abono" min={0} decimalScale={2} hideControls value={p.haber || ''}
+                onChange={v => setP(i, 'haber', v)} style={{ width: 110 }} />
+              {partidas.length > 2 && (
+                <Button variant="subtle" color="red" size="xs" px={6} onClick={() => setPartidas(ps => ps.filter((_, j) => j !== i))}>
+                  <Trash2 size={13} />
+                </Button>
+              )}
+            </Group>
+          ))}
+          <Group justify="space-between" mt="xs">
+            <Button variant="default" size="xs" onClick={() => setPartidas(ps => [...ps, { cuenta: '', debe: 0, haber: 0 }])}>+ Partida</Button>
+            <Text size="sm" fw={700} c={cuadra ? 'teal' : 'red'}>
+              Cargos ${totalDebe.toFixed(2)} · Abonos ${totalHaber.toFixed(2)} {cuadra ? '✓ cuadra' : '— debe cuadrar'}
+            </Text>
+          </Group>
+          <Text size="xs" c="dimmed" mt="xs">Cada partida lleva cargo O abono (no ambos). La póliza se registra en el diario como asiento manual.</Text>
+        </Modal>
+      )}
+    </>
+  );
+}
 
 // Cierre de período (idea SAP): nada se asienta en meses ya cerrados —
 // candado que pide todo contador. Reabrir queda logueado.
