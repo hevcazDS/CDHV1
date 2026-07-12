@@ -76,20 +76,24 @@ formal/informal ya resuelto por toggles (inventario/contabilidad/facturación OF
 y cada paso debe no-opear igual con ellos apagados; el bot ya es multitienda por
 dentro (sucursal_origen), solo falta hacérselo visible al cliente.
 
-- [ ] **Ola R — replicable de cero (Win/Linux/Mac)**: instalación fresca `schema.sql`
-      + `migrate.js` debe producir un sistema funcional equivalente al migrado;
-      verificar en BD temporal, corregir drift si aparece. Requisito del dueño 2026-07-11.
-- [ ] **Ola A — la sesión conoce su tienda**: migración 0049 (`usuarios.sucursal` +
-      `cortes_caja.sucursal`), helper único `sucursalDeSesion()` en sucursalService,
-      POS config/productos/venta por sucursal de sesión (gerente+ puede cambiarla,
-      cajero fija), corte por tienda, campo Sucursal en UsuariosTab, tests contract
-- [ ] **Ola B — compras y mesas**: migración 0050 (`ordenes_compra.sucursal_destino` +
-      `mesas.sucursal`); recepción OC y carga CFDI entran a la sucursal destino; mesas por tienda
-- [ ] **Ola C — reportes/contabilidad**: migración 0051 (`asientos.sucursal`, la pueblan
-      los chokepoints); filtro `?sucursal=` en tablero/ventas-producto/stats/facturación-pendiente
-      (selector UI solo con 2+ sucursales); gastos con sucursal opcional
+- [x] 2026-07-11 **Ola R — replicable de cero (Win/Linux/Mac)**: `crear-nueva` sella las
+      migraciones como baseline (migrate.js re-corría la historia y tronaba en 0023);
+      `schema.sql` siembra `series_folios` y reconcilia `usuarios` (email/id_rol legacy).
+      Probado: crear → migrate "nada pendiente" → dashboard arranca y sirve onboarding.
+- [x] 2026-07-11 **Ola A — la sesión conoce su tienda**: migración 0049, `sucursalDeSesion()`,
+      POS por sucursal de sesión (cajero fijo, gerente+ con selector en Mostrador), corte
+      persiste la tienda, campo Sucursal en UsuariosTab. Contract test 8 casos.
+- [x] 2026-07-11 **Ola B — compras y mesas**: migración 0050; OC con sucursal_destino
+      (recepción/reorden la respetan), CFDI a la tienda de la sesión, mesas por local
+      (mesero ve su local, gerente todo, cobrar inventaría en el local de la mesa).
+- [x] 2026-07-11 **Ola C — reportes/contabilidad**: migración 0051 (`asientos.sucursal`,
+      derivada de sucursal_origen en ventas, destino de OC en compras, opcional en
+      gastos/pólizas); `?sucursal=` en tablero/ventas-producto/libro-mayor con selector UI;
+      balance/aging siguen globales con nota honesta.
 - [ ] **Ola D — bot de cara al cliente**: ligar `puntos_recoleccion`↔`sucursales` (pickup
-      por CP del cliente) + fix búsqueda del bot a `SUM(inventarios.stock)` (columnas muertas)
+      por CP del cliente) + fix búsqueda del bot a `SUM(inventarios.stock)` (columnas muertas).
+      ⚠️ OJO: el fix de búsqueda CAMBIA lo que el bot de JC muestra hoy (filtra con datos
+      muertos) — rompe deliberadamente el byte-idéntico; requiere OK del dueño antes.
 - [ ] **Ola E — por demanda real**: `empleados.sucursal`, traslados en tránsito, listas de precios
 
 Transversal por ola: migración versionada + espejo schema.sql, contract test,
