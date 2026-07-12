@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Indicator, ActionIcon, Menu, Text } from '@mantine/core';
-import { Bell, Tag, Headset, TriangleAlert } from 'lucide-react';
+import { Bell, Tag, Headset, TriangleAlert, ClipboardList } from 'lucide-react';
 import { api } from '../api';
 
 // queryKey exportado para que Etiquetas.jsx pueda invalidarlo apenas el
@@ -26,8 +26,14 @@ export default function NotificationBell() {
     queryFn: () => api.get('/api/stats').catch(() => ({})),
     refetchInterval: 30000,
   });
+  const { data: tar } = useQuery({
+    queryKey: ['tareas-pendientes-count'],
+    queryFn: () => api.get('/api/tareas/pendientes-count').catch(() => ({ count: 0 })),
+    refetchInterval: 30000,
+  });
 
   const avisos = [
+    tar?.count > 0 && { n: tar.count, icono: ClipboardList, color: 'var(--text)', texto: `${tar.count} tarea(s) pendiente(s) para ti`, a: '/tareas' },
     stats?.cola_atencion > 0 && { n: stats.cola_atencion, icono: Headset, color: 'var(--red)', texto: `${stats.cola_atencion} cliente(s) esperando atención`, a: '/cola' },
     etq?.count > 0 && { n: etq.count, icono: Tag, color: 'var(--accent)', texto: `${etq.count} foto(s) de Etiquetas por revisar`, a: '/etiquetas' },
     stats?.emails_error > 0 && { n: stats.emails_error, icono: TriangleAlert, color: '#e8a33d', texto: `${stats.emails_error} email(s) de confirmación con error — revisa SMTP`, a: '/notificaciones' },

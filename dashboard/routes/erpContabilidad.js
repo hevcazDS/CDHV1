@@ -396,6 +396,7 @@ function asientosPost(req, res, ctx) {
                 concepto: String(d.concepto || '').trim() || 'Asiento manual',
                 referencia_tipo: 'manual',
                 partidas: Array.isArray(d.partidas) ? d.partidas : [],
+                fecha: String(d.fecha || '').slice(0, 10) || null,
             });
             return json(res, { ok: true, id });
         } catch (e) { return json(res, { ok: false, error: e.message }, 400); }

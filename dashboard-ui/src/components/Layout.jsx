@@ -8,7 +8,7 @@ import {
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
   LogOut, Landmark, Warehouse, ShoppingCart, IdCard,
-  UserCog, Utensils, Wallet, CalendarClock,
+  UserCog, Utensils, Wallet, CalendarClock, ClipboardList,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
@@ -28,6 +28,7 @@ import { permite, etiquetaRol, esAuditor } from '../lib/permisos';
 const GRUPOS = [
   { titulo: 'Panel', enlaces: [
     { to: '/', label: 'Inicio', Icono: Home },
+    { to: '/tareas', label: 'Tareas', Icono: ClipboardList },
   ]},
   { titulo: 'Mostrador', enlaces: [
     { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo', area: 'pos' },

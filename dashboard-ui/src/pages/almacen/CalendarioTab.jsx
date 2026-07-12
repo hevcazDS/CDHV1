@@ -13,16 +13,17 @@ export default function CalendarioTab() {
     queryFn: () => api.get(`/api/almacen/calendario?desde=${rango.desde}&hasta=${rango.hasta}`).catch(() => ({ eventos: [] })),
     enabled: !!rango.desde,
   });
-  const eventos = (data?.eventos || []).map(e => ({ ...e, color: e.tipo === 'entrada' ? 'var(--green)' : '#4aa8ff' }));
+  const eventos = (data?.eventos || []).map(e => ({ ...e, color: e.tipo === 'entrada' ? 'var(--green)' : e.tipo === 'tarea' ? '#e8a33d' : '#4aa8ff' }));
 
   return (
     <Card withBorder radius="md" p="lg" className="card">
       <Group mb="sm" gap="lg">
         <Text size="sm"><span style={{ color: 'var(--green)' }}>●</span> Entradas (mercancía por llegar)</Text>
         <Text size="sm"><span style={{ color: '#4aa8ff' }}>●</span> Salidas (envíos por salir)</Text>
+        <Text size="sm"><span style={{ color: '#e8a33d' }}>●</span> Tareas / recordatorios</Text>
       </Group>
       <Calendario eventos={eventos} onRango={(desde, hasta) => setRango({ desde, hasta })} />
-      <Text size="xs" c="dimmed" mt="sm">Entradas = preventas con fecha estimada de llegada. Salidas = pedidos con guía y fecha de envío proyectada.</Text>
+      <Text size="xs" c="dimmed" mt="sm">Entradas = preventas con fecha estimada de llegada. Salidas = pedidos con guía y fecha de envío proyectada. Los recordatorios con fecha se capturan en Panel → Tareas.</Text>
     </Card>
   );
 }

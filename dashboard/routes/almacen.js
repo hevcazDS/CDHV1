@@ -14,7 +14,8 @@ const { rangoDe } = require('../permisos');
 const construirModulo = require('./_construirModulo');
 
 // GET /api/almacen/calendario — mercancía proyectada (entradas/salidas)
-function calendario(req, res, ctx) {
+// + tareas/recordatorios con fecha del área almacén o del propio usuario.
+function calendario(req, res, ctx, { ses }) {
     const { db, json } = ctx;
     const sp = new URL(req.url, 'http://x').searchParams;
     const desde = (sp.get('desde') || new Date().toISOString().slice(0, 8) + '01').slice(0, 10);
@@ -31,11 +32,16 @@ function calendario(req, res, ctx) {
         SELECT g.fecha_envio_est AS fecha, p.folio AS titulo, p.cliente
         FROM guias_estafeta g JOIN pedidos p ON p.id_pedido = g.id_pedido
         WHERE g.fecha_envio_est BETWEEN ? AND ? AND g.fecha_entrega_real IS NULL AND COALESCE(g.estatus_entrega,'') != 'entregada'`).all(desde, hasta);
+    const tareas = db.prepare(`
+        SELECT fecha, titulo, asignado_a FROM tareas
+        WHERE estatus='pendiente' AND fecha BETWEEN ? AND ? AND (area='almacen' OR asignado_a=? OR creado_por=?)`)
+        .all(desde, hasta, ses.username, ses.username);
     return json(res, {
         eventos: [
             ...entradas.map(e => ({ fecha: e.fecha, tipo: 'entrada', titulo: '📥 ' + e.titulo, sub: e.cantidad ? e.cantidad + ' pz' : '' })),
             ...ocs.map(o => ({ fecha: o.fecha, tipo: 'entrada', titulo: '📥 OC ' + o.folio, sub: o.proveedor || '' })),
             ...salidas.map(s => ({ fecha: s.fecha, tipo: 'salida', titulo: '📤 ' + s.titulo, sub: s.cliente || '' })),
+            ...tareas.map(t => ({ fecha: t.fecha, tipo: 'tarea', titulo: '📌 ' + t.titulo, sub: t.asignado_a || '' })),
         ],
     });
 }
