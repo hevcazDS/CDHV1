@@ -100,6 +100,50 @@ Transversal por ola: migración versionada + espejo schema.sql, contract test,
 `node scripts/rutas/inventario.js --check` + `npm run test:bot` en verde, y prueba
 de oro: con 1 sucursal → byte-idéntico.
 
+## 🧪 AUDITORÍA GIROS × ROLES × UI (2026-07-11) — 3 loops, verificado con navegador real
+
+Loop 3 corrido con Puppeteer + Chrome contra el dashboard vivo (screenshots de
+login/Inicio/Pedidos/Mostrador/ERP/Almacén/Módulos/Prime/Tareas/Clientes + captura
+temprana vs estable + errores de consola + métricas de layout).
+
+### Loop 1 — ¿cada giro tiene lo correcto y completo? → CASI: falta el preset de módulos
+- ✅ Vocabulario/frases/menú adaptativo por giro correctos (`_giros.js`): servicios
+  ofrecen "cita" (si el módulo está ON), retail omite el wizard de regalo, restaurante/JC intactos.
+- 🔴 **El onboarding NO activa los módulos del giro** (`negocioOnboarding.js` no toca
+  ningún `*_activo`): una barbería recién configurada queda SIN Citas, un restaurante
+  SIN Mesas, cualquier tienda física SIN POS — todos en `DEFAULT_OFF` hasta que el dueño
+  descubra Módulos. La opción "cita" del menú del bot ni aparece (menuItemsActivos la poda).
+  **Fix propuesto**: mapa giro→módulos sugeridos aplicado UNA vez al terminar el onboarding
+  (solo instancias nuevas ⇒ JC intacto): servicios/barbería/tatuajes/estética/uñas/
+  mantenimiento/isp → citas_activo; restaurante → mesas_activo+pos_activo; retail/abarrotes/
+  carnicería/ferretería/juguetería → pos_activo.
+
+### Loop 2 — ¿cada rol tiene su dashboard con SUS herramientas? → SÍ, con 2 asperezas
+- ✅ Sidebar filtra por área/rango/módulo (Layout), especialistas solo ven lo suyo,
+  auditor todo menos Prime/Módulos, candado GET global. Coherente con el índice canónico.
+- 🟡 **Finanzas muestra los 12 tabs a todos** (`Erp.jsx` no filtra por área): un rol
+  `compras` ve "Tablero de dirección"/"Contabilidad" y recibe 403/"Sin permiso" al
+  abrirlos. Fix: etiquetar cada tab con su área y podar como hace el sidebar.
+- 🟡 Rol creado sin su módulo (cajero sin pos_activo, rh sin rrhh_activo) aterriza en
+  un dashboard casi vacío — se resuelve solo con el preset del Loop 1.
+
+### Loop 3 — ¿se rompe el diseño al cargar? → NO se rompe; hay LAYOUT SHIFT de ~1-2s
+- ✅ Sin overflow horizontal, escala correcta (html 16px — el fix f6a218a), todas las
+  páginas renderizan bien, 0 errores de consola reales (solo 401 pre-login y un 403
+  esperado de gerente en endpoint prime).
+- 🟡 **El sidebar "brinca" al cargar**: `Layout.jsx` dispara 6 useQuery separados
+  (`/api/modulo/:clave`) y los links con `moduloRequerido` aparecen conforme responden
+  (el grupo Envíos entra tarde, los grupos se recorren). Existe `GET /api/modulos`
+  (batch, v1.02) y Layout NO lo usa. Fix: 1 query batch + `initialData` desde un
+  snapshot en localStorage ⇒ cero brinco en recargas.
+- 🔴 **Marca hardcodeada**: `Layout.jsx:146` arranca con `useState('Julio Cepeda')` y
+  luego cambia a lo que diga `/api/negocio` — en JC solo salta de 1 a 2 líneas, pero
+  en CUALQUIER clon white-label el dashboard FLASHEA "Julio Cepeda" en cada carga.
+  Fix: default desde localStorage (último nombre visto) con fallback '' — nunca el
+  nombre de otro negocio.
+- 🟡 Menor: 2 pedidos DEMO muestran el select de ESTATUS en blanco (su valor no está
+  en las opciones del dropdown de Pedidos.jsx).
+
 ## 🆕 v1.01 — Cola del comité de 16 auditorías (2026-07-09)
 
 Hallazgos verificados contra el código (falsos positivos ya descartados:
