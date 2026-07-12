@@ -107,5 +107,36 @@ test('schema.sql: columnas 0049 (usuarios/cortes) y 0050 (OC/mesas) presentes', 
     assert(/\bsucursal\s+TEXT/.test(bloque('mesas')), 'mesas.sucursal falta en schema.sql');
 });
 
+console.log('\n【6】 Ola C — asientos con dimensión tienda (migración 0051)');
+db.exec(`
+    CREATE TABLE asientos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL DEFAULT (date('now','localtime')),
+        concepto TEXT, referencia_tipo TEXT, referencia_id TEXT, sucursal TEXT, creado_en TEXT);
+    CREATE TABLE asientos_detalle (id INTEGER PRIMARY KEY AUTOINCREMENT, id_asiento INTEGER, cuenta TEXT, debe REAL, haber REAL);
+    CREATE TABLE plan_cuentas (codigo TEXT PRIMARY KEY, nombre TEXT, tipo TEXT);
+    CREATE TABLE pedido_detalle (id INTEGER PRIMARY KEY AUTOINCREMENT, id_pedido INTEGER, sucursal_origen TEXT);
+`);
+const conta = require('../services/contabilidadService');
+conta._setDb(db); conta._setActivo(() => true);
+
+test('registrarAsiento persiste la sucursal (y NULL cuando no aplica)', () => {
+    conta.registrarAsiento({ concepto: 'Venta Norte', partidas: [{ cuenta: '101', debe: 100 }, { cuenta: '401', haber: 100 }], sucursal: 'Norte' });
+    conta.registrarAsiento({ concepto: 'Gasto global', partidas: [{ cuenta: '601', debe: 50 }, { cuenta: '101', haber: 50 }] });
+    assert(db.prepare("SELECT sucursal FROM asientos WHERE concepto='Venta Norte'").get().sucursal === 'Norte');
+    assert(db.prepare("SELECT sucursal FROM asientos WHERE concepto='Gasto global'").get().sucursal === null);
+});
+test('libroMayor(?, ?, sucursal) filtra por tienda; sin filtro suma todo', () => {
+    const todo = conta.libroMayor('2000-01-01', '2999-12-31');
+    const norte = conta.libroMayor('2000-01-01', '2999-12-31', 'Norte');
+    const c101 = (rows) => rows.find(x => x.cuenta === '101') || { debe: 0, haber: 0 };
+    assert(c101(todo).debe === 100 && c101(todo).haber === 50, 'global: debe 100 / haber 50');
+    assert(c101(norte).debe === 100 && (c101(norte).haber || 0) === 0, 'Norte: solo su venta, no el gasto global');
+});
+test('asientoVenta deriva la tienda de pedido_detalle.sucursal_origen', () => {
+    db.prepare("INSERT INTO pedido_detalle (id_pedido, sucursal_origen) VALUES (7, 'Norte')").run();
+    conta.asientoVenta(7, 100, 'efectivo');
+    const a = db.prepare("SELECT sucursal FROM asientos WHERE referencia_tipo='venta' AND referencia_id='7'").get();
+    assert(a && a.sucursal === 'Norte', 'el asiento de la venta 7 debe quedar en Norte');
+});
+
 console.log(`\nRESULTADO: ${pasa} ✅  |  ${falla} ❌`);
 process.exit(falla ? 1 : 0);

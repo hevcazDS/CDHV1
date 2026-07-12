@@ -1000,6 +1000,7 @@ CREATE TABLE IF NOT EXISTS asientos (
     concepto        TEXT NOT NULL,
     referencia_tipo TEXT,   -- venta|costo_venta|compra|pago_cxp|manual
     referencia_id   TEXT,
+    sucursal        TEXT,   -- migrations/0051: centro de costos ligero (NULL = global/histórico)
     creado_en       TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE TABLE IF NOT EXISTS asientos_detalle (

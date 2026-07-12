@@ -144,7 +144,7 @@ function ocRecibir(req, res, ctx, { params, ses }) {
             db.prepare('INSERT INTO cuentas_pagar (id_proveedor, id_oc, monto, vence_en) VALUES (?,?,?,?)').run(oc.id_proveedor, id, oc.total, vence);
             db.prepare("UPDATE ordenes_compra SET estatus='recibida', recibida_en=datetime('now','localtime') WHERE id=?").run(id);
         })();
-        try { conta.asientoCompra(oc.folio, oc.total); } catch (e) { log.warn('Asiento de compra falló: ' + e.message); }
+        try { conta.asientoCompra(oc.folio, oc.total, { sucursal }); } catch (e) { log.warn('Asiento de compra falló: ' + e.message); }
         return json(res, { ok: true, id, estatus: 'recibida' });
     } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
 }

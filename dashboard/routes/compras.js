@@ -95,6 +95,7 @@ function facturaXml(req, res, ctx, { ses }) {
                     base: cfdi.subtotal, // subtotal exacto del CFDI → IVA acreditable real
                     override: !!_cerr,
                     concepto: 'CFDI ' + (cfdi.serie || '') + (cfdi.folio || cfdi.uuid || '') + ' — ' + prov.nombre,
+                    sucursal: require('../../services/sucursalService').sucursalDeSesion(db, ses),  // multitienda 0051
                 });
             } catch (e) { if (conta.activo()) log.warn('Asiento CFDI falló: ' + e.message); }
 
@@ -156,6 +157,7 @@ function facturaManual(req, res, ctx, { ses }) {
                     cuentaCargo: d.es_mercancia ? '115' : '601',
                     override: !!_cerr,
                     concepto: 'Factura ' + (d.referencia || r.lastInsertRowid) + ' — ' + prov.nombre,
+                    sucursal: require('../../services/sucursalService').sucursalDeSesion(db, ses),  // multitienda 0051
                 });
             } catch (e) { if (conta.activo()) log.warn('Asiento de factura falló: ' + e.message); }
             return json(res, { ok: true, id: r.lastInsertRowid, vence_en: vence });

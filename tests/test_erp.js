@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0022_erp_financiero.sql'), 'utf8'));
+db.exec(fs.readFileSync(path.join(__dirname, '..', 'migrations', '0051_multitienda_asientos.sql'), 'utf8')); // asientos.sucursal
 db.exec(`
 CREATE TABLE productos (id INTEGER PRIMARY KEY, name TEXT, price REAL, costo REAL);
 CREATE TABLE inventarios (id_producto INTEGER, sucursal TEXT, stock INTEGER);
