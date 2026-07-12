@@ -577,6 +577,22 @@ tr:last-child td { border-bottom: none; }
    no duplicar, sin reescribir las páginas. */
 .modulo-embebido .page-title { display: none; }
 .modulo-embebido > div > .page-sub:first-of-type { display: none; }
+/* Fila "Requiere tu acción" del Inicio (Ola 3 §C): lo pendiente antes que los KPIs */
+.accion-strip {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 14px; margin-bottom: 14px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  border-left: 3px solid var(--brand);
+}
+.accion-titulo { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-mute); margin-right: 4px; }
+.accion-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px;
+  border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+  font-size: 12.5px; font-weight: 600; text-decoration: none;
+}
+.accion-chip:hover { filter: brightness(0.92); }
+.accion-chip.rojo { background: rgba(204, 47, 77, 0.1); color: var(--red); }
+
 /* Sub-navegación vertical de módulo (patrón Zoho/Stripe — Ola 2 §B2):
    para módulos con >6 secciones en vez de tabs desbordados en 2 renglones */
 .modulo-layout { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: start; }
