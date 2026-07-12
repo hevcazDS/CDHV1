@@ -7,7 +7,13 @@ import { Card, Title, Group, ActionIcon, Table, TextInput, PasswordInput, Select
 import { api } from '../../api';
 import { Trash2, Pencil } from 'lucide-react';
 import Modal from '../../components/Modal';
+import { useAuth } from '../../context/AuthContext';
 
+// Roles "altos" que SOLO un prime puede crear/asignar (espejo de
+// ROLES_CREABLES_POR_GERENTE en el backend, dashboard/permisos.js). El backend
+// ya responde 403 si un gerente los envía; aquí NO se los ofrecemos siquiera,
+// para que la UI no mienta (brecha reportada: el Select los mostraba a un gerente).
+const ROLES_ALTOS = ['gerente', 'prime', 'auditor'];
 const ROLES_OPCIONES = [
     { value: 'cajero', label: 'Cajero (solo mostrador)' },
     { value: 'operador', label: 'Operador (bot + POS)' },
@@ -19,9 +25,19 @@ const ROLES_OPCIONES = [
     { value: 'gerente', label: 'Administrador' },
     { value: 'prime', label: 'Prime (dueño)' },
   ];
+const ROLES_INLINE = [
+    { value: 'cajero', label: 'Cajero' }, { value: 'operador', label: 'Operador' },
+    { value: 'almacen', label: 'Almacén' }, { value: 'compras', label: 'Compras' },
+    { value: 'rh', label: 'RH' }, { value: 'contabilidad', label: 'Contabilidad' }, { value: 'auditor', label: 'Auditor' },
+    { value: 'gerente', label: 'Administrador' }, { value: 'prime', label: 'Prime' },
+  ];
 
 export default function UsuariosTab() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const esPrime = user?.rol === 'prime';
+  // Solo prime ve/asigna roles altos; un gerente solo los operativos.
+  const filtrarRoles = (arr) => esPrime ? arr : arr.filter(o => !ROLES_ALTOS.includes(o.value));
   const usuarioForm = useForm({ initialValues: { username: '', password: '', rol: 'operador', sucursal: '' } });
   const [msgUsuarios, setMsgUsuarios] = useState('');
   const [usuarioEditando, setUsuarioEditando] = useState(null);
@@ -109,7 +125,7 @@ export default function UsuariosTab() {
       <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
         <TextInput placeholder="Usuario" {...usuarioForm.getInputProps('username')} style={{ minWidth: 160 }} />
         <PasswordInput placeholder="Password (mín. 8)" {...usuarioForm.getInputProps('password')} style={{ minWidth: 160 }} />
-        <Select data={ROLES_OPCIONES} style={{ minWidth: 220 }}
+        <Select data={filtrarRoles(ROLES_OPCIONES)} style={{ minWidth: 220 }}
           allowDeselect={false} {...usuarioForm.getInputProps('rol')} />
         {multitienda && (
           <Select data={sucursalOpciones} style={{ minWidth: 180 }} placeholder="Sucursal"
@@ -129,19 +145,20 @@ export default function UsuariosTab() {
                 <td>{u.username}</td>
                 <td>{u.nombre || '—'}</td>
                 <td>
-                  <Select
-                    size="xs"
-                    data={[
-                      { value: 'cajero', label: 'Cajero' }, { value: 'operador', label: 'Operador' },
-                      { value: 'almacen', label: 'Almacén' }, { value: 'compras', label: 'Compras' },
-                      { value: 'rh', label: 'RH' }, { value: 'contabilidad', label: 'Contabilidad' }, { value: 'auditor', label: 'Auditor' },
-                      { value: 'gerente', label: 'Administrador' }, { value: 'prime', label: 'Prime' },
-                    ]}
-                    value={u.rol}
-                    onChange={v => v && cambiarRolUsuario(u.id, v)}
-                    allowDeselect={false}
-                    comboboxProps={{ withinPortal: true }}
-                  />
+                  {(!esPrime && ROLES_ALTOS.includes(u.rol)) ? (
+                    // Un gerente NO puede tocar el rol de un usuario alto (el backend
+                    // lo bloquea); se muestra solo-lectura para no ofrecer algo que dará 403.
+                    <span className="chip" style={{ textTransform: 'capitalize' }}>{u.rol === 'gerente' ? 'Administrador' : u.rol}</span>
+                  ) : (
+                    <Select
+                      size="xs"
+                      data={filtrarRoles(ROLES_INLINE)}
+                      value={u.rol}
+                      onChange={v => v && cambiarRolUsuario(u.id, v)}
+                      allowDeselect={false}
+                      comboboxProps={{ withinPortal: true }}
+                    />
+                  )}
                 </td>
                 {multitienda && <td>{u.sucursal || 'Default'}</td>}
                 <td>{u.creado_en}</td>
