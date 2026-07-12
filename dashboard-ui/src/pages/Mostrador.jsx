@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Group, Title, Table, Button, TextInput, NumberInput, Select, ActionIcon, Checkbox } from '@mantine/core';
@@ -7,6 +7,8 @@ import { fmt } from '../lib/format';
 import { alertar, prompt, toastErr, toastOk } from '../lib/ui';
 import { LEYENDA_FACTURACION } from '../lib/factura';
 import { useTextoEmoji } from '../context/EmojiContext';
+// recharts SOLO se carga al abrir el corte — el flujo de cobro/escaneo no lo paga
+const Dona = lazy(() => import('../components/MiniCharts').then(m => ({ default: m.Dona })));
 
 // Punto de venta de mostrador (Bloque 2B). Cajero (usuario+) cobra ventas
 // presenciales; el corte de caja es gerente+.
@@ -312,15 +314,25 @@ function CorteCaja({ txt }) {
         <TextInput type="date" value={fecha} onChange={e => setFecha(e.target.value)} size="xs" />
       </Group>
       {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginBottom: 10, fontSize: 13 }}>{msg.t}</div>}
-      <Table verticalSpacing="xs">
-        <thead><tr><th>Método</th><th style={{ textAlign: 'right' }}>Ventas</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
-        <tbody>
-          {(data?.por_metodo || []).length === 0 && <tr><td colSpan={3} className="empty">Sin ventas pagadas este día</td></tr>}
-          {(data?.por_metodo || []).map((r, i) => (
-            <tr key={i}><td style={{ textTransform: 'capitalize' }}>{r.metodo}</td><td style={{ textAlign: 'right' }}>{r.n}</td><td style={{ textAlign: 'right' }}>${fmt(r.total)}</td></tr>
-          ))}
-        </tbody>
-      </Table>
+      <div style={{ display: 'grid', gridTemplateColumns: (data?.por_metodo || []).length ? '160px 1fr' : '1fr', gap: 16, alignItems: 'center' }}>
+        {(data?.por_metodo || []).length > 0 && (
+          <Suspense fallback={null}>
+            <Dona
+              datos={data.por_metodo.map(r => ({ name: r.metodo, value: r.total }))}
+              centro={'$' + fmt(data.total_sistema || 0)} sub="del día"
+              fmtMoneda={(v) => '$' + fmt(v)} />
+          </Suspense>
+        )}
+        <Table verticalSpacing="xs">
+          <thead><tr><th>Método</th><th className="num">Ventas</th><th className="num">Total</th></tr></thead>
+          <tbody>
+            {(data?.por_metodo || []).length === 0 && <tr><td colSpan={3} className="empty">Sin ventas pagadas este día</td></tr>}
+            {(data?.por_metodo || []).map((r, i) => (
+              <tr key={i}><td style={{ textTransform: 'capitalize' }}>{r.metodo}</td><td className="num">{r.n}</td><td className="num">${fmt(r.total)}</td></tr>
+            ))}
+          </tbody>
+        </Table>
+      </div>
       <div style={{ textAlign: 'right', fontWeight: 700, marginTop: 6 }}>Total del día: ${fmt(data?.total_sistema || 0)}</div>
       <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 12 }}>
         <div style={{ fontSize: 13, marginBottom: 6 }}>Efectivo esperado en caja: <strong>${fmt(data?.efectivo_sistema || 0)}</strong></div>

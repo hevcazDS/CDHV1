@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, TextInput, Group, Text, Select } from '@mantine/core';
 import { api } from '../../api';
 import { money } from '../../lib/format';
 import { useTextoEmoji } from '../../context/EmojiContext';
+const BarraApilada = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.BarraApilada })));
 
 // Tablero de dirección (comité Harvard+LSE+Oxford): estado de resultados,
 // balance, aging de CxC, rotación de inventario, margen por categoría y
@@ -129,6 +130,18 @@ export default function TableroTab() {
 
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Antigüedad de cuentas por cobrar</h3></div>
+          {Object.values(aging).some(v => v > 0) && (
+            <div style={{ marginBottom: 12 }}>
+              <Suspense fallback={null}>
+                <BarraApilada fmtValor={money} segmentos={[
+                  { name: '0-30 días', value: aging['0-30'] || 0, color: 'var(--green)' },
+                  { name: '31-60 días', value: aging['31-60'] || 0, color: 'var(--info)' },
+                  { name: '61-90 días', value: aging['61-90'] || 0, color: 'var(--yellow)' },
+                  { name: '90+ días', value: aging['90+'] || 0, color: 'var(--red)' },
+                ]} />
+              </Suspense>
+            </div>
+          )}
           <table style={{ width: '100%' }}><tbody>
             {Object.entries(aging).map(([k, v]) => (
               <tr key={k}><td style={{ padding: '5px 0' }}>{k} días</td>

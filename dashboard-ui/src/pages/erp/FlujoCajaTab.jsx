@@ -1,6 +1,8 @@
+import { lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Text, Group } from '@mantine/core';
 import { api } from '../../api';
+const AreaProyeccion = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.AreaProyeccion })));
 
 // Flujo de caja proyectado: ¿tendré dinero aunque el P&L dé positivo?
 // Saldo actual + por cobrar (fiado) − por pagar (CxP), por vencimiento.
@@ -26,12 +28,23 @@ export default function FlujoCajaTab() {
         <Text size="xs">Sin el módulo Contabilidad no hay saldo de caja/bancos: la proyección parte de $0 y solo muestra lo por cobrar/pagar.</Text>
       </Card>}
 
-      <Group mb="lg" grow>
-        <Proy label="Saldo hoy (caja+bancos)" val={proyeccion.hoy} />
-        <Proy label="Proyectado 30 días" val={proyeccion.en_30d} />
-        <Proy label="Proyectado 60 días" val={proyeccion.en_60d} />
-        <Proy label="Proyectado 90 días" val={proyeccion.en_90d} />
-      </Group>
+      <Card withBorder radius="md" p="lg" className="card" mb="lg">
+        <div className="card-header"><h3>Trayectoria de caja a 90 días</h3></div>
+        <Suspense fallback={null}>
+          <AreaProyeccion fmtMoneda={(v) => '$' + Math.round(v / 1000) + 'k'} datos={[
+            { label: 'Hoy', v: proyeccion.hoy || 0 },
+            { label: '30 d', v: proyeccion.en_30d || 0 },
+            { label: '60 d', v: proyeccion.en_60d || 0 },
+            { label: '90 d', v: proyeccion.en_90d || 0 },
+          ]} />
+        </Suspense>
+        <Group grow mt="sm">
+          <Proy label="Saldo hoy (caja+bancos)" val={proyeccion.hoy} />
+          <Proy label="Proyectado 30 días" val={proyeccion.en_30d} />
+          <Proy label="Proyectado 60 días" val={proyeccion.en_60d} />
+          <Proy label="Proyectado 90 días" val={proyeccion.en_90d} />
+        </Group>
+      </Card>
 
       <Card withBorder radius="md" p="lg" className="card">
         <div className="card-header"><h3>Por cobrar (fiado) vs por pagar (proveedores)</h3></div>

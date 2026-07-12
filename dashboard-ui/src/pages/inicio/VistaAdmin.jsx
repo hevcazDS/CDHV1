@@ -9,6 +9,7 @@ import { fdate } from '../../lib/format';
 import { fmtMoneda, pillEstatus, Kpi, diasSemana } from './comunes';
 
 const GraficaSemana = lazy(() => import('../../components/GraficaSemana'));
+const Sparkline = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.Sparkline })));
 const MODOS_GRAFICA = [
   { value: 'barras', label: 'Barras' },
   { value: 'linea', label: 'Línea' },
@@ -94,9 +95,11 @@ export default function VistaAdmin() {
       <div className="kpi-grid6">
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq kpi-dark">
           <Kpi Icono={Wallet} color="rgba(255,255,255,0.95)" label={kpis.ventasLabel}>{kpis.ventas}</Kpi>
+          {!kpiPct && <Suspense fallback={null}><Sparkline datos={dias.map(d => ({ v: d.t }))} color="rgba(255,255,255,0.6)" /></Suspense>}
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
           <Kpi Icono={ReceiptText} color="#4aa8ff" label={kpis.pedidosLabel}>{kpis.pedidos}</Kpi>
+          {!kpiPct && <Suspense fallback={null}><Sparkline datos={dias.map(d => ({ v: d.n }))} color="var(--info)" /></Suspense>}
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
           <Kpi Icono={MessageCircle} color="var(--accent)" label={kpis.chatsLabel}>{kpis.chats}</Kpi>
