@@ -219,6 +219,14 @@ function finiquitoPagar(req, res, ctx, { params, body, ses }) {
     } catch (e2) { return json(res, { ok: false, error: e2.message }, 500); }
 }
 
+// POST /api/rrhh/nomina/:id/timbrar — timbra el recibo CFDI de nómina vía el PAC
+function nominaTimbrar(req, res, ctx, { params }) {
+    const { db, json } = ctx;
+    return require('../../services/pacService').timbrarNomina(db, parseInt(params[0]))
+        .then(r => json(res, r, r.ok ? 200 : (r.pendiente ? 200 : 400)))
+        .catch(e => json(res, { ok: false, error: e.message }, 500));
+}
+
 const RUTAS = [
     { metodo: 'GET',    path: '/api/rrhh/empleados',                        area: 'rrhh', handler: empleadosGet },
     { metodo: 'POST',   path: '/api/rrhh/empleados',                        area: 'rrhh', handler: empleadosPost },
@@ -235,6 +243,7 @@ const RUTAS = [
     { metodo: 'POST',   path: /^\/api\/rrhh\/aguinaldo\/(\d+)\/pagar$/,     area: 'rrhh', pin: true, handler: aguinaldoPagar },
     { metodo: 'POST',   path: /^\/api\/rrhh\/finiquito\/(\d+)$/,            area: 'rrhh', handler: finiquitoPreview },
     { metodo: 'POST',   path: /^\/api\/rrhh\/finiquito\/(\d+)\/pagar$/,     area: 'rrhh', pin: true, handler: finiquitoPagar },
+    { metodo: 'POST',   path: /^\/api\/rrhh\/nomina\/(\d+)\/timbrar$/,      area: 'rrhh', handler: nominaTimbrar },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/rrhh/', precondicion: rrhhActivo });

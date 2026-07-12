@@ -1092,6 +1092,8 @@ CREATE TABLE IF NOT EXISTS nominas (
     septimo_dia     REAL NOT NULL DEFAULT 0,        -- migrations/0044 (día de descanso pagado)
     estatus      TEXT NOT NULL DEFAULT 'calculada',
     pagada_en    TEXT,
+    cfdi_uuid    TEXT,                              -- migrations/0053 (timbrado nómina)
+    cfdi_estatus TEXT,                              -- migrations/0053
     creada_en    TEXT DEFAULT (datetime('now','localtime')),
     UNIQUE(id_empleado, desde, hasta)
 );

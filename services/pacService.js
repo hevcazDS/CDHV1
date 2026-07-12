@@ -56,9 +56,14 @@ function cifradoActivo(db) { return _cfg(db, 'pac_cifrado_activo', '1') === '1';
 function secreto(db, clave) { return descifrarSecreto(_cfg(db, clave)); }
 
 // ¿Están cargadas las credenciales mínimas para timbrar?
+// DOS modelos: (A) key-only [Facturapi/Facturama] = proveedor + api_key (el PAC
+// guarda el CSD); (B) CSD propio [legacy] = proveedor + rfc + usuario + cer/key.
+function esKeyOnly(prov) { return prov === 'facturapi' || prov === 'facturama'; }
 function estaConfigurado(db) {
-    return !!(_cfg(db, 'pac_proveedor') && _cfg(db, 'pac_rfc') && _cfg(db, 'pac_usuario')
-        && _cfg(db, 'pac_csd_cer') && _cfg(db, 'pac_csd_key'));
+    const prov = _cfg(db, 'pac_proveedor');
+    if (!prov) return false;
+    if (esKeyOnly(prov)) return !!secreto(db, 'pac_api_key');
+    return !!(_cfg(db, 'pac_rfc') && _cfg(db, 'pac_usuario') && _cfg(db, 'pac_csd_cer') && _cfg(db, 'pac_csd_key'));
 }
 
 // ¿Se puede timbrar? (módulo + credenciales)
@@ -66,13 +71,117 @@ function activo(db) {
     return _cfg(db, 'facturacion_activo') === '1' && estaConfigurado(db);
 }
 
-// Timbra un pedido → CFDI. INERTE hasta completar la integración del PAC.
-async function timbrar(db, idPedido) {
-    if (_cfg(db, 'facturacion_activo') !== '1') return { ok: false, pendiente: true, motivo: 'Activa el módulo Facturación en Módulos' };
-    if (!estaConfigurado(db)) return { ok: false, pendiente: true, motivo: 'Configura las credenciales del PAC en Prime > General' };
-    // TODO: integración real con el PAC (pac_proveedor / pac_ambiente). Al
-    // completar, guardar: UPDATE pedidos SET cfdi_uuid=?, cfdi_estatus='timbrado'.
-    return { ok: false, pendiente: true, motivo: 'Credenciales del PAC guardadas; falta conectar el proveedor (integración pendiente).', proveedor: _cfg(db, 'pac_proveedor'), ambiente: _cfg(db, 'pac_ambiente', 'sandbox') };
+// Mapea metodo_pago del pedido → forma de pago SAT (c_FormaPago)
+function _formaPagoSAT(metodo) {
+    return ({ efectivo: '01', transferencia: '03', tarjeta: '04', tarjeta_credito: '04', paypal: '04', mercadopago: '04', oxxo: '01' })[String(metodo || '').toLowerCase()] || '99';
 }
 
-module.exports = { estaConfigurado, activo, timbrar, cifrarSecreto, descifrarSecreto, cifradoActivo, secreto };
+// Arma el payload Facturapi (JSON) desde un pedido ya con datos fiscales.
+function _payloadFacturapi(db, ped, detalle) {
+    const claveProd = _cfg(db, 'pac_clave_prod_sat', '01010101');
+    const claveUnidad = _cfg(db, 'pac_clave_unidad', 'H87'); // pieza
+    const usoCfdi = _cfg(db, 'pac_uso_cfdi', 'G03');          // gastos en general
+    const regimenReceptor = _cfg(db, 'pac_regimen_receptor', '616'); // sin obligaciones (default seguro)
+    return {
+        customer: {
+            legal_name: String(ped.razon_social || '').trim(),
+            tax_id: String(ped.rfc || '').trim().toUpperCase(),
+            tax_system: regimenReceptor,
+            address: { zip: String(_cfg(db, 'pac_cp_receptor') || _cfg(db, 'codigo_postal') || '').replace(/\D/g, '') || undefined },
+        },
+        items: detalle.map(d => ({
+            quantity: d.cantidad,
+            product: {
+                description: String(d.name || 'Producto').slice(0, 200),
+                product_key: claveProd,
+                unit_key: claveUnidad,
+                price: Number(d.precio_unitario),   // Facturapi asume precio CON IVA incluido salvo tax_included=false
+            },
+        })),
+        payment_form: _formaPagoSAT(ped.metodo_pago),
+        use: usoCfdi,
+    };
+}
+
+// Timbra un pedido → CFDI. Con proveedor+key configurados, LLAMA al PAC de verdad.
+async function timbrar(db, idPedido) {
+    if (_cfg(db, 'facturacion_activo') !== '1') return { ok: false, pendiente: true, motivo: 'Activa el módulo Facturación en Módulos' };
+    const prov = _cfg(db, 'pac_proveedor');
+    if (!estaConfigurado(db)) return { ok: false, pendiente: true, motivo: 'Configura el PAC en Prime > General (proveedor + API key)' };
+    const ped = db.prepare('SELECT id_pedido, folio, razon_social, rfc, metodo_pago, cfdi_uuid FROM pedidos WHERE id_pedido=?').get(idPedido);
+    if (!ped) return { ok: false, error: 'Pedido no encontrado' };
+    if (ped.cfdi_uuid) return { ok: false, error: 'Este pedido ya fue timbrado', uuid: ped.cfdi_uuid };
+    if (!ped.rfc || !ped.razon_social) return { ok: false, error: 'El pedido no tiene datos fiscales (RFC/razón social)' };
+    const detalle = db.prepare('SELECT pd.cantidad, pd.precio_unitario, pr.name FROM pedido_detalle pd LEFT JOIN productos pr ON pr.id=pd.id_producto WHERE pd.id_pedido=?').all(idPedido);
+    if (!detalle.length) return { ok: false, error: 'El pedido no tiene conceptos' };
+
+    const adap = require('./pacProviders').adaptador(prov);
+    if (!adap) return { ok: false, error: 'Proveedor de PAC no soportado: ' + prov };
+    const cfg = { api_key: secreto(db, 'pac_api_key'), ambiente: _cfg(db, 'pac_ambiente', 'sandbox') };
+    const payload = _payloadFacturapi(db, ped, detalle);
+    try {
+        const r = await adap.timbrarFactura(cfg, payload);
+        if (r.ok && r.uuid) {
+            db.prepare("UPDATE pedidos SET cfdi_uuid=?, cfdi_estatus='timbrado' WHERE id_pedido=?").run(r.uuid, idPedido);
+            try { require('./configAudit').logCambio(db, 'cfdi_timbrado', ped.folio + ' → ' + r.uuid, 'sistema'); } catch (_) {}
+            return { ok: true, uuid: r.uuid, folio: ped.folio };
+        }
+        return { ok: false, error: r.error || 'El PAC no devolvió UUID', detalle: r.detalle };
+    } catch (e) { return { ok: false, error: 'Error al conectar con el PAC: ' + e.message }; }
+}
+
+// Timbra un recibo de NÓMINA (CFDI 4.0 nómina). Mismo modelo key-only. El PAC
+// (Facturapi) arma el complemento de nómina desde el JSON. Requiere que el
+// empleado tenga RFC/CURP/NSS y el patrón su registro patronal + CP.
+async function timbrarNomina(db, idNomina) {
+    if (_cfg(db, 'facturacion_activo') !== '1') return { ok: false, pendiente: true, motivo: 'Activa el módulo Facturación' };
+    const prov = _cfg(db, 'pac_proveedor');
+    if (!estaConfigurado(db)) return { ok: false, pendiente: true, motivo: 'Configura el PAC en Prime > General' };
+    const n = db.prepare('SELECT * FROM nominas WHERE id=?').get(idNomina);
+    if (!n) return { ok: false, error: 'Nómina no encontrada' };
+    if (n.cfdi_uuid) return { ok: false, error: 'Este recibo ya fue timbrado', uuid: n.cfdi_uuid };
+    const emp = db.prepare('SELECT * FROM empleados WHERE id=?').get(n.id_empleado);
+    if (!emp) return { ok: false, error: 'Empleado no encontrado' };
+    const faltan = [];
+    if (!emp.rfc) faltan.push('RFC del empleado'); if (!emp.curp) faltan.push('CURP'); if (!emp.nss) faltan.push('NSS');
+    if (!_cfg(db, 'pac_registro_patronal')) faltan.push('registro patronal (Prime > General)');
+    if (faltan.length) return { ok: false, error: 'Faltan datos para el recibo: ' + faltan.join(', ') };
+
+    const adap = require('./pacProviders').adaptador(prov);
+    if (!adap || !adap.timbrarNomina) return { ok: false, error: 'El proveedor ' + prov + ' no soporta nómina aún (usa Facturapi)' };
+    const cfg = { api_key: secreto(db, 'pac_api_key'), ambiente: _cfg(db, 'pac_ambiente', 'sandbox') };
+    // Payload de nómina Facturapi: percepciones = bruto (sueldos), deducciones = ISR + IMSS obrero.
+    const payload = {
+        customer: { legal_name: emp.nombre, tax_id: String(emp.rfc).toUpperCase(), tax_system: '605', address: { zip: String(_cfg(db, 'pac_cp_receptor') || '').replace(/\D/g, '') || undefined } },
+        payroll: {
+            type: 'O',                                   // ordinaria
+            date: n.pagada_en || n.hasta,
+            payment_date: n.pagada_en || n.hasta,
+            initial_payment_date: n.desde, final_payment_date: n.hasta,
+            days_paid: Math.max(1, Math.round((Date.parse(n.hasta) - Date.parse(n.desde)) / 86400000) + 1),
+            employer_registration: _cfg(db, 'pac_registro_patronal'),
+            employee: {
+                curp: emp.curp, social_security_number: emp.nss,
+                start_date_labor_relations: emp.creado_en?.slice(0, 10),
+                contract_type: '01', regime_type: '02', union: false,
+                risk_type: '1', frequency_payment: '04',
+                base_salary: n.bruto, daily_salary: emp.salario_diario,
+            },
+            perceptions: [{ type: '001', code: '001', taxed_amount: n.bruto, exempt_amount: 0 }],
+            deductions: [
+                ...(n.isr > 0 ? [{ type: '002', code: '002', amount: n.isr }] : []),
+                ...(n.imss > 0 ? [{ type: '001', code: '001', amount: n.imss }] : []),
+            ],
+        },
+    };
+    try {
+        const r = await adap.timbrarNomina(cfg, payload);
+        if (r.ok && r.uuid) {
+            db.prepare("UPDATE nominas SET cfdi_uuid=?, cfdi_estatus='timbrado' WHERE id=?").run(r.uuid, idNomina);
+            return { ok: true, uuid: r.uuid };
+        }
+        return { ok: false, error: r.error || 'El PAC no devolvió UUID', detalle: r.detalle };
+    } catch (e) { return { ok: false, error: 'Error al conectar con el PAC: ' + e.message }; }
+}
+
+module.exports = { estaConfigurado, activo, timbrar, timbrarNomina, esKeyOnly, cifrarSecreto, descifrarSecreto, cifradoActivo, secreto };

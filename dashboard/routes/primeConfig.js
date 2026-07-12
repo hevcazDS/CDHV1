@@ -324,6 +324,12 @@ function pacGet(req, res, ctx) {
     return json(res, {
         proveedor: g('pac_proveedor'), rfc: g('pac_rfc'), ambiente: g('pac_ambiente') || 'sandbox',
         usuario: g('pac_usuario'), serie: g('pac_serie'),
+        // Modelo key-only (Facturapi/Facturama): el PAC guarda el CSD, nosotros
+        // solo la API key. NUNCA se devuelve la key, solo si está puesta.
+        key_only: pac.esKeyOnly(g('pac_proveedor')), tiene_api_key: !!g('pac_api_key'),
+        cp_receptor: g('pac_cp_receptor'), uso_cfdi: g('pac_uso_cfdi') || 'G03', registro_patronal: g('pac_registro_patronal'),
+        regimen_receptor: g('pac_regimen_receptor') || '616',
+        clave_prod_sat: g('pac_clave_prod_sat') || '01010101', clave_unidad: g('pac_clave_unidad') || 'H87',
         tiene_password: !!g('pac_password'), tiene_csd_cer: !!g('pac_csd_cer'),
         tiene_csd_key: !!g('pac_csd_key'), tiene_csd_pass: !!g('pac_csd_pass'),
         cifrado_activo: pac.cifradoActivo(db), configurado: pac.estaConfigurado(db), activo: pac.activo(db),
@@ -343,6 +349,13 @@ function pacPut(req, res, ctx, { ses }) {
             if (d.ambiente !== undefined) set('pac_ambiente', d.ambiente === 'produccion' ? 'produccion' : 'sandbox');
             if (d.usuario !== undefined) set('pac_usuario', String(d.usuario).trim());
             if (d.serie !== undefined) set('pac_serie', String(d.serie).trim());
+            if (d.registro_patronal !== undefined) set('pac_registro_patronal', String(d.registro_patronal).trim());
+            // Claves SAT del receptor/producto (no secretas)
+            for (const [campo, clave] of [['cp_receptor', 'pac_cp_receptor'], ['uso_cfdi', 'pac_uso_cfdi'], ['regimen_receptor', 'pac_regimen_receptor'], ['clave_prod_sat', 'pac_clave_prod_sat'], ['clave_unidad', 'pac_clave_unidad']]) {
+                if (d[campo] !== undefined) set(clave, String(d[campo]).trim());
+            }
+            // La API key (Facturapi sk_.../Facturama user:pass) SIEMPRE cifrada (secreto)
+            if (d.api_key && String(d.api_key).trim()) set('pac_api_key', pac.cifrarSecreto(String(d.api_key).trim()));
             for (const [campo, clave] of [['password', 'pac_password'], ['csd_cer', 'pac_csd_cer'], ['csd_key', 'pac_csd_key'], ['csd_pass', 'pac_csd_pass']]) {
                 if (d[campo] && String(d[campo]).trim()) {
                     const val = String(d[campo]).trim();
