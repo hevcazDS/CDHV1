@@ -6,6 +6,7 @@ import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
 import Badge from '../../components/Badge';
 import Modal from '../../components/Modal';
+import { imprimirReporte } from '../../lib/reporteImprimible';
 
 // soloRecepcion: modo para el rol almacén — oculta el alta de OC (área compras)
 // y solo deja recibir. Misma tabla/lógica, sin duplicar el módulo.
@@ -87,7 +88,14 @@ export default function ComprasTab({ soloRecepcion = false }) {
       )}
 
       <Card withBorder radius="md" p="lg" className="card">
-        <div className="card-header"><h3>Órdenes de compra</h3><Text size="xs" c="dimmed">Recibir = sube inventario, recalcula costo promedio y genera la cuenta por pagar</Text></div>
+        <div className="card-header"><h3>Órdenes de compra</h3>
+          <Button variant="default" size="xs" disabled={!ocs.length} onClick={() => imprimirReporte({
+            titulo: 'Órdenes de compra', subtitulo: `${ocs.length} orden(es)`,
+            columnas: [{ key: 'folio', label: 'Folio' }, { key: 'proveedor', label: 'Proveedor' }, { key: 'items', label: 'Productos', render: o => (o.items || []).map(i => `${i.cantidad}× ${i.name}`).join(', ') }, { key: 'total', label: 'Total', num: true, render: o => '$' + Number(o.total).toFixed(2) }, { key: 'estatus', label: 'Estatus' }],
+            filas: ocs,
+            totales: [{ label: 'Total', valor: '$' + ocs.reduce((s, o) => s + Number(o.total || 0), 0).toFixed(2), num: true }],
+          })}>Imprimir</Button>
+        </div>
         <div className="table-wrap">
           <table>
             <thead><tr><th>Folio</th><th>Proveedor</th><th>Total</th><th>Estatus</th><th></th></tr></thead>

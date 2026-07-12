@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Select, Button, Group } from '@mantine/core';
 import { exportarCSV } from '../../lib/csv';
+import { imprimirReporte } from '../../lib/reporteImprimible';
 import { api } from '../../api';
 import { fdate } from '../../lib/format';
 
@@ -26,6 +27,11 @@ export default function KardexTab() {
           <Button variant="default" size="xs" disabled={!kardex.length} onClick={() => exportarCSV('kardex_' + kardexDe,
             ['fecha', 'sucursal', 'tipo', 'delta', 'saldo', 'motivo', 'usuario'],
             kardex.map(m => [m.creado_en, m.sucursal, m.tipo, m.delta, m.cantidad_nueva, m.motivo || '', m.creado_por || '']))}>CSV</Button>
+          <Button variant="default" size="xs" disabled={!kardex.length} onClick={() => imprimirReporte({
+            titulo: 'Kardex de movimientos', subtitulo: (productos.find(p => String(p.id) === kardexDe)?.name || '') + ' — incluye entradas y transferencias',
+            columnas: [{ key: 'fecha', label: 'Fecha', render: m => fdate(m.creado_en) }, { key: 'sucursal', label: 'Sucursal' }, { key: 'tipo', label: 'Tipo' }, { key: 'delta', label: 'Δ', num: true }, { key: 'cantidad_nueva', label: 'Saldo', num: true }, { key: 'motivo', label: 'Motivo/quién', render: m => (m.motivo || '') + (m.creado_por ? ' · ' + m.creado_por : '') }],
+            filas: kardex,
+          })}>Imprimir</Button>
         </Group>
       </div>
       <div className="table-wrap" style={{ maxHeight: 480, overflow: 'auto' }}>

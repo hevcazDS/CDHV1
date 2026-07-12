@@ -63,7 +63,12 @@ flujo de venta). La ruta de mejor ROI:
 15. **Anticipo en citas** (tatuajes) — reusar la mecánica de apartado de preventas.
 16. **Estatus de cocina / KDS** (restaurante con volumen) — `enviado_cocina` binario → enum preparando/listo/servido.
 
-## FASE 5 — pendientes del dueño (2026-07-12) · A CONSTRUIR
+## FASE 5 — pendientes del dueño (2026-07-12) · ✅ COMPLETA
+> F5.0 (ISP fuera + freelancer→servicios), F5.1 (suscripciones/MRR), F5.2 (documentos:
+> cotizaciones/pagarés/contratos con plantillas por sucursal), F5.3 (reportes imprimibles:
+> libro mayor/diario/OC/corte de caja/kardex vía helper `reporteImprimible`), F5.4 (baúl
+> contable: archivero de CFDIs + export .zip nativo). Todo verificado y en main. Detalle abajo.
+
 Nuevos requerimientos + limpieza de giros. Filosofía intacta: aditivo/toggleable, JC byte-idéntico,
 boring-tech, instancia-por-cliente. Orden sugerido: F5.0 (limpieza, rápido) → F5.1 (suscripción, alto
 valor comercial) → F5.4 (baúl, cierra el ciclo fiscal) → F5.2 (documentos) → F5.3 (reportes imprimibles).

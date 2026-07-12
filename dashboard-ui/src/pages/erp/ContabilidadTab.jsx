@@ -7,6 +7,7 @@ import { Trash2 } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { confirmar, toastErr, toastOk } from '../../lib/ui';
 import { exportarCSV } from '../../lib/csv';
+import { imprimirReporte } from '../../lib/reporteImprimible';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Libro mayor + diario de asientos. Los asientos automáticos requieren el
@@ -40,12 +41,23 @@ export default function ContabilidadTab() {
           cuentas.map(x => [x.cuenta, x.nombre, x.debe.toFixed(2), x.haber.toFixed(2), x.saldo.toFixed(2)]))}>
           Exportar libro (CSV)
         </Button>
+        <Button variant="default" size="xs" disabled={!cuentas.length} onClick={() => imprimirReporte({
+          titulo: 'Libro mayor', subtitulo: `Del ${desde} al ${hasta}`,
+          columnas: [{ key: 'cuenta', label: 'Cuenta' }, { key: 'nombre', label: 'Nombre' }, { key: 'debe', label: 'Debe', num: true, render: c => '$' + c.debe.toFixed(2) }, { key: 'haber', label: 'Haber', num: true, render: c => '$' + c.haber.toFixed(2) }, { key: 'saldo', label: 'Saldo', num: true, render: c => '$' + c.saldo.toFixed(2) }],
+          filas: cuentas,
+          totales: [{ label: 'Total debe / haber', valor: `$${totalDebe.toFixed(2)} / $${totalHaber.toFixed(2)}`, num: true }],
+        })}>Imprimir libro</Button>
         <PeriodoCierre />
         <Button variant="default" size="xs" onClick={() => exportarCSV(`diario_${desde}_${hasta}`,
           ['fecha', 'concepto', 'cuenta', 'debe', 'haber'],
           asientos.flatMap(a => (a.partidas || []).map(pa => [a.fecha, a.concepto, pa.cuenta + ' ' + (pa.nombre || ''), pa.debe.toFixed(2), pa.haber.toFixed(2)])))}>
           Exportar diario (CSV)
         </Button>
+        <Button variant="default" size="xs" disabled={!asientos.length} onClick={() => imprimirReporte({
+          titulo: 'Diario (asientos)', subtitulo: `Del ${desde} al ${hasta}`,
+          columnas: [{ key: 'fecha', label: 'Fecha' }, { key: 'concepto', label: 'Concepto' }, { key: 'cuenta', label: 'Cuenta' }, { key: 'debe', label: 'Debe', num: true }, { key: 'haber', label: 'Haber', num: true }],
+          filas: asientos.flatMap(a => (a.partidas || []).map(pa => ({ fecha: a.fecha, concepto: a.concepto, cuenta: pa.cuenta + ' ' + (pa.nombre || ''), debe: pa.debe ? '$' + pa.debe.toFixed(2) : '', haber: pa.haber ? '$' + pa.haber.toFixed(2) : '' }))),
+        })}>Imprimir diario</Button>
         <PolizaManual />
       </Group>
 

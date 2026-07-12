@@ -6,6 +6,7 @@ import { api } from '../api';
 import { fmt } from '../lib/format';
 import { alertar, prompt, toastErr, toastOk } from '../lib/ui';
 import { LEYENDA_FACTURACION } from '../lib/factura';
+import { imprimirReporte } from '../lib/reporteImprimible';
 import { useTextoEmoji } from '../context/EmojiContext';
 // recharts SOLO se carga al abrir el corte — el flujo de cobro/escaneo no lo paga
 const Dona = lazy(() => import('../components/MiniCharts').then(m => ({ default: m.Dona })));
@@ -373,7 +374,15 @@ function CorteCaja({ txt }) {
     <Card withBorder radius="md" p="lg" mt="md">
       <Group justify="space-between" mb="sm">
         <Title order={4}>{txt('🧾 Corte de caja')}{data?.alcance === 'propio' ? ' (tu caja)' : data?.alcance === 'global' ? ' (global)' : ''}</Title>
-        <TextInput type="date" value={fecha} onChange={e => setFecha(e.target.value)} size="xs" />
+        <Group gap="xs">
+          <TextInput type="date" value={fecha} onChange={e => setFecha(e.target.value)} size="xs" />
+          <Button size="xs" variant="default" disabled={!(data?.por_metodo || []).length} onClick={() => imprimirReporte({
+            titulo: 'Corte de caja', subtitulo: `${fecha}${data?.alcance === 'propio' ? ' · tu caja' : data?.alcance === 'global' ? ' · global' : ''}`,
+            columnas: [{ key: 'metodo', label: 'Método' }, { key: 'n', label: 'Ventas', num: true }, { key: 'total', label: 'Total', num: true, render: r => '$' + fmt(r.total) }],
+            filas: data.por_metodo,
+            totales: [{ label: 'Total del día', valor: '$' + fmt(data?.total_sistema || 0), num: true }, { label: 'Efectivo esperado', valor: '$' + fmt(data?.efectivo_sistema || 0), num: true }],
+          })}>Imprimir</Button>
+        </Group>
       </Group>
       {msg && <div className={msg.ok ? 'card' : 'login-error'} style={{ marginBottom: 10, fontSize: 13 }}>{msg.t}</div>}
       <div style={{ display: 'grid', gridTemplateColumns: (data?.por_metodo || []).length ? '160px 1fr' : '1fr', gap: 16, alignItems: 'center' }}>
