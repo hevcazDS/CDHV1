@@ -368,6 +368,39 @@ function pacPut(req, res, ctx, { ses }) {
     });
 }
 
+// ── Pasarela de pago (key-only + modo demo, prime) — GET no devuelve la key ──
+function pasarelaGet(req, res, ctx) {
+    const { db, json } = ctx;
+    const g = (k) => db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(k)?.valor || '';
+    const gw = require('../../services/gatewayService');
+    return json(res, {
+        proveedor: g('pago_proveedor'), ambiente: g('pago_ambiente') || 'live',
+        demo: g('pago_demo') === '1', url_estatico: g('pago_url_base'),
+        tiene_api_key: !!g('pago_api_key'),          // nunca se devuelve la key
+        configurado: gw.estaConfigurado(db), disponible: gw.disponible(db),
+        proveedores: ['stripe', 'mercadopago'],       // key-only soportados hoy
+    });
+}
+function pasarelaPut(req, res, ctx, { ses }) {
+    const { db, json, readBody } = ctx;
+    return readBody(req, body => {
+        try {
+            const d = JSON.parse(body || '{}');
+            const gw = require('../../services/gatewayService');
+            const set = (k, v) => db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES (?, ?, datetime('now','localtime'))").run(k, String(v));
+            if (d.proveedor !== undefined) set('pago_proveedor', String(d.proveedor).trim().toLowerCase());
+            if (d.ambiente !== undefined) set('pago_ambiente', d.ambiente === 'sandbox' ? 'sandbox' : 'live');
+            if (d.demo !== undefined) set('pago_demo', d.demo ? '1' : '0');
+            if (d.url_estatico !== undefined) set('pago_url_base', String(d.url_estatico).trim());
+            if (d.return_url !== undefined) set('pago_return_url', String(d.return_url).trim());
+            // La API key SIEMPRE cifrada; nunca se devuelve en el GET.
+            if (d.api_key && String(d.api_key).trim()) set('pago_api_key', gw.cifrarSecreto(String(d.api_key).trim()));
+            require('../../services/configAudit').logCambio(db, 'pasarela_config', (d.proveedor || '') + '/' + (d.demo ? 'demo' : d.ambiente || ''), ses.username);
+            return json(res, { ok: true, configurado: gw.estaConfigurado(db), disponible: gw.disponible(db), demo: gw.demoActivo(db) });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
+}
+
 // ── Sucursal de facturación default ──
 function sucursalDefaultGet(req, res, ctx) {
     const { db, json } = ctx;
@@ -507,6 +540,8 @@ const RUTAS = [
     { metodo: 'PUT',  path: '/api/regimen-fiscal',                          roles: ['prime'], handler: regimenPut },
     { metodo: 'GET',  path: '/api/prime/pac',                               roles: ['prime'], handler: pacGet },
     { metodo: 'PUT',  path: '/api/prime/pac',                               roles: ['prime'], handler: pacPut },
+    { metodo: 'GET',  path: '/api/prime/pasarela',                          roles: ['prime'], handler: pasarelaGet },
+    { metodo: 'PUT',  path: '/api/prime/pasarela',                          roles: ['prime'], handler: pasarelaPut },
     { metodo: 'GET',  path: '/api/prime/sucursal-facturacion-default',      handler: sucursalDefaultGet },
     { metodo: 'PUT',  path: '/api/prime/sucursal-facturacion-default',      roles: ['prime'], handler: sucursalDefaultPut },
     { metodo: 'GET',  path: '/api/prime/tope-descuento',                    handler: topeGet },

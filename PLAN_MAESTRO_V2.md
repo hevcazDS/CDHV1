@@ -38,7 +38,9 @@ aditivo/toggleable, JC byte-idéntico, white-label intacto.
 
 ## Ola 4 — flujo de efectivo · ~4-5 días
 10. ✅ **Conciliación bancaria** — HECHA (migración 0060 `movimientos_banco`): sube el estado de cuenta (CSV parseado en el cliente — monto único o cargo/abono, fechas dd/mm/yyyy), auto-casa cada línea contra cobros (`links_pago` pagados, ingresos) y pagos (`cuentas_pagar` pagadas, egresos) por monto exacto + fecha ±3 días, y deja ver lo que NO cuadra. Conciliar/desconciliar manual. Tab en Finanzas. Self-check del auto-match PASS. `/api/erp/conciliacion[/importar|/:id]` área finanzas.
-11. **Pasarela de pago real** — PENDIENTE: conectar 1 gateway (Clip/MercadoPago) key-only, mismo patrón del PAC (`pacProviders.js`/`pacService.js`). El stub `pagoLinkService` ya existe. Inerte hasta meter la llave (como el PAC).
+11. ✅ **Pasarela de pago real (key-only) + modo demo** — HECHA: `gatewayProviders.js` (Stripe Checkout Session + Mercado Pago Preference, key-only, https nativo) + `gatewayService.js` (doble-gate, key cifrada como el PAC, `crearLink` async). `pagoLinkService` reescrito: sync (demo/estático, bot) + `generarLinkAsync` (gateway real, panel). `enviar-link` async usa el gateway real. **Modo demo** (`pago_demo`): simula el link con la referencia real y lo envía normal (cola_notificaciones) sin cobrar — para presentarle el sistema al cliente. Config prime `/api/prime/pasarela` + UI en Prime > General (tarjeta Pasarela con toggle demo). Self-check PASS. Proveedores key-only investigados: Stripe (secret key), Mercado Pago (access token), Clip/Conekta (encajan igual, se agregan por demanda).
+
+**→ Ola 4 COMPLETA.**
 
 ## Bot data-driven (frases fuera del código) — ver ARQUITECTURA_BOT_DATADRIVEN.md
 El dueño tiene razón: en multitienda las frases NO deben vivir en código. Pero el

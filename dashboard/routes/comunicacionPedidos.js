@@ -218,7 +218,9 @@ function pedidosPut(req, res, ctx, { params }) {
 }
 
 // POST /api/pagos/:id/enviar-link — genera y envía el link de pago (pos||operacion)
-function pagoEnviarLink(req, res, ctx, { params }) {
+// Usa la pasarela real (Stripe/MP, async) si está configurada; si no, el modo
+// demo (link simulado) o el link estático. NO marca pagado (eso es marcar-pagado).
+async function pagoEnviarLink(req, res, ctx, { params }) {
     const { db, json } = ctx;
     const idP = parseInt(params[0]);
     const pagoLink = require('../../services/pagoLinkService');
@@ -229,12 +231,12 @@ function pagoEnviarLink(req, res, ctx, { params }) {
     if (!tel) return json(res, { ok: false, error: 'El pedido no tiene teléfono de cliente' }, 400);
     try {
         const monto = ped.total || db.prepare("SELECT SUM(monto) m FROM links_pago WHERE id_pedido=?").get(idP)?.m || 0;
-        const { url, referencia } = pagoLink.generarLink({ idPedido: idP, folio: ped.folio, monto });
+        const { url, referencia, demo } = await pagoLink.generarLinkAsync({ idPedido: idP, folio: ped.folio, monto });
         try { db.prepare("INSERT INTO links_pago (id_pedido, url_link, token_externo, monto, moneda, estatus) VALUES (?,?,?,?, 'MXN','generado')").run(idP, url, referencia, monto); } catch (_) {}
         const cuerpo = 'Para pagar tu pedido *' + (ped.folio || '#' + idP) + '* ($' + Number(monto).toFixed(2) + '):\n\n' + url + '\n\nReferencia: *' + referencia + '*';
         db.prepare("INSERT INTO cola_notificaciones (tipo, destinatario, asunto, cuerpo, estatus) VALUES ('whatsapp', ?, 'Link de pago', ?, 'pendiente')").run(tel, cuerpo);
         try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('link_pago_enviado','whatsapp',?,?)").run(String(Number(monto).toFixed(2)), tel); } catch (_) {}
-        return json(res, { ok: true, url, referencia });
+        return json(res, { ok: true, url, referencia, demo: !!demo });
     } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
 }
 

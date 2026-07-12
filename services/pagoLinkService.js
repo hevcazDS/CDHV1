@@ -19,32 +19,37 @@ function _cfg(clave) {
     catch (_) { return ''; }
 }
 
-// Enganche del gateway real. Cuando el cliente contrate Stripe/MP/Conekta/
-// Clip y ponga sus credenciales (env), aquí se crea el link por-pedido.
-function _gateway(pedido) {
-    const proveedor = process.env.PAGO_GATEWAY; // 'stripe' | 'mercadopago' | 'conekta' | 'clip'
-    const key = process.env.PAGO_GATEWAY_KEY;
-    if (!proveedor || !key) return null; // sin credenciales → no hay gateway dinámico
-    // TODO: llamada real a la API del proveedor con { monto, folio, referencia }.
-    throw new Error('PAGO_GATEWAY=' + proveedor + ' configurado pero la integración real aún no está implementada');
+const gateway = require('./gatewayService');
+
+// Link estático que el negocio YA tiene (su Clip/MP/PayPal.me), con la referencia.
+function _staticBase(referencia) {
+    const base = _cfg('pago_url_base').trim();
+    if (!base) return null;
+    return base.includes('?') ? base + '&ref=' + encodeURIComponent(referencia) : base + '?ref=' + encodeURIComponent(referencia);
 }
 
-// Genera (o reusa) el link de pago de un pedido. Devuelve { url, referencia }
-// o lanza con un mensaje claro. NO marca nada como pagado — el cobro real se
-// confirma en el chokepoint marcar-pagado, igual que hoy.
+// SÍNCRONO (usado por el bot en checkout): modo demo o link estático — sin red.
+// El gateway REAL (llamada a Stripe/MP) es async: se envía desde el panel.
 function generarLink({ idPedido, folio, monto }) {
     const referencia = folio || ('PED-' + idPedido);
-    const dinamico = _gateway({ idPedido, folio, monto });
-    let url;
-    if (dinamico) {
-        url = dinamico;
-    } else {
-        const base = _cfg('pago_url_base').trim();
-        if (!base) throw new Error('Configura tu link de pago en Prime > General (o un gateway) antes de enviar links');
-        // Anexar la referencia si el link lo admite (query), si no, va en el mensaje.
-        url = base.includes('?') ? base + '&ref=' + encodeURIComponent(referencia) : base + '?ref=' + encodeURIComponent(referencia);
-    }
-    return { url, referencia };
+    if (gateway.demoActivo(db)) return { url: gateway.linkDemo(referencia).url, referencia, demo: true };
+    const est = _staticBase(referencia);
+    if (est) return { url: est, referencia };
+    if (gateway.estaConfigurado(db)) throw new Error('Pasarela configurada: envía el link desde el panel (Pedidos → enviar link).');
+    throw new Error('Configura tu link de pago en Prime > General (o activa el modo demo) antes de enviar links');
 }
 
-module.exports = { pagoLinkActivo, generarLink };
+// ASÍNCRONO (usado por el panel, enviar-link): demo → gateway real → estático.
+// Devuelve { url, referencia, demo? } o lanza con mensaje claro. NO marca pagado.
+async function generarLinkAsync({ idPedido, folio, monto }) {
+    const referencia = folio || ('PED-' + idPedido);
+    if (gateway.demoActivo(db)) return { url: gateway.linkDemo(referencia).url, referencia, demo: true };
+    if (gateway.estaConfigurado(db)) {
+        const r = await gateway.crearLink(db, { monto, concepto: 'Pedido ' + referencia, referencia });
+        if (r.ok) return { url: r.url, referencia };
+        throw new Error(r.error);
+    }
+    return generarLink({ idPedido, folio, monto }); // estático o error claro
+}
+
+module.exports = { pagoLinkActivo, generarLink, generarLinkAsync };
