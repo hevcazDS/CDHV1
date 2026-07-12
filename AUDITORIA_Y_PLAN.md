@@ -31,6 +31,71 @@ Lo de abajo (plan histórico) queda como referencia — NO seguirlo directo.
 - [x] 2026-07-09 — Guiones de venta: aplicados V1 (urgencia honesta en carrito 2h), V2 (fuera promesas medibles), V3 (ETA concreto al escalar), V4 (sin ofertas -> sugiere el más vendido), V5 (empatía en devolución), V9 (cupón "no acumulable"), V10 (dormidos con gancho), V12 (alerta interna sobria). V6 ya vigilado (gratis solo envío); V7/V8/V11 descartados: bajo valor vs riesgo de romper copy probado
 - [x] 2026-07-09 — Datos demo POR MÓDULO (Odoo): demoMetricas aplicar|revertir [citas|rrhh|gastos] — citas próximas 5 días, 2 empleados+14d horarios, 3 gastos (que se ANULAN con asiento inverso, respetando la inmutabilidad de libros). Probado ida y vuelta
 
+## 🏬 AUDITORÍA MULTITIENDA (2026-07-11) — veredicto: multi-sucursal en INVENTARIO, mono-sucursal en OPERACIÓN
+
+Auditado contra el CÓDIGO (no contra datos: la BD demo trae existencias de
+almacenes de ejemplo — irrelevante), módulo por módulo usando el índice canónico
+(`node scripts/rutas/inventario.js` — 239 rutas / 20 módulos). **No existe ningún
+flag `multitienda_activo` ni equivalente** en `modulosDefaults.js` ni en
+`configuracion`: la multitienda NO es hoy un módulo configurable, es un hueco.
+
+El catálogo `sucursales`, el stock
+(`inventarios`/`inventario_variantes` por sucursal), el kardex inmutable, traslados
+con PIN, conteo físico, ubicaciones y el split del bot por stock de sucursal YA son
+multitienda. Pero **toda venta/compra/corte cae siempre en
+`configuracion.sucursal_facturacion_default`** (`services/sucursalService.js`) — el
+sistema hoy es "una tienda que vende + N bodegas", no un ERP multitienda.
+
+### ✅ Ya cumple (no reabrir)
+- Catálogo `sucursales` (+CP, editable en Prime) e inventario por sucursal con `stock_minimo`
+- Kardex universal inmutable POR sucursal + traslados entre bodegas con PIN + conteo UPC + ubicaciones
+- Variantes talla×color con stock POR sucursal; `pedido_detalle.sucursal_origen` por línea
+- Bot: split pickup/envío por stock de cada sucursal (`partirCarrito`)
+- **Canal WhatsApp es multitienda end-to-end**: al pagar, el kardex descuenta de `pedido_detalle.sucursal_origen` (comunicacionPedidos.js:262) y la devolución repone a esa misma sucursal (:384) — el hueco es la capa PRESENCIAL/administrativa, no el bot
+
+### 🔴 Brechas críticas (sin esto no es multitienda)
+1. **Usuario sin sucursal**: `usuarios` no tiene columna sucursal — un cajero de la tienda B vende y descuenta stock de la tienda A (la default). Falta: `usuarios.sucursal` + que la sesión la fije. `POST /api/pos/venta` YA acepta `d.sucursal` (pos.js:91) pero `Mostrador.jsx` nunca la manda y `GET /api/pos/config|productos` ignoran cualquier sucursal (siempre default).
+2. **Corte de caja mezcla tiendas**: `cortes_caja` no tiene sucursal; `corteGet` suma TODAS las ventas del día sin importar dónde se cobraron. Corte por usuario ya existe; falta la dimensión tienda.
+3. **Compras entran siempre a la default**: recepción de OC (`erpProveedores.js:114`), carga CFDI (`compras.js:104`) y entrada-mercancía — `ordenes_compra` no tiene `sucursal_destino`. Para surtir la tienda B hay que recibir en A y trasladar a mano.
+4. **Reportes sin dimensión sucursal**: tablero de dirección, ventas por producto, corte, `/api/stats` de Inicio — cero filtros por tienda. No se puede responder "¿cuánto vendió la sucursal X?" (solo aproximar por `pedido_detalle.sucursal_origen`).
+5. **Contabilidad sin centro de costos**: `asientos` no registra sucursal → P&L/margen por tienda imposible. Mínimo viable: columna `sucursal` en asientos poblada desde el chokepoint de pago.
+6. **Mesas cableadas a la default** (`mesas.js:119`): un restaurante de 2 locales no puede.
+
+### 🟡 Brechas medias
+7. `empleados` sin sucursal → nómina/comisiones no se pueden ver por tienda
+8. Gastos del contador sin sucursal → el P&L por tienda quedaría incompleto aun con el punto 5
+9. Traslados son instantáneos (salida+entrada en un paso) — sin estado "en tránsito"/recepción en destino; suficiente hoy, insuficiente con distancias reales
+10. Dos catálogos paralelos de "dónde recoger": `puntos_recoleccion` (bot pickup) vs `sucursales` — unificar o ligar por id
+11. **[bug ya conocido]** la búsqueda del bot filtra por `productos.stock_*` (columnas muertas), no por `inventarios` — en multitienda real el bot ofrecería/negaría productos con datos falsos
+12. Precio único por producto — listas de precios por sucursal solo si un cliente lo pide (muchas cadenas MX operan precio único; NO construir por especulación)
+
+### PLAN APROBADO 2026-07-11 (dueño) — olas multitienda
+Principios: SIN flag nuevo (multitienda se activa sola con 2+ sucursales en Prime;
+con 1 sucursal todo colapsa al comportamiento actual → JC byte-idéntico);
+formal/informal ya resuelto por toggles (inventario/contabilidad/facturación OFF)
+y cada paso debe no-opear igual con ellos apagados; el bot ya es multitienda por
+dentro (sucursal_origen), solo falta hacérselo visible al cliente.
+
+- [ ] **Ola R — replicable de cero (Win/Linux/Mac)**: instalación fresca `schema.sql`
+      + `migrate.js` debe producir un sistema funcional equivalente al migrado;
+      verificar en BD temporal, corregir drift si aparece. Requisito del dueño 2026-07-11.
+- [ ] **Ola A — la sesión conoce su tienda**: migración 0049 (`usuarios.sucursal` +
+      `cortes_caja.sucursal`), helper único `sucursalDeSesion()` en sucursalService,
+      POS config/productos/venta por sucursal de sesión (gerente+ puede cambiarla,
+      cajero fija), corte por tienda, campo Sucursal en UsuariosTab, tests contract
+- [ ] **Ola B — compras y mesas**: migración 0050 (`ordenes_compra.sucursal_destino` +
+      `mesas.sucursal`); recepción OC y carga CFDI entran a la sucursal destino; mesas por tienda
+- [ ] **Ola C — reportes/contabilidad**: migración 0051 (`asientos.sucursal`, la pueblan
+      los chokepoints); filtro `?sucursal=` en tablero/ventas-producto/stats/facturación-pendiente
+      (selector UI solo con 2+ sucursales); gastos con sucursal opcional
+- [ ] **Ola D — bot de cara al cliente**: ligar `puntos_recoleccion`↔`sucursales` (pickup
+      por CP del cliente) + fix búsqueda del bot a `SUM(inventarios.stock)` (columnas muertas)
+- [ ] **Ola E — por demanda real**: `empleados.sucursal`, traslados en tránsito, listas de precios
+
+Transversal por ola: migración versionada + espejo schema.sql, contract test,
+`node scripts/rutas/inventario.js --check` + `npm run test:bot` en verde, y prueba
+de oro: con 1 sucursal → byte-idéntico.
+
 ## 🆕 v1.01 — Cola del comité de 16 auditorías (2026-07-09)
 
 Hallazgos verificados contra el código (falsos positivos ya descartados:

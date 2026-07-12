@@ -94,10 +94,25 @@ function crearNueva(rutaDb, nombreNegocio, tono) {
         ).run(t);
     }
 
+    // Baseline de migraciones: schema.sql ya ES el estado final, así que una BD
+    // recién creada sella TODAS las migrations/*.sql existentes como aplicadas.
+    // Sin esto, `node scripts/migrate.js` intentaba re-correr la historia
+    // completa sobre la BD fresca y tronaba en 0023 (asume columnas legacy del
+    // sistema Python previo que solo existían en la BD de producción original).
+    db.prepare(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, aplicado_en TEXT DEFAULT (datetime('now','localtime')))"
+    ).run();
+    const dirMigraciones = path.join(__dirname, '..', 'migrations');
+    const selladas = fs.existsSync(dirMigraciones)
+        ? fs.readdirSync(dirMigraciones).filter(f => f.endsWith('.sql')).sort()
+        : [];
+    const sellar = db.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)');
+    for (const f of selladas) sellar.run(f);
+
     const nTablas = db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table'").get().n;
     db.close();
 
-    console.error(`[instalarBaseDeDatos] OK: base de datos nueva creada en ${rutaAbs} (${nTablas} tablas).`);
+    console.error(`[instalarBaseDeDatos] OK: base de datos nueva creada en ${rutaAbs} (${nTablas} tablas, ${selladas.length} migraciones selladas como baseline).`);
     console.log('DB_PATH=' + rutaAbs);
 }
 

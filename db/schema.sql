@@ -157,6 +157,22 @@ CREATE TABLE IF NOT EXISTS series_folios (
     longitud    INTEGER NOT NULL DEFAULT 6
 );
 
+-- Semilla de series (espejo de los valores reales de producción): sin estas
+-- filas una instalación fresca no truena, pero generarFolio() cae al fallback
+-- feo `PEDIDO-<timestamp>` en vez de HEV-PED-000123, y stockService no puede
+-- foliar listas de espera/preventas.
+INSERT OR IGNORE INTO series_folios (tipo, prefijo, ultimo_folio, longitud) VALUES
+    ('pedido',         'HEV-PED-', 0, 6),
+    ('ticket',         'HEV-TKT-', 0, 6),
+    ('transferencia',  'HEV-TRF-', 0, 6),
+    ('devolucion',     'HEV-DEV-', 0, 6),
+    ('factura',        'HEV-FAC-', 0, 6),
+    ('guia_estafeta',  'EST-SIM-', 0, 8),
+    ('preventa',       'PREV-',    0, 6),
+    ('lista_espera',   'ESP-',     0, 6),
+    ('ticket_qr',      'TK-',      0, 8),
+    ('regalo_lealtad', 'REGALO-',  0, 6);
+
 -- Catálogo de categorías de producto (lookup, referenciado por nombre desde
 -- productos.cat y por id desde productos.id_categoria/promociones.id_categoria).
 -- Estuvo sin ningún código que la leyera/escribiera hasta que
