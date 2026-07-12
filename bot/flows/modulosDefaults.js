@@ -55,4 +55,25 @@ const DEPENDE_DE = {
     // pero eso ya lo resuelve el catálogo metodos_pago — sin dependencia dura
 };
 
-module.exports = { DEFAULT_OFF, DEPENDE_DE };
+// Módulos que cada GIRO enciende al terminar el onboarding (una sola vez, solo
+// instancias nuevas — Julio Cepeda nunca pasa por aquí). Sin esto, una barbería
+// quedaba sin Citas y un restaurante sin Mesas/POS hasta descubrir Módulos.
+// El dueño puede apagarlos después; esto solo es el punto de partida correcto.
+const MODULOS_POR_GIRO = {
+    jugueteria:    ['pos_activo'],
+    retail:        ['pos_activo'],
+    abarrotes:     ['pos_activo'],
+    carniceria:    ['pos_activo'],
+    ferreteria:    ['pos_activo'],
+    restaurante:   ['pos_activo', 'mesas_activo'],
+    servicios:     ['citas_activo'],
+    mantenimiento: ['citas_activo'],
+    isp:           ['citas_activo'],
+    barberia:      ['citas_activo', 'pos_activo'],
+    tatuajes:      ['citas_activo'],
+    estetica:      ['citas_activo', 'pos_activo'],
+    unas:          ['citas_activo', 'pos_activo'],
+    custom:        [],
+};
+
+module.exports = { DEFAULT_OFF, DEPENDE_DE, MODULOS_POR_GIRO };

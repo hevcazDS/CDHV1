@@ -51,6 +51,13 @@ function onboarding(req, res, ctx) {
             setCfg('nombre_negocio', nombre);
             setCfg('nombre_negocio_corto', String(d.nombre_negocio_corto || nombre).trim());
             setCfg('giro', giro);
+            // Preset de módulos del giro (una sola vez, en el onboarding): la
+            // barbería nace con Citas, el restaurante con Mesas+POS, la tienda
+            // con POS. Después se ajustan en Módulos como siempre.
+            try {
+                const { MODULOS_POR_GIRO } = require('../../bot/flows/modulosDefaults');
+                for (const m of (MODULOS_POR_GIRO[giro] || [])) setCfg(m, '1');
+            } catch (_) {}
             setCfg('moneda', String(d.moneda || 'MXN'));
             setCfg('iva_pct', String(d.iva_pct ?? '16'));
             if (['A', 'B', 'C', 'D'].includes(d.tono)) setCfg('tono_bot', d.tono);

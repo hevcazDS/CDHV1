@@ -97,35 +97,22 @@ const ACCORDION_STYLES = {
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const { data: posActivo } = useQuery({
-    queryKey: ['modulo', 'pos_activo'],
-    queryFn: () => api.get('/api/modulo/pos_activo').then(r => !!r.activo).catch(() => false),
+  // Módulos que gobiernan links del sidebar: UNA sola query batch (antes eran 6
+  // requests sueltos a /api/modulo/:clave y los grupos iban APARECIENDO conforme
+  // respondían → el sidebar "brincaba" al cargar). El último snapshot vive en
+  // localStorage como initialData: en recargas el menú sale completo al instante
+  // y solo se corrige si algo cambió de verdad.
+  const CLAVES_SIDEBAR = 'pos_activo,rrhh_activo,mesas_activo,citas_activo,ventas_credito_activo,entrega_paqueteria_activo';
+  const { data: modulosActivos = {} } = useQuery({
+    queryKey: ['modulos-sidebar'],
+    queryFn: () => api.get('/api/modulos?claves=' + CLAVES_SIDEBAR).then(m => {
+      try { localStorage.setItem('modulos-sidebar', JSON.stringify(m)); } catch (_) {}
+      return m;
+    }).catch(() => ({ entrega_paqueteria_activo: true })),
+    initialData: () => {
+      try { return JSON.parse(localStorage.getItem('modulos-sidebar') || '') || undefined; } catch (_) { return undefined; }
+    },
   });
-  const { data: rrhhActivo } = useQuery({
-    queryKey: ['modulo', 'rrhh_activo'],
-    queryFn: () => api.get('/api/modulo/rrhh_activo').then(r => !!r.activo).catch(() => false),
-  });
-  const { data: mesasActivo } = useQuery({
-    queryKey: ['modulo', 'mesas_activo'],
-    queryFn: () => api.get('/api/modulo/mesas_activo').then(r => !!r.activo).catch(() => false),
-  });
-  const { data: citasActivo } = useQuery({
-    queryKey: ['modulo', 'citas_activo'],
-    queryFn: () => api.get('/api/modulo/citas_activo').then(r => !!r.activo).catch(() => false),
-  });
-  // ventas_credito_activo faltaba en el mapa → Fiados quedaba oculto SIEMPRE
-  // (incluso para prime), porque modulosActivos[clave] daba undefined.
-  const { data: creditoActivo } = useQuery({
-    queryKey: ['modulo', 'ventas_credito_activo'],
-    queryFn: () => api.get('/api/modulo/ventas_credito_activo').then(r => !!r.activo).catch(() => false),
-  });
-  // Poda por giro: el grupo "Envíos" (paquetería) desaparece si el negocio no
-  // entrega por paquetería (barbería/servicios). default ON → JC igual.
-  const { data: paqueteriaActivo } = useQuery({
-    queryKey: ['modulo', 'entrega_paqueteria_activo'],
-    queryFn: () => api.get('/api/modulo/entrega_paqueteria_activo').then(r => !!r.activo).catch(() => true),
-  });
-  const modulosActivos = { pos_activo: posActivo, rrhh_activo: rrhhActivo, mesas_activo: mesasActivo, citas_activo: citasActivo, ventas_credito_activo: creditoActivo, entrega_paqueteria_activo: paqueteriaActivo };
   // rolRequerido es rango mínimo, no match exacto
   const grupos = GRUPOS
     .map(g => ({ ...g, enlaces: g.enlaces.filter(e => {
@@ -143,9 +130,19 @@ export default function Layout() {
     }) }))
     .filter(g => g.enlaces.length > 0);
 
-  const [nombreNegocio, setNombreNegocio] = useState('Julio Cepeda');
+  // Marca del negocio: arranca del último nombre visto (localStorage), NUNCA de
+  // un nombre hardcodeado — un clon white-label flasheaba "Julio Cepeda" en cada
+  // carga. Con '' el hueco de la marca simplemente queda vacío ese primer render.
+  const [nombreNegocio, setNombreNegocio] = useState(() => {
+    try { return localStorage.getItem('nombre-negocio') || ''; } catch (_) { return ''; }
+  });
   useEffect(() => {
-    api.get('/api/negocio').then(d => d?.nombre_negocio && setNombreNegocio(d.nombre_negocio)).catch(() => {});
+    api.get('/api/negocio').then(d => {
+      if (d?.nombre_negocio) {
+        setNombreNegocio(d.nombre_negocio);
+        try { localStorage.setItem('nombre-negocio', d.nombre_negocio); } catch (_) {}
+      }
+    }).catch(() => {});
   }, []);
 
   const iniciales = (user?.username || '?').slice(0, 2).toUpperCase();
