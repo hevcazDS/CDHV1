@@ -375,3 +375,209 @@ intérprete. El intérprete es una apuesta a una necesidad que hoy no está demo
 mecanismos existentes (`giroFlows` + módulos + flows nuevos puntuales) ya cubren. No se construye
 por adelantado.
 ```
+
+---
+
+## Master juguetería + complementarios (dirección del dueño 2026-07-12)
+
+> **Esta sección MANDA sobre el "veredicto condicional" de arriba.** El dueño ya decidió el
+> modelo y no se contradice: (1) la **juguetería es el MASTER** — la plantilla base COMPLETA y
+> canónica, ya en código; (2) citas/mesa/suscripción/proyecto son **módulos COMPLEMENTARIOS**
+> que se enchufan como **DELTAS** sobre el master, no flujos paralelos; (3) ejecución =
+> **compilar-y-congelar** (0.bis), nunca interpretar-en-vivo ni codegen a JS; (4) groserías/quejas/
+> frustración/**ASESOR** son **filtros de plataforma** del pipeline pre-router de `bot/index.js`
+> que el master **hereda sellados** — el grafo declara *cuándo* escalar, jamás *cómo*.
+>
+> Lo de abajo aterriza esos 4 puntos a nivel archivo:línea para que un dev empiece sin reinventar.
+> **Cero cambios de producción los propone este plan** — es la especificación de construcción.
+
+### M.0 — Fijaciones anti-drift (verificadas contra el repo 2026-07-12)
+
+Antes de nada, cuatro hechos que corrigen números obsoletos en `DISENO_MOTOR_FLUJO.md`:
+
+1. **Última migración aplicada = `0060_conciliacion_banco.sql`** (`ls migrations/ | sort | tail -1`).
+   Por tanto la migración del motor es **`0061_flujo_motor.sql`** — verifica `tail -1` de nuevo al
+   construir (la regla anti-drift es "el siguiente libre AL construir", no un número pineado). El
+   encabezado y §A.3/§H de `DISENO_MOTOR_FLUJO.md` todavía dicen `0058`/`≥0059`: **están obsoletos**,
+   léase `0061`. `PLAN` §Fase 2+ punto 4 ya dice `≥0061` — correcto.
+2. **`motor_flujo_activo` NO está en `DEFAULT_OFF`** (`modulosDefaults.js:16-53`, confirmado). Hay que
+   **añadirlo** en Fase 2. Con el flag OFF + `FLOWS` intacto, JC es byte-idéntico.
+3. **El slot del producto en curso es `data.viewing`** (`menuFlow.js:428,502,557`), no `selectedProduct`.
+   Cierra el punto D.7 "verificar" de la auditoría: la acción `agregar_carrito` usa `ctx.data.viewing`.
+4. **`ctx` real = `{ userId, session, message, client, raw, action, step, data, tel, isImage }`**
+   (`actionHandler.js:144`). El motor usa `userId/action/step/data/tel/raw` — todas presentes.
+
+### M.1 — El MASTER (juguetería) como plantilla, nodo por nodo
+
+El master **no se escribe: se EXTRAE** del flujo actual y se congela en `plantillas/jugueteria.json`.
+Estos son sus nodos reales (enum `S`, `_shared.js:31-66`), con la acción sellada que invoca y el
+archivo:línea de donde sale cada uno. La columna **tipo** es lo que el compilador marca bloqueado.
+
+| Nodo (`paso`) | tipo | frase_clave (Fase 1) | accion_entrada / accion de arista → función sellada | Evidencia |
+|---|---|---|---|---|
+| `MENU` | conversacion | `menu_opciones` (ya en `t()`) | — (enruta por `resolverOpcionMenu`) | `menuFlow.js`; `_shared.resolverOpcionMenu` |
+| `SEARCHING` | conversacion | `buscar_*` | `buscar_producto` → `searchProducts(raw,3,tel)` **`{results,isFallback}`** | `menuFlow.js:452-474`; `_shared.js:163` |
+| `VIEW_PRODUCT` | conversacion | `ficha_*` | (render de `data.viewing`) | `menuFlow.js:428,502` |
+| `WIZARD_Q1..Q3` | conversacion | `wizard_q*` | `wizardSearch` — **solo juguetería** (se APAGA en otros giros) | `_shared.js:36-38` |
+| `ADD_MORE` | conversacion | `add_more_*` | — | `menuFlow.js` |
+| `SHOW_CART` | **sistema** | `carrito_*` | `agregar_carrito` → `agregarAlCarrito(data.carrito, data.viewing)` **`{ok,escalar,carrito}`** | `cartFlow.js`; `_shared.js:387` |
+| `OFERTAS` / `CUPON` | **sistema** | `oferta_*`/`cupon_*` | aplicar cupón (math sellada) | `cartFlow.js` |
+| `ASK_CP` | **sistema** | `pedir_cp_*` | `buscar_cobertura` → `buscarCobertura(cp)` (row\|null) | `orderFlow.js`; `_shared.js:332` |
+| `SPLIT_DELIVERY`/`SPLIT_CONFIRM` | **sistema** | `split_*` | `partir_carrito` → `partirCarrito(carrito, estadoCob)` | `_shared.js:493` |
+| `DELIVERY`/`PICKUP_CONFIRM` | **sistema** | `entrega_*`/`pickup_*` | `grabarPedidoEnvio/Pickup/Split` | `orderFlow.js`; `_shared.js:863,819,951` |
+| `ASK_NOMBRE..ASK_REF` (+`CONFIRM_DIR_GUARDADA`) | **sistema** | `dir_*` | captura de dirección — **orden FIJO (contractual Estafeta)** | `addressFlow.js` |
+| `CONFIRM_ORDER` | **sistema SELLADO** | `confirmar_*` | `grabar_pedido` + `insertarLinkPago('generado')` — **para ahí, NO descuenta stock** | `_shared.js:863,745` |
+| `PAGO_METODO` | **sistema** | `pago_*` | `registrarMetodoPago(pedidos[], metodo)` (por folio) | `_shared.js:731` |
+| `PAGO_COMPROBANTE` | **sistema** | `comprobante_*` | (subida de comprobante) | `_shared.js:65` |
+| `REFERIDOS` | conversacion | `referidos_*` | `referidosService` (código + submenú) | `asesorFlow.js` |
+
+**Nodos de plataforma que el master hereda pero el grafo NO posee** (§M.3): `ASESOR`, `LISTA_ESPERA`,
+`CSAT`, `DEVOLUCION` (`asesorFlow.STEPS`, `asesorFlow.js:62`). Son `tipo='sistema'` y **jamás** entran a
+`STEPS` del intérprete.
+
+**Regla de extracción (Fase 3 del intérprete):** `jugueteria.json` se genera copiando este mapa 1:1.
+Los nodos `conversacion` son los únicos que el motor *interpreta*; los `sistema` se **invocan** vía
+`dispatchSistema` (§C.3 del diseño). El golden de Fase 0 (recorridos #1-6 de §0.4) es el oráculo:
+compilas `jugueteria.json`, lo congelas, y el golden exige byte-identidad sobre ESE compilado. Solo
+entonces se enciende `motor_flujo_activo` para `jugueteria`.
+
+### M.2 — Un módulo complementario = un DELTA sobre el master (sin tocar checkout ni filtros)
+
+Un complementario **no es un JSON de flujo completo**: es un **parche declarativo** sobre
+`jugueteria.json`. Formato propuesto (archivo `plantillas/deltas/<giro>.json`, aplicado por el seeder
+tras cargar el master):
+
+```json
+{
+  "base": "jugueteria",
+  "apaga":     ["WIZARD_Q1","WIZARD_Q2","WIZARD_Q3","ASK_CP","SPLIT_DELIVERY","SPLIT_CONFIRM","DELIVERY"],
+  "reetiqueta":[ { "paso":"MENU", "arista":"kw:buscar", "label":"💈 Agendar", "input":"kw:cita", "destino":"CITA_SERVICIO" } ],
+  "agrega_nodos": [
+    { "paso":"CITA_SERVICIO", "tipo":"conversacion", "frase_clave":"cita_servicio", "accion_entrada":"cargar_servicios" },
+    { "paso":"CITA_FECHA",    "tipo":"conversacion", "frase_clave":"cita_fecha",    "accion_entrada":"cargar_dias_cita" },
+    { "paso":"CITA_HORA",     "tipo":"conversacion", "frase_clave":"cita_hora",     "accion_entrada":"cargar_horas_cita" },
+    { "paso":"CITA_CONFIRMA", "tipo":"conversacion", "frase_clave":"cita_resumen" },
+    { "paso":"CITA_ANTICIPO", "tipo":"sistema",      "frase_clave":"cita_anticipo", "accion_entrada":"cobrar_anticipo", "params_json":{"porcentaje":30} }
+  ],
+  "agrega_aristas": [
+    { "paso":"CITA_CONFIRMA", "input":"1", "accion":"crear_cita", "destino":"CITA_ANTICIPO" },
+    { "paso":"CITA_ANTICIPO", "input":"resultado:cobrar", "destino":"CITA_AGENDADA" },
+    { "paso":"CITA_AGENDADA", "input":"kw:si", "destino":"SEARCHING" },
+    { "paso":"CITA_AGENDADA", "input":"*",     "destino":"MENU" }
+  ]
+}
+```
+
+**Por qué esto respeta la dirección del dueño:**
+
+- **No toca el checkout sellado.** `apaga`/`reetiqueta`/`agrega_*` solo pueden operar sobre nodos
+  `conversacion` **o** re-enrutar HACIA un nodo `sistema` existente; **nunca** cambian el `destino`/
+  `accion` interno de un nodo `sistema`. El linter (§D.2.5 del diseño) lo rechaza comparando contra
+  `flujo_nodo_sistema_ref` (los nodos sistema canónicos versionados en git). `CITA_AGENDADA --kw:si-->
+  SEARCHING` reusa el **mismo** carrito/checkout del master: cero duplicación (§R.C "agenda+compra sale gratis").
+- **No toca los filtros.** Un delta no puede declarar nodos que detecten groserías/quejas — esos
+  viven en `index.js` (§M.3), fuera del grafo. El delta solo declara aristas `accion:'escalar'`
+  (cuándo), no la mecánica.
+- **Los 4 casos del dueño como deltas** (ninguno agrega checkout nuevo; todo "reusa tal cual" del master):
+
+  | Complementario | Delta sobre master |
+  |---|---|
+  | **citas-anticipo** (barbería/estética/uñas/tatuajes) | apaga `WIZARD`/`ASK_CP`/`SPLIT`/`DELIVERY`; agrega `CITA_*` (**ya en código**, `citasFlow.js:15`) + `CITA_ANTICIPO` (nuevo, params `porcentaje`). Sin anticipo = el mismo delta **sin** el nodo `CITA_ANTICIPO` (la arista `"1"` va directo a `CITA_AGENDADA`). |
+  | **ISP-domicilio** | delta de citas **+** re-enruta `CITA_HORA --*--> ASK_CP` para reusar `ASK_CP`→`addressFlow` del master (cobertura+dirección de instalación). **Cero nodo propio** — composición de piezas selladas ya existentes. |
+  | **restaurante-mesa** | apaga `WIZARD`/`SPLIT`; enciende entrega repartidor (módulo, no arista); agrega `MESA_*` (picker análogo a `CITA_SERVICIO`; módulo `mesas_activo` ya reservado, `modulosDefaults.js:28` — **flow no construido aún**). Catálogo "menú" = mismo `productos` con `vocab()`. |
+  | **freelancer-suscripción** | reduce a `CONFIRM_ORDER→PAGO_METODO`; agrega `PROYECTO_MONTO` (1 línea de monto libre → `insertarPedidoConCarrito`). La **suscripción recurrente es lo ÚNICO genuinamente nuevo** (tabla `suscripciones` + job en `stockWatcher`, §R.D) y **no es topología**: es un job que re-empuja a `cola_notificaciones`, fuera del grafo. |
+
+- **Estados nuevos que el enum `S` aún NO tiene** (a agregar en la migración/código al construir el
+  delta, no ahora): `CITA_ANTICIPO`, `CITA_AGENDADA`, `MESA_*`, `PROYECTO_MONTO`. Los `CITA_SERVICIO/
+  FECHA/HORA/CONFIRMA` **ya existen** (`_shared.js:60-63`). No inventar acciones: `cobrar_anticipo`/
+  `crear_cita`/`cargar_servicios`/`cargar_horas_cita` **no existen aún** y hay que escribirlas como
+  wrappers finos (auditoría §A filas ❌) — `cargar_dias_cita` sí (`citasFlow.diasDisponibles()`, `:53`).
+
+### M.3 — Cómo el MASTER contempla groserías / quejas / frustración / ASESOR
+
+**No se re-implementan en el grafo. Son filtros de plataforma que corren ANTES del router** (§G del
+diseño, verificado contra `bot/index.js`). El master los "contempla" heredándolos: el intérprete es la
+etapa 10 del pipeline y solo ve texto ya limpio. Mapa de cada etapa de `index.js` al modelo:
+
+| # | Etapa `index.js` | Detector/acción | Efecto en el modelo del motor |
+|---|---|---|---|
+| 4 | Content filter `cfCheck` (`:908`) | groserías → tag `blacklist`; reincidente → `ASESOR modo:'contenido_inapropiado'` (`:915`) | **secuestra a ASESOR antes del router.** El grafo NUNCA ve el texto. |
+| 5 | Frustración `esFrustracion` (`:924`) | tono agresivo limpio → `ASESOR modo:'cliente_frustrado'` + tag `queja` (`:928`) | **secuestra a ASESOR.** No es un nodo. |
+| 8 | Quejas `quejaCheck` (`:1047`) | 2 pasos → `registrarEscalada` + `ASESOR modo:'queja'` (`:1060`) | **secuestra a ASESOR.** No es un nodo. |
+| 9 | Intención de compra (solo `MENU`, `:1074`) | inyecta `SEARCHING` | el motor lo recibe ya como `step=SEARCHING`. |
+| 10 | `actionHandler.handleAction` (`:1131`) | router: `FLOWS` + motor + giroFlows | **única etapa donde corre el intérprete.** |
+
+**Las 4 reglas duras del master respecto a ASESOR (no negociables, §G.2):**
+
+1. `STEPS` del intérprete **NUNCA** incluye `ASESOR`/`LISTA_ESPERA`/`CSAT`/`DEVOLUCION` — son de
+   `asesorFlow` (`asesorFlow.js:62`), `tipo='sistema'`, para siempre.
+2. Con la sesión en `ASESOR`, el motor **no corre**: no posee el `step` → devuelve `undefined` → el
+   router lo da a `asesorFlow` (que responde una vez y luego **enmudece**, `asesorFlow.js:83`).
+3. **Escalar es acción SELLADA** (`accion:'escalar'` → `registrarEscalada` + `cola_atencion` + set
+   `ASESOR`). El grafo elige el *cuándo* (arista `kw:asesor` o `resultado:escalar`), nunca el *cómo*.
+   El linter trata `escalar` como nodo sistema inmodificable.
+4. **Escalada por reintentos vive en el intérprete** (`data._reintentos ≥ 3 → ASESOR`, §C.2 del
+   diseño), no en un nodo — es la única vía por la que el walker toca `ASESOR`, y lo hace **saliendo**
+   hacia el estado sellado, nunca manejándolo.
+
+**El lazo de cobro (G.5/G.6) también es herencia sellada del master:** el motor participa SOLO en el
+acto 1 (`grabar_pedido`/`cobrar_anticipo` → `insertarPedidoConCarrito` + `insertarLinkPago('generado')`,
+**sin tocar inventario**); el **asesor humano** marca pagado (`POST /api/pagos/:id/marcar-pagado`,
+`comunicacionPedidos.js:263-300`) y ahí ocurre el descuento por sucursal (`kardexService.movimiento`),
+puntos, asiento y ticket. Adelantar el descuento al acto 1 = **doble-descuento** (histórico, MEMORY.md).
+El master pasa `sucursalDeSesion(db, ses)` a la acción sellada igual que `citas.js:cobrar` (`:84`).
+
+### M.4 — Primer archivo a crear y su test (respetando las 4 invariantes)
+
+**Primer archivo: NO es el intérprete. Es la red de seguridad — el master no se puede tocar sin oráculo.**
+
+1. **`tests/fixture_min.js`** (Fase 0, §0.3) — siembra un sqlite temporal reusando `db/schema.sql` +
+   config JC por defecto + 3 productos + 1 servicio + cobertura de `64000`. Idempotente, solo escribe
+   en `os.tmpdir()`.
+2. **`tests/golden_snapshot.js`** (Fase 0, §0.4) — apunta `DB_PATH` al fixture, corre
+   `actionHandler.handleAction` por los recorridos #1-7 y **graba `tests/golden/jc.json`**. En corridas
+   futuras: mismo recorrido → mismo output byte a byte, o falla. **Este es el test del primer archivo**
+   y el oráculo de todo lo demás. Se añade a `package.json` `test` como `&& node tests/golden_snapshot.js`.
+
+Solo **después** de que el golden esté verde se construye, en Fase 1, `tests/test_motor_actions.js`
+(contract test por acción) y `bot/flows/motor/actions.js`. El **primer archivo de código de producción**
+del motor es `actions.js` (wrappers finos sobre `_shared.js`), y su test (`test_motor_actions.js`)
+verifica cada acción aislada del grafo — con el patrón `node tests/xxx.js` + asserts + `better-sqlite3`
+en memoria (estilo `tests/test_citas.js`), **sin framework nuevo**.
+
+**Las 4 invariantes, aplicadas a este primer código:**
+
+- **Flag por-request:** el registro del motor va dentro de `handleAction` (patrón de `_giro`,
+  `actionHandler.js:145`), NO al `require`. `const _flowsActivos = [...FLOWS, ...(motorActivo()?[motor]:[]),
+  ...giroFlows.flowsDeGiro(_giro)]`. `motorActivo()` = `moduloActivo('motor_flujo_activo')`.
+- **Fail-closed:** grafo ausente/inválido o acción que lanza → el `handle` del motor devuelve
+  `undefined` → cae al router viejo (coherente con `actionHandler.js:151-158`). El bot nunca enmudece
+  ni cobra a medias (las funciones de dinero ya son transaccionales).
+- **Migración = siguiente libre = `0061_flujo_motor.sql`** (verificar `tail -1` al construir).
+  Añade `flujo_grafo`/`flujo_nodo`/`flujo_arista` + columnas `anticipo`/`saldo_pendiente` en `citas`
+  (NO re-agregar `id_pedido`/`servicio_precio`/`id_servicio` — ya existen desde 0057). Espejo en
+  `db/schema.sql` (regla CLAUDE.md). Añadir `motor_flujo_activo` a `DEFAULT_OFF` (`modulosDefaults.js`).
+- **Fixture + golden como oráculo:** ninguna fase del motor mergea sin el golden verde. El master ES
+  juguetería, así que la regresión byte-idéntica de JC protege todo automáticamente.
+
+### M.5 — Correcciones a los .md que contradicen esta dirección
+
+Cierra las inconsistencias detectadas; aplicar cuando se toque cada doc (este plan no edita código):
+
+1. **`DISENO_MOTOR_FLUJO.md` — número de migración obsoleto.** El encabezado dice "hoy ≥`0059`",
+   §A.3 dice `0059`, §H y §R.E dicen "≥`0059`". **Reemplazar por `0061`** (último aplicado real =
+   `0060_conciliacion_banco.sql`). El `PLAN` §Fase 2+ punto 4 ya está correcto (`≥0061`).
+2. **`DISENO_MOTOR_FLUJO.md` §D.7 (auditoría) — slot resuelto.** El punto "verificar `selectedProduct`
+   vs `viewing`" queda **cerrado: es `viewing`** (`menuFlow.js:428,502`). `agregar_carrito` usa
+   `ctx.data.viewing`.
+3. **`DISENO_MOTOR_FLUJO.md` §R.A/§R.C — enfoque de plantilla.** Donde el índice A-G habla de
+   "plantilla de barbería" o "piloto citas primero", léase conforme a §M.2: **el master es
+   `jugueteria.json` y cada giro es un DELTA** (`plantillas/deltas/<giro>.json`), no un JSON de flujo
+   completo por giro. El orden correcto es master (Fase 3) → deltas (Fase 4). §R.A-R.E ya lo dicen;
+   esta sección lo formaliza como el **formato de delta** que el seeder aplica.
+4. **`PLAN_IMPLEMENTACION_MOTOR.md` §0/§Fase 2+ — veredicto "NO ahora" es CONDICIONAL, ya resuelto por
+   0.bis + esta sección.** El dueño decidió construir (compilar-y-congelar). El "NO ahora" de §0 aplica
+   solo al **intérprete-en-vivo** (correctamente rechazado); el **compilar-y-congelar** SÍ entra
+   (§0.bis). Esta sección M es el detalle de construcción de ese modelo. No se borra §0 (documenta el
+   razonamiento), pero se lee subordinada a §0.bis y §M.
+

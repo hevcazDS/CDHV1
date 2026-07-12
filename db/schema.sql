@@ -432,7 +432,8 @@ CREATE TABLE IF NOT EXISTS pedido_detalle (
     subtotal_linea  REAL,
     id_variante     INTEGER,
     variante        TEXT,
-    sucursal_origen TEXT
+    sucursal_origen TEXT,
+    costo_unitario  REAL   -- 0061: costo congelado al pedido (NULL = usar costo actual en COGS)
 );
 
 CREATE TABLE IF NOT EXISTS direcciones_envio (

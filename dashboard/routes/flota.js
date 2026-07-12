@@ -36,7 +36,8 @@ function status(req, res, ctx) {
         version: (() => { try { return require('../../package.json').version; } catch (_) { return '0'; } })(),
         ventas_hoy: num("SELECT COALESCE(SUM(monto),0) v FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=date('now','localtime')"),
         pedidos_hoy: num("SELECT COUNT(*) v FROM pedidos WHERE date(creado_en)=date('now','localtime')"),
-        bot_estatus: g('stockwatcher_modo') ? undefined : undefined, // placeholder — el estatus vivo del bot lo da pm2, no la BD
+        // El estatus vivo del bot lo da pm2 (no la BD); el hub usa el último
+        // registrado en bot_status_log como aproximación para el panel de flota.
         ultimo_bot_estatus: (() => { try { return db.prepare('SELECT estatus, registrado_en FROM bot_status_log ORDER BY id DESC LIMIT 1').get() || null; } catch (_) { return null; } })(),
         cola_atencion: num("SELECT COUNT(*) v FROM cola_atencion WHERE estatus='en_espera'"),
         emails_error: num("SELECT COUNT(*) v FROM cola_emails WHERE estatus='error'"),

@@ -118,8 +118,10 @@ function asientoCobroCredito(idPedido, monto, metodoPago, fecha = null) {
 // Costo de lo vendido: cargo Costo de ventas, abono Inventario (costo promedio)
 function asientoCostoVenta(idPedido, fecha = null) {
     if (!activo()) return null;
+    // Usa el costo CONGELADO al pedido (d.costo_unitario, migración 0061); si es
+    // NULL (fila vieja) cae al costo actual del producto — comportamiento previo.
     const row = db.prepare(`
-        SELECT COALESCE(SUM(d.cantidad * COALESCE(p.costo, 0)), 0) c
+        SELECT COALESCE(SUM(d.cantidad * COALESCE(d.costo_unitario, p.costo, 0)), 0) c
         FROM pedido_detalle d JOIN productos p ON p.id = d.id_producto
         WHERE d.id_pedido = ?
     `).get(idPedido);
@@ -205,13 +207,15 @@ function asientoReversa(tipo, refId) {
     ).get(tipo, ref);
     if (yaRevertido) return null;
     const originales = db.prepare(
-        "SELECT id, concepto FROM asientos WHERE referencia_tipo=? AND referencia_id=? AND concepto NOT LIKE 'REVERSA%'"
+        "SELECT id, concepto, sucursal FROM asientos WHERE referencia_tipo=? AND referencia_id=? AND concepto NOT LIKE 'REVERSA%'"
     ).all(tipo, ref);
     const det = db.prepare('SELECT cuenta, debe, haber FROM asientos_detalle WHERE id_asiento=?');
     const ids = [];
     for (const o of originales) {
         const partidas = det.all(o.id).map(x => ({ cuenta: x.cuenta, debe: x.haber, haber: x.debe }));
-        ids.push(registrarAsiento({ concepto: 'REVERSA ' + o.concepto, referencia_tipo: tipo, referencia_id: ref, partidas }));
+        // Conserva la sucursal del asiento original (multitienda 0051): sin esto
+        // la reversa cae con sucursal NULL y el P&L por tienda queda inflado.
+        ids.push(registrarAsiento({ concepto: 'REVERSA ' + o.concepto, referencia_tipo: tipo, referencia_id: ref, partidas, sucursal: o.sucursal || null }));
     }
     return ids;
 }

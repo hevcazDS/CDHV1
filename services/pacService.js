@@ -31,12 +31,13 @@ function descifrarSecreto(v) {
 }
 
 // ── PUNTO ÚNICO de integración con el PAC (timbrado CFDI 4.0) ───────────────
-// Hoy está INERTE: timbrar() devuelve { ok:false, pendiente:true } hasta que se
-// complete la integración con el proveedor elegido (Facturama / Finkok /
-// Interfactura / etc.). Se diseñó como los otros huecos (llmHandler,
-// pagoLinkService): fail-closed y doble-gate, para que solo falte "rellenar".
+// IMPLEMENTADO (key-only, Facturapi): timbrar()/timbrarNomina()/timbrarREP()
+// llaman al PAC real vía pacProviders.js y guardan el UUID. Sigue con doble-gate
+// y fail-closed: si el módulo facturacion_activo está OFF o faltan credenciales,
+// devuelve { ok:false, pendiente:true } — NO un error. Es "inerte por config",
+// no por falta de integración.
 //
-// Cómo queda ARMADO para completarlo:
+// Cómo se configura (todo desde el panel, sin tocar certificados):
 //   1. Prime configura credenciales en Prime > General → /api/prime/pac
 //      (se guardan en `configuracion`: pac_proveedor, pac_rfc, pac_ambiente,
 //       pac_usuario, pac_password, pac_csd_cer, pac_csd_key, pac_csd_pass,

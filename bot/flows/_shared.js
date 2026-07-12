@@ -789,18 +789,23 @@ const _insertarPedidoConCarritoTx = db.transaction((clienteNombre, carrito, ciud
     // Insertar línea por cada item del carrito
     let stmtDetalle;
     try {
+        // Incluye costo_unitario (migración 0061): congela el costo del producto
+        // al momento del pedido para que el COGS del período no dependa de una
+        // entrada de mercancía posterior. Si la columna no existe, cae al stmtViejo.
         stmtDetalle = db.prepare(`
-            INSERT INTO pedido_detalle (id_pedido, id_producto, cantidad, precio_unitario, subtotal_linea, sucursal_origen, id_variante, variante)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO pedido_detalle (id_pedido, id_producto, cantidad, precio_unitario, subtotal_linea, sucursal_origen, costo_unitario, id_variante, variante)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
-    } catch (_) { stmtDetalle = null; } // BD sin migración 0027
+    } catch (_) { stmtDetalle = null; } // BD sin migración 0061/0027
     const stmtViejo = db.prepare(`
         INSERT INTO pedido_detalle (id_pedido, id_producto, cantidad, precio_unitario, subtotal_linea, sucursal_origen)
         VALUES (?, ?, ?, ?, ?, ?)
     `);
+    const costoDe = db.prepare('SELECT costo FROM productos WHERE id=?');
     for (const item of carrito) {
         const lineTotal = item.price * item.cantidad;
-        if (stmtDetalle) stmtDetalle.run(pedidoRowid, item.id, item.cantidad, item.price, lineTotal, sucursalOrigen || '', item.id_variante || null, item.variante || null);
+        const costo = item.id ? (costoDe.get(item.id)?.costo ?? null) : null; // servicios/texto libre → null
+        if (stmtDetalle) stmtDetalle.run(pedidoRowid, item.id, item.cantidad, item.price, lineTotal, sucursalOrigen || '', costo, item.id_variante || null, item.variante || null);
         else stmtViejo.run(pedidoRowid, item.id, item.cantidad, item.price, lineTotal, sucursalOrigen || '');
         subtotal += lineTotal;
     }
