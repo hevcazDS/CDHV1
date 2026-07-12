@@ -962,7 +962,8 @@ CREATE TABLE IF NOT EXISTS ordenes_compra_detalle (
     id_oc          INTEGER NOT NULL REFERENCES ordenes_compra(id),
     id_producto    INTEGER NOT NULL,
     cantidad       INTEGER NOT NULL,
-    costo_unitario REAL NOT NULL
+    costo_unitario REAL NOT NULL,
+    cantidad_recibida REAL NOT NULL DEFAULT 0   -- migrations/0056 (recepción parcial)
 );
 
 CREATE TABLE IF NOT EXISTS cuentas_pagar (

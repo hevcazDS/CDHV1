@@ -109,44 +109,60 @@ function ocCancelar(req, res, ctx, { params }) {
     return json(res, { ok: true, id: idOC });
 }
 
-// Recepción: aumenta inventario + costeo promedio + CxP + asiento compra.
-// Separación de funciones: recibe ALMACÉN (o administrador+), no compras.
+// Recepción (PARCIAL o total): aumenta inventario + costeo + CxP + asiento por
+// LO RECIBIDO. Body opcional { items:[{id_detalle, cantidad}] }; sin body recibe
+// todo el pendiente (compat). La OC queda 'parcial' hasta recibir todas las
+// líneas completas; entonces pasa a 'recibida'. Recibe ALMACÉN (o admin+).
 function ocRecibir(req, res, ctx, { params, ses }) {
-    const { db, json, log } = ctx;
+    const { db, json, log, readBody } = ctx;
     const id = parseInt(params[0]);
-    const oc = db.prepare('SELECT * FROM ordenes_compra WHERE id=?').get(id);
-    if (!oc) return json(res, { ok: false, error: 'OC no encontrada' }, 404);
-    if (oc.estatus !== 'abierta') return json(res, { ok: false, error: 'La OC no está abierta' }, 400);
-    // multitienda 0050: la mercancía entra a la tienda DESTINO de la OC; las OC
-    // viejas (NULL) entran a la tienda de la sesión que recibe (= default si no tiene)
-    const sucursal = oc.sucursal_destino || sucursalDeSesion(db, ses);
-    if (!sucursal) return json(res, { ok: false, error: 'Configura la sucursal de facturación (Prime > General) antes de recibir' }, 400);
-    try {
-        const items = db.prepare('SELECT * FROM ordenes_compra_detalle WHERE id_oc=?').all(id);
-        const prov = db.prepare('SELECT * FROM proveedores WHERE id=?').get(oc.id_proveedor);
-        db.transaction(() => {
-            for (const it of items) {
-                costeo.registrarEntrada(it.id_producto, it.cantidad, it.costo_unitario, 'oc:' + oc.folio);
-                const anterior = db.prepare('SELECT stock FROM inventarios WHERE id_producto=? AND sucursal=?').get(it.id_producto, sucursal)?.stock ?? null;
-                if (anterior !== null) {
-                    db.prepare('UPDATE inventarios SET stock = stock + ? WHERE id_producto=? AND sucursal=?').run(it.cantidad, it.id_producto, sucursal);
-                } else {
-                    db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock) VALUES (?,?,?)').run(it.id_producto, sucursal, it.cantidad);
+    return readBody(req, body => {
+        try {
+            let recib = null; try { const b = JSON.parse(body || '{}'); if (Array.isArray(b.items)) recib = b.items; } catch (_) {}
+            const oc = db.prepare('SELECT * FROM ordenes_compra WHERE id=?').get(id);
+            if (!oc) return json(res, { ok: false, error: 'OC no encontrada' }, 404);
+            if (!['abierta', 'parcial'].includes(oc.estatus)) return json(res, { ok: false, error: 'La OC no está abierta' }, 400);
+            const sucursal = oc.sucursal_destino || sucursalDeSesion(db, ses);
+            if (!sucursal) return json(res, { ok: false, error: 'Configura la sucursal de facturación antes de recibir' }, 400);
+            const items = db.prepare('SELECT * FROM ordenes_compra_detalle WHERE id_oc=?').all(id);
+            const prov = db.prepare('SELECT * FROM proveedores WHERE id=?').get(oc.id_proveedor);
+            // cuánto se recibe de cada línea en ESTA recepción
+            const _pedirDe = (it) => {
+                const pend = (it.cantidad || 0) - (it.cantidad_recibida || 0);
+                if (!recib) return pend; // sin body → todo el pendiente
+                const m = recib.find(r => Number(r.id_detalle) === it.id);
+                return m ? Math.max(0, Math.min(pend, Number(m.cantidad) || 0)) : 0;
+            };
+            let montoRecibido = 0, algoRecibido = false;
+            db.transaction(() => {
+                for (const it of items) {
+                    const q = _pedirDe(it);
+                    if (q <= 0) continue;
+                    algoRecibido = true;
+                    montoRecibido += q * it.costo_unitario;
+                    costeo.registrarEntrada(it.id_producto, q, it.costo_unitario, 'oc:' + oc.folio);
+                    const anterior = db.prepare('SELECT stock FROM inventarios WHERE id_producto=? AND sucursal=?').get(it.id_producto, sucursal)?.stock ?? null;
+                    if (anterior !== null) db.prepare('UPDATE inventarios SET stock = stock + ? WHERE id_producto=? AND sucursal=?').run(q, it.id_producto, sucursal);
+                    else db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock) VALUES (?,?,?)').run(it.id_producto, sucursal, q);
+                    db.prepare('UPDATE ordenes_compra_detalle SET cantidad_recibida = cantidad_recibida + ? WHERE id=?').run(q, it.id);
+                    try { db.prepare('INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo) VALUES (?,?,?,?,?,?)')
+                        .run(it.id_producto, sucursal, 'entrada', anterior ?? 0, (anterior ?? 0) + q, 'OC ' + oc.folio); } catch (_) {}
                 }
-                try {
-                    db.prepare('INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo) VALUES (?,?,?,?,?,?)')
-                      .run(it.id_producto, sucursal, 'entrada', anterior ?? 0, (anterior ?? 0) + it.cantidad, 'OC ' + oc.folio);
-                } catch (_) {}
-            }
-            const vence = prov?.dias_credito > 0
-                ? db.prepare("SELECT date('now', '+' || ? || ' days', 'localtime') v").get(prov.dias_credito).v
-                : db.prepare("SELECT date('now','localtime') v").get().v;
-            db.prepare('INSERT INTO cuentas_pagar (id_proveedor, id_oc, monto, vence_en) VALUES (?,?,?,?)').run(oc.id_proveedor, id, oc.total, vence);
-            db.prepare("UPDATE ordenes_compra SET estatus='recibida', recibida_en=datetime('now','localtime') WHERE id=?").run(id);
-        })();
-        try { conta.asientoCompra(oc.folio, oc.total, { sucursal }); } catch (e) { log.warn('Asiento de compra falló: ' + e.message); }
-        return json(res, { ok: true, id, estatus: 'recibida' });
-    } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+                if (!algoRecibido) throw new Error('No se recibió ninguna cantidad');
+                const vence = prov?.dias_credito > 0
+                    ? db.prepare("SELECT date('now', '+' || ? || ' days', 'localtime') v").get(prov.dias_credito).v
+                    : db.prepare("SELECT date('now','localtime') v").get().v;
+                db.prepare('INSERT INTO cuentas_pagar (id_proveedor, id_oc, monto, vence_en) VALUES (?,?,?,?)').run(oc.id_proveedor, id, Math.round(montoRecibido * 100) / 100, vence);
+                // ¿todo recibido? (releer líneas ya actualizadas)
+                const pendiente = db.prepare('SELECT COALESCE(SUM(cantidad - cantidad_recibida),0) p FROM ordenes_compra_detalle WHERE id_oc=?').get(id).p;
+                const nuevoEstatus = pendiente <= 0.0001 ? 'recibida' : 'parcial';
+                db.prepare("UPDATE ordenes_compra SET estatus=?, recibida_en=CASE WHEN ?='recibida' THEN datetime('now','localtime') ELSE recibida_en END WHERE id=?").run(nuevoEstatus, nuevoEstatus, id);
+            })();
+            try { conta.asientoCompra(oc.folio, Math.round(montoRecibido * 100) / 100, { sucursal }); } catch (e) { log.warn('Asiento de compra falló: ' + e.message); }
+            const pendiente = db.prepare('SELECT COALESCE(SUM(cantidad - cantidad_recibida),0) p FROM ordenes_compra_detalle WHERE id_oc=?').get(id).p;
+            return json(res, { ok: true, id, estatus: pendiente <= 0.0001 ? 'recibida' : 'parcial', recibido: Math.round(montoRecibido * 100) / 100 });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
 }
 
 // ── Cuentas por pagar ──────────────────────────────────────────────────────

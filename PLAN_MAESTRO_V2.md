@@ -21,11 +21,11 @@ aditivo/toggleable, JC byte-idéntico, white-label intacto.
 4. ✅ **DIOT** — `GET /api/erp/diot?mes=&formato=txt`: agrupa CxP por proveedor, deriva base+IVA, exporta TXT del SAT. Borrador que el contador valida.
 5. ✅ **Contabilidad electrónica SAT** — `GET /api/erp/contabilidad-electronica?tipo=catalogo|balanza`: XML catálogo (con código agrupador base) + balanza mensual desde `plan_cuentas`/`libroMayor`. UI en Gastos e impuestos → Reportes SAT. Borrador; el código agrupador SAT se amplía con el contador.
 
-## Ola 3 — huecos operativos de los agentes (baratos, alto uso diario) · ~3-4 días
-6. **Solicitud→OC automática** al aprobar (compras) — hoy recaptura manual.
-7. **Recepción parcial de OC** — `cantidad_recibida` + estado `parcial`; cerrar solo al recibir todo.
-8. **Cajero cobra fiado** — botón "abono" en Fiados (endpoint marcar-pagado ya acepta `pos`) o dar `pos` al link Pedidos. Decidir si se quiere romper la separación de funciones.
-9. **División de cuenta** en mesas — cerrar subconjunto de mesa_items en varios pagos.
+## Ola 3 — huecos operativos de los agentes (baratos, alto uso diario)
+6. **Solicitud→OC automática** al aprobar (compras) — PENDIENTE (necesita elegir proveedor+costo al aprobar; diseño abierto).
+7. ✅ **Recepción parcial de OC** — HECHA (migración 0056 `cantidad_recibida`): recibir por líneas, CxP+inventario por lo recibido, OC queda `parcial` hasta completar. UI con modal en ComprasTab. Contract test 8/8.
+8. **Cajero cobra fiado** — PENDIENTE (decidir separación de funciones vs botón "abono" en Fiados).
+9. **División de cuenta** en mesas — PENDIENTE.
 
 ## Ola 4 — flujo de efectivo · ~4-5 días
 10. **Conciliación bancaria** — importar estado de cuenta (CSV/OFX), casar contra `links_pago`/`cuentas_pagar`. El vacío de responsabilidad #1 (nadie lo cubre). Tras la pasarela.

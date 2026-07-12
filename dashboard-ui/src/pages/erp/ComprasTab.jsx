@@ -5,6 +5,7 @@ import { confirmar, toastOk, toastErr } from '../../lib/ui';
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
 import Badge from '../../components/Badge';
+import Modal from '../../components/Modal';
 
 export default function ComprasTab() {
   const qc = useQueryClient();
@@ -44,8 +45,9 @@ export default function ComprasTab() {
     },
     onError: handleApiError,
   });
+  const [parcial, setParcial] = useState(null); // { oc, cant:{id_detalle:qty} }
   const recibir = useMutation({
-    mutationFn: (id) => api.post(`/api/erp/ordenes-compra/${id}/recibir`),
+    mutationFn: (id) => api.post(`/api/erp/ordenes-compra/${id}/recibir`, {}),
     onSuccess: (r) => {
       if (!r.ok) return handleApiError(new Error(r.error));
       qc.invalidateQueries({ queryKey: ['erp-ocs'] });
@@ -92,15 +94,16 @@ export default function ComprasTab() {
                   <td><strong>{oc.folio}</strong></td>
                   <td>{oc.proveedor}</td>
                   <td>${Number(oc.total).toFixed(2)}</td>
-                  <td><span className={`badge ${oc.estatus === 'recibida' ? 'badge-verde' : oc.estatus === 'cancelada' ? 'badge-rojo' : 'badge-azul'}`}>{oc.estatus}</span></td>
+                  <td><span className={`badge ${oc.estatus === 'recibida' ? 'badge-verde' : oc.estatus === 'cancelada' ? 'badge-rojo' : oc.estatus === 'parcial' ? 'badge-amarillo' : 'badge-azul'}`}>{oc.estatus}</span></td>
                   <td>
                     <Button size="xs" variant="subtle" mr={6} onClick={async () => {
                       const r = await api.post(`/api/erp/ordenes-compra/${oc.id}/reordenar`).catch(e => ({ ok: false, error: e.message }));
                       if (r.ok) { toastOk('Nueva OC creada: ' + r.folio); qc.invalidateQueries(); } else toastErr(r.error);
                     }}>Reordenar</Button>
-                    {oc.estatus === 'abierta' && (
+                    {['abierta', 'parcial'].includes(oc.estatus) && (
                     <>
-                    <Button size="xs" variant="default" onClick={() => recibir.mutate(oc.id)} disabled={recibir.isPending}>Recibir</Button>
+                    <Button size="xs" variant="default" onClick={() => recibir.mutate(oc.id)} disabled={recibir.isPending}>Recibir todo</Button>
+                    <Button size="xs" variant="subtle" ml={6} onClick={() => setParcial({ oc, cant: {} })}>Parcial</Button>
                         <Button size="xs" variant="light" color="red" ml={6} onClick={async () => {
                           if (!await confirmar({ titulo: 'Cancelar OC', mensaje: '¿Cancelar esta orden de compra? Solo se cancelan las abiertas; no mueve inventario.', peligro: true, textoOk: 'Cancelar OC' })) return;
                           const r = await api.post(`/api/erp/ordenes-compra/${oc.id}/cancelar`);
@@ -114,6 +117,32 @@ export default function ComprasTab() {
           </table>
         </div>
       </Card>
+
+      {parcial && (
+        <Modal title={`Recepción parcial — ${parcial.oc.folio}`} onClose={() => setParcial(null)}
+          actions={<>
+            <Button variant="default" onClick={() => setParcial(null)}>Cancelar</Button>
+            <Button onClick={async () => {
+              const items = (parcial.oc.items || []).map(it => ({ id_detalle: it.id, cantidad: Number(parcial.cant[it.id]) || 0 })).filter(x => x.cantidad > 0);
+              if (!items.length) return toastErr('Captura al menos una cantidad');
+              const r = await api.post(`/api/erp/ordenes-compra/${parcial.oc.id}/recibir`, { items }).catch(e => ({ ok: false, error: e.message }));
+              if (r.ok) { toastOk(`Recibido ${r.estatus === 'recibida' ? '(completo)' : '(parcial)'} · $${Number(r.recibido).toFixed(2)}`); setParcial(null); qc.invalidateQueries(); }
+              else toastErr(r.error);
+            }}>Recibir lo capturado</Button>
+          </>}>
+          <Text size="xs" c="dimmed" mb="sm">Captura cuánto llegó de cada renglón. Lo que falte queda pendiente y la OC sigue "parcial".</Text>
+          {(parcial.oc.items || []).map(it => {
+            const pend = (it.cantidad || 0) - (it.cantidad_recibida || 0);
+            return (
+              <Group key={it.id} justify="space-between" mb="xs">
+                <div><strong>{it.name}</strong><Text size="xs" c="dimmed">pedido {it.cantidad} · recibido {it.cantidad_recibida || 0} · pendiente {pend}</Text></div>
+                <NumberInput size="xs" w={90} min={0} max={pend} value={parcial.cant[it.id] || 0}
+                  onChange={v => setParcial(p => ({ ...p, cant: { ...p.cant, [it.id]: v || 0 } }))} disabled={pend <= 0} />
+              </Group>
+            );
+          })}
+        </Modal>
+      )}
     </div>
   );
 }
