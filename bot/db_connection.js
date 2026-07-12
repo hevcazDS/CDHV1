@@ -5,8 +5,29 @@ const path     = require('path');
 require('dotenv').config({ quiet: true });
 
 // ── Ruta de la DB desde .env — nunca hardcodeada ───────────────────────────
-const DB_PATH = process.env.DB_PATH
+let DB_PATH = process.env.DB_PATH
     || path.join(__dirname, 'jugueteria.db'); // fallback: misma carpeta
+
+// ── Selector de instancia (multitienda demo / una BD por tienda) ──────────
+// Si Prime dejó un puntero en dashboard/.instancia_activa (ruta absoluta a un
+// .db dentro de instancias/), TODOS los procesos abren ESA base al arrancar.
+// Nunca se tocan los archivos de datos: cambiar de tienda = reescribir el
+// puntero + reinicio limpio (pm2). Sin puntero (o roto) → la BD del .env,
+// comportamiento de siempre. Ver dashboard/routes/instancias.js.
+try {
+    const fs = require('fs');
+    const _ptr = path.join(__dirname, '..', 'dashboard', '.instancia_activa');
+    if (fs.existsSync(_ptr)) {
+        const _ruta = fs.readFileSync(_ptr, 'utf8').trim();
+        const _dirInstancias = path.resolve(path.join(__dirname, '..', 'instancias'));
+        // Solo se honran rutas DENTRO de instancias/ (el puntero no puede
+        // apuntar a un archivo arbitrario del sistema).
+        if (_ruta && path.resolve(_ruta).startsWith(_dirInstancias) && fs.existsSync(_ruta)) {
+            DB_PATH = _ruta;
+            console.log('[instancia] Abriendo la tienda: ' + path.basename(_ruta));
+        }
+    }
+} catch (e) { console.error('[instancia] Puntero ilegible, se usa la BD del .env: ' + e.message); }
 
 // Restauración: si Prime dejó un archivo '<DB>.restore' validado, se hace
 // el swap ANTES de abrir la BD (nunca se reemplaza un archivo abierto). El

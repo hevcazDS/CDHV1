@@ -547,6 +547,7 @@ const ROUTE_MODULES = [
     require('./routes/citas'),
     require('./routes/mesas'),
     require('./routes/tareas'),
+    require('./routes/instancias'),
 ];
 
 function handleAPI(req, res) {

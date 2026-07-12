@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
+import InstanciaSwitcher from './InstanciaSwitcher';
 import ThemeSwitcher from './ThemeSwitcher';
 import NotificationBell from './NotificationBell';
 import SoporteWidget from './SoporteWidget';
@@ -186,6 +187,8 @@ export default function Layout() {
       <AppShell.Header className="topbar">
         <BuscadorGlobal />
         <div className="topbar-right">
+          {/* Selector de tienda (una BD por tienda) — solo Prime y solo con 2+ instancias */}
+          <InstanciaSwitcher />
           <ThemeSwitcher />
           <NotificationBell />
           {/* El bot es un módulo (no la base): solo operación/gerente lo ven y controlan */}

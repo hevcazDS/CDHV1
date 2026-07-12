@@ -84,3 +84,6 @@ Desktop.ini
 *.bak
 # Secreto de instancia (por servidor, NO migrar entre despliegues)
 dashboard/.instancia_secret
+
+instancias/
+dashboard/.instancia_activa
