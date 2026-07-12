@@ -9,6 +9,7 @@ import MovimientosTab from './almacen/MovimientosTab';
 import KardexTab from './almacen/KardexTab';
 import CalendarioTab from './almacen/CalendarioTab';
 import ReportesTab from './almacen/ReportesTab';
+import OrdenesCompraTab from './erp/ComprasTab';
 
 export default function Almacen() {
   const { user } = useAuth();
@@ -23,6 +24,7 @@ export default function Almacen() {
     { key: 'calendario', label: 'Calendario de mercancía', C: CalendarioTab },
     ...(veReportes ? [{ key: 'reportes', label: 'Reportes (stock/margen/rotación)', C: ReportesTab }] : []),
     ...(opera ? [
+      { key: 'recepcion', label: 'Recepción de OC', C: () => <OrdenesCompraTab soloRecepcion /> },
       { key: 'conteo', label: 'Conteo físico', C: ConteoTab },
       { key: 'movimientos', label: 'Traslados / Salidas / Entradas', C: MovimientosTab },
     ] : []),

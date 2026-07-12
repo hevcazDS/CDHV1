@@ -1,5 +1,13 @@
 # Diseño del motor de flujo configurable por tenant
 
+> **✅ Auditado contra código de producción (2026-07-12 · `AUDITORIA_CONEXIONES_BOT.md`).** Se
+> corrigieron 4 errores bloqueantes de hecho: (D.1) el descuento de inventario **NO** vive en
+> `insertarPedidoConCarrito` sino en `marcar-pagado`/POS; (D.2) **cita→cobro YA existe** en producción
+> (`citas.js:cobrar`, mostrador) — el anticipo por bot CONVIVE, no reemplaza; (D.3) la migración es
+> **`0058`**, no `0027`; (D.4) las columnas `servicio_precio`/`id_servicio`/`id_pedido` de `citas` ya
+> existen (0057). Más: firmas de `searchProducts`/`agregarAlCarrito`/`insertarLinkPago` corregidas, y el
+> flag del motor debe evaluarse **por request** (no al `require`). Con esto el doc es fiel al código.
+>
 > El dueño YA decidió construirlo, con un argumento correcto: en un ERP white-label
 > multitienda el **flujo** (no solo el texto) varía por giro y por cliente —
 > barbería-con-anticipo vs. barbería-sin-anticipo, restaurante, retail. Hoy esa
@@ -140,7 +148,7 @@ pruebas** (sección F) del doc previo — no cambian.
 | Fase | Qué (enfoque base→delta) | Días | Δ vs. plan original |
 |---|---|---:|---|
 | **0. Red de seguridad** | Golden snapshot de JC (F.4.1) + baseline de los 117 tests. | 1 | igual |
-| **1. Extraer acciones** | `actions.js` envolviendo funciones **ya existentes** de `_shared.js` + migración `0027` (tablas motor + columnas anticipo en `citas`). | 3 | igual |
+| **1. Extraer acciones** | `actions.js` envolviendo funciones **ya existentes** de `_shared.js` + migración `0058` (tablas motor + columnas `anticipo`/`saldo_pendiente` en `citas`; `servicio_precio`/`id_servicio`/`id_pedido` ya existen desde 0057). | 3 | igual |
 | **2. Intérprete tras flag** | `interprete.js`+`matchInput`+`grafo.js`+linter, flag OFF. | 4 | igual |
 | **3. Plantilla base = JC** (antes "piloto citas") | Escribir `jugueteria.json` **derivándolo** del flujo actual (no un giro de laboratorio) y pasar el golden 100%. Esta plantilla base habilita **todos** los deltas. | 3 | **−1** (una sola plantilla, no barbería aparte) |
 | **4. Deltas de giro** | `barberia.json`/`isp`/`restaurante` = JC con nodos apagados + `CITA_*` colgados. Anticipo (reusa preventa). Test de integración agenda+compra (F.3). | 3 | **−1** (deltas pequeños, no 3 flujos completos) |
@@ -235,12 +243,16 @@ const shared = require('../_shared');
 const ACTIONS = {
   // ── conversación (seguras de reordenar) ──
   buscar_producto: (ctx) => {
+    // searchProducts devuelve { results, isFallback } — NO un array (_shared.js:166).
     const r = shared.searchProducts(ctx.raw, 3, ctx.tel);
-    return { resultado: r.length ? 'hay' : 'vacio', data: { resultados: r } };
+    return { resultado: r.results.length ? 'hay' : 'vacio', data: { resultados: r.results } };
   },
   agregar_carrito: (ctx) => {
+    // agregarAlCarrito devuelve { ok, escalar, carrito, ... } y PUEDE rechazar (maxMismoProd).
+    // El slot del producto en curso hay que confirmarlo en menuFlow (selectedProduct vs viewing).
     const r = shared.agregarAlCarrito(ctx.data.carrito || [], ctx.data.viewing);
-    return { resultado: 'ok', data: { carrito: r } };
+    if (!r.ok) return { resultado: r.escalar ? 'escalar' : 'no', data: { carrito: ctx.data.carrito } };
+    return { resultado: 'ok', data: { carrito: r.carrito } };
   },
   cargar_dias_cita: (ctx) => {
     const dias = require('../citasFlow').diasDisponibles();
@@ -267,9 +279,9 @@ nombre, sus params y su `resultado`. Esa ignorancia deliberada es la frontera de
 
 ### A.3 Tablas SQLite (por instancia — sin `tenant_id`, coherente con instancia-por-cliente)
 
-Nueva migración `migrations/0027_flujo_motor.sql` (siguiente número libre tras `0026_citas.sql`),
-espejada en `db/schema.sql` (regla del CLAUDE.md: toda columna nueva con `DEFAULT`, migración
-versionada + espejo en schema).
+Nueva migración `migrations/0058_flujo_motor.sql` (**siguiente número libre real: el último aplicado
+es `0057_citas_cobro.sql`, NO `0026`** — corrección de auditoría 2026-07-12), espejada en `db/schema.sql`
+(regla del CLAUDE.md: toda columna nueva con `DEFAULT`, migración versionada + espejo en schema).
 
 ```sql
 -- Un grafo por instancia, versionado para revertir. Solo 1 activo.
@@ -313,12 +325,16 @@ Notas de diseño:
   la herramienta que ya existe.
 - **`sesiones_bot` NO se migra.** Ya es `{ paso_actual TEXT, data TEXT }` genérico (`sessionManager.js`).
   Cualquier máquina de estados encaja sin tocar la persistencia de sesión — ventaja heredada del diseño previo.
-- **Anticipo de cita — falta una columna, no una tabla.** `citas` hoy NO tiene columnas de dinero
-  (`db/schema.sql:1129-1141`: telefono/nombre/servicio/fecha/hora/estatus/notas). El andamiaje de
-  anticipo YA EXISTE pero en `preventa_clientes` (`stockService.js:172-181`: `porcentaje_anticipo`,
-  `anticipo_pagado`, `saldo_pendiente`, `estatus='apartado'`). La integración (sección E) **reusa ese
-  patrón**: se añade a `citas` las columnas `anticipo`, `saldo_pendiente`, `id_pedido_anticipo`
-  (FK al pedido que porta el link de pago real) en la misma migración `0027`.
+- **Anticipo de cita — cita→cobro YA EXISTE en producción (corrección de auditoría 2026-07-12).**
+  La migración **0057 ya añadió a `citas` las columnas de dinero** `servicio_precio`, `id_servicio`,
+  `id_pedido` (`db/schema.sql:1135-1137`), y **`POST /api/citas/:id/cobrar` (`citas.js:68-107`) ya cobra
+  el servicio completo** por mostrador (`links_pago='pagado'` directo, `citas.id_pedido`, canal
+  `mostrador`). Por tanto: (1) **NO** volver a agregar `servicio_precio`/`id_servicio`/`id_pedido`; ya
+  existen. (2) El **anticipo por bot** (link `'generado'`, pago online) que propone la sección E es
+  maquinaria **NUEVA que CONVIVE** con el cobro de mostrador, no lo reemplaza. (3) Si el anticipo
+  necesita saldo, agregar en `0058` **solo** `anticipo`/`saldo_pendiente` (columnas nuevas), **sin
+  chocar** con `id_pedido` ya existente — reusando el patrón conceptual de `preventa_clientes`
+  (`stockService.js:172-181`: `porcentaje_anticipo`/`anticipo_pagado`/`saldo_pendiente`/`estatus='apartado'`).
 
 ---
 
@@ -409,9 +425,16 @@ El router ya itera flows y despacha por `STEPS.includes(step)` con `break` en el
 
 ```js
 // bot/actionHandler.js  (cambio mínimo)
-const motor = motorActivo() ? require('./flows/motor/interprete') : null;
+// ⚠️ Corrección de auditoría (2026-07-12): el flag DEBE evaluarse POR REQUEST, dentro de
+// handleAction (como ya se hace con _giro en :145), NO a nivel de módulo con `const motor = ...`.
+// moduloActivo() se refresca cada 60s; cachearlo al `require` haría que el toggle no surta
+// efecto sin reiniciar el bot, rompiendo la promesa "sin reiniciar".
+// Dentro de handleAction:
+const motor = motorActivo() ? require('./flows/motor/interprete') : null;   // require cacheado; el FLAG no
 const _flowsActivos = [...FLOWS, ...(motor ? [motor] : []), ...giroFlows.flowsDeGiro(_giro)];
 ```
+> El flag `motor_flujo_activo` debe **añadirse a `DEFAULT_OFF`** (`bot/flows/modulosDefaults.js`) — hoy
+> no está en la lista. Con OFF + `FLOWS` intacto, Julio Cepeda es byte-idéntico.
 
 Un paso está **en un flow viejo XOR en el grafo**, nunca en ambos (el `break` garantiza que gana el
 primero). Se migra estado por estado moviéndolo del flow viejo al grafo. `motorActivo()` = un
@@ -521,7 +544,13 @@ puede cambiar su `destino` ni su `accion`, solo su `frase_clave` y params permit
 | `ASK_CP → SPLIT_* → DELIVERY` | `partirCarrito`, cálculo de flete | `_shared.js:493` |
 | `PAGO_METODO` | `registrarMetodoPago` | `_shared.js:731` |
 | `CITA_ANTICIPO` | `cobrar_anticipo` → `insertarLinkPago` | sección E |
-| (descuento stock) | dentro de `insertarPedidoConCarrito` (tx) | `_shared.js:815-816` |
+| (descuento stock) | **NO en `insertarPedidoConCarrito`** — vive en `marcar-pagado`/POS | `comunicacionPedidos.js` (marcar-pagado), `pos.js` |
+
+> ⚠️ **Corrección de auditoría (2026-07-12, `AUDITORIA_CONEXIONES_BOT.md` C.2):** `insertarPedidoConCarrito`
+> (tx `_shared.js:776-809`) **inserta pedido+detalle y NUNCA toca `inventarios`**. El descuento de stock
+> ocurre en `POST /api/pagos/:id/marcar-pagado` y en el POS. Una acción del motor que "agregue el descuento
+> que falta" dentro del cobro **reintroduce el doble-descuento histórico** (ver MEMORY.md). Para servicios
+> (cita), no se descuenta nada. El motor NO debe tocar inventario en ninguna acción de cobro.
 
 Params configurables permitidos en nodos sistema (whitelist estricta, todo lo demás rechazado):
 `porcentaje` (anticipo), `frase_clave`, `metodo_entrega_default`. **NO** configurables: `destino`,
@@ -599,10 +628,12 @@ function crearAnticipoDeCita(ctx, porcentaje) {
   const r = shared.grabarPedidoAnticipoCita({ ...ctx.data, carrito, total: anticipo }, ctx.tel);
   // ↑ thin wrapper sobre insertarPedidoConCarrito + insertarLinkPago; NO descuenta inventario (servicio).
 
-  // Ligar el pedido a la cita (columnas nuevas de citas, migración 0027)
-  db.prepare('UPDATE citas SET anticipo=?, saldo_pendiente=?, id_pedido_anticipo=? WHERE id=?')
-    .run(anticipo, saldo, r.pedidoId, ctx.data.cita_id);
-  return { resultado: 'cobrar', data: { anticipo, saldo, link: r.linkUrl } };
+  // Ligar el pedido a la cita. citas.id_pedido YA EXISTE (0057) y lo usa el cobro de mostrador,
+  // así que el anticipo por bot lo liga en anticipo/saldo_pendiente (columnas NUEVAS de 0058),
+  // NO en id_pedido — así no pisa el cobro de mostrador. `r` es string (link), NO {linkUrl}.
+  db.prepare('UPDATE citas SET anticipo=?, saldo_pendiente=? WHERE id=?')
+    .run(anticipo, saldo, ctx.data.cita_id);
+  return { resultado: 'cobrar', data: { anticipo, saldo, link: r } };
 }
 ```
 
@@ -706,7 +737,7 @@ la plantilla `barberia_con_anticipo` en el DB mock, correr la **secuencia real d
 que agenda (servicio→fecha→hora→confirma) y **luego** compra un producto, y verificar el estado final:
 - 1 fila en `citas` (estatus pendiente→confirmada tras marcar-pagado del anticipo).
 - 2 filas en `pedidos` (anticipo A + producto B), 2 en `links_pago`.
-- `citas.id_pedido_anticipo` liga A; `citas.saldo_pendiente` correcto.
+- El anticipo se liga en `citas.anticipo`/`citas.saldo_pendiente` (columnas nuevas de 0058); `citas.id_pedido` (0057) queda para el cobro de mostrador.
 - Repetir con `barberia_sin_anticipo`: 1 cita, 1 pedido (solo el producto), 0 anticipo.
 
 ### F.4 Harness de REGRESIÓN byte-idéntica (el más importante — el dueño lo exigió)
@@ -737,7 +768,7 @@ Framework: **ninguno nuevo.** Se extiende el patrón `node tests/xxx.js` + asser
 | Fase | Qué | Días | Riesgo |
 |---|---|---:|---|
 | **0. Red de seguridad** | Golden snapshot de JC (F.4.1) + correr los 117 tests como baseline. **Sin esto no se empieza.** | 1 | nulo |
-| **1. Extraer acciones** | `bot/flows/motor/actions.js` + contract tests (F.1). Envolver las funciones de `_shared.js` que ya existen — **cero lógica nueva de negocio**, solo el mapa `ACTIONS` + wrappers finos (`grabarPedidoAnticipoCita`). Migración `0027` (tablas + columnas de anticipo en `citas`). | 3 | bajo |
+| **1. Extraer acciones** | `bot/flows/motor/actions.js` + contract tests (F.1). Envolver las funciones de `_shared.js` que ya existen — **cero lógica nueva de negocio**, solo el mapa `ACTIONS` + wrappers finos (`grabarPedidoAnticipoCita`). Migración `0058` (tablas motor + columnas `anticipo`/`saldo_pendiente` en `citas`). | 3 | bajo |
 | **2. El intérprete tras flag** | `interprete.js` + `matchInput`/`slotsToVars`/`resolverDestino` + `grafo.js` (loader con cache) + tests del intérprete (F.2). Flag `motor_flujo_activo` default OFF. Registrarlo en `actionHandler`. | 4 | medio (código nuevo en hot path) |
 | **3. Piloto: citas** | Escribir `barberia_con/sin_anticipo.json` + linter (`linter.js`, sección D.2). Encender el flag SOLO para giros de servicio (los `CITA_*`, sin dinero de retail). Test de integración (F.3). citasFlow viejo queda como fallback. | 4 | medio |
 | **4. Editor + onboarding** | Seeder de plantillas en onboarding (B.1) + endpoint de guardado con linter + UI de edición de nodos en Prime (empieza texto+params; aristas de conversación después). | 5 | medio (UI) |
@@ -755,7 +786,7 @@ apagar el viejo. Nunca se migra checkout de dinero al intérprete: se queda sell
 | El motor rompe una venta en producción | Flag por-estado + fail-closed a router viejo (D.3) + los nodos de dinero nunca se interpretan (D.1). El golden snapshot corre en cada deploy. |
 | Un tenant guarda un grafo que vende gratis | Linter obligatorio antes de `activo=1`: "cobro sin monto" (D.2.4) + nodos sistema inmodificables (D.2.5). |
 | Los 117 tests dejan de proteger el comportamiento | F.4.2: corren con flag OFF (código viejo intacto) Y ON (motor). Se migran 1:1 a aserciones de comportamiento observable. |
-| Divergencia entre plantilla y schema | Migración `0027` versionada + espejo en `db/schema.sql` (regla CLAUDE.md). Plantillas JSON versionadas en git. |
+| Divergencia entre plantilla y schema | Migración `0058` versionada + espejo en `db/schema.sql` (regla CLAUDE.md). Plantillas JSON versionadas en git. |
 | Handoff conversación↔sistema en un turno (C.3) | `dispatchSistema` reusa el patrón `menuFlow→citasFlow.iniciar()` ya probado (`citasFlow.js:78`); test de integración (F.3) cubre el turno único agendar→cobrar. |
 | Complejidad del editor de aristas en Prime | Fase 4 empieza con edición de **texto + params** (cubre barbería 30%↔50% sin tocar aristas); la edición de aristas de conversación es incremental y opcional. Los money-nodes nunca son editables. |
 
@@ -766,7 +797,7 @@ apagar el viejo. Nunca se migra checkout de dinero al intérprete: se queda sell
 - Router / dispatch / fail-closed: `bot/actionHandler.js:18-24, 144-158`.
 - Enum `S` (estados): `bot/flows/_shared.js:31-66`.
 - Piloto citasFlow (el más simple): `bot/flows/citasFlow.js:78-149`; delega desde menú `:78`.
-- `citas` sin columnas de dinero hoy: `db/schema.sql:1129-1141`; migración `migrations/0026_citas.sql`.
+- `citas` YA tiene columnas de dinero desde 0057 (`servicio_precio`/`id_servicio`/`id_pedido`, `db/schema.sql:1135-1137`); cobro de mostrador en `citas.js:cobrar`. El anticipo por bot añade `anticipo`/`saldo_pendiente` en 0058.
 - Acciones de dinero selladas: `grabarPedidoEnvio` `_shared.js:863`, `grabarPedidoPickup` `:819`,
   `grabarPedidoSplit` `:951`, `insertarPedidoConCarrito` `:815`, `insertarLinkPago` `:745`,
   `partirCarrito` `:493`, `registrarMetodoPago` `:731`, `agregarAlCarrito` `:387`.

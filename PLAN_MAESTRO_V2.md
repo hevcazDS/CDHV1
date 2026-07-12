@@ -29,11 +29,11 @@ aditivo/toggleable, JC byte-idéntico, white-label intacto.
 
 ## Huecos de los reviews rol×ramo (2026-07-12)
 - ✅ **Cita→cobro** — HECHO (migración 0057 `citas.servicio_precio/id_servicio/id_pedido`): citasFlow persiste el precio; `POST /api/citas/:id/cobrar` arma la venta reusando el POS (servicio sin stock) + asiento + puntos; botón "Cobrar" en Citas.jsx (pide precio y método) con badge "cobrada". Cierra el círculo agendar→cobrar de barbería/estética/uñas. **Es la Fase 1 del piloto del motor de flujo** (giro cita completo end-to-end).
-- 🟡 **Almacén no alcanza la recepción de OC**: `ocRecibir` es área `almacen` pero la UI vive en /compras (área compras/finanzas). Dar acceso a la recepción al rol almacén.
+- ✅ **Almacén ya alcanza la recepción de OC** — HECHO: `ComprasTab` acepta `soloRecepcion` (oculta el alta de OC) y se monta como pestaña "Recepción de OC" en la página Almacén. Misma lógica/endpoint (`ocRecibir` área almacen), sin duplicar.
 - 🟡 **Catálogo agrupador SAT borrador**: `_COD_AGRUPADOR` mapea 14 cuentas; el resto cae a fallback inválido. Completar o UI para editarlo.
 - 🟡 **DIOT deriva IVA plano** en vez del IVA real del CFDI de proveedor cuando existe.
 - 🟡 **Rol mesero/comisionista** no existen; propina se guarda pero sin pantalla de reparto.
-- 🟡 **Distinguir PPD vs PUE** en FacturacionTab (para saber cuáles requieren REP).
+- ✅ **PPD vs PUE distinguido** en FacturacionTab — HECHO: `facturacion-pendiente` deriva `metodo_sat` de `a_credito` (fiado=PPD, contado=PUE); la columna "Pago" lo muestra y el botón **REP solo aparece en PPD sin `rep_uuid`** (badge "REP ✓" cuando ya se timbró).
 
 ## Ola 4 — flujo de efectivo · ~4-5 días
 10. **Conciliación bancaria** — importar estado de cuenta (CSV/OFX), casar contra `links_pago`/`cuentas_pagar`. El vacío de responsabilidad #1 (nadie lo cubre). Tras la pasarela.

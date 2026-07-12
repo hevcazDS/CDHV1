@@ -71,9 +71,9 @@ export default function FacturacionTab() {
       </Text>
       <div className="table-wrap" style={{ maxHeight: 460, overflow: 'auto' }}>
         <table>
-          <thead><tr><th>Folio</th><th>RFC</th><th>Razón social</th><th className="num">Monto</th><th>CFDI</th><th></th></tr></thead>
+          <thead><tr><th>Folio</th><th>RFC</th><th>Razón social</th><th className="num">Monto</th><th>Pago</th><th>CFDI</th><th></th></tr></thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={6} className="empty">Sin pedidos con datos fiscales en el rango</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={7} className="empty">Sin pedidos con datos fiscales en el rango</td></tr>}
             {filas.map((f) => {
               const timbrado = f.cfdi_uuid && f.cfdi_estatus !== 'cancelado';
               return (
@@ -82,6 +82,7 @@ export default function FacturacionTab() {
                   <td>{f.rfc}</td>
                   <td>{f.razon_social || '-'}</td>
                   <td className="num">${Number(f.monto || 0).toFixed(2)}</td>
+                  <td><span className="badge" title={f.metodo_sat === 'PPD' ? 'Pago en parcialidades/diferido — requiere complemento (REP) al cobrar' : 'Pago en una exhibición'}>{f.metodo_sat}</span></td>
                   <td>
                     {f.cfdi_estatus === 'cancelado'
                       ? <span className="badge badge-rojo">cancelado</span>
@@ -95,7 +96,8 @@ export default function FacturacionTab() {
                       {timbrado && <>
                         <Button size="compact-xs" variant="default" onClick={() => bajar(f, 'pdf')}>PDF</Button>
                         <Button size="compact-xs" variant="default" onClick={() => bajar(f, 'xml')}>XML</Button>
-                        <Button size="compact-xs" variant="default" loading={busy === f.id_pedido} onClick={() => rep(f)} title="Complemento de pago (facturas PPD cobradas)">REP</Button>
+                        {f.metodo_sat === 'PPD' && !f.rep_uuid && <Button size="compact-xs" variant="default" loading={busy === f.id_pedido} onClick={() => rep(f)} title="Complemento de pago (factura PPD cobrada)">REP</Button>}
+                        {f.rep_uuid && <span className="badge badge-verde" title="Complemento de pago timbrado">REP ✓</span>}
                         <Button size="compact-xs" variant="default" color="red" onClick={() => cancelar(f)}>Cancelar</Button>
                       </>}
                     </Group>

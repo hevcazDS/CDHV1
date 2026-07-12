@@ -86,11 +86,13 @@ function facturacionPendiente(req, res, ctx) {
     const { db, json } = ctx;
     const { desde, hasta } = _rango(req);
     const filas = db.prepare(`
-        SELECT p2.id_pedido, p2.folio, p2.razon_social, p2.rfc, p2.cfdi_uuid, p2.cfdi_estatus,
+        SELECT p2.id_pedido, p2.folio, p2.razon_social, p2.rfc, p2.cfdi_uuid, p2.cfdi_estatus, p2.rep_uuid, p2.a_credito,
                COALESCE((SELECT SUM(monto) FROM links_pago lp WHERE lp.id_pedido=p2.id_pedido AND lp.estatus='pagado'), p2.total) monto, p2.creado_en
         FROM pedidos p2
         WHERE (p2.rfc IS NOT NULL AND p2.rfc != '') AND date(p2.creado_en) >= ? AND date(p2.creado_en) <= ?
-        ORDER BY p2.id_pedido DESC LIMIT 500`).all(desde, hasta);
+        ORDER BY p2.id_pedido DESC LIMIT 500`).all(desde, hasta)
+        // método de pago SAT: fiado = PPD (parcialidades/diferido, lleva REP al cobrar); contado = PUE
+        .map(f => ({ ...f, metodo_sat: f.a_credito ? 'PPD' : 'PUE' }));
     // ¿El PAC ya está activo? (para que la UI ofrezca timbrar directo)
     const pacActivo = require('../../services/pacService').activo(db);
     return json(res, { desde, hasta, filas, pac_activo: pacActivo });

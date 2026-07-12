@@ -7,7 +7,9 @@ import { handleApiError } from '../../lib/apiError';
 import Badge from '../../components/Badge';
 import Modal from '../../components/Modal';
 
-export default function ComprasTab() {
+// soloRecepcion: modo para el rol almacén — oculta el alta de OC (área compras)
+// y solo deja recibir. Misma tabla/lógica, sin duplicar el módulo.
+export default function ComprasTab({ soloRecepcion = false }) {
   const qc = useQueryClient();
   const [idProveedor, setIdProveedor] = useState(null);
   const [llegada, setLlegada] = useState('');
@@ -57,7 +59,8 @@ export default function ComprasTab() {
   });
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 20, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: soloRecepcion ? '1fr' : '1fr 1.6fr', gap: 20, alignItems: 'start' }}>
+      {!soloRecepcion && (
       <Card withBorder radius="md" p="lg" className="card">
         <div className="card-header"><h3>Nueva orden de compra</h3></div>
         <Select label="Proveedor *" searchable value={idProveedor} onChange={setIdProveedor} mb="sm"
@@ -81,6 +84,7 @@ export default function ComprasTab() {
         )}
         <Button fullWidth mt="md" onClick={() => crear.mutate()} disabled={!idProveedor || !items.length || crear.isPending}>Crear OC</Button>
       </Card>
+      )}
 
       <Card withBorder radius="md" p="lg" className="card">
         <div className="card-header"><h3>Órdenes de compra</h3><Text size="xs" c="dimmed">Recibir = sube inventario, recalcula costo promedio y genera la cuenta por pagar</Text></div>
