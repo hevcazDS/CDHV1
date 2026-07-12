@@ -125,7 +125,7 @@ export default function Layout() {
       // Auditor: lee todo excepto configuración (Módulos/Prime/Beta)
       const pasaRol = e.rolRequerido
         ? (tieneRango(user?.rol, e.rolRequerido) ||
-           (esAuditor(user?.rol) && e.rolRequerido === 'gerente' && !['/prime', '/modulos'].includes(e.to)))
+           (esAuditor(user?.rol) && e.rolRequerido === 'gerente' && !['/prime', '/modulos'].includes(e.to.split('?')[0])))
         : true;
       return pasaRol &&
         (!e.area || permite(user?.rol, e.area)) &&

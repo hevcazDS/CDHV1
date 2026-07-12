@@ -46,6 +46,12 @@ function revertirCobro(idPedido, opts = {}) {
     try {
         const conta = require('./contabilidadService');
         conta.asientoReversa('venta', idPedido);
+        // Fiado (venta de mostrador a crédito): el ingreso se asienta como
+        // 'venta_credito' y el cobro como 'cobro_credito' — sin revertirlos,
+        // cancelar un fiado dejaba una venta fantasma en el mayor. asientoReversa
+        // es no-op si el asiento de ese tipo no existe (venta de contado).
+        conta.asientoReversa('venta_credito', idPedido);
+        conta.asientoReversa('cobro_credito', idPedido);
         conta.asientoReversa('costo_venta', idPedido);
     } catch (_) {}
     return { ok: true, id_pedido: idPedido, puntos_revertidos: puntosRevertidos };

@@ -4,7 +4,7 @@
 // mutations de cada tab viven en su componente; las queries compartidas
 // (sucursales, categorías) se piden por la misma queryKey de React Query, que
 // las deduplica, así que no hay doble fetch.
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs } from '@mantine/core';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -43,6 +43,12 @@ export default function Prime() {
   const [params] = useSearchParams();
   const tabPedido = params.get('tab');
   const [tab, setTab] = useState(tabsVisibles.find(t => t.key === tabPedido)?.key || tabsVisibles[0]?.key || 'sucursales');
+  // Si ya estás en /prime y el link cambia solo el ?tab= (Usuarios vs
+  // Configuración), la página no remonta → hay que sincronizar la pestaña.
+  useEffect(() => {
+    const k = tabsVisibles.find(t => t.key === tabPedido)?.key;
+    if (k) setTab(k);
+  }, [tabPedido]); // eslint-disable-line react-hooks/exhaustive-deps
   const TabActivo = tabsVisibles.find(t => t.key === tab)?.Componente;
 
   return (

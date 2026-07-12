@@ -6,10 +6,10 @@ import { toastOk, prompt } from '../lib/ui';
 import { useAuth } from '../context/AuthContext';
 import { tieneRango } from '../lib/roles';
 import { useTextoEmoji } from '../context/EmojiContext';
+import { money } from '../lib/format';
 
 // Cartera de fiado (cuentas por cobrar del mostrador): quién debe, cuánto,
 // desde cuándo y qué tan vencido. Cobranza se hace en Pedidos (marcar pagado).
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
 export default function Fiados() {
   const txt = useTextoEmoji();

@@ -1,6 +1,8 @@
 import { RingProgress, Center, Text } from '@mantine/core';
+import { money } from '../../lib/format';
 
-export const fmtMoneda = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Alias histórico: las vistas de Inicio importan fmtMoneda desde aquí.
+export const fmtMoneda = money;
 
 export function pillEstatus(estatus) {
   const e = (estatus || '').toLowerCase();
