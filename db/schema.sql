@@ -531,6 +531,24 @@ CREATE TABLE IF NOT EXISTS cortes_caja (
     creado_en        TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- 0060: conciliación bancaria — líneas del estado de cuenta casadas contra
+-- links_pago pagados (ingresos) y cuentas_pagar pagadas (egresos).
+CREATE TABLE IF NOT EXISTS movimientos_banco (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha        TEXT NOT NULL,
+    concepto     TEXT,
+    monto        REAL NOT NULL,              -- + ingreso / - egreso
+    referencia   TEXT,
+    conciliado   INTEGER NOT NULL DEFAULT 0,
+    match_tipo   TEXT,                        -- link_pago | cuenta_pagar | manual
+    match_id     INTEGER,
+    lote         TEXT,
+    sucursal     TEXT,
+    importado_en TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_mov_banco_fecha ON movimientos_banco(fecha);
+CREATE INDEX IF NOT EXISTS idx_mov_banco_lote  ON movimientos_banco(lote);
+
 -- 0059: reparto de propinas/comisiones al personal (módulo reparto_activo).
 CREATE TABLE IF NOT EXISTS repartos (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,

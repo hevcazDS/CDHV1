@@ -37,8 +37,8 @@ aditivo/toggleable, JC byte-idéntico, white-label intacto.
 - ✅ **PPD vs PUE distinguido** en FacturacionTab — HECHO: `facturacion-pendiente` deriva `metodo_sat` de `a_credito` (fiado=PPD, contado=PUE); la columna "Pago" lo muestra y el botón **REP solo aparece en PPD sin `rep_uuid`** (badge "REP ✓" cuando ya se timbró).
 
 ## Ola 4 — flujo de efectivo · ~4-5 días
-10. **Conciliación bancaria** — importar estado de cuenta (CSV/OFX), casar contra `links_pago`/`cuentas_pagar`. El vacío de responsabilidad #1 (nadie lo cubre). Tras la pasarela.
-11. **Pasarela de pago real** — conectar 1 gateway (Clip/MercadoPago) key-only, mismo patrón del PAC. El stub `pagoLinkService` ya existe.
+10. ✅ **Conciliación bancaria** — HECHA (migración 0060 `movimientos_banco`): sube el estado de cuenta (CSV parseado en el cliente — monto único o cargo/abono, fechas dd/mm/yyyy), auto-casa cada línea contra cobros (`links_pago` pagados, ingresos) y pagos (`cuentas_pagar` pagadas, egresos) por monto exacto + fecha ±3 días, y deja ver lo que NO cuadra. Conciliar/desconciliar manual. Tab en Finanzas. Self-check del auto-match PASS. `/api/erp/conciliacion[/importar|/:id]` área finanzas.
+11. **Pasarela de pago real** — PENDIENTE: conectar 1 gateway (Clip/MercadoPago) key-only, mismo patrón del PAC (`pacProviders.js`/`pacService.js`). El stub `pagoLinkService` ya existe. Inerte hasta meter la llave (como el PAC).
 
 ## Bot data-driven (frases fuera del código) — ver ARQUITECTURA_BOT_DATADRIVEN.md
 El dueño tiene razón: en multitienda las frases NO deben vivir en código. Pero el
