@@ -335,12 +335,21 @@ function diot(req, res, ctx) {
 // Genera el XML del SAT (contabilidad electrónica). BORRADOR: el código
 // agrupador SAT se mapea con una tabla base de las cuentas estándar; el
 // contador debe revisar/ampliar el mapeo antes de enviar al SAT.
-const _COD_AGRUPADOR = { // cuenta interna → código agrupador SAT (c_CuentaSAT)
+const _COD_AGRUPADOR = { // cuenta interna → código agrupador SAT (c_CuentaSAT, Anexo 24)
     '101': '101.01', '102': '102.01', '105': '105.01', '115': '115.01',
     '119': '118.01', '201': '201.01', '208': '208.01', '209': '209.01',
     '210': '216.01', '211': '213.01', '301': '301.01', '401': '401.01',
     '501': '501.01', '601': '601.84',
 };
+// Fallback por TIPO de cuenta → código agrupador SAT genérico VÁLIDO (no un
+// inventado `codigo+.01`). Cubre cuentas custom que el negocio agregue sin
+// mapeo explícito; el contador afina el código exacto en el borrador.
+const _COD_AGRUPADOR_TIPO = { activo: '100', pasivo: '200', capital: '300', ingreso: '400', costo: '500', gasto: '600' };
+function _codAgrupador(codigo, tipo, sinMapear) {
+    if (_COD_AGRUPADOR[codigo]) return _COD_AGRUPADOR[codigo];
+    if (sinMapear) sinMapear.add(codigo);
+    return (_COD_AGRUPADOR_TIPO[tipo] || '600') + '.01'; // genérico por naturaleza
+}
 const _xmlEsc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function contabilidadElectronica(req, res, ctx) {
     const { db, json } = ctx;
@@ -350,11 +359,12 @@ function contabilidadElectronica(req, res, ctx) {
     const rfc = db.prepare("SELECT valor FROM configuracion WHERE clave='pac_rfc'").get()?.valor
         || db.prepare("SELECT valor FROM configuracion WHERE clave='rfc'").get()?.valor || 'XAXX010101000';
     const [anio, m] = mes.split('-');
+    const sinMapear = new Set();
     let xml;
     if (tipo === 'catalogo') {
         const cuentas = db.prepare('SELECT codigo, nombre, tipo FROM plan_cuentas ORDER BY codigo').all();
         const rows = cuentas.map(c => {
-            const cod = _COD_AGRUPADOR[c.codigo] || (c.codigo + '.01');
+            const cod = _codAgrupador(c.codigo, c.tipo, sinMapear);
             const natur = ['activo', 'costo', 'gasto'].includes(c.tipo) ? 'D' : 'A';
             return `  <catalogocuentas:Ctas CodAgrup="${cod}" NumCta="${_xmlEsc(c.codigo)}" Desc="${_xmlEsc(c.nombre)}" Nivel="1" Natur="${natur}"/>`;
         }).join('\n');
@@ -365,8 +375,9 @@ function contabilidadElectronica(req, res, ctx) {
         const hasta = mes + '-31';
         const mayor = conta.libroMayor('1900-01-01', hasta);
         const mayorMes = conta.libroMayor(desde, hasta);
+        const _tipoDe = {}; for (const r of db.prepare('SELECT codigo, tipo FROM plan_cuentas').all()) _tipoDe[r.codigo] = r.tipo;
         const rows = mayor.map(c => {
-            const cod = _COD_AGRUPADOR[c.cuenta] || (c.cuenta + '.01');
+            const cod = _codAgrupador(c.cuenta, _tipoDe[c.cuenta], sinMapear);
             const mm = mayorMes.find(x => x.cuenta === c.cuenta) || { debe: 0, haber: 0 };
             const saldoFin = Math.round((c.debe - c.haber) * 100) / 100;
             const saldoIni = Math.round((saldoFin - (mm.debe - mm.haber)) * 100) / 100;
@@ -378,7 +389,13 @@ function contabilidadElectronica(req, res, ctx) {
         res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Content-Disposition': `attachment; filename="${tipo}_${mes}.xml"` });
         return res.end(xml);
     }
-    return json(res, { tipo, mes, rfc, xml, nota: 'Borrador: valida el código agrupador SAT con tu contador antes de enviar.' });
+    const _sin = [...sinMapear];
+    return json(res, {
+        tipo, mes, rfc, xml,
+        sin_mapear: _sin, // cuentas sin código SAT explícito (usaron el genérico por tipo)
+        nota: 'Borrador: valida el código agrupador SAT con tu contador antes de enviar.'
+            + (_sin.length ? ` ${_sin.length} cuenta(s) sin mapeo explícito usan un código genérico por naturaleza y DEBEN afinarse: ${_sin.join(', ')}.` : ' Todas las cuentas del catálogo tienen código agrupador asignado.'),
+    });
 }
 
 // POST /api/erp/cfdi/:id/rep — timbra el complemento de pago (factura PPD pagada)

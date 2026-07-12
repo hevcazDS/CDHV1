@@ -297,6 +297,63 @@ function fiadosGet(req, res, ctx) {
     return json(res, { fiados: rows, total_por_cobrar: Math.round(total * 100) / 100 });
 }
 
+// POST /api/pos/fiados/:id_cliente/abono — el cajero cobra la deuda de fiado de
+// un cliente. Aplica el abono FIFO (ticket más viejo primero), liquidando
+// PEDIDOS COMPLETOS por cada uno que el monto alcance a cubrir; cada liquidación
+// reusa el mismo camino de cobro a crédito que marcar-pagado (asientoCobroCredito
+// + puntos + confirmar + avisar). Sin `monto` = liquidar toda la cartera.
+// Área 'pos' → el cajero que creó el fiado ya puede cobrarlo (antes solo se podía
+// desde Pedidos, área 'operacion', que el cajero no ve).
+// ponytail: modelo "abono = pagar tickets completos, viejo→nuevo". El parcial
+// DENTRO de un mismo ticket exigiría `pedidos.abonado` + un asiento por abono
+// (asientoCobroCredito es idempotente por pedido, a propósito) — upgrade aparte.
+function fiadoAbono(req, res, ctx, { params, ses }) {
+    const { db, json, readBody, log } = ctx;
+    const idCliente = parseInt(params[0]);
+    return readBody(req, body => {
+        try {
+            const d = (() => { try { return JSON.parse(body || '{}'); } catch (_) { return {}; } })();
+            const cli = db.prepare('SELECT id, nombre, telefono FROM clientes WHERE id=?').get(idCliente);
+            if (!cli) return json(res, { ok: false, error: 'Cliente no encontrado' }, 404);
+            // Tickets de fiado pendientes, viejo→nuevo (por vencimiento y antigüedad).
+            const pend = db.prepare(`
+                SELECT lp.id AS id_link, lp.id_pedido, ROUND(lp.monto,2) AS monto, p.metodo_pago, p.telefono, p.cliente
+                FROM links_pago lp JOIN pedidos p ON p.id_pedido=lp.id_pedido
+                WHERE p.id_cliente=? AND p.a_credito=1 AND lp.estatus='generado'
+                ORDER BY COALESCE(p.fiado_vence_en, p.creado_en) ASC, lp.id ASC`).all(idCliente);
+            if (!pend.length) return json(res, { ok: false, error: 'Este cliente no tiene fiado pendiente' }, 400);
+            const totalDeuda = Math.round(pend.reduce((s, r) => s + r.monto, 0) * 100) / 100;
+            // Sin monto = liquidar todo. Con monto, se cobra hasta donde alcance.
+            let restante = d.monto != null ? Number(d.monto) : totalDeuda;
+            if (!(restante > 0)) return json(res, { ok: false, error: 'Captura un monto de abono válido' }, 400);
+            if (restante < pend[0].monto - 0.005) {
+                return json(res, { ok: false, error: `El abono ($${restante.toFixed(2)}) no cubre el ticket más antiguo ($${pend[0].monto.toFixed(2)}). Los abonos liquidan tickets completos; captura al menos ese monto.`, ticket_minimo: pend[0].monto }, 400);
+            }
+            const metodo = String(d.metodo_pago || 'efectivo').trim();
+            const _conta = require('../../services/contabilidadService');
+            const pagados = [];
+            for (const t of pend) {
+                if (restante + 0.005 < t.monto) break; // no alcanza el siguiente ticket completo
+                db.prepare("UPDATE links_pago SET estatus='pagado', pagado_en=datetime('now','localtime'), referencia_pago=? WHERE id=? AND estatus!='pagado'")
+                  .run('abono:' + (ses.username || ''), t.id_link);
+                db.prepare('UPDATE pedidos SET cobrado_por=?, estatus=?, actualizado_en=datetime(\'now\',\'localtime\') WHERE id_pedido=?')
+                  .run(ses.username, 'confirmado', t.id_pedido);
+                try { _conta.asientoCobroCredito(t.id_pedido, t.monto, metodo); } catch (e) { log.debug('asientoCobroCredito abono: ' + e.message); }
+                try { puntosService.otorgarPuntosPorCompra(t.id_pedido); } catch (_) {}
+                restante = Math.round((restante - t.monto) * 100) / 100;
+                pagados.push({ id_pedido: t.id_pedido, monto: t.monto });
+            }
+            const aplicado = Math.round(pagados.reduce((s, p) => s + p.monto, 0) * 100) / 100;
+            const saldoNuevo = Math.round((totalDeuda - aplicado) * 100) / 100;
+            if (cli.telefono && aplicado > 0) {
+                try { db.prepare("INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES ('whatsapp',?,'Abono recibido',?,'pendiente')")
+                    .run(cli.telefono, `Hola ${cli.nombre || ''} 👋\n\nRegistramos tu pago de *$${aplicado.toFixed(2)}* ✅.` + (saldoNuevo > 0 ? `\nTu saldo pendiente es de *$${saldoNuevo.toFixed(2)}*.` : '\n¡Tu cuenta quedó al corriente! 🎉')); } catch (_) {}
+            }
+            return json(res, { ok: true, id_cliente: idCliente, aplicado, tickets_pagados: pagados.length, saldo_nuevo: saldoNuevo, cambio: Math.round(restante * 100) / 100 });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
+}
+
 // PUT /api/pos/cliente/:id/limite — fijar límite de crédito (gerente+)
 function limitePut(req, res, ctx, { params }) {
     const { db, json, readBody } = ctx;
@@ -322,6 +379,7 @@ const RUTAS = [
     { metodo: 'GET',  path: '/api/pos/corte',                     areas: ['pos', 'cortes', 'finanzas'], handler: corteGet },
     { metodo: 'POST', path: '/api/pos/corte',                     areas: ['pos', 'cortes', 'finanzas'], handler: cortePost },
     { metodo: 'GET',  path: '/api/pos/fiados',                    areas: ['pos', 'cortes', 'finanzas'], handler: fiadosGet },
+    { metodo: 'POST', path: /^\/api\/pos\/fiados\/(\d+)\/abono$/, area: 'pos', handler: fiadoAbono },
     { metodo: 'PUT',  path: /^\/api\/pos\/cliente\/(\d+)\/limite$/, roles: ['gerente'], handler: limitePut },
 ];
 

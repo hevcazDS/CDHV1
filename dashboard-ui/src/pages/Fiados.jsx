@@ -5,6 +5,7 @@ import { handleApiError } from '../lib/apiError';
 import { toastOk, prompt } from '../lib/ui';
 import { useAuth } from '../context/AuthContext';
 import { tieneRango } from '../lib/roles';
+import { permite } from '../lib/permisos';
 import { useTextoEmoji } from '../context/EmojiContext';
 import { money } from '../lib/format';
 
@@ -16,6 +17,8 @@ export default function Fiados() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const esGerente = tieneRango(user?.rol, 'gerente');
+  const puedeCobrar = permite(user?.rol, 'pos'); // cajero/operador cobran la deuda aquí
+  const mostrarAcciones = esGerente || puedeCobrar;
   const { data } = useQuery({ queryKey: ['fiados'], queryFn: () => api.get('/api/pos/fiados'), refetchInterval: 60000 });
   const fiados = data?.fiados || [];
 
@@ -45,6 +48,22 @@ export default function Fiados() {
     w.document.close();
   };
 
+  // Cobrar (abono): liquida tickets completos viejo→nuevo hasta donde alcance el
+  // monto. Vacío/igual al adeudo = liquida todo. El cajero ya no depende de Pedidos.
+  const cobrar = async (f) => {
+    const v = await prompt({ titulo: `Cobrar a ${f.nombre || 'cliente'}`, mensaje: `Adeudo: ${money(f.adeudo)}. Monto del abono (deja el total para liquidar todo):`, valorInicial: String(f.adeudo || ''), tipo: 'text' });
+    if (v === null) return;
+    const monto = Number(String(v).replace(/[^0-9.]/g, ''));
+    if (!(monto > 0)) return handleApiError(new Error('Captura un monto válido'));
+    const metodo = await prompt({ titulo: 'Método de pago', mensaje: '¿Cómo pagó?', valorInicial: 'efectivo',
+      opciones: [{ value: 'efectivo', label: 'Efectivo' }, { value: 'tarjeta', label: 'Tarjeta' }, { value: 'transferencia', label: 'Transferencia' }] });
+    if (!metodo) return;
+    const r = await api.post(`/api/pos/fiados/${f.id_cliente}/abono`, { monto, metodo_pago: metodo }).catch(e => ({ ok: false, error: e.message }));
+    if (!r.ok) return handleApiError(new Error(r.error));
+    toastOk(`Cobrado ${money(r.aplicado)} · ${r.tickets_pagados} ticket(s)` + (r.saldo_nuevo > 0 ? ` · saldo ${money(r.saldo_nuevo)}` : ' · al corriente 🎉'));
+    qc.invalidateQueries({ queryKey: ['fiados'] });
+  };
+
   const fijarLimite = async (f) => {
     const v = await prompt({ titulo: 'Límite de crédito', mensaje: `Tope de fiado para ${f.nombre} (0 = sin límite):`, valorInicial: String(f.limite_credito || 0), tipo: 'text' });
     if (v === null) return;
@@ -56,7 +75,7 @@ export default function Fiados() {
   return (
     <div>
       <div className="page-title">Fiados (cuentas por cobrar)</div>
-      <div className="page-sub">Cartera de crédito del mostrador. Para cobrar, marca el pago en Pedidos.</div>
+      <div className="page-sub">Cartera de crédito del mostrador. Cobra el abono aquí mismo con el botón <strong>Cobrar</strong>.</div>
 
       <Group mb="md">
         <Card withBorder radius="md" p="md" className="kpi-card kpi-dark">
@@ -72,9 +91,9 @@ export default function Fiados() {
       <Card withBorder radius="md" p="lg" className="card">
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Cliente</th><th>Teléfono</th><th>Pedidos</th><th>Adeudo</th><th>Límite</th><th>Vence</th><th>Estado</th>{esGerente && <th></th>}</tr></thead>
+            <thead><tr><th>Cliente</th><th>Teléfono</th><th>Pedidos</th><th>Adeudo</th><th>Límite</th><th>Vence</th><th>Estado</th>{mostrarAcciones && <th></th>}</tr></thead>
             <tbody>
-              {fiados.length === 0 && <tr><td colSpan={esGerente ? 8 : 7} className="empty">{txt('Sin fiados pendientes 🎉')}</td></tr>}
+              {fiados.length === 0 && <tr><td colSpan={mostrarAcciones ? 8 : 7} className="empty">{txt('Sin fiados pendientes 🎉')}</td></tr>}
               {fiados.map(f => {
                 const vencido = f.dias_vencido_max != null && f.dias_vencido_max > 0;
                 return (
@@ -90,9 +109,10 @@ export default function Fiados() {
                         ? <span className="chip" style={{ background: 'var(--red)', color: '#fff' }}>vencido {f.dias_vencido_max}d</span>
                         : <span className="chip">al corriente</span>}
                     </td>
-                    {esGerente && <td><Group gap={4} wrap="nowrap">
+                    {mostrarAcciones && <td><Group gap={4} wrap="nowrap">
+                      {puedeCobrar && <button className="btn btn-sm btn-primary" onClick={() => cobrar(f)} disabled={!f.id_cliente}>Cobrar</button>}
                       <button className="btn btn-sm" onClick={() => constancia(f)}>Constancia</button>
-                      <button className="btn btn-sm" onClick={() => fijarLimite(f)} disabled={!f.id_cliente}>Límite</button>
+                      {esGerente && <button className="btn btn-sm" onClick={() => fijarLimite(f)} disabled={!f.id_cliente}>Límite</button>}
                     </Group></td>}
                   </tr>
                 );
