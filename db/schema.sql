@@ -532,6 +532,34 @@ CREATE TABLE IF NOT EXISTS cortes_caja (
     creado_en        TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- 0063: documentos (F5.2) — cotizaciones/pagarés/contratos + plantillas por sucursal.
+CREATE TABLE IF NOT EXISTS plantillas_documento (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo       TEXT NOT NULL,
+    nombre     TEXT NOT NULL,
+    cuerpo     TEXT NOT NULL,
+    sucursal   TEXT,
+    creado_por TEXT,
+    creado_en  TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS documentos (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo              TEXT NOT NULL,
+    id_plantilla      INTEGER,
+    contraparte_tipo  TEXT,
+    contraparte_nombre TEXT,
+    contraparte_ref   TEXT,
+    monto             REAL,
+    contenido         TEXT,
+    estatus           TEXT NOT NULL DEFAULT 'borrador',
+    folio             TEXT,
+    id_pedido         INTEGER,
+    sucursal          TEXT,
+    creado_por        TEXT,
+    creado_en         TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_documentos_tipo ON documentos(tipo, creado_en);
+
 -- 0062: suscripciones mensuales (F5.1, módulo suscripcion_activo). MRR + cobro recurrente.
 CREATE TABLE IF NOT EXISTS suscripciones (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -548,6 +548,7 @@ const ROUTE_MODULES = [
     require('./routes/rrhh'),
     require('./routes/citas'),
     require('./routes/suscripciones'),
+    require('./routes/documentos'),
     require('./routes/mesas'),
     require('./routes/tareas'),
     require('./routes/instancias'),

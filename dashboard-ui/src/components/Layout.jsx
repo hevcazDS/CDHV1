@@ -8,7 +8,7 @@ import {
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
   LogOut, Landmark, Warehouse, ShoppingCart, IdCard,
-  UserCog, Utensils, Wallet, CalendarClock, ClipboardList,
+  UserCog, Utensils, Wallet, CalendarClock, ClipboardList, FileText,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
@@ -39,6 +39,7 @@ const GRUPOS = [
     { to: '/mesas', label: 'Mesas', Icono: Utensils, area: 'pos', moduloRequerido: 'mesas_activo' },
     { to: '/citas', label: 'Citas', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'citas_activo' },
     { to: '/suscripciones', label: 'Suscripciones', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'suscripcion_activo' },
+    { to: '/documentos', label: 'Documentos', Icono: FileText, area: 'operacion', moduloRequerido: 'documentos_activo' },
     { to: '/pedidos', area: 'operacion', label: 'Pedidos', Icono: Package },
     { to: '/devoluciones', area: 'operacion', label: 'Devoluciones', Icono: Undo2 },
     { to: '/fiados', label: 'Fiados', Icono: Wallet, areas: ['pos', 'finanzas'], moduloRequerido: 'ventas_credito_activo' },
@@ -106,7 +107,7 @@ export default function Layout() {
   // respondían → el sidebar "brincaba" al cargar). El último snapshot vive en
   // localStorage como initialData: en recargas el menú sale completo al instante
   // y solo se corrige si algo cambió de verdad.
-  const CLAVES_SIDEBAR = 'pos_activo,rrhh_activo,mesas_activo,citas_activo,suscripcion_activo,ventas_credito_activo,entrega_paqueteria_activo';
+  const CLAVES_SIDEBAR = 'pos_activo,rrhh_activo,mesas_activo,citas_activo,suscripcion_activo,documentos_activo,ventas_credito_activo,entrega_paqueteria_activo';
   const { data: modulosActivos = {} } = useQuery({
     queryKey: ['modulos-sidebar'],
     queryFn: () => api.get('/api/modulos?claves=' + CLAVES_SIDEBAR).then(m => {

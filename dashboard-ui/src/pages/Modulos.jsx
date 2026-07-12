@@ -105,6 +105,7 @@ const MODULOS = [
   { key: 'contabilidad_activo', titulo: 'Contabilidad (ERP)', desc: 'Asientos automáticos de cada venta/compra/pago en el libro mayor (ver ERP / Finanzas)' },
   { key: 'citas_activo', titulo: 'Citas y agenda', desc: 'El bot agenda citas por fecha/hora (giros de servicio) con recordatorio 24h antes' },
   { key: 'suscripcion_activo', titulo: '🔁 Suscripciones (servicios)', desc: 'Cobro recurrente mensual con proyección de ingreso (MRR). Captura cliente + monto + día de corte; el cargo del período se cobra en Pedidos' },
+  { key: 'documentos_activo', titulo: '📄 Documentos', desc: 'Cotizaciones, pagarés y contratos con plantillas estándar o propias de la sucursal; imprimibles' },
   { key: 'nomina_fiscal_activo', titulo: '🧾 Nómina fiscal (LFT)', desc: 'Nómina completa: horas extra, comisiones, aguinaldo, finiquito, vacaciones LFT. Apagado = nómina sencilla' },
   { key: 'rrhh_activo', titulo: 'Recursos Humanos', desc: 'Empleados, horarios por Excel y nómina MX (con/sin impuestos)' },
 ];
