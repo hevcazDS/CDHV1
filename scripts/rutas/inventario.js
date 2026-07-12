@@ -24,7 +24,8 @@ const ROUTES_DIR = path.join(__dirname, '..', '..', 'dashboard', 'routes');
 // (líneas ~634-641). Coincidencia exacta, no por prefijo (antes '/api/me'
 // matcheaba '/api/metricas'/'/api/mesas'). bot/qr NO es pública.
 const PUBLICAS = [['POST', '/api/login'], ['POST', '/api/logout'], ['GET', '/api/me'],
-    ['GET', '/api/onboarding/estado'], ['POST', '/api/onboarding']];
+    ['GET', '/api/onboarding/estado'], ['POST', '/api/onboarding'],
+    ['GET', '/api/flota/status']]; // hub máquina-a-máquina (token propio)
 const esPublica = (met, ruta) => PUBLICAS.some(([m, r]) => r === ruta && (m === met || met === 'ANY'));
 
 const RE_ROUTE = /\bp\s*===|\bp\.match\(|\bp\.startsWith\(/; // "empieza una ruta"

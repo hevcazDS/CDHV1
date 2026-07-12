@@ -86,12 +86,14 @@ function facturacionPendiente(req, res, ctx) {
     const { db, json } = ctx;
     const { desde, hasta } = _rango(req);
     const filas = db.prepare(`
-        SELECT p2.folio, p2.razon_social, p2.rfc,
+        SELECT p2.id_pedido, p2.folio, p2.razon_social, p2.rfc, p2.cfdi_uuid, p2.cfdi_estatus,
                COALESCE((SELECT SUM(monto) FROM links_pago lp WHERE lp.id_pedido=p2.id_pedido AND lp.estatus='pagado'), p2.total) monto, p2.creado_en
         FROM pedidos p2
         WHERE (p2.rfc IS NOT NULL AND p2.rfc != '') AND date(p2.creado_en) >= ? AND date(p2.creado_en) <= ?
         ORDER BY p2.id_pedido DESC LIMIT 500`).all(desde, hasta);
-    return json(res, { desde, hasta, filas });
+    // ¿El PAC ya está activo? (para que la UI ofrezca timbrar directo)
+    const pacActivo = require('../../services/pacService').activo(db);
+    return json(res, { desde, hasta, filas, pac_activo: pacActivo });
 }
 
 // GET /api/erp/tablero — estado de resultados, balance, aging, rotación, etc.
@@ -278,6 +280,25 @@ function timbrar(req, res, ctx, { params }) {
         .catch(e => json(res, { ok: false, error: e.message }, 500));
 }
 
+// POST /api/erp/cfdi/:id/cancelar — cancela el CFDI ante el SAT (motivo opcional)
+function cfdiCancelar(req, res, ctx, { params }) {
+    const { db, json, readBody } = ctx;
+    return readBody(req, body => {
+        let motivo = '02'; try { motivo = JSON.parse(body || '{}').motivo || '02'; } catch (_) {}
+        return require('../../services/pacService').cancelarCFDI(db, parseInt(params[0]), motivo)
+            .then(r => json(res, r, r.ok ? 200 : 400))
+            .catch(e => json(res, { ok: false, error: e.message }, 500));
+    });
+}
+
+// POST /api/erp/cfdi/:id/rep — timbra el complemento de pago (factura PPD pagada)
+function cfdiREP(req, res, ctx, { params }) {
+    const { db, json } = ctx;
+    return require('../../services/pacService').timbrarREP(db, parseInt(params[0]))
+        .then(r => json(res, r, r.ok ? 200 : 400))
+        .catch(e => json(res, { ok: false, error: e.message }, 500));
+}
+
 // GET /api/erp/cfdi/:id/:formato — descarga el PDF/XML del CFDI ya timbrado.
 function cfdiDescargar(req, res, ctx, { params }) {
     const { db, json } = ctx;
@@ -459,6 +480,8 @@ const RUTAS = [
     { metodo: 'GET',  path: '/api/erp/rentabilidad-vendedores',   area: 'finanzas', handler: rentabilidadVendedores },
     { metodo: 'POST', path: /^\/api\/erp\/timbrar\/(\d+)$/,       area: 'finanzas', handler: timbrar },
     { metodo: 'GET',  path: /^\/api\/erp\/cfdi\/(\d+)\/(pdf|xml)$/, area: 'finanzas', handler: cfdiDescargar },
+    { metodo: 'POST', path: /^\/api\/erp\/cfdi\/(\d+)\/cancelar$/,  area: 'finanzas', handler: cfdiCancelar },
+    { metodo: 'POST', path: /^\/api\/erp\/cfdi\/(\d+)\/rep$/,       area: 'finanzas', handler: cfdiREP },
     { metodo: 'GET',  path: '/api/erp/salud-financiera',          area: 'finanzas', handler: saludFinanciera },
     { metodo: 'GET',  path: '/api/erp/flujo-caja',                area: 'finanzas', handler: flujoCaja },
     { metodo: 'POST', path: '/api/erp/gastos',                    area: 'finanzas', handler: gastosPost },

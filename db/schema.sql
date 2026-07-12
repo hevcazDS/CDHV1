@@ -394,6 +394,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
     fiado_vence_en  TEXT,                          -- migrations/0039 (vencimiento del fiado)
     cfdi_uuid       TEXT,                          -- migrations/0043 (folio fiscal del CFDI timbrado)
     cfdi_estatus    TEXT,                          -- migrations/0043 (timbrado|cancelado)
+    rep_uuid        TEXT,                          -- migrations/0055 (complemento de pago REP)
     creado_en       TEXT DEFAULT (datetime('now','localtime')),
     actualizado_en  TEXT
 );

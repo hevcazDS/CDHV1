@@ -124,6 +124,7 @@ async function timbrar(db, idPedido) {
         if (r.ok && r.uuid) {
             db.prepare("UPDATE pedidos SET cfdi_uuid=?, cfdi_estatus='timbrado' WHERE id_pedido=?").run(r.uuid, idPedido);
             try { require('./configAudit').logCambio(db, 'cfdi_timbrado', ped.folio + ' → ' + r.uuid, 'sistema'); } catch (_) {}
+            enviarComprobante(db, idPedido); // avisa al cliente (best-effort)
             return { ok: true, uuid: r.uuid, folio: ped.folio };
         }
         return { ok: false, error: r.error || 'El PAC no devolvió UUID', detalle: r.detalle };
@@ -184,6 +185,77 @@ async function timbrarNomina(db, idNomina) {
     } catch (e) { return { ok: false, error: 'Error al conectar con el PAC: ' + e.message }; }
 }
 
+// Complemento de pago (REP): timbra el recibo de pago de una factura PPD ya
+// cobrada. Lo dispara contabilidad manualmente (NO automático: una factura PUE
+// no lleva REP). Requiere que el pedido tenga cfdi_uuid (fue facturado PPD).
+// OJO: el mapeo completo del payment complement (parcialidad, saldo insoluto,
+// documento relacionado) debe validarse contra una factura PPD real antes de
+// producción — ver INTEGRACION_CICLO_FISCAL.md.
+async function timbrarREP(db, idPedido) {
+    if (_cfg(db, 'facturacion_activo') !== '1' || !estaConfigurado(db)) return { ok: false, error: 'Configura el PAC y activa Facturación' };
+    const ped = db.prepare('SELECT folio, razon_social, rfc, cfdi_uuid, rep_uuid, total FROM pedidos WHERE id_pedido=?').get(idPedido);
+    if (!ped) return { ok: false, error: 'Pedido no encontrado' };
+    if (!ped.cfdi_uuid) return { ok: false, error: 'El pedido no tiene factura timbrada (el REP referencia una factura PPD)' };
+    if (ped.rep_uuid) return { ok: false, error: 'Este pago ya tiene complemento (REP)', uuid: ped.rep_uuid };
+    const prov = _cfg(db, 'pac_proveedor');
+    const adap = require('./pacProviders').adaptador(prov);
+    if (!adap?.timbrarPago) return { ok: false, error: 'El proveedor no soporta complemento de pago' };
+    const cfg = { api_key: secreto(db, 'pac_api_key') };
+    const payload = {
+        customer: { legal_name: ped.razon_social, tax_id: String(ped.rfc || '').toUpperCase() },
+        complements: [{
+            type: 'pago',
+            data: [{
+                payment_form: '03', date: new Date().toISOString(),
+                related_documents: [{ uuid: ped.cfdi_uuid, amount: ped.total, last_balance: ped.total, taxes: [] }],
+            }],
+        }],
+    };
+    try {
+        const r = await adap.timbrarPago(cfg, payload);
+        if (r.ok && r.uuid) {
+            db.prepare('UPDATE pedidos SET rep_uuid=? WHERE id_pedido=?').run(r.uuid, idPedido);
+            try { require('./configAudit').logCambio(db, 'cfdi_rep', ped.folio + ' → ' + r.uuid, 'sistema'); } catch (_) {}
+            return { ok: true, uuid: r.uuid };
+        }
+        return { ok: false, error: r.error || 'El PAC no devolvió UUID', detalle: r.detalle };
+    } catch (e) { return { ok: false, error: 'Error con el PAC: ' + e.message }; }
+}
+
+// Cancela el CFDI de un pedido. motivo SAT (default '02' sin relación).
+async function cancelarCFDI(db, idPedido, motivo) {
+    const ped = db.prepare('SELECT cfdi_uuid, cfdi_estatus FROM pedidos WHERE id_pedido=?').get(idPedido);
+    if (!ped?.cfdi_uuid) return { ok: false, error: 'Este pedido no está timbrado' };
+    if (ped.cfdi_estatus === 'cancelado') return { ok: false, error: 'El CFDI ya está cancelado' };
+    const prov = _cfg(db, 'pac_proveedor');
+    const adap = require('./pacProviders').adaptador(prov);
+    if (!adap || !adap.cancelar) return { ok: false, error: 'El proveedor no soporta cancelación' };
+    const cfg = { api_key: secreto(db, 'pac_api_key') };
+    try {
+        const r = await adap.cancelar(cfg, { uuid: ped.cfdi_uuid, motivo: motivo || '02' });
+        if (r.ok) {
+            db.prepare("UPDATE pedidos SET cfdi_estatus='cancelado' WHERE id_pedido=?").run(idPedido);
+            try { require('./configAudit').logCambio(db, 'cfdi_cancelado', ped.cfdi_uuid + ' motivo ' + (motivo || '02'), 'sistema'); } catch (_) {}
+            return { ok: true, estatus: 'cancelado' };
+        }
+        return r;
+    } catch (e) { return { ok: false, error: 'Error con el PAC: ' + e.message }; }
+}
+
+// Al timbrar: avisa al cliente por WhatsApp que su CFDI está listo (el PDF/XML
+// se descargan desde el panel, GET /api/erp/cfdi/:id). Best-effort — no rompe el
+// timbrado si falla. (Email con adjunto = follow-up, reusaría el SMTP de backup.js.)
+function enviarComprobante(db, idPedido) {
+    try {
+        const ped = db.prepare("SELECT p.folio, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente WHERE p.id_pedido=?").get(idPedido);
+        if (ped?.telefono) {
+            db.prepare("INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES ('whatsapp',?,'Tu factura',?,'pendiente')")
+                .run(ped.telefono, 'Tu factura (CFDI) del pedido ' + (ped.folio || idPedido) + ' ya está lista ✅. Pídela en el negocio si la necesitas en PDF/XML.');
+        }
+        return { ok: true };
+    } catch (_) { return { ok: false }; }
+}
+
 // Descarga el CFDI (pdf|xml) de un pedido YA timbrado, desde el PAC.
 async function descargarCFDI(db, idPedido, formato) {
     const fmt = formato === 'xml' ? 'xml' : 'pdf';
@@ -198,4 +270,4 @@ async function descargarCFDI(db, idPedido, formato) {
     return { ok: true, buffer: r.buffer, contentType: r.contentType, filename: (ped.folio || idPedido) + '.' + fmt };
 }
 
-module.exports = { estaConfigurado, activo, timbrar, timbrarNomina, descargarCFDI, esKeyOnly, cifrarSecreto, descifrarSecreto, cifradoActivo, secreto };
+module.exports = { estaConfigurado, activo, timbrar, timbrarNomina, timbrarREP, descargarCFDI, cancelarCFDI, enviarComprobante, esKeyOnly, cifrarSecreto, descifrarSecreto, cifradoActivo, secreto };

@@ -550,6 +550,7 @@ const ROUTE_MODULES = [
     require('./routes/mesas'),
     require('./routes/tareas'),
     require('./routes/instancias'),
+    require('./routes/flota'),
 ];
 
 function handleAPI(req, res) {
@@ -647,7 +648,10 @@ function handleRequest(req, res) {
         // Onboarding sí (instancia recién clonada sin sesión; se auto-bloquea
         // con 409 una vez configurado el negocio).
         || (u.pathname === '/api/onboarding/estado' && req.method === 'GET')
-        || (u.pathname === '/api/onboarding' && req.method === 'POST');
+        || (u.pathname === '/api/onboarding' && req.method === 'POST')
+        // Hub de flota: máquina-a-máquina, su propio token (no la sesión del
+        // dashboard). El handler valida el token; sin token configurado da 404.
+        || (u.pathname === '/api/flota/status' && req.method === 'GET');
 
     if (esRutaApi && !esRutaPublica) {
         const _sesGlobal = requireSession(req, res);

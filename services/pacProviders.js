@@ -63,6 +63,32 @@ const facturapi = {
         if (r.status >= 200 && r.status < 300 && r.body?.uuid) return { ok: true, uuid: r.body.uuid, id_pac: r.body.id };
         return { ok: false, error: r.body?.message || ('El PAC respondió ' + r.status), detalle: r.body };
     },
+    // Cancela un CFDI timbrado. motivo SAT: '01' comprobante con errores con
+    // relación, '02' sin relación, '03' no se llevó a cabo, '04' nominativa
+    // global. Facturapi: DELETE /v2/invoices/:id?motive=02
+    async cancelar(cfg, { id_pac, uuid, motivo }) {
+        let id = id_pac;
+        if (!id && uuid) {
+            const r = await _get(this._host, '/v2/invoices?q=' + encodeURIComponent(uuid), this._auth(cfg));
+            try { const arr = JSON.parse(r.buffer.toString('utf8')); id = (arr.data || arr)[0]?.id; } catch (_) {}
+        }
+        if (!id) return { ok: false, error: 'No encontré el CFDI en el PAC' };
+        return this._delete(cfg, id, motivo);
+    },
+    async _delete(cfg, id, motivo) {
+        return new Promise((resolve, reject) => {
+            const req = https.request({ host: this._host, path: `/v2/invoices/${id}?motive=${encodeURIComponent(motivo || '02')}`, method: 'DELETE', timeout: 20000, headers: this._auth(cfg) },
+                (res) => { let d = ''; res.on('data', c => d += c); res.on('end', () => { let j = null; try { j = JSON.parse(d); } catch (_) {} resolve(res.statusCode >= 200 && res.statusCode < 300 ? { ok: true, estatus: j?.status || 'canceled' } : { ok: false, error: j?.message || ('El PAC respondió ' + res.statusCode) }); }); });
+            req.on('error', reject); req.on('timeout', () => req.destroy(new Error('Timeout PAC'))); req.end();
+        });
+    },
+    // Complemento de pago (REP): timbra el recibo de pago de una factura PPD.
+    // Facturapi arma el "payment complement" con las facturas relacionadas.
+    async timbrarPago(cfg, payload) {
+        const r = await _post(this._host, '/v2/invoices', this._auth(cfg), { ...payload, type: 'payment' });
+        if (r.status >= 200 && r.status < 300 && r.body?.uuid) return { ok: true, uuid: r.body.uuid, id_pac: r.body.id };
+        return { ok: false, error: r.body?.message || ('El PAC respondió ' + r.status), detalle: r.body };
+    },
     // Descarga el CFDI ya timbrado. formato: 'pdf' | 'xml'. Facturapi indexa por
     // su id interno; si solo tenemos el UUID, primero lo resolvemos.
     async descargar(cfg, { id_pac, uuid, formato }) {
