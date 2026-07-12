@@ -214,12 +214,15 @@ CREATE TABLE IF NOT EXISTS cobertura (
 -- el catálogo interno de inventario. Se mantienen separadas para no romper
 -- el flujo de pickup existente al introducir el módulo de inventario.
 CREATE TABLE IF NOT EXISTS puntos_entrega (
-    id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    estado   TEXT,
-    ciudad   TEXT,
-    telefono TEXT,
-    horario  TEXT,
-    activo   INTEGER NOT NULL DEFAULT 1
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    estado    TEXT,
+    ciudad    TEXT,
+    telefono  TEXT,
+    horario   TEXT,
+    activo    INTEGER NOT NULL DEFAULT 1,
+    nombre    TEXT,   -- migrations/0052: producción ya los tenía (orderFlow los renderiza)
+    direccion TEXT,
+    maps_url  TEXT
 );
 
 -- ──────────────────────────────────────────────────────────────────────────

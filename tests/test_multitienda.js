@@ -138,5 +138,40 @@ test('asientoVenta deriva la tienda de pedido_detalle.sucursal_origen', () => {
     assert(a && a.sucursal === 'Norte', 'el asiento de la venta 7 debe quedar en Norte');
 });
 
+console.log('\n【7】 Ola D — espejo sucursal → punto de pickup (migración 0052)');
+db.exec(`
+    CREATE TABLE cobertura (cp TEXT PRIMARY KEY, estado TEXT, activa INTEGER DEFAULT 1);
+    CREATE TABLE puntos_entrega (id INTEGER PRIMARY KEY AUTOINCREMENT, estado TEXT, ciudad TEXT,
+        telefono TEXT, horario TEXT, activo INTEGER DEFAULT 1, nombre TEXT, direccion TEXT, maps_url TEXT);
+    INSERT INTO cobertura (cp, estado) VALUES ('78', 'San Luis Potosí');
+    INSERT INTO puntos_entrega (estado, nombre) VALUES ('San Luis Potosí', 'Sucursal Ya Existente');
+`);
+// misma lógica que primeCatalogo._espejoPuntoEntrega (contract: fija la semántica)
+function espejo(suc) {
+    const pref = String(suc.codigo_postal || '').replace(/\D/g, '').slice(0, 2);
+    if (pref.length < 2 || !suc.nombre) return;
+    const cob = db.prepare('SELECT cp, estado FROM cobertura WHERE activa=1').all().find(r => r.cp && String(r.cp).startsWith(pref));
+    if (!cob) return;
+    if (db.prepare('SELECT 1 FROM puntos_entrega WHERE nombre=? LIMIT 1').get(suc.nombre)) return;
+    db.prepare('INSERT INTO puntos_entrega (estado, activo, nombre, direccion) VALUES (?,1,?,?)').run(cob.estado, suc.nombre, suc.direccion || null);
+}
+test('sucursal con CP en zona con cobertura → nace su punto de pickup', () => {
+    espejo({ nombre: 'Norte', direccion: 'Av. Norte 1', codigo_postal: '78200' });
+    const p = db.prepare("SELECT * FROM puntos_entrega WHERE nombre='Norte'").get();
+    assert(p && p.estado === 'San Luis Potosí' && p.activo === 1, 'punto espejado con el estado de la cobertura');
+});
+test('sucursal sin cobertura para su CP → NO espeja (el bot no llega ahí)', () => {
+    espejo({ nombre: 'Cancún', codigo_postal: '77500' });
+    assert(!db.prepare("SELECT 1 FROM puntos_entrega WHERE nombre='Cancún'").get());
+});
+test('punto ya existente con ese nombre → no duplica ni toca (JC byte-idéntico)', () => {
+    espejo({ nombre: 'Sucursal Ya Existente', codigo_postal: '78000' });
+    assert(db.prepare("SELECT COUNT(*) n FROM puntos_entrega WHERE nombre='Sucursal Ya Existente'").get().n === 1);
+});
+test('sin CP capturado → no espeja (no hay zona que asignar)', () => {
+    espejo({ nombre: 'Sin CP' });
+    assert(!db.prepare("SELECT 1 FROM puntos_entrega WHERE nombre='Sin CP'").get());
+});
+
 console.log(`\nRESULTADO: ${pasa} ✅  |  ${falla} ❌`);
 process.exit(falla ? 1 : 0);
