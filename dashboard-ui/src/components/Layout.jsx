@@ -150,6 +150,17 @@ export default function Layout() {
 
   const iniciales = (user?.username || '?').slice(0, 2).toUpperCase();
 
+  // Badges de pendientes en el sidebar (patrón Ynex — SPEC_CONVERGENCIA §D):
+  // un contador junto al link cuando hay trabajo esperando. Refresca cada 45s.
+  const { data: stats } = useQuery({
+    queryKey: ['stats'], queryFn: () => api.get('/api/stats').catch(() => null),
+    refetchInterval: 45000,
+  });
+  const badgePorRuta = {
+    '/cola': stats?.cola_atencion || 0,
+    '/pedidos': stats?.pagos_pendientes || 0,
+  };
+
   // Sidebar colapsable a riel de CATEGORÍAS (un icono por grupo; al tocar
   // se despliega un flyout con las páginas de esa categoría)
   const [colapsado, setColapsado] = useState(() => localStorage.getItem('jc-sidebar-colapsado') === '1');
@@ -244,11 +255,15 @@ export default function Layout() {
             <Accordion value={abierto} onChange={setAbierto} chevronSize={14} styles={ACCORDION_STYLES}>
               {grupos.map(g => (
                 <Accordion.Item value={g.titulo} key={g.titulo}>
-                  <Accordion.Control>{g.titulo}</Accordion.Control>
+                  <Accordion.Control>
+                    {g.titulo}
+                    {(() => { const n = g.enlaces.reduce((s, e) => s + (badgePorRuta[e.to] || 0), 0); return n > 0 ? <span className="nav-badge" style={{ marginLeft: 8 }}>{n}</span> : null; })()}
+                  </Accordion.Control>
                   <Accordion.Panel>
                     {g.enlaces.map(e => (
                       <NavLink key={e.to} to={e.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`} end={e.to === '/'}>
                         <e.Icono size={16} strokeWidth={1.75} />{e.label}
+                        {badgePorRuta[e.to] > 0 && <span className="nav-badge">{badgePorRuta[e.to]}</span>}
                       </NavLink>
                     ))}
                   </Accordion.Panel>

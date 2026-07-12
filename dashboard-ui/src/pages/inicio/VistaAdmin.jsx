@@ -15,6 +15,17 @@ const MODOS_GRAFICA = [
   { value: 'linea', label: 'Línea' },
 ];
 
+// Delta "vs ayer" bajo un KPI (patrón Starline — SPEC_CONVERGENCIA). Solo si
+// hay dato de ayer; verde si sube, rojo si baja. `claro` para la card oscura.
+function DeltaAyer({ hoy, ayer, claro }) {
+  if (ayer == null) return null;
+  if (!ayer && !hoy) return null;
+  const pct = ayer > 0 ? Math.round((hoy - ayer) / ayer * 100) : (hoy > 0 ? 100 : 0);
+  const sube = pct >= 0;
+  const col = claro ? 'rgba(255,255,255,0.85)' : (sube ? 'var(--green)' : 'var(--red)');
+  return <div style={{ fontSize: 11, fontWeight: 600, color: col, marginTop: 2 }}>{sube ? '▲' : '▼'} {Math.abs(pct)}% vs ayer</div>;
+}
+
 // Administrador/Prime: vista completa — 6 KPIs con swap #/%, marketing,
 // gráfica de la semana y últimos pedidos.
 export default function VistaAdmin() {
@@ -95,10 +106,12 @@ export default function VistaAdmin() {
       <div className="kpi-grid6">
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq kpi-dark">
           <Kpi Icono={Wallet} color="rgba(255,255,255,0.95)" label={kpis.ventasLabel}>{kpis.ventas}</Kpi>
+          {!kpiPct && <DeltaAyer hoy={ventasHoy} ayer={stats?.ventas_ayer} claro />}
           {!kpiPct && <Suspense fallback={null}><Sparkline datos={dias.map(d => ({ v: d.t }))} color="rgba(255,255,255,0.6)" /></Suspense>}
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
           <Kpi Icono={ReceiptText} color="#4aa8ff" label={kpis.pedidosLabel}>{kpis.pedidos}</Kpi>
+          {!kpiPct && <DeltaAyer hoy={met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0} ayer={stats?.pedidos_ayer} />}
           {!kpiPct && <Suspense fallback={null}><Sparkline datos={dias.map(d => ({ v: d.n }))} color="var(--info)" /></Suspense>}
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">

@@ -591,6 +591,15 @@ tr:last-child td { border-bottom: none; }
 .pos-cambio { font-size: 17px; margin-bottom: 8px; }
 .pos-cambio strong { font-size: 21px; color: var(--green); }
 
+/* Badge de pendientes en el sidebar (patrón Ynex — convergencia UI) */
+.nav-badge {
+  margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 700; border-radius: 9px;
+  background: var(--red); color: #fff;
+}
+.sidebar-link.active .nav-badge { background: var(--modulo-color, var(--brand)); }
+
 /* Fila "Requiere tu acción" del Inicio (Ola 3 §C): lo pendiente antes que los KPIs */
 .accion-strip {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;

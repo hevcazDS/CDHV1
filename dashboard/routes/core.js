@@ -128,6 +128,9 @@ function stats(req, res, ctx) {
         pagos_pagados: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='pagado'").get()?.c || 0,
         ventas_hoy: db.prepare("SELECT COALESCE(SUM(monto),0) s FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=date('now','localtime')").get()?.s || 0,
         pedidos_pagados_hoy: db.prepare("SELECT COUNT(*) c FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=date('now','localtime')").get()?.c || 0,
+        // "vs ayer" para el delta de los KPIs (SPEC_CONVERGENCIA §A/D)
+        ventas_ayer: db.prepare("SELECT COALESCE(SUM(monto),0) s FROM links_pago WHERE estatus='pagado' AND date(pagado_en)=date('now','-1 day','localtime')").get()?.s || 0,
+        pedidos_ayer: db.prepare("SELECT COUNT(*) c FROM pedidos WHERE date(creado_en)=date('now','-1 day','localtime')").get()?.c || 0,
         cola_atencion: db.prepare("SELECT COUNT(*) c FROM cola_atencion WHERE estatus='en_espera'").get()?.c || 0,
         emails_error: db.prepare("SELECT COUNT(*) c FROM cola_emails WHERE estatus='error'").get()?.c || 0,
         chats_hoy: (() => { try { return db.prepare("SELECT COUNT(*) c FROM chats_iniciados WHERE fecha=date('now','localtime')").get()?.c || 0; } catch (_) { return 0; } })(),
