@@ -46,6 +46,69 @@ módulos no cubran — y aún entonces, jamás sobre checkout/dinero. No se cons
 
 ---
 
+## 0.bis — Aclaración del dueño (2026-07-12): **compilar-y-congelar, NO interpretar en vivo**
+
+El dueño precisó el modelo, y **cambia el veredicto** de arriba. La idea NO es un intérprete que
+re-arma y re-evalúa el grafo en cada mensaje (eso es lo que el análisis previo rechazó, con razón).
+La idea es un editor tipo **ComfyUI de AUTORÍA**: conectas los módulos (acciones) visualmente = armas
+un *workflow*; al **guardar**, ese grafo visual **se compila UNA vez y se congela** en la lógica
+operativa del bot; el bot corre lo congelado. El editor **no está en el camino de runtime**.
+
+### Mis comentarios (lo que entendí + la ingeniería honesta)
+
+1. **Entendí bien, y sí resuelve la objeción principal.** El rechazo previo asumía re-interpretar en
+   el hot path de ventas. Tu modelo mueve todo el trabajo pesado (validación, linter, cableado,
+   chequeo de nodos sellados) al **momento de guardar**, no al de cada mensaje. Eso es exactamente
+   *"no que se estén ejecutando en tiempo real cada workflow"*: el workflow se **arma/valida una vez**
+   (al guardar) y en runtime solo se **recorre** lo ya congelado.
+
+2. **"Compilar" tiene dos sabores — uno es correcto, el otro peligroso:**
+   - ✅ **(a) Compilar a DATOS congelados**: el grafo del editor → un artefacto JSON **validado +
+     versionado** (una tabla de estados/transiciones), que un **ejecutor diminuto (~100-150 líneas)**
+     recorre. El ejecutor sigue leyendo datos por mensaje, pero **no re-arma ni re-valida** nada. Es
+     "compile-and-freeze", barato, snapshotable (golden test) y seguro. **Este es el camino.**
+   - ❌ **(b) Compilar a CÓDIGO JS generado** (`flows/generado_X.js` que el bot hace `require`/`eval`):
+     **NO.** Superficie de inyección/eval, imposible de revisar en un PR, indebuggeable a las 3am,
+     rompe el boring-tech. Aunque técnicamente es "compilar", el costo/riesgo no vale la pena.
+
+3. **Esto SÍ mejora el veredicto: intérprete-como-compile-and-freeze = VIABLE** (no el intérprete-en-vivo).
+   La diferencia clave que lo hace factible: el **linter vive en el guardado** (rechaza un workflow que
+   "venda gratis" o toque un nodo de dinero, §D.2 del diseño), y el **artefacto congelado se testea con
+   el golden snapshot** igual que código. Ya no "pasa por vacuidad": compilas el workflow de JC, lo
+   congelas, y el golden exige byte-identidad sobre ESE compilado.
+
+4. **La frontera sellada NO cambia — y es lo que hace que "se pueda hacer" sin miedo.** Aunque compiles,
+   los nodos de **dinero/checkout/inventario/ASESOR** (grabar pedido, `marcar-pagado`, descuento de
+   stock, relevo humano — ver §G.5/G.6 del diseño) se muestran en el editor como **bloques BLOQUEADOS**:
+   editas su texto y algún param (ej. % de anticipo), **no su cableado**. El compilador **rechaza guardar**
+   un workflow que los reconecte. Lo que el editor deja rearmar es el **embudo conversacional** hasta el
+   cobro (menú→buscar→ver→carrito, agendar, preguntas del wizard); el **cobro es una caja negra sellada**
+   que el grafo *invoca* pero no redefine.
+
+5. **Cubre los 4 casos del dueño sin tocar dinero:** barbería con/sin anticipo = un nodo de anticipo
+   **opcional** antes del bloque de cobro sellado; ISP = agendar a domicilio (nodo de dirección +
+   `citasFlow`); restaurante = menú + entrega (ya hay mesas/repartidor); freelancer = proyecto/suscripción
+   (nodo de cobro con monto/plazo). Todos son **recableados del embudo**, no del checkout.
+
+### Veredicto revisado
+
+- **Fase 0 + Fase 1 (frases→datos): sin cambio, es el prerequisito real** (sin frases en datos el editor
+  mostraría nodos vacíos; es el 80% del valor y el 20% del riesgo).
+- **Fase 2 (el compilador) AHORA SÍ entra al plan** — no como "intérprete en vivo" sino como
+  **compilar-y-congelar**: `compilador.js` toma el grafo del editor, corre el linter, y escribe una
+  **tabla de transiciones versionada** (`flujo_compilado`, un blob JSON por versión). El bot carga la
+  versión ACTIVA una sola vez (cache, como `_config.js` cachea 60s) y un **walker chico** la recorre.
+  Flag por-request, fail-closed al `FLOWS` viejo, nodos de dinero jamás compilados desde el editor
+  (vienen de un preset sellado en git).
+- **Fase 3 (editor visual ComfyUI):** produce el grafo que la Fase 2 compila. Empieza por
+  **editar-texto-y-params de nodos** (cubre barbería 30%↔50% sin reconectar); reconectar aristas de
+  conversación es incremental.
+
+Lo único que sigo desaconsejando con firmeza: **codegen a JS** (sabor 2b) y **reconectar nodos de dinero**.
+Todo lo demás de tu modelo es construible y lo dejo reflejado en las fases de abajo.
+
+---
+
 ## Fase 0 — Red de seguridad (fixture + golden). SIN esto no se empieza.
 
 ### 0.1 El bloqueo real
