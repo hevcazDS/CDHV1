@@ -770,7 +770,7 @@ Framework: **ninguno nuevo.** Se extiende el patrón `node tests/xxx.js` + asser
 > del motor ignora esas conexiones, en producción rompería el relevo humano, la detección de quejas y el
 > cobro de envíos. Todo lo de abajo está verificado contra `bot/index.js` y `bot/flows/asesorFlow.js`.
 
-### FH.1 Dónde se enchufa el motor en el pipeline real
+### G.1 Dónde se enchufa el motor en el pipeline real
 
 El motor se registra como **un flow más** y solo corre en la **etapa 6** (`actionHandler.handleAction`,
 `index.js:1131-1133`). Todo lo anterior lo protege — el intérprete **nunca** ve texto bloqueado,
@@ -795,7 +795,7 @@ frustración ni detección de quejas. Esos son filtros de plataforma, viven en `
 groserías" — para cuando el texto llega al motor, ya pasó ese filtro. Meterlo al grafo sería superficie
 de fallo duplicada y desactivable por config (exactamente lo que la frontera sellada prohíbe).
 
-### FH.2 El relevo humano (`ASESOR`) es un estado SELLADO que el motor NO posee
+### G.2 El relevo humano (`ASESOR`) es un estado SELLADO que el motor NO posee
 
 Cuando cualquier filtro (4/5/8) o un nodo terminal escala, la sesión queda en `ASESOR`. A partir de ahí:
 
@@ -827,7 +827,7 @@ Cuando cualquier filtro (4/5/8) o un nodo terminal escala, la sesión queda en `
    `ASESOR`, y lo hace **saliendo** hacia el estado sellado (set + `registrarEscalada`), nunca
    *manejando* `ASESOR`.
 
-### FH.3 Envíos, devoluciones y CSAT: qué es sellado y qué configurable
+### G.3 Envíos, devoluciones y CSAT: qué es sellado y qué configurable
 
 - **Envíos (checkout):** `ASK_CP → SPLIT_* → DELIVERY → ASK_NOMBRE…ASK_REF` es **sistema sellado** — el
   orden de captura de dirección es contractual con Estafeta (`orderFlow`/`addressFlow`). El motor lo
@@ -842,7 +842,7 @@ Cuando cualquier filtro (4/5/8) o un nodo terminal escala, la sesión queda en `
   `asesorFlow.js:135`). **Sistema.** El grafo puede *disparar* el CSAT (arista tras entrega) pero no
   posee el estado.
 
-### FH.4 Ángulo multitienda de todo lo anterior
+### G.4 Ángulo multitienda de todo lo anterior
 
 Cada conexión de escalada/envío/queja ya es **per-instancia** y el motor debe respetarlo leyendo la
 misma config, nunca hardcodeando:
@@ -857,10 +857,69 @@ misma config, nunca hardcodeando:
 - **cola_atencion / cola_notificaciones:** son buses **intra-`.db`** (una base por tenant), así que el
   relevo humano de un tenant nunca se cruza con otro — coherente con instancia-por-cliente (§D del PLAN).
 
-**Cierre:** con FH.1–FH.4 respetadas, encender el motor no cambia una sola de las rutas de
-queja/frustración/escalada/envío que hoy funcionan: el intérprete es un inquilino tardío del pipeline que
-solo reemplaza el cuerpo conversacional, y todo lo que protege al cliente (filtros) y lo conecta con un
-humano (ASESOR) queda exactamente donde está, sellado.
+### G.5 El lazo de cobro real: motor → grabar pedido → **asesor marca pagado** → inventario + ticket
+
+Este es el circuito que el dueño pidió blindar: *"si se compra algo y el asesor humano marca como pagado,
+que se descuente del inventario y genere su ticket/pedido"*. Está **verificado contra
+`dashboard/routes/comunicacionPedidos.js:241-346`** y es **la razón por la que el motor NUNCA toca
+inventario ni cobra de verdad** — solo *crea la intención de cobro* y se detiene.
+
+**Los tres actos, y quién los ejecuta:**
+
+| Acto | Quién | Qué hace exactamente | Evidencia |
+|---|---|---|---|
+| 1. Crear pedido + intención de cobro | **el motor**, vía acción sellada `grabar_pedido`/`cobrar_anticipo` | `insertarPedidoConCarrito` inserta `pedidos` + `pedido_detalle` **con `sucursal_origen` por línea** (`_shared.js:793-804`); `insertarLinkPago` crea `links_pago` estatus `'generado'`. **NO descuenta stock. NO cobra.** | `_shared.js:776-816`, `:745` |
+| 2. **Marcar pagado** (el chokepoint) | **el asesor humano** (dashboard Pedidos/POS) o la pasarela | `POST /api/pagos/:id/marcar-pagado`: en **una transacción atómica** marca `links_pago='pagado'`, **descuenta inventario vía `kardexService.movimiento(tipo='venta', delta=-cantidad, sucursal=it.sucursal_origen)`** y sella `cobrado_por`. Fuera de la tx (idempotente): asiento de venta+costo, puntos, referidos, `pedidos.estatus='confirmado'`, aviso WhatsApp al cliente. | `comunicacionPedidos.js:263-300` |
+| 3. Ticket / comprobante | cualquiera con acceso | `GET /api/pedidos/:id/ticket` arma pedido+items+envío+pago cuando el pedido ya existe | `comunicacionPedidos.js:336-346` |
+
+**Reglas duras para el motor en este lazo (no negociables):**
+
+1. **El descuento de inventario vive SOLO en el acto 2, nunca en el acto 1.** Confirmado: la tx de
+   `insertarPedidoConCarrito` (`_shared.js:776-809`) no toca `inventarios`; el `kardexService.movimiento`
+   de venta solo aparece en `marcar-pagado` (`:270`). Si el motor "adelantara" el descuento al crear el
+   pedido, habría **doble-descuento** cuando el asesor marque pagado. La acción `grabar_pedido` del motor
+   termina en `links_pago='generado'` y **para ahí**.
+2. **`marcar-pagado` es idempotente y atómico — el motor no lo replica.** Ya devuelve `409` si el pago
+   estaba registrado (`:254`) y hace inventario+cobro en una sola tx (arregla el crash-a-media-operación
+   documentado en el propio código, `:256-259`). El motor jamás debe exponer una acción que marque pagado;
+   ese acto es del humano/pasarela por diseño (el bot crea el link `'generado'`; alguien confirma el pago).
+3. **La reversión también está sellada.** `POST /api/pagos/:id/cancelar` → `reversionService.revertirCobro`
+   repone inventario y puntos (`:306-323`). El motor no necesita saber de esto; es simetría del chokepoint.
+
+### G.6 Bases de la modulación multitienda en el cobro — ¿están? **Sí, verificadas**
+
+El requisito "que descuente **del inventario correcto**" depende de que la tienda viaje con el pedido. Se
+revisó y las bases existen; el motor solo debe **alimentarlas**, no reinventarlas:
+
+- **`pedido_detalle.sucursal_origen` por línea** (`_shared.js:793-804`) — es la bisagra: `marcar-pagado`
+  descuenta de **esa** sucursal (`:270`), no de una global. Un pedido split (pickup en tienda A, envío
+  desde B) descuenta de cada una por su línea. **El motor debe pasar la sucursal correcta** a la acción
+  sellada, exactamente como `citas.js:cobrar` usa `sucursalDeSesion(db, ses)` (`citas.js:84`) y como
+  `partirCarrito` reparte por stock por sucursal.
+- **`sucursalDeSesion(db, ses)`** (`services/sucursalService.js`) — punto único usuario→tienda ‖ default.
+  Con 1 sucursal colapsa al comportamiento previo (JC byte-idéntico); con 2+ se activa sola, **sin flag**.
+- **Flag `inventario_activo`** (`comunicacionPedidos.js:262,269`) — un giro sin control de stock (servicios
+  puros) no descuenta; el motor no decide esto, lo respeta el chokepoint.
+- **Saltos correctos ya codificados** (`:269`): líneas `tipo='servicio'` (una cita no tiene inventario),
+  sin `sucursal_origen`, o con inventario apagado, **no descuentan**. Esto es exactamente por qué el cobro
+  de una **cita** (servicio) no mueve stock y el de un **producto físico** sí — el mismo chokepoint sirve a
+  ambos giros sin ramas nuevas.
+- **`a_credito` (fiado)** (`:255,265`) — una venta a crédito **no descuenta al marcar pagado el anticipo**;
+  el stock sale al entregar. El motor de un giro con fiado (abarrotes/carnicería/ferretería) hereda esto
+  gratis: solo marca `pedidos.a_credito`, no cambia el descuento.
+
+**Conclusión de G.5–G.6:** el lazo compra→pago→inventario→ticket ya es **multitienda-correcto y
+sellado**. El motor participa **solo en el acto 1** (crear pedido con la sucursal correcta + link
+`'generado'`); el asesor humano dispara el acto 2 desde el dashboard y todo lo demás (inventario por
+sucursal, asientos, puntos, ticket, aviso) ocurre en código existente que el motor **no interpreta ni
+duplica**. Integrarlo es cablear la acción `grabar_pedido` a `insertarPedidoConCarrito` con la sucursal
+de sesión — nada más.
+
+**Cierre:** con G.1–G.6 respetadas, encender el motor no cambia una sola de las rutas de
+queja/frustración/escalada/envío/**cobro** que hoy funcionan: el intérprete es un inquilino tardío del
+pipeline que solo reemplaza el cuerpo conversacional, y todo lo que protege al cliente (filtros), lo
+conecta con un humano (ASESOR) y **convierte una compra en un cobro real con descuento de inventario y
+ticket** queda exactamente donde está, sellado y multitienda.
 
 ---
 
