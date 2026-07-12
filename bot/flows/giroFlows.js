@@ -28,7 +28,7 @@ const _CITAS = [require('./citasFlow')];
 const GIRO_FLOWS = {
     // restaurante: [ require('./restauranteFlow') ],
     servicios:     _CITAS,
-    isp:           _CITAS,
+    freelancer:    _CITAS,   // freelancer se cubre como servicios (F5.0): mismo flujo de Citas
     mantenimiento: _CITAS,
     barberia:      _CITAS,
     tatuajes:      _CITAS,
