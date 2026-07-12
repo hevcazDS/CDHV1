@@ -295,21 +295,28 @@ function cfdiCancelar(req, res, ctx, { params }) {
 
 // GET /api/erp/diot?mes=YYYY-MM — DIOT: operaciones con proveedores del mes,
 // agrupadas por RFC, con base e IVA acreditable. ?formato=txt baja el archivo
-// del SAT (batch pipe-delimitado). BORRADOR: la base/IVA se derivan al iva_pct
-// configurado sobre el total de cada CxP — el contador valida antes de enviar.
+// del SAT (batch pipe-delimitado). Usa la base/IVA EXACTOS del CFDI cuando la CxP
+// los tiene (importación XML, 0058); para las CxP capturadas a mano sin CFDI cae
+// al cálculo plano al iva_pct configurado. El contador valida antes de enviar.
 function diot(req, res, ctx) {
     const { db, json } = ctx;
     const sp = new URL(req.url, 'http://x').searchParams;
     const mes = (sp.get('mes') || new Date().toISOString().slice(0, 7)).slice(0, 7);
     const iva = (parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='iva_pct'").get()?.valor) || 16) / 100;
-    // Agrupa las CxP del mes (por creada_en) por proveedor con RFC
+    // Agrupa las CxP del mes (por creada_en) por proveedor con RFC. Separa lo que
+    // trae base/IVA exactos del CFDI de lo que hay que derivar plano.
     const filas = db.prepare(`
-        SELECT pr.rfc, pr.nombre, ROUND(SUM(cp.monto),2) total
+        SELECT pr.rfc, pr.nombre,
+               ROUND(SUM(cp.monto),2) total,
+               ROUND(SUM(CASE WHEN cp.base IS NOT NULL THEN cp.base ELSE 0 END),2) base_real,
+               ROUND(SUM(CASE WHEN cp.iva  IS NOT NULL THEN cp.iva  ELSE 0 END),2) iva_real,
+               ROUND(SUM(CASE WHEN cp.base IS NULL THEN cp.monto ELSE 0 END),2) monto_sin_base
         FROM cuentas_pagar cp JOIN proveedores pr ON pr.id=cp.id_proveedor
         WHERE pr.rfc IS NOT NULL AND pr.rfc != '' AND strftime('%Y-%m', cp.creada_en)=?
         GROUP BY pr.rfc ORDER BY total DESC`).all(mes).map(r => {
-        const base = Math.round((r.total / (1 + iva)) * 100) / 100;
-        const ivaAcred = Math.round((r.total - base) * 100) / 100;
+        const baseFlat = Math.round((r.monto_sin_base / (1 + iva)) * 100) / 100;
+        const base = Math.round((r.base_real + baseFlat) * 100) / 100;
+        const ivaAcred = Math.round((r.iva_real + (r.monto_sin_base - baseFlat)) * 100) / 100;
         return { rfc: r.rfc, nombre: r.nombre, total: r.total, base, iva_acreditable: ivaAcred };
     });
     if (sp.get('formato') === 'txt') {

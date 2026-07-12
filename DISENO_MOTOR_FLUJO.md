@@ -4,7 +4,7 @@
 > corrigieron 4 errores bloqueantes de hecho: (D.1) el descuento de inventario **NO** vive en
 > `insertarPedidoConCarrito` sino en `marcar-pagado`/POS; (D.2) **cita→cobro YA existe** en producción
 > (`citas.js:cobrar`, mostrador) — el anticipo por bot CONVIVE, no reemplaza; (D.3) la migración es
-> **`0058`**, no `0027`; (D.4) las columnas `servicio_precio`/`id_servicio`/`id_pedido` de `citas` ya
+> **el siguiente número libre al construir** (hoy ≥`0059`), no `0027`; (D.4) las columnas `servicio_precio`/`id_servicio`/`id_pedido` de `citas` ya
 > existen (0057). Más: firmas de `searchProducts`/`agregarAlCarrito`/`insertarLinkPago` corregidas, y el
 > flag del motor debe evaluarse **por request** (no al `require`). Con esto el doc es fiel al código.
 >
@@ -148,7 +148,7 @@ pruebas** (sección F) del doc previo — no cambian.
 | Fase | Qué (enfoque base→delta) | Días | Δ vs. plan original |
 |---|---|---:|---|
 | **0. Red de seguridad** | Golden snapshot de JC (F.4.1) + baseline de los 117 tests. | 1 | igual |
-| **1. Extraer acciones** | `actions.js` envolviendo funciones **ya existentes** de `_shared.js` + migración `0058` (tablas motor + columnas `anticipo`/`saldo_pendiente` en `citas`; `servicio_precio`/`id_servicio`/`id_pedido` ya existen desde 0057). | 3 | igual |
+| **1. Extraer acciones** | `actions.js` envolviendo funciones **ya existentes** de `_shared.js` + migración del motor (siguiente libre, hoy ≥`0059`) con tablas motor + columnas `anticipo`/`saldo_pendiente` en `citas`; `servicio_precio`/`id_servicio`/`id_pedido` ya existen desde 0057. | 3 | igual |
 | **2. Intérprete tras flag** | `interprete.js`+`matchInput`+`grafo.js`+linter, flag OFF. | 4 | igual |
 | **3. Plantilla base = JC** (antes "piloto citas") | Escribir `jugueteria.json` **derivándolo** del flujo actual (no un giro de laboratorio) y pasar el golden 100%. Esta plantilla base habilita **todos** los deltas. | 3 | **−1** (una sola plantilla, no barbería aparte) |
 | **4. Deltas de giro** | `barberia.json`/`isp`/`restaurante` = JC con nodos apagados + `CITA_*` colgados. Anticipo (reusa preventa). Test de integración agenda+compra (F.3). | 3 | **−1** (deltas pequeños, no 3 flujos completos) |
@@ -279,8 +279,10 @@ nombre, sus params y su `resultado`. Esa ignorancia deliberada es la frontera de
 
 ### A.3 Tablas SQLite (por instancia — sin `tenant_id`, coherente con instancia-por-cliente)
 
-Nueva migración `migrations/0058_flujo_motor.sql` (**siguiente número libre real: el último aplicado
-es `0057_citas_cobro.sql`, NO `0026`** — corrección de auditoría 2026-07-12), espejada en `db/schema.sql`
+Nueva migración `migrations/NNNN_flujo_motor.sql`, donde **`NNNN` = el siguiente número libre en el
+momento de construir la Fase 1** (regla anti-drift: NO se pin­ea un número en el diseño porque el árbol
+de migraciones avanza). Al 2026-07-12 el último aplicado es `0058_cxp_iva_real.sql`, así que hoy sería
+**`0059`** — pero verifica `ls migrations/ | tail -1` antes de crearla. Espejada en `db/schema.sql`
 (regla del CLAUDE.md: toda columna nueva con `DEFAULT`, migración versionada + espejo en schema).
 
 ```sql
@@ -332,7 +334,7 @@ Notas de diseño:
   `mostrador`). Por tanto: (1) **NO** volver a agregar `servicio_precio`/`id_servicio`/`id_pedido`; ya
   existen. (2) El **anticipo por bot** (link `'generado'`, pago online) que propone la sección E es
   maquinaria **NUEVA que CONVIVE** con el cobro de mostrador, no lo reemplaza. (3) Si el anticipo
-  necesita saldo, agregar en `0058` **solo** `anticipo`/`saldo_pendiente` (columnas nuevas), **sin
+  necesita saldo, agregar en la migración del motor **solo** `anticipo`/`saldo_pendiente` (columnas nuevas), **sin
   chocar** con `id_pedido` ya existente — reusando el patrón conceptual de `preventa_clientes`
   (`stockService.js:172-181`: `porcentaje_anticipo`/`anticipo_pagado`/`saldo_pendiente`/`estatus='apartado'`).
 
@@ -629,7 +631,7 @@ function crearAnticipoDeCita(ctx, porcentaje) {
   // ↑ thin wrapper sobre insertarPedidoConCarrito + insertarLinkPago; NO descuenta inventario (servicio).
 
   // Ligar el pedido a la cita. citas.id_pedido YA EXISTE (0057) y lo usa el cobro de mostrador,
-  // así que el anticipo por bot lo liga en anticipo/saldo_pendiente (columnas NUEVAS de 0058),
+  // así que el anticipo por bot lo liga en anticipo/saldo_pendiente (columnas NUEVAS de la migración del motor),
   // NO en id_pedido — así no pisa el cobro de mostrador. `r` es string (link), NO {linkUrl}.
   db.prepare('UPDATE citas SET anticipo=?, saldo_pendiente=? WHERE id=?')
     .run(anticipo, saldo, ctx.data.cita_id);
@@ -737,7 +739,7 @@ la plantilla `barberia_con_anticipo` en el DB mock, correr la **secuencia real d
 que agenda (servicio→fecha→hora→confirma) y **luego** compra un producto, y verificar el estado final:
 - 1 fila en `citas` (estatus pendiente→confirmada tras marcar-pagado del anticipo).
 - 2 filas en `pedidos` (anticipo A + producto B), 2 en `links_pago`.
-- El anticipo se liga en `citas.anticipo`/`citas.saldo_pendiente` (columnas nuevas de 0058); `citas.id_pedido` (0057) queda para el cobro de mostrador.
+- El anticipo se liga en `citas.anticipo`/`citas.saldo_pendiente` (columnas nuevas de la migración del motor); `citas.id_pedido` (0057) queda para el cobro de mostrador.
 - Repetir con `barberia_sin_anticipo`: 1 cita, 1 pedido (solo el producto), 0 anticipo.
 
 ### F.4 Harness de REGRESIÓN byte-idéntica (el más importante — el dueño lo exigió)
@@ -760,7 +762,109 @@ Framework: **ninguno nuevo.** Se extiende el patrón `node tests/xxx.js` + asser
 
 ---
 
-## G. Migración por fases
+## G. Integración con el pipeline de filtros y el relevo humano (producción)
+
+> **Por qué esta sección existe (2026-07-12):** el motor NO es lo primero que ve un mensaje. Antes del
+> router corre un **pipeline numerado de filtros** en `bot/index.js` que puede **secuestrar la sesión**
+> (a `ASESOR`, a `SEARCHING`, o cortar en seco) **antes** de que el intérprete se ejecute. Si el diseño
+> del motor ignora esas conexiones, en producción rompería el relevo humano, la detección de quejas y el
+> cobro de envíos. Todo lo de abajo está verificado contra `bot/index.js` y `bot/flows/asesorFlow.js`.
+
+### FH.1 Dónde se enchufa el motor en el pipeline real
+
+El motor se registra como **un flow más** y solo corre en la **etapa 6** (`actionHandler.handleAction`,
+`index.js:1131-1133`). Todo lo anterior lo protege — el intérprete **nunca** ve texto bloqueado,
+frustrado ni de queja:
+
+| # | Etapa (`index.js`) | Qué hace | Efecto sobre la sesión / el motor |
+|---|---|---|---|
+| 1 | Burst guard | ráfaga global → 10s silencio | el motor no corre |
+| 2 | Post-block timeout (`:896`) | ignora en silencio a bloqueados recientes | el motor no corre |
+| 3 | Rate limiter (`:903`) | 10/min·30/5min·3img/min | el motor no corre |
+| 4 | **Content filter** (`cfCheck`, `:908`) | groserías → tag `blacklist`; si reincidente → **`ASESOR` `modo:'contenido_inapropiado'`** (`:915`) | **secuestra a ASESOR** antes del router |
+| 5 | **Frustración** (`esFrustracion`, `:924`) | tono agresivo limpio, desde CUALQUIER estado ≠ ASESOR → **`ASESOR` `modo:'cliente_frustrado'`** + tag `queja` (`:928`) | **secuestra a ASESOR** |
+| 6 | Media no soportada (`:953`) | audio/video/doc → aviso | el motor no corre |
+| 7 | Preprocesador de imagen / Vision (`:961`) | foto → query sintética `msgFinal.body` | el motor recibe **texto ya normalizado** |
+| 8 | **Detección de quejas** (`quejaCheck`, `:1047`) | 2 pasos; si escala → `registrarEscalada` + **`ASESOR` `modo:'queja'`** (`:1060`) | **secuestra a ASESOR** |
+| 9 | Detector de intención (solo `MENU`, `:1074`) | inyecta `SEARCHING` vía `handleAction` | pre-enruta compra; el motor lo vería como `SEARCHING` |
+| **10** | **`actionHandler.handleAction`** (`:1131`) | router: `FLOWS` + **motor** + giroFlows | **aquí y solo aquí corre el intérprete** |
+
+**Consecuencia de diseño (dura):** el grafo del motor **NO debe re-implementar** content-filter,
+frustración ni detección de quejas. Esos son filtros de plataforma, viven en `index.js`, corren para
+**todos** los tenants y no son configurables por grafo. Un nodo del grafo jamás debe intentar "detectar
+groserías" — para cuando el texto llega al motor, ya pasó ese filtro. Meterlo al grafo sería superficie
+de fallo duplicada y desactivable por config (exactamente lo que la frontera sellada prohíbe).
+
+### FH.2 El relevo humano (`ASESOR`) es un estado SELLADO que el motor NO posee
+
+Cuando cualquier filtro (4/5/8) o un nodo terminal escala, la sesión queda en `ASESOR`. A partir de ahí:
+
+- `asesorFlow.handle` responde **una** vez ("tu solicitud fue registrada… horario…") y setea
+  `_notificado:true`; **en los turnos siguientes devuelve `null`** (`asesorFlow.js:83`) = **silencio total**.
+  El bot **enmudece** para no pisar al humano que ya está atendiendo desde el panel.
+- El humano trabaja desde `cola_atencion` (el registro lo crea `registrarEscalada`); el aviso sale por
+  `cola_notificaciones` al `getValor('operador_telefono', ASESOR_WHATSAPP)` — **config por instancia**,
+  así el tenant clonado escala a SU operador, no al de Julio Cepeda.
+- **Re-entrada:** solo el reset global "hola"/"menu" (checado primero en `actionHandler`, antes del
+  dispatch) saca al cliente de `ASESOR` y lo devuelve a `MENU`. Nada más lo reactiva.
+
+**Reglas para el motor (no negociables):**
+
+1. **`STEPS` del intérprete NUNCA incluye `ASESOR`/`LISTA_ESPERA`/`CSAT`/`DEVOLUCION`.** Esos cuatro
+   son de `asesorFlow` (`STEPS = [S.ASESOR, S.LISTA_ESPERA, S.CSAT, S.DEVOLUCION]`, `asesorFlow.js:62`),
+   `tipo='sistema'`, y se quedan ahí **para siempre**. El grafo solo posee nodos de **conversación**.
+2. **Cuando la sesión está en `ASESOR`, el motor no corre.** El router despacha por `STEPS.includes(step)`
+   con `break` en el primero que matchea; como `asesorFlow` reclama `ASESOR` y el motor no, el turno lo
+   toma `asesorFlow` (silencio). El motor **no debe** devolver nada para un `step` que no posee → cae a
+   `undefined` y el router sigue (fail-closed, coherente con `actionHandler.js:151-158`).
+3. **Escalar es una acción SELLADA, no topología editable.** Un nodo de conversación puede declarar un
+   destino de escalada (`accion:'escalar'`), pero la escalada **real** llama `registrarEscalada` +
+   `cola_atencion` + set `ASESOR` — el mismo código que hoy. El grafo elige *cuándo* escalar (el `porqué`
+   del tenant), nunca *cómo* (la mecánica de handoff es intocable). El linter (D.2) trata `escalar` como
+   nodo sistema: su `accion`/efecto no se puede modificar.
+4. **La escalada por reintentos vive en el intérprete, no en un nodo.** El diseño ya usa
+   `data._reintentos`: 3 inputs inválidos → `ASESOR`. Esa es la **única** vía por la que el motor toca
+   `ASESOR`, y lo hace **saliendo** hacia el estado sellado (set + `registrarEscalada`), nunca
+   *manejando* `ASESOR`.
+
+### FH.3 Envíos, devoluciones y CSAT: qué es sellado y qué configurable
+
+- **Envíos (checkout):** `ASK_CP → SPLIT_* → DELIVERY → ASK_NOMBRE…ASK_REF` es **sistema sellado** — el
+  orden de captura de dirección es contractual con Estafeta (`orderFlow`/`addressFlow`). El motor lo
+  **invoca** vía `dispatchSistema`; jamás reordena la captura de CP/dirección ni el cálculo de flete
+  (`partirCarrito`, `calcularFlete`). Configurable: solo qué métodos de entrega se ofrecen
+  (`entrega_pickup/paqueteria/repartidor_activo`), que YA son toggles de módulo, no aristas del grafo.
+- **Devoluciones (`DEVOLUCION`):** flujo de 5 pasos que termina en `cola_atencion` + notificación al
+  operador (`asesorFlow.js:277-312`). Es **sistema** (toca `devoluciones`, reintegro de inventario al
+  resolver, evidencia fotográfica). El motor no lo interpreta; se llega por el atajo global de
+  "devolución" que ya checa `actionHandler` antes del dispatch.
+- **CSAT:** post-venta, escala a humano si la nota es ≤2 (`registrarEscalada 'csat_bajo'`,
+  `asesorFlow.js:135`). **Sistema.** El grafo puede *disparar* el CSAT (arista tras entrega) pero no
+  posee el estado.
+
+### FH.4 Ángulo multitienda de todo lo anterior
+
+Cada conexión de escalada/envío/queja ya es **per-instancia** y el motor debe respetarlo leyendo la
+misma config, nunca hardcodeando:
+
+- **Operador que recibe el escalado:** `getValor('operador_telefono', ASESOR_WHATSAPP)` — por instancia.
+- **Sucursal del pedido/servicio:** `sucursalDeSesion(db, ses)` — el motor pasa la sucursal a las
+  acciones selladas igual que `citas.js:cobrar`, para que envíos/inventario caigan en la tienda correcta.
+- **Horario de atención:** `HORARIO_ASESOR`/`enHorario()` — por instancia; el mensaje de escalada del
+  motor debe reusar `msgHorarioAsesor()`, no un texto fijo.
+- **Frases de escalada:** por `t()` → `configuracion.frase_<clave>`, así el texto del handoff se
+  ajusta por tienda sin tocar código (justo el dolor multitienda que motivó el motor).
+- **cola_atencion / cola_notificaciones:** son buses **intra-`.db`** (una base por tenant), así que el
+  relevo humano de un tenant nunca se cruza con otro — coherente con instancia-por-cliente (§D del PLAN).
+
+**Cierre:** con FH.1–FH.4 respetadas, encender el motor no cambia una sola de las rutas de
+queja/frustración/escalada/envío que hoy funcionan: el intérprete es un inquilino tardío del pipeline que
+solo reemplaza el cuerpo conversacional, y todo lo que protege al cliente (filtros) y lo conecta con un
+humano (ASESOR) queda exactamente donde está, sellado.
+
+---
+
+## H. Migración por fases
 
 > Invariante de cada fase: `test:bot` sigue verde y Julio Cepeda es byte-idéntico con el flag OFF.
 > Cada fase es desplegable y reversible sola. Esfuerzo en **días-persona** de un dev que conoce el código.
@@ -768,7 +872,7 @@ Framework: **ninguno nuevo.** Se extiende el patrón `node tests/xxx.js` + asser
 | Fase | Qué | Días | Riesgo |
 |---|---|---:|---|
 | **0. Red de seguridad** | Golden snapshot de JC (F.4.1) + correr los 117 tests como baseline. **Sin esto no se empieza.** | 1 | nulo |
-| **1. Extraer acciones** | `bot/flows/motor/actions.js` + contract tests (F.1). Envolver las funciones de `_shared.js` que ya existen — **cero lógica nueva de negocio**, solo el mapa `ACTIONS` + wrappers finos (`grabarPedidoAnticipoCita`). Migración `0058` (tablas motor + columnas `anticipo`/`saldo_pendiente` en `citas`). | 3 | bajo |
+| **1. Extraer acciones** | `bot/flows/motor/actions.js` + contract tests (F.1). Envolver las funciones de `_shared.js` que ya existen — **cero lógica nueva de negocio**, solo el mapa `ACTIONS` + wrappers finos (`grabarPedidoAnticipoCita`). Migración del motor (siguiente libre, hoy ≥`0059`) con tablas motor + columnas `anticipo`/`saldo_pendiente` en `citas`. | 3 | bajo |
 | **2. El intérprete tras flag** | `interprete.js` + `matchInput`/`slotsToVars`/`resolverDestino` + `grafo.js` (loader con cache) + tests del intérprete (F.2). Flag `motor_flujo_activo` default OFF. Registrarlo en `actionHandler`. | 4 | medio (código nuevo en hot path) |
 | **3. Piloto: citas** | Escribir `barberia_con/sin_anticipo.json` + linter (`linter.js`, sección D.2). Encender el flag SOLO para giros de servicio (los `CITA_*`, sin dinero de retail). Test de integración (F.3). citasFlow viejo queda como fallback. | 4 | medio |
 | **4. Editor + onboarding** | Seeder de plantillas en onboarding (B.1) + endpoint de guardado con linter + UI de edición de nodos en Prime (empieza texto+params; aristas de conversación después). | 5 | medio (UI) |
@@ -786,7 +890,7 @@ apagar el viejo. Nunca se migra checkout de dinero al intérprete: se queda sell
 | El motor rompe una venta en producción | Flag por-estado + fail-closed a router viejo (D.3) + los nodos de dinero nunca se interpretan (D.1). El golden snapshot corre en cada deploy. |
 | Un tenant guarda un grafo que vende gratis | Linter obligatorio antes de `activo=1`: "cobro sin monto" (D.2.4) + nodos sistema inmodificables (D.2.5). |
 | Los 117 tests dejan de proteger el comportamiento | F.4.2: corren con flag OFF (código viejo intacto) Y ON (motor). Se migran 1:1 a aserciones de comportamiento observable. |
-| Divergencia entre plantilla y schema | Migración `0058` versionada + espejo en `db/schema.sql` (regla CLAUDE.md). Plantillas JSON versionadas en git. |
+| Divergencia entre plantilla y schema | Migración del motor (siguiente libre) versionada + espejo en `db/schema.sql` (regla CLAUDE.md). Plantillas JSON versionadas en git. |
 | Handoff conversación↔sistema en un turno (C.3) | `dispatchSistema` reusa el patrón `menuFlow→citasFlow.iniciar()` ya probado (`citasFlow.js:78`); test de integración (F.3) cubre el turno único agendar→cobrar. |
 | Complejidad del editor de aristas en Prime | Fase 4 empieza con edición de **texto + params** (cubre barbería 30%↔50% sin tocar aristas); la edición de aristas de conversación es incremental y opcional. Los money-nodes nunca son editables. |
 
@@ -797,7 +901,7 @@ apagar el viejo. Nunca se migra checkout de dinero al intérprete: se queda sell
 - Router / dispatch / fail-closed: `bot/actionHandler.js:18-24, 144-158`.
 - Enum `S` (estados): `bot/flows/_shared.js:31-66`.
 - Piloto citasFlow (el más simple): `bot/flows/citasFlow.js:78-149`; delega desde menú `:78`.
-- `citas` YA tiene columnas de dinero desde 0057 (`servicio_precio`/`id_servicio`/`id_pedido`, `db/schema.sql:1135-1137`); cobro de mostrador en `citas.js:cobrar`. El anticipo por bot añade `anticipo`/`saldo_pendiente` en 0058.
+- `citas` YA tiene columnas de dinero desde 0057 (`servicio_precio`/`id_servicio`/`id_pedido`, `db/schema.sql:1135-1137`); cobro de mostrador en `citas.js:cobrar`. El anticipo por bot añade `anticipo`/`saldo_pendiente` en la migración del motor (siguiente libre).
 - Acciones de dinero selladas: `grabarPedidoEnvio` `_shared.js:863`, `grabarPedidoPickup` `:819`,
   `grabarPedidoSplit` `:951`, `insertarPedidoConCarrito` `:815`, `insertarLinkPago` `:745`,
   `partirCarrito` `:493`, `registrarMetodoPago` `:731`, `agregarAlCarrito` `:387`.

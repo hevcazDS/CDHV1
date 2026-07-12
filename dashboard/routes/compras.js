@@ -108,8 +108,12 @@ function facturaXml(req, res, ctx, { ses }) {
             }
             const dias = Number.isInteger(d.dias_credito) ? d.dias_credito : (prov.dias_credito || 0);
             const vence = db.prepare("SELECT date(COALESCE(?, date('now','localtime')), '+' || ? || ' days') v").get(cfdi.fecha, dias).v;
-            const r = db.prepare('INSERT INTO cuentas_pagar (id_proveedor, monto, vence_en, referencia) VALUES (?,?,?,?)')
-                .run(prov.id, cfdi.total, vence, cfdi.uuid || [cfdi.serie, cfdi.folio].filter(Boolean).join('-') || null);
+            // Guardamos base/IVA exactos del CFDI (0058) → DIOT usa el IVA acreditable
+            // real en vez de derivarlo plano. cfdi.subtotal es la base; el resto, IVA.
+            const _baseCfdi = Number(cfdi.subtotal) > 0 ? Number(cfdi.subtotal) : null;
+            const _ivaCfdi  = _baseCfdi != null ? Math.round((cfdi.total - _baseCfdi) * 100) / 100 : null;
+            const r = db.prepare('INSERT INTO cuentas_pagar (id_proveedor, monto, vence_en, referencia, base, iva) VALUES (?,?,?,?,?,?)')
+                .run(prov.id, cfdi.total, vence, cfdi.uuid || [cfdi.serie, cfdi.folio].filter(Boolean).join('-') || null, _baseCfdi, _ivaCfdi);
             try {
                 conta.asientoCompra('cfdi:' + (cfdi.uuid || r.lastInsertRowid), cfdi.total, {
                     cuentaCargo: d.es_mercancia ? '115' : '601',

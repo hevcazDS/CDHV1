@@ -975,6 +975,8 @@ CREATE TABLE IF NOT EXISTS cuentas_pagar (
     estatus      TEXT NOT NULL DEFAULT 'pendiente', -- pendiente|pagada
     pagada_en    TEXT,
     referencia   TEXT,
+    base         REAL,   -- 0058: subtotal exacto del CFDI (NULL = derivar plano en DIOT)
+    iva          REAL,   -- 0058: IVA acreditable exacto del CFDI (NULL = derivar plano en DIOT)
     creada_en    TEXT DEFAULT (datetime('now','localtime'))
 );
 

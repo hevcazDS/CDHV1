@@ -31,7 +31,7 @@ aditivo/toggleable, JC byte-idéntico, white-label intacto.
 - ✅ **Cita→cobro** — HECHO (migración 0057 `citas.servicio_precio/id_servicio/id_pedido`): citasFlow persiste el precio; `POST /api/citas/:id/cobrar` arma la venta reusando el POS (servicio sin stock) + asiento + puntos; botón "Cobrar" en Citas.jsx (pide precio y método) con badge "cobrada". Cierra el círculo agendar→cobrar de barbería/estética/uñas. **Es la Fase 1 del piloto del motor de flujo** (giro cita completo end-to-end).
 - ✅ **Almacén ya alcanza la recepción de OC** — HECHO: `ComprasTab` acepta `soloRecepcion` (oculta el alta de OC) y se monta como pestaña "Recepción de OC" en la página Almacén. Misma lógica/endpoint (`ocRecibir` área almacen), sin duplicar.
 - 🟡 **Catálogo agrupador SAT borrador**: `_COD_AGRUPADOR` mapea 14 cuentas; el resto cae a fallback inválido. Completar o UI para editarlo.
-- 🟡 **DIOT deriva IVA plano** en vez del IVA real del CFDI de proveedor cuando existe.
+- ✅ **DIOT usa IVA real del CFDI** — HECHO (migración 0058 `cuentas_pagar.base`/`iva`): la importación XML guarda base/IVA exactos del CFDI; la DIOT los prefiere por proveedor y solo deriva plano las CxP capturadas a mano sin CFDI. Self-check de la mezcla real+plano PASS.
 - 🟡 **Rol mesero/comisionista** no existen; propina se guarda pero sin pantalla de reparto.
 - ✅ **PPD vs PUE distinguido** en FacturacionTab — HECHO: `facturacion-pendiente` deriva `metodo_sat` de `a_credito` (fiado=PPD, contado=PUE); la columna "Pago" lo muestra y el botón **REP solo aparece en PPD sin `rep_uuid`** (badge "REP ✓" cuando ya se timbró).
 
