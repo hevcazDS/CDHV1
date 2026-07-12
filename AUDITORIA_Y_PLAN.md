@@ -168,10 +168,12 @@ que hoy se tira como texto, y revisión de arquitectura + seguridad del código.
       credenciales semilla. Con archivo:línea y fix.
 
 ### Fases 1-4 — ejecución con lo entregado
-- [ ] Fase 1: motion + skeletons + regleta (rehacer CSS si hace falta; Puppeteer antes/después)
-- [ ] Fase 2: gráficas texto→visual con recharts lazy (bundle inicial intacto)
-- [ ] Fase 3: fixes REALES de arquitectura/seguridad
-- [ ] Fase 4: verificación total (tests + índice + build + capturas + code-review del diff)
+- [x] Fase 0: 4 specs entregadas (SPEC_MOTION_UI, SPEC_GRAFICAS_ERP, REVISION_ARQUITECTURA, REVISION_SEGURIDAD)
+- [x] Fase 1 (commit 82fb88b): motion CSS completo + skeletons + regleta por dominio + switch a --brand; 0 KB (sin framer-motion, deps minors seguros)
+- [x] Fase 3 (commit 02d8c09) PRIORIZADA sobre Fase 2: 6 fixes reales — marcar-pagado atómico, backup respeta instancia, bot anti split-brain, aviso password default reparado, XSS Fiados escapado, lockout de PIN (probado 4/4)
+- [x] Fase 2 lote 0+1 (commit 19c32df): MiniCharts.jsx lazy + sparklines Inicio + dona corte + aging CxC + área proyección caja
+- [ ] Fase 2 lotes 2-3 PENDIENTES: cascada P&L, comparativo, margen categoría, bullet equilibrio, barras divergentes, top productos/clientes, composición inventario, IVA
+- [ ] Fase 4: code-review del diff EN CURSO; batería verde (bot 117, multitienda 18, erp 30, índice 241/21, instalación fresca OK)
 
 Restricciones: sin Google Fonts (CSP), white-label (identidad del producto), JC no
 pierde nada, commits por fase.
