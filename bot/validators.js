@@ -23,8 +23,11 @@ function validarEnv() {
     }
     if (!process.env.ASESOR_WHATSAPP)
         log.warn('⚠️  ASESOR_WHATSAPP no configurado — escaladas no llegarán al asesor');
-    if (!process.env.DASHBOARD_PASS || process.env.DASHBOARD_PASS === 'cambiar_esto_urgente')
-        log.warn('⚠️  DASHBOARD_PASS usa valor por defecto inseguro');
+    // El default REAL de server.js es 'cambiar_esto' (REVISION_SEGURIDAD H1: el
+    // aviso comparaba contra otra cadena y NUNCA disparaba — un clon quedaba con
+    // gerente/cambiar_esto operativo sin alerta). Se cubren ambas por si acaso.
+    if (!process.env.DASHBOARD_PASS || ['cambiar_esto', 'cambiar_esto_urgente'].includes(process.env.DASHBOARD_PASS))
+        log.warn('⚠️  DASHBOARD_PASS usa el valor por defecto INSEGURO — cámbialo en .env antes de exponer el panel');
     return { ok: true };
 }
 

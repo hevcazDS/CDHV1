@@ -178,6 +178,26 @@ setInterval(() => {
     for (const [uid, d] of _imgDiario) if (d.fecha !== hoy) _imgDiario.delete(uid);
 }, 6 * 3_600_000).unref();
 
+// ── Vigilante de instancia (anti split-brain, REVISION_ARQUITECTURA H3) ─────
+// El dashboard puede cambiar la tienda activa (dashboard/.instancia_activa) y
+// reinicia su propio proceso; si su intento de reiniciar el bot falla, el bot
+// seguiría vendiendo contra la BD ANTERIOR. Aquí el bot vigila el puntero él
+// mismo: si cambió respecto al que abrió al arrancar, hace exit(0) limpio y
+// pm2 lo levanta ya apuntando a la tienda correcta.
+const _punteroInstancia = () => {
+    try {
+        const p = path.join(__dirname, '..', 'dashboard', '.instancia_activa');
+        return fs.existsSync(p) ? fs.readFileSync(p, 'utf8').trim() : '';
+    } catch (_) { return ''; }
+};
+const _instanciaAlArrancar = _punteroInstancia();
+setInterval(() => {
+    if (_punteroInstancia() !== _instanciaAlArrancar) {
+        log.warn('[instancia] El puntero de tienda cambió — reiniciando el bot para abrir la BD correcta');
+        setTimeout(() => process.exit(0), 500);
+    }
+}, 60_000).unref();
+
 // ══════════════════════════════════════════════════════════════════
 //  RATE LIMITER — ventana deslizante en memoria, sin archivos extra
 // ══════════════════════════════════════════════════════════════════

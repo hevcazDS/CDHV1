@@ -19,22 +19,26 @@ export default function Fiados() {
   const { data } = useQuery({ queryKey: ['fiados'], queryFn: () => api.get('/api/pos/fiados'), refetchInterval: 60000 });
   const fiados = data?.fiados || [];
 
+  // Escapa HTML: el nombre/teléfono los teclea el CLIENTE por WhatsApp
+  // (ASK_NOMBRE) y aquí se interpolan en un document.write con <script> —
+  // sin escapar es XSS almacenado en la sesión del operador (REVISION_SEGURIDAD M1).
+  const esc = (s) => String(s ?? '—').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const constancia = (f) => {
     const hoy = new Date().toLocaleDateString('es-MX');
     const w = window.open('', '_blank', 'width=720,height=800');
     if (!w) return;
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Constancia de adeudo — ${f.nombre || ''}</title>
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Constancia de adeudo — ${esc(f.nombre)}</title>
       <style>body{font-family:system-ui,Arial,sans-serif;max-width:640px;margin:32px auto;color:#111;line-height:1.5}
       h1{font-size:18px;border-bottom:2px solid #111;padding-bottom:8px} .row{display:flex;justify-content:space-between;margin:6px 0}
       .tot{font-size:20px;font-weight:700} .firma{margin-top:64px;border-top:1px solid #111;width:260px;padding-top:6px;font-size:12px}
       .nota{font-size:11px;color:#555;margin-top:24px}</style></head><body>
       <h1>Constancia de adeudo (crédito)</h1>
-      <p>${hoy}</p>
-      <div class="row"><span>Cliente:</span><strong>${f.nombre || '—'}</strong></div>
-      <div class="row"><span>Teléfono:</span><span>${f.telefono || '—'}</span></div>
-      <div class="row"><span>Pedidos a crédito:</span><span>${f.pedidos}</span></div>
-      <div class="row"><span>Próximo vencimiento:</span><span>${f.proximo_vence || '—'}</span></div>
-      <div class="row tot"><span>Adeudo total:</span><span>${money(f.adeudo)}</span></div>
+      <p>${esc(hoy)}</p>
+      <div class="row"><span>Cliente:</span><strong>${esc(f.nombre)}</strong></div>
+      <div class="row"><span>Teléfono:</span><span>${esc(f.telefono)}</span></div>
+      <div class="row"><span>Pedidos a crédito:</span><span>${esc(f.pedidos)}</span></div>
+      <div class="row"><span>Próximo vencimiento:</span><span>${esc(f.proximo_vence)}</span></div>
+      <div class="row tot"><span>Adeudo total:</span><span>${esc(money(f.adeudo))}</span></div>
       <p class="nota">El cliente reconoce el adeudo por la mercancía entregada a crédito y se compromete a liquidarlo en el plazo acordado. Este documento es un comprobante interno de la operación, no un CFDI.</p>
       <div class="firma">Firma del cliente</div>
       <script>window.onload=()=>window.print()</script></body></html>`);

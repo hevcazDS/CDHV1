@@ -31,12 +31,36 @@ function validarPin(db, pin) {
     return crypto.timingSafeEqual(Buffer.from(intento), Buffer.from(hash));
 }
 
+// Anti-fuerza-bruta del PIN (REVISION_SEGURIDAD M2): un PIN de 4-12 dígitos sin
+// bloqueo es brute-forceable por un rol operativo autenticado. Se bloquea por
+// usuario tras 5 fallos, con backoff creciente (30s × fallos-sobre-5, tope 5min).
+const _fallos = new Map(); // username → { n, hasta }
+const MAX_INTENTOS = 5;
+function _bloqueoRestante(user) {
+    const f = _fallos.get(user);
+    if (!f || !f.hasta) return 0;
+    return Math.max(0, f.hasta - Date.now());
+}
+function _registrarFallo(user) {
+    const f = _fallos.get(user) || { n: 0, hasta: 0 };
+    f.n += 1;
+    if (f.n >= MAX_INTENTOS) f.hasta = Date.now() + Math.min(300_000, 30_000 * (f.n - MAX_INTENTOS + 1));
+    _fallos.set(user, f);
+}
+
 // Regla central: administrador+ opera sin PIN; especialistas lo requieren.
 // Devuelve null si puede proceder, o un mensaje de error si no.
 function exigirAutorizacion(db, ses, pin, rangoDe) {
     if (rangoDe(ses?.rol) >= 2) return null;
     if (!hayPin(db)) return 'Operación restringida: pide al administrador configurar el PIN de autorización (Módulos)';
-    if (!validarPin(db, pin)) return 'PIN de autorización incorrecto';
+    const user = ses?.username || '?';
+    const restante = _bloqueoRestante(user);
+    if (restante > 0) return `Demasiados intentos de PIN. Espera ${Math.ceil(restante / 1000)}s antes de reintentar.`;
+    if (!validarPin(db, pin)) {
+        _registrarFallo(user);
+        return 'PIN de autorización incorrecto';
+    }
+    _fallos.delete(user); // éxito → limpia el contador
     return null;
 }
 

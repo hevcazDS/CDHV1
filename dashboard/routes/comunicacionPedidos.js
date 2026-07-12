@@ -252,16 +252,25 @@ function pagoMarcarPagado(req, res, ctx, { params, ses }) {
             const lp = db.prepare('SELECT * FROM links_pago WHERE id=?').get(id);
             if (!lp) return json(res, { ok: false, error: 'Link de pago no encontrado' }, 404);
             if (lp.estatus === 'pagado') return json(res, { ok: false, error: 'Este pago ya fue registrado', estatus: 'pagado' }, 409);
-            db.prepare("UPDATE links_pago SET estatus='pagado', pagado_en=datetime('now','localtime'), referencia_pago=? WHERE id=? AND estatus!='pagado'").run(referencia_pago, id);
             const _esCred = db.prepare('SELECT a_credito FROM pedidos WHERE id_pedido=?').get(lp.id_pedido)?.a_credito == 1;
-            const items = _esCred ? [] : db.prepare(`
-                SELECT d.id_producto, d.cantidad, d.sucursal_origen, COALESCE(pr.tipo,'fisico') AS tipo
-                FROM pedido_detalle d LEFT JOIN productos pr ON pr.id = d.id_producto WHERE d.id_pedido=?`).all(lp.id_pedido);
-            for (const it of items) {
-                if (it.tipo === 'servicio' || !it.sucursal_origen) continue;
-                flagActivo(db, 'inventario_activo', true) && kardexService.movimiento({ id_producto: it.id_producto, sucursal: it.sucursal_origen, tipo: 'venta', delta: -it.cantidad, motivo: 'Pago pedido ' + lp.id_pedido, usuario: ses.username });
-            }
-            db.prepare('UPDATE pedidos SET cobrado_por=? WHERE id_pedido=?').run(ses.username, lp.id_pedido);
+            // ATÓMICO (REVISION_ARQUITECTURA H1): marcar pagado + descontar
+            // inventario + cobrado_por deben ir juntos. Sin la transacción, un
+            // crash a media operación dejaba el pago registrado sin descontar
+            // stock, y la idempotencia (409) impedía repararlo reintentando.
+            // El kardex (venta) es interno; asientos/puntos/notifs quedan FUERA
+            // (idempotentes, no deben abortar el cobro si fallan).
+            const _invActivo = flagActivo(db, 'inventario_activo', true);
+            db.transaction(() => {
+                db.prepare("UPDATE links_pago SET estatus='pagado', pagado_en=datetime('now','localtime'), referencia_pago=? WHERE id=? AND estatus!='pagado'").run(referencia_pago, id);
+                const items = _esCred ? [] : db.prepare(`
+                    SELECT d.id_producto, d.cantidad, d.sucursal_origen, COALESCE(pr.tipo,'fisico') AS tipo
+                    FROM pedido_detalle d LEFT JOIN productos pr ON pr.id = d.id_producto WHERE d.id_pedido=?`).all(lp.id_pedido);
+                for (const it of items) {
+                    if (it.tipo === 'servicio' || !it.sucursal_origen || !_invActivo) continue;
+                    kardexService.movimiento({ id_producto: it.id_producto, sucursal: it.sucursal_origen, tipo: 'venta', delta: -it.cantidad, motivo: 'Pago pedido ' + lp.id_pedido, usuario: ses.username });
+                }
+                db.prepare('UPDATE pedidos SET cobrado_por=? WHERE id_pedido=?').run(ses.username, lp.id_pedido);
+            })();
             const ped = db.prepare("SELECT p.*, c.telefono FROM pedidos p LEFT JOIN clientes c ON c.id=p.id_cliente OR (p.id_cliente IS NULL AND c.nombre=p.cliente) WHERE p.id_pedido=? LIMIT 1").get(lp.id_pedido);
             try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('pago_confirmado','whatsapp',?,?)").run(String(lp.monto || ''), ped?.telefono || null); } catch (_) {}
             try { if (ped?.canal_creacion === 'asesor') db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('recompra_convertida','whatsapp',?,?)").run(String(lp.monto || ''), ped?.telefono || null); } catch (_) {}
