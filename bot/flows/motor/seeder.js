@@ -58,4 +58,24 @@ function sembrar(db, plantilla, opts = {}) {
     return { id, valido, errs: val.errs };
 }
 
-module.exports = { cargarPlantilla, sembrar, _aMemoria };
+// Qué plantilla siembra cada giro en el onboarding. Los giros de servicio usan el
+// delta de barbería (base sin wizard + citas); el resto comparte la base JC.
+const PLANTILLA_POR_GIRO = {
+    jugueteria: 'jugueteria', retail: 'jugueteria', abarrotes: 'jugueteria',
+    carniceria: 'jugueteria', ferreteria: 'jugueteria', restaurante: 'jugueteria', custom: 'jugueteria',
+    servicios: 'barberia', mantenimiento: 'barberia', barberia: 'barberia',
+    tatuajes: 'barberia', estetica: 'barberia', unas: 'barberia', freelancer: 'barberia',
+};
+
+// Siembra la plantilla del giro (activa+válida) si existe. Idempotente en la
+// práctica del onboarding (solo corre una vez, negocio_configurado lo bloquea).
+// NO enciende motor_flujo_activo: el grafo queda listo pero el motor es opt-in
+// desde Módulos (así una instancia nueva corre igual hasta que el dueño lo active).
+function sembrarGiro(db, giro) {
+    const nombre = PLANTILLA_POR_GIRO[giro];
+    if (!nombre) return null;
+    try { return sembrar(db, cargarPlantilla(nombre), { activar: true }); }
+    catch (e) { return { id: null, valido: 0, errs: [e.message] }; }
+}
+
+module.exports = { cargarPlantilla, sembrar, sembrarGiro, PLANTILLA_POR_GIRO, _aMemoria };

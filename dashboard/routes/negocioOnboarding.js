@@ -51,6 +51,10 @@ function onboarding(req, res, ctx) {
             setCfg('nombre_negocio', nombre);
             setCfg('nombre_negocio_corto', String(d.nombre_negocio_corto || nombre).trim());
             setCfg('giro', giro);
+            // Sembrar la plantilla de grafo del motor para este giro (activa+válida,
+            // pero el motor queda OFF: opt-in desde Módulos). Best-effort: si falla,
+            // el negocio se configura igual y corre en código.
+            try { require('../../bot/flows/motor/seeder').sembrarGiro(db, giro); } catch (_) {}
             // Preset de módulos del giro (una sola vez, en el onboarding): la
             // barbería nace con Citas, el restaurante con Mesas+POS, la tienda
             // con POS. Después se ajustan en Módulos como siempre.

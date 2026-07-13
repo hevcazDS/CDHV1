@@ -14,6 +14,7 @@ import SucursalesTab from './prime/SucursalesTab';
 import UsuariosTab from './prime/UsuariosTab';
 import DatosLLMTab from './prime/DatosLLMTab';
 import BotEditorTab from './prime/BotEditorTab';
+import MotorTab from './prime/MotorTab';
 import FiltrosTab from './prime/FiltrosTab';
 
 // soloPrime: integraciones, identidad del negocio, gestión de usuarios y
@@ -26,6 +27,7 @@ const TABS = [
   { key: 'sucursales', label: 'Sucursales', Componente: SucursalesTab },
   { key: 'usuarios', label: 'Usuarios', soloPrime: false, Componente: UsuariosTab },
   { key: 'bot', label: 'Editor del bot', soloPrime: true, Componente: BotEditorTab },
+  { key: 'motor', label: 'Motor de flujo', soloPrime: true, Componente: MotorTab },
   { key: 'datos', label: 'Datos LLM', soloPrime: true, Componente: DatosLLMTab },
   { key: 'filtros', label: 'Filtros', Componente: FiltrosTab },
 ];
