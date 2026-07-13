@@ -44,5 +44,11 @@
 ## 8. Responsividad web (el panel corre en navegador, no solo Electron)
 - El sidebar se auto-colapsa a riel < 1000px. Toda página debe verse bien de ~768px en adelante: usa las clases responsivas de §2, tablas dentro de `.table-wrap` (scroll-x), y no fuerces anchos fijos.
 
+## 9. Rutas del backend (dashboard/routes/*.js)
+- Handler POST/PUT que lee un body JSON: usa **`ctx.readJson(req, res, d => { ... })`** (lee body + parsea + try/catch; body inválido → 400, error → 500). ❌ No repitas el boilerplate `readBody(req, body => { try { const d = JSON.parse(body||'{}') … } catch(e){ json(…500) } })`.
+- Cada ruta declara su gate explícito (`area`/`areas`/`roles`/`pin`) en el arreglo `RUTAS` de su módulo (`_construirModulo`). Nada sin gate salvo diseño (flota).
+- Validación de payload: `ctx.validar(d, Schema, res, ruta)` (Zod) para los POST con esquema.
+- Nombres de archivo en `Content-Disposition`: saneados (`replace(/[^0-9-]/g,'')` para periodos, `_slug` para folios) — nunca interpolar input crudo.
+
 ---
-**En una línea:** clase antes que `style` inline; variable antes que literal; Mantine `<Tabs>` para pestañas; `.split-2`/`.kpi-grid` para columnas. Así cada hoja nueva nace con la misma base.
+**En una línea:** clase antes que `style` inline; variable antes que literal; Mantine `<Tabs>` para pestañas; `.split-2`/`.kpi-grid` para columnas; `readJson` para bodies. Así cada hoja nueva nace con la misma base.

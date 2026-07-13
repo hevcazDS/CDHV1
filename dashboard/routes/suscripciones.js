@@ -43,40 +43,34 @@ function listar(req, res, ctx) {
 }
 
 function crear(req, res, ctx, { ses }) {
-    const { db, json, readBody } = ctx;
+    const { db, json, readJson } = ctx;
     if (!activo(db)) return json(res, { ok: false, error: 'Módulo desactivado' }, 403);
-    return readBody(req, body => {
-        try {
-            const d = JSON.parse(body || '{}');
-            const monto = Number(d.monto);
-            if (!String(d.nombre || '').trim()) return json(res, { ok: false, error: 'Falta el nombre del cliente' }, 400);
-            if (!(monto > 0)) return json(res, { ok: false, error: 'Monto inválido' }, 400);
-            const diaCorte = Math.min(Math.max(parseInt(d.dia_corte) || 1, 1), 28);
-            const suc = require('../../services/sucursalService').sucursalDeSesion(db, ses) || null;
-            const r = db.prepare(`INSERT INTO suscripciones (id_cliente, nombre, telefono, concepto, monto, dia_corte, proximo_cobro, referencia, sucursal, creado_por)
-                VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
-                d.id_cliente || null, String(d.nombre).trim(), String(d.telefono || '').replace(/\D/g, '') || null,
-                String(d.concepto || '').trim() || 'Suscripción mensual', Math.round(monto * 100) / 100,
-                diaCorte, proximaFecha(diaCorte), String(d.referencia || '').trim() || null, suc, ses.username || null);
-            return json(res, { ok: true, id: r.lastInsertRowid });
-        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    return readJson(req, res, d => {
+        const monto = Number(d.monto);
+        if (!String(d.nombre || '').trim()) return json(res, { ok: false, error: 'Falta el nombre del cliente' }, 400);
+        if (!(monto > 0)) return json(res, { ok: false, error: 'Monto inválido' }, 400);
+        const diaCorte = Math.min(Math.max(parseInt(d.dia_corte) || 1, 1), 28);
+        const suc = require('../../services/sucursalService').sucursalDeSesion(db, ses) || null;
+        const r = db.prepare(`INSERT INTO suscripciones (id_cliente, nombre, telefono, concepto, monto, dia_corte, proximo_cobro, referencia, sucursal, creado_por)
+            VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
+            d.id_cliente || null, String(d.nombre).trim(), String(d.telefono || '').replace(/\D/g, '') || null,
+            String(d.concepto || '').trim() || 'Suscripción mensual', Math.round(monto * 100) / 100,
+            diaCorte, proximaFecha(diaCorte), String(d.referencia || '').trim() || null, suc, ses.username || null);
+        return json(res, { ok: true, id: r.lastInsertRowid });
     });
 }
 
 function actualizar(req, res, ctx, { params }) {
-    const { db, json, readBody } = ctx;
-    return readBody(req, body => {
-        try {
-            const id = parseInt(params[0]);
-            const d = JSON.parse(body || '{}');
-            const s = db.prepare('SELECT * FROM suscripciones WHERE id=?').get(id);
-            if (!s) return json(res, { ok: false, error: 'Suscripción no encontrada' }, 404);
-            if (d.estatus && ['activa', 'suspendida', 'cancelada'].includes(d.estatus)) db.prepare('UPDATE suscripciones SET estatus=? WHERE id=?').run(d.estatus, id);
-            if (d.monto != null && Number(d.monto) > 0) db.prepare('UPDATE suscripciones SET monto=? WHERE id=?').run(Math.round(Number(d.monto) * 100) / 100, id);
-            if (d.dia_corte != null) { const dc = Math.min(Math.max(parseInt(d.dia_corte) || 1, 1), 28); db.prepare('UPDATE suscripciones SET dia_corte=?, proximo_cobro=? WHERE id=?').run(dc, proximaFecha(dc), id); }
-            if (d.referencia !== undefined) db.prepare('UPDATE suscripciones SET referencia=? WHERE id=?').run(String(d.referencia).trim() || null, id);
-            return json(res, { ok: true, id });
-        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    const { db, json, readJson } = ctx;
+    return readJson(req, res, d => {
+        const id = parseInt(params[0]);
+        const s = db.prepare('SELECT * FROM suscripciones WHERE id=?').get(id);
+        if (!s) return json(res, { ok: false, error: 'Suscripción no encontrada' }, 404);
+        if (d.estatus && ['activa', 'suspendida', 'cancelada'].includes(d.estatus)) db.prepare('UPDATE suscripciones SET estatus=? WHERE id=?').run(d.estatus, id);
+        if (d.monto != null && Number(d.monto) > 0) db.prepare('UPDATE suscripciones SET monto=? WHERE id=?').run(Math.round(Number(d.monto) * 100) / 100, id);
+        if (d.dia_corte != null) { const dc = Math.min(Math.max(parseInt(d.dia_corte) || 1, 1), 28); db.prepare('UPDATE suscripciones SET dia_corte=?, proximo_cobro=? WHERE id=?').run(dc, proximaFecha(dc), id); }
+        if (d.referencia !== undefined) db.prepare('UPDATE suscripciones SET referencia=? WHERE id=?').run(String(d.referencia).trim() || null, id);
+        return json(res, { ok: true, id });
     });
 }
 

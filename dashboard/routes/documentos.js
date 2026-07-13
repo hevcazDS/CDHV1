@@ -74,20 +74,17 @@ function plantillasGet(req, res, ctx, { ses }) {
     return json(res, { ok: true, plantillas: rows });
 }
 function plantillaPost(req, res, ctx, { ses }) {
-    const { db, json, readBody } = ctx;
-    return readBody(req, body => {
-        try {
-            const d = JSON.parse(body || '{}');
-            if (!TIPOS.includes(d.tipo)) return json(res, { ok: false, error: 'Tipo inválido' }, 400);
-            if (!String(d.nombre || '').trim() || !String(d.cuerpo || '').trim()) return json(res, { ok: false, error: 'Falta nombre o cuerpo' }, 400);
-            const suc = sucursalDeSesion(db, ses) || null;   // la plantilla propia es de la sucursal de la sesión
-            if (d.id) {
-                db.prepare('UPDATE plantillas_documento SET nombre=?, cuerpo=? WHERE id=? AND sucursal IS NOT NULL').run(String(d.nombre).trim(), String(d.cuerpo), parseInt(d.id));
-                return json(res, { ok: true, id: parseInt(d.id) });
-            }
-            const r = db.prepare('INSERT INTO plantillas_documento (tipo, nombre, cuerpo, sucursal, creado_por) VALUES (?,?,?,?,?)').run(d.tipo, String(d.nombre).trim(), String(d.cuerpo), suc, ses.username || null);
-            return json(res, { ok: true, id: r.lastInsertRowid });
-        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    const { db, json, readJson } = ctx;
+    return readJson(req, res, d => {
+        if (!TIPOS.includes(d.tipo)) return json(res, { ok: false, error: 'Tipo inválido' }, 400);
+        if (!String(d.nombre || '').trim() || !String(d.cuerpo || '').trim()) return json(res, { ok: false, error: 'Falta nombre o cuerpo' }, 400);
+        const suc = sucursalDeSesion(db, ses) || null;   // la plantilla propia es de la sucursal de la sesión
+        if (d.id) {
+            db.prepare('UPDATE plantillas_documento SET nombre=?, cuerpo=? WHERE id=? AND sucursal IS NOT NULL').run(String(d.nombre).trim(), String(d.cuerpo), parseInt(d.id));
+            return json(res, { ok: true, id: parseInt(d.id) });
+        }
+        const r = db.prepare('INSERT INTO plantillas_documento (tipo, nombre, cuerpo, sucursal, creado_por) VALUES (?,?,?,?,?)').run(d.tipo, String(d.nombre).trim(), String(d.cuerpo), suc, ses.username || null);
+        return json(res, { ok: true, id: r.lastInsertRowid });
     });
 }
 
@@ -107,45 +104,40 @@ function documentoGet(req, res, ctx, { params }) {
     return json(res, { ok: true, documento: doc });
 }
 function documentoPost(req, res, ctx, { ses }) {
-    const { db, json, readBody } = ctx;
+    const { db, json, readJson } = ctx;
     if (!activo(db)) return json(res, { ok: false, error: 'Módulo de documentos desactivado' }, 403);
-    return readBody(req, body => {
-        try {
-            const d = JSON.parse(body || '{}');
-            if (!TIPOS.includes(d.tipo)) return json(res, { ok: false, error: 'Tipo inválido' }, 400);
-            const pl = db.prepare('SELECT * FROM plantillas_documento WHERE id=?').get(parseInt(d.id_plantilla));
-            if (!pl) return json(res, { ok: false, error: 'Elige una plantilla' }, 400);
-            const suc = sucursalDeSesion(db, ses) || '';
-            const monto = Number(d.monto) || 0;
-            const vars = {
-                negocio: _cfg(db, 'nombre_negocio') || 'Mi negocio',
-                sucursal: suc || 'Matriz',
-                fecha: new Date().toLocaleDateString('es-MX'),
-                contraparte: String(d.contraparte_nombre || '').trim(),
-                ref: String(d.contraparte_ref || '').trim(),
-                concepto: String(d.concepto || '').trim(),
-                monto: '$' + monto.toFixed(2) + ' MXN',
-                monto_letra: numeroALetras(monto),
-            };
-            const contenido = render(pl.cuerpo, vars);
-            const folio = 'DOC-' + Date.now().toString(36).toUpperCase();
-            const r = db.prepare(`INSERT INTO documentos (tipo, id_plantilla, contraparte_tipo, contraparte_nombre, contraparte_ref, monto, contenido, estatus, folio, id_pedido, sucursal, creado_por)
-                VALUES (?,?,?,?,?,?,?, 'emitido', ?, ?, ?, ?)`).run(
-                d.tipo, pl.id, String(d.contraparte_tipo || 'cliente'), vars.contraparte, vars.ref, monto, contenido, folio, d.id_pedido || null, suc || null, ses.username || null);
-            return json(res, { ok: true, id: r.lastInsertRowid, folio, contenido });
-        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    return readJson(req, res, d => {
+        if (!TIPOS.includes(d.tipo)) return json(res, { ok: false, error: 'Tipo inválido' }, 400);
+        const pl = db.prepare('SELECT * FROM plantillas_documento WHERE id=?').get(parseInt(d.id_plantilla));
+        if (!pl) return json(res, { ok: false, error: 'Elige una plantilla' }, 400);
+        const suc = sucursalDeSesion(db, ses) || '';
+        const monto = Number(d.monto) || 0;
+        const vars = {
+            negocio: _cfg(db, 'nombre_negocio') || 'Mi negocio',
+            sucursal: suc || 'Matriz',
+            fecha: new Date().toLocaleDateString('es-MX'),
+            contraparte: String(d.contraparte_nombre || '').trim(),
+            ref: String(d.contraparte_ref || '').trim(),
+            concepto: String(d.concepto || '').trim(),
+            monto: '$' + monto.toFixed(2) + ' MXN',
+            monto_letra: numeroALetras(monto),
+        };
+        const contenido = render(pl.cuerpo, vars);
+        const folio = 'DOC-' + Date.now().toString(36).toUpperCase();
+        const r = db.prepare(`INSERT INTO documentos (tipo, id_plantilla, contraparte_tipo, contraparte_nombre, contraparte_ref, monto, contenido, estatus, folio, id_pedido, sucursal, creado_por)
+            VALUES (?,?,?,?,?,?,?, 'emitido', ?, ?, ?, ?)`).run(
+            d.tipo, pl.id, String(d.contraparte_tipo || 'cliente'), vars.contraparte, vars.ref, monto, contenido, folio, d.id_pedido || null, suc || null, ses.username || null);
+        return json(res, { ok: true, id: r.lastInsertRowid, folio, contenido });
     });
 }
 function documentoPut(req, res, ctx, { params }) {
-    const { db, json, readBody } = ctx;
-    return readBody(req, body => {
-        try {
-            const id = parseInt(params[0]);
-            const est = JSON.parse(body || '{}').estatus;
-            if (!['borrador', 'emitido', 'firmado', 'cancelado'].includes(est)) return json(res, { ok: false, error: 'Estatus inválido' }, 400);
-            db.prepare('UPDATE documentos SET estatus=? WHERE id=?').run(est, id);
-            return json(res, { ok: true, id, estatus: est });
-        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    const { db, json, readJson } = ctx;
+    return readJson(req, res, d => {
+        const id = parseInt(params[0]);
+        const est = d.estatus;
+        if (!['borrador', 'emitido', 'firmado', 'cancelado'].includes(est)) return json(res, { ok: false, error: 'Estatus inválido' }, 400);
+        db.prepare('UPDATE documentos SET estatus=? WHERE id=?').run(est, id);
+        return json(res, { ok: true, id, estatus: est });
     });
 }
 

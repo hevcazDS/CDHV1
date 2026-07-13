@@ -406,6 +406,21 @@ function readBody(req, cb) {
     req.on('end', () => cb(body));
 }
 
+// ── Helper: lee el body, parsea JSON y ejecuta cb(obj) con try/catch — reemplaza
+// el boilerplate `readBody(req, body => { try { const d = JSON.parse(body||'{}');
+// ...logica } catch(e){ json(res,{ok:false,error:e.message},500) } })` repetido
+// ~105 veces en 23 archivos (arquitecto MEDIO #5). Body inválido → 400; error en
+// el handler → 500 con el mismo shape que antes. Toda ruta nueva usa readJson.
+function readJson(req, res, cb) {
+    return readBody(req, body => {
+        let d;
+        try { d = JSON.parse(body || '{}'); }
+        catch (_) { return json(res, { ok: false, error: 'JSON inválido' }, 400); }
+        try { return cb(d); }
+        catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    });
+}
+
 // ── Helper: valida un objeto ya parseado contra un schema Zod. Si falla, ya
 // escribe la respuesta 400 y regresa null (el caller solo necesita
 // "if (!datos) return;") — reemplaza el bloque de 3 líneas que se repetía
@@ -524,7 +539,7 @@ function construirAudienciaMasivo({ soloConPedido, excluirTags, soloTags, sinAct
 // el mismo fallthrough secuencial del  original — ningún módulo sabe si
 // "matcheó" salvo por no llamar a next().
 const ctx = {
-    db, json, readBody, validar, requireSession, log, pm2, APP_VERSION, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, iniciarCapturaDireccion, SESION_S, sessionManagerBot, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, registrarErrorDB, SECURITY_HEADERS, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, ConfigContactoSchema, ConfigEmailBotSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema,
+    db, json, readBody, readJson, validar, requireSession, log, pm2, APP_VERSION, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, iniciarCapturaDireccion, SESION_S, sessionManagerBot, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, registrarErrorDB, SECURITY_HEADERS, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, ConfigContactoSchema, ConfigEmailBotSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema,
     permisos, permite, autorizacion: require('./autorizacion'),
 };
 
