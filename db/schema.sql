@@ -1151,6 +1151,10 @@ CREATE TABLE IF NOT EXISTS empleados (
     activo         INTEGER NOT NULL DEFAULT 1,
     tipo_baja      TEXT,                              -- migrations/0041 (renuncia|despido_*|jubilacion)
     fecha_baja     TEXT,                              -- migrations/0041
+    fecha_nacimiento TEXT,                            -- 0064: para el contrato laboral (edad)
+    domicilio        TEXT,                            -- 0064
+    horario          TEXT,                            -- 0064
+    dia_descanso     TEXT,                            -- 0064
     creado_en      TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE TABLE IF NOT EXISTS horarios_empleado (

@@ -19,21 +19,19 @@ function empleadosGet(req, res, ctx) {
     return json(res, db.prepare(`SELECT * FROM empleados ${todos ? '' : 'WHERE activo=1'} ORDER BY activo DESC, nombre`).all());
 }
 function empleadosPost(req, res, ctx) {
-    const { db, json, readBody } = ctx;
-    return readBody(req, body => {
-        try {
-            const d = JSON.parse(body || '{}');
-            const nombre = String(d.nombre || '').trim();
-            const salario = Number(d.salario_diario);
-            if (!nombre || !(salario > 0)) return json(res, { ok: false, error: 'Nombre y salario diario (>0) son obligatorios' }, 400);
-            const r = db.prepare(`INSERT INTO empleados (nombre, puesto, salario_diario, con_impuestos, rfc, curp, nss, fecha_alta, departamento, comision_pct, metodo_pago, username, contacto_emergencia) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-                .run(nombre, String(d.puesto || '').trim() || null, salario, d.con_impuestos ? 1 : 0,
-                     String(d.rfc || '').trim() || null, String(d.curp || '').trim() || null, String(d.nss || '').trim() || null,
-                     String(d.fecha_alta || '').trim() || null, String(d.departamento || '').trim() || null,
-                     Math.max(0, Number(d.comision_pct) || 0), (d.metodo_pago === 'efectivo' ? 'efectivo' : 'transferencia'),
-                     String(d.username || '').trim() || null, String(d.contacto_emergencia || '').trim() || null);
-            return json(res, { ok: true, id: r.lastInsertRowid });
-        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
+    const { db, json, readJson } = ctx;
+    return readJson(req, res, d => {
+        const nombre = String(d.nombre || '').trim();
+        const salario = Number(d.salario_diario);
+        if (!nombre || !(salario > 0)) return json(res, { ok: false, error: 'Nombre y salario diario (>0) son obligatorios' }, 400);
+        const s = (v) => String(v || '').trim() || null;
+        const r = db.prepare(`INSERT INTO empleados (nombre, puesto, salario_diario, con_impuestos, rfc, curp, nss, fecha_alta, departamento, comision_pct, metodo_pago, username, contacto_emergencia, fecha_nacimiento, domicilio, horario, dia_descanso) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+            .run(nombre, s(d.puesto), salario, d.con_impuestos ? 1 : 0,
+                 s(d.rfc), s(d.curp), s(d.nss), s(d.fecha_alta), s(d.departamento),
+                 Math.max(0, Number(d.comision_pct) || 0), (d.metodo_pago === 'efectivo' ? 'efectivo' : 'transferencia'),
+                 s(d.username), s(d.contacto_emergencia),
+                 s(d.fecha_nacimiento), s(d.domicilio), s(d.horario), s(d.dia_descanso));
+        return json(res, { ok: true, id: r.lastInsertRowid });
     });
 }
 
@@ -53,7 +51,7 @@ function empleadosPut(req, res, ctx, { params, ses }) {
             }
             if (d.con_impuestos !== undefined) db.prepare('UPDATE empleados SET con_impuestos=? WHERE id=?').run(d.con_impuestos ? 1 : 0, id);
             if (d.puesto !== undefined) db.prepare('UPDATE empleados SET puesto=? WHERE id=?').run(String(d.puesto).trim() || null, id);
-            for (const [campo, col] of [['fecha_alta', 'fecha_alta'], ['departamento', 'departamento'], ['metodo_pago', 'metodo_pago'], ['username', 'username'], ['contacto_emergencia', 'contacto_emergencia']]) {
+            for (const [campo, col] of [['fecha_alta', 'fecha_alta'], ['departamento', 'departamento'], ['metodo_pago', 'metodo_pago'], ['username', 'username'], ['contacto_emergencia', 'contacto_emergencia'], ['fecha_nacimiento', 'fecha_nacimiento'], ['domicilio', 'domicilio'], ['horario', 'horario'], ['dia_descanso', 'dia_descanso']]) {
                 if (d[campo] !== undefined) db.prepare('UPDATE empleados SET ' + col + '=? WHERE id=?').run(String(d[campo]).trim() || null, id);
             }
             if (d.comision_pct !== undefined) db.prepare('UPDATE empleados SET comision_pct=? WHERE id=?').run(Math.max(0, Number(d.comision_pct) || 0), id);

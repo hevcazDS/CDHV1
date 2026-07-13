@@ -11,7 +11,13 @@ import { tieneRango } from '../lib/roles';
 // F5.2 — Documentos: cotizaciones, pagarés y contratos con plantillas estándar
 // + plantilla propia por sucursal. El documento se emite (render de la plantilla)
 // y se imprime. Requiere el módulo documentos_activo.
-const TIPOS = [{ value: 'cotizacion', label: 'Cotización' }, { value: 'pagare', label: 'Pagaré' }, { value: 'contrato', label: 'Contrato' }];
+const TIPOS = [
+  { value: 'cotizacion', label: 'Cotización' },
+  { value: 'pagare', label: 'Pagaré' },
+  { value: 'contrato', label: 'Contrato de servicios' },
+  { value: 'contrato_personal', label: 'Contrato de personal' },
+  { value: 'orden_compra', label: 'Orden de compra' },
+];
 const esc = (s) => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 export default function Documentos() {
@@ -19,11 +25,14 @@ export default function Documentos() {
   const { user } = useAuth();
   const esGerente = tieneRango(user?.rol, 'gerente');
   const [tipo, setTipo] = useState('cotizacion');
-  const [form, setForm] = useState({ id_plantilla: null, contraparte_nombre: '', contraparte_ref: '', concepto: '', monto: '' });
+  const [form, setForm] = useState({ id_plantilla: null, id_empleado: null, contraparte_nombre: '', contraparte_ref: '', concepto: '', monto: '' });
   const [nuevaPl, setNuevaPl] = useState({ abierto: false, nombre: '', cuerpo: '' });
+  const esPersonal = tipo === 'contrato_personal';
 
   const { data: pl } = useQuery({ queryKey: ['doc-plantillas', tipo], queryFn: () => api.get(`/api/documentos/plantillas?tipo=${tipo}`) });
   const { data: docs } = useQuery({ queryKey: ['documentos', tipo], queryFn: () => api.get(`/api/documentos?tipo=${tipo}`) });
+  // Empleados para el contrato de personal (cruza sus datos con los del negocio).
+  const { data: empleados = [] } = useQuery({ queryKey: ['rrhh-emp-doc'], queryFn: () => api.get('/api/rrhh/empleados').catch(() => []), enabled: esPersonal });
   const plantillas = pl?.plantillas || [];
   const off = pl && pl.ok === false;
   const documentos = docs?.documentos || [];
@@ -39,12 +48,12 @@ export default function Documentos() {
 
   const emitir = async () => {
     if (!form.id_plantilla) return handleApiError(new Error('Elige una plantilla'));
-    if (!form.contraparte_nombre.trim()) return handleApiError(new Error('Falta el nombre de la contraparte'));
-    const r = await api.post('/api/documentos', { tipo, ...form, id_plantilla: Number(form.id_plantilla), monto: Number(form.monto) || 0 }).catch(e => ({ ok: false, error: e.message }));
+    if (esPersonal ? !form.id_empleado : !form.contraparte_nombre.trim()) return handleApiError(new Error(esPersonal ? 'Elige un empleado' : 'Falta el nombre de la contraparte'));
+    const r = await api.post('/api/documentos', { tipo, ...form, id_plantilla: Number(form.id_plantilla), id_empleado: form.id_empleado ? Number(form.id_empleado) : undefined, monto: Number(form.monto) || 0 }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return handleApiError(new Error(r.error));
     toastOk(`Documento emitido · ${r.folio}`);
     imprimir(r.contenido, tipo + ' ' + r.folio);
-    setForm({ id_plantilla: form.id_plantilla, contraparte_nombre: '', contraparte_ref: '', concepto: '', monto: '' });
+    setForm({ id_plantilla: form.id_plantilla, id_empleado: null, contraparte_nombre: '', contraparte_ref: '', concepto: '', monto: '' });
     qc.invalidateQueries({ queryKey: ['documentos'] });
   };
   const guardarPlantilla = async () => {
@@ -73,10 +82,18 @@ export default function Documentos() {
           <div className="card-header"><h3>Emitir {TIPOS.find(t => t.value === tipo)?.label}</h3></div>
           <Select label="Plantilla *" mb="sm" value={form.id_plantilla} onChange={v => setForm({ ...form, id_plantilla: v })}
             data={plantillas.map(p => ({ value: String(p.id), label: p.nombre + (p.sucursal ? ' (sucursal)' : ' (estándar)') }))} />
-          <TextInput label="Contraparte *" placeholder="Cliente / proveedor / empleado" value={form.contraparte_nombre} onChange={e => setForm({ ...form, contraparte_nombre: e.target.value })} mb="sm" />
+          {esPersonal ? (
+            <>
+              <Select label="Empleado *" mb="sm" searchable value={form.id_empleado} onChange={v => setForm({ ...form, id_empleado: v })}
+                data={(Array.isArray(empleados) ? empleados : []).map(e => ({ value: String(e.id), label: e.nombre + (e.puesto ? ' · ' + e.puesto : '') }))} />
+              <Text size="xs" c="dimmed" mb="sm">El contrato se llena solo con los datos del empleado (edad, domicilio, RFC/CURP/NSS, puesto, horario, descanso, salario) + los del negocio. Captúralos en Recursos Humanos.</Text>
+            </>
+          ) : (
+            <TextInput label={tipo === 'orden_compra' ? 'Proveedor *' : 'Contraparte *'} placeholder={tipo === 'orden_compra' ? 'Nombre del proveedor' : 'Cliente / proveedor'} value={form.contraparte_nombre} onChange={e => setForm({ ...form, contraparte_nombre: e.target.value })} mb="sm" />
+          )}
           <Group grow mb="sm">
             <TextInput label="Referencia (RFC / tel / folio)" value={form.contraparte_ref} onChange={e => setForm({ ...form, contraparte_ref: e.target.value })} />
-            <NumberInput label="Monto" min={0} decimalScale={2} value={form.monto} onChange={v => setForm({ ...form, monto: v })} />
+            <NumberInput label={esPersonal ? 'Monto (opcional)' : 'Monto'} min={0} decimalScale={2} value={form.monto} onChange={v => setForm({ ...form, monto: v })} />
           </Group>
           <TextInput label="Concepto" value={form.concepto} onChange={e => setForm({ ...form, concepto: e.target.value })} mb="md" />
           <Button fullWidth onClick={emitir}>Emitir e imprimir</Button>
