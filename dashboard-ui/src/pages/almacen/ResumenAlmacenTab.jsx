@@ -47,7 +47,7 @@ export default function ResumenAlmacenTab() {
           </Suspense>
         </Card>
       )}
-      <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+      <div className="cols-2">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Urge resurtir</h3></div>
           <div className="table-wrap">

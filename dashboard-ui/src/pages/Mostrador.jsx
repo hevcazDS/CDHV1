@@ -164,7 +164,7 @@ export default function Mostrador() {
       )}
       {msg && <div className="login-error" style={{ marginBottom: 12 }}>{msg.t}</div>}
 
-      <div className="kpi-grid" style={{ gridTemplateColumns: '1.4fr 1fr', alignItems: 'start' }}>
+      <div className="cols-2">
         <Card withBorder radius="md" p="lg">
           <Title order={4} mb="sm">{txt('🛒 Venta')}</Title>
           <TextInput placeholder="Escanear código de barras (Enter agrega)" autoFocus onKeyDown={escanear} mb="xs"

@@ -67,7 +67,7 @@ export default function Preventas() {
       <div className="page-sub">Productos en preventa con apartado anticipado</div>
       {error && <div className="login-error">No se pudieron cargar las preventas: {error.message}</div>}
 
-      <div className="kpi-grid" style={{ gridTemplateColumns: '1.4fr 1fr', alignItems: 'start' }}>
+      <div className="cols-2">
         <Card withBorder radius="md" p="lg">
           <Group justify="space-between" mb="md">
             <Title order={4}>{txt('📅 Preventas activas')}</Title>

@@ -309,7 +309,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--accent); color: #fff;
 }
-.sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+/* min-height:0 + overflow-y:auto: sin esto un acordeón alto (muchos ítems en
+   viewport bajo) desbordaba el navbar de alto fijo (100dvh) y "se comía" el pie
+   y los últimos links. Ahora la nav scrollea DENTRO; top/pie quedan fijos. */
+.sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; min-height: 0; overflow-y: auto; }
 .sidebar-link {
   display: flex;
   align-items: center;
@@ -475,7 +478,13 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
    Apilan a 1 columna por debajo de 1000px. */
 .split-2  { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; align-items: start; }
 .split-2w { display: grid; grid-template-columns: 1fr 2fr;   gap: 20px; align-items: start; }
-@media (max-width: 1000px) { .split-2, .split-2w { grid-template-columns: 1fr; } }
+/* Simétricas responsivas: N columnas iguales que se apilan a 1 en ventana
+   angosta. Reemplazan los `gridTemplateColumns:'1fr 1fr'`/`'1fr 1fr 1fr'`
+   inline de página (mismo bug: no colapsaban y cortaban/aplastaban contenido). */
+.cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.cols-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; align-items: start; }
+@media (max-width: 1000px) { .split-2, .split-2w, .cols-2, .cols-3 { grid-template-columns: 1fr; } }
+@media (max-width: 720px)  { .cols-3 { grid-template-columns: 1fr; } }
 .tabla-compacta { max-height: 240px; overflow: auto; }
 .chart-wrap { height: clamp(150px, 24vh, 220px); }
 

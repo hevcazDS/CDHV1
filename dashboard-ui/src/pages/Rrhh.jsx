@@ -272,7 +272,7 @@ function Liquidaciones({ empleados }) {
       <Select label="Empleado" placeholder="Elige un empleado" searchable value={sel} onChange={setSel} mb="md"
         data={empleados.map(e => ({ value: String(e.id), label: `#${e.id} ${e.nombre}` }))} style={{ maxWidth: 360 }} />
       <Text size="xs" c="dimmed" mb="md">Cálculo aproximado (LFT) — el CFDI de nómina y el definitivo los hace tu contador. El pago deja asiento contable (requiere el módulo Contabilidad activo).</Text>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+      <div className="cols-2">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Aguinaldo</h3></div>
           <NumberInput label="Año" value={anio} onChange={v => setAnio(v || new Date().getFullYear())} min={2020} max={2100} mb="md" style={{ maxWidth: 160 }} />

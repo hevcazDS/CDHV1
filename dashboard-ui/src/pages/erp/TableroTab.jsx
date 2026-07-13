@@ -63,7 +63,7 @@ export default function TableroTab() {
         </Card>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+      <div className="cols-2">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Estado de resultados</h3>
             <span className={`badge ${pyl.margen_neto_pct >= 0 ? 'badge-verde' : 'badge-rojo'}`}>Margen neto {pyl.margen_neto_pct}%</span></div>

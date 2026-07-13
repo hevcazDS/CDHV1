@@ -100,7 +100,7 @@ export default function Cupones() {
       <div className="page-sub">Cupones y descuentos manuales</div>
       {error && <div className="login-error">No se pudieron cargar las promociones: {error.message}</div>}
 
-      <div className="kpi-grid" style={{ gridTemplateColumns: '1.4fr 1fr', alignItems: 'start' }}>
+      <div className="cols-2">
         <Card withBorder radius="md" p="lg">
           <Group justify="space-between" mb="md">
             <Title order={4}>{txt('🎟️ Cupones / Promociones')}</Title>

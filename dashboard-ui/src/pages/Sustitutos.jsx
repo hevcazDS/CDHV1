@@ -64,7 +64,7 @@ export default function Sustitutos() {
       <div className="page-title">Relacionados</div>
       <div className="page-sub">Productos sustitutos sugeridos cuando hay quiebre de stock</div>
 
-      <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+      <div className="cols-2">
         <Card withBorder radius="md" p="lg">
           <Title order={4} mb="md">{txt('🔍 Buscar producto')}</Title>
           <TextInput label="Nombre" placeholder="Ej: Hot Wheels" value={q} onChange={e => setQ(e.target.value)} mb="sm" />

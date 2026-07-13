@@ -46,7 +46,7 @@ export default function Guias() {
       <div className="page-sub">Rastreo y actualización de guías de envío</div>
       {error && <div className="login-error">No se pudieron cargar las guías: {error.message}</div>}
 
-      <div className="kpi-grid" style={{ gridTemplateColumns: '1.6fr 1fr', alignItems: 'start' }}>
+      <div className="cols-2">
         <Card withBorder radius="md" p="lg">
           <Group justify="space-between" mb="md">
             <Title order={4}>{txt('🚚 Guías activas')}</Title>

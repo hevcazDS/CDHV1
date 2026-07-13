@@ -37,7 +37,7 @@ export default function ResumenComprasTab({ irA }) {
         <Kpi valor={porVencer7.length} label="Por vencer esta semana" onClick={() => irA('cxp')} />
         <Kpi valor={solPend.length} label="Solicitudes por aprobar" alerta={solPend.length > 0} onClick={() => irA('solicitudes')} />
       </div>
-      <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+      <div className="cols-2">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>OC abiertas (por recibir)</h3></div>
           <div className="table-wrap">

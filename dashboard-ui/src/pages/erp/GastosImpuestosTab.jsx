@@ -43,7 +43,7 @@ export default function GastosImpuestosTab() {
         <TextInput type="date" label="Desde" value={rango.desde} onChange={e => setRango({ ...rango, desde: e.target.value })} />
         <TextInput type="date" label="Hasta" value={rango.hasta} onChange={e => setRango({ ...rango, hasta: e.target.value })} />
       </Group>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: 20, alignItems: 'start' }}>
+      <div className="cols-3">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Registrar gasto</h3></div>
           <TextInput label="Concepto *" placeholder="Renta, luz, papelería..." value={g.concepto} onChange={e => setG({ ...g, concepto: e.target.value })} mb="sm" />
