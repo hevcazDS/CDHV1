@@ -180,6 +180,15 @@ export default function Layout() {
     document.addEventListener('mousedown', fuera);
     return () => document.removeEventListener('mousedown', fuera);
   }, []);
+  // Web responsivo: en ventana angosta de navegador (< 1000px) el sidebar se
+  // colapsa solo a riel de iconos para no comerse el ancho del contenido. No
+  // vuelve a expandir solo al ensanchar (respeta la elección del usuario).
+  useEffect(() => {
+    const alAncho = () => { if (window.innerWidth < 1000) setColapsado(true); };
+    alAncho();
+    window.addEventListener('resize', alAncho);
+    return () => window.removeEventListener('resize', alAncho);
+  }, []);
   // Monograma del negocio ("Julio Cepeda Jugueterías" → JC): es el botón
   // de contraer/extraer
   const monograma = nombreNegocio.split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();

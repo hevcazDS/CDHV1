@@ -452,6 +452,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .mkt-card .mkt-hint { font-size: 10.5px; color: var(--text-mute); }
 /* Gráfica + últimos pedidos lado a lado — una sola pantalla sin scroll */
 .fila-2col { display: grid; grid-template-columns: 1.55fr 1fr; gap: clamp(14px, 1.4vw, 22px); margin-top: clamp(14px, 1.6vh, 22px); align-items: stretch; }
+/* Web responsivo: 2 columnas fijas (gráfica + tabla) se aplastaban en ventana
+   angosta y cortaban la 2ª tarjeta. Se apilan a 1 columna por debajo de 1000px
+   y se libera la altura fija de página-llena para que fluyan (scroll natural). */
+@media (max-width: 1000px) {
+  .fila-2col { grid-template-columns: 1fr; }
+  .pagina-llena .fila-2col { flex: none; grid-template-rows: auto; }
+  .pagina-llena .fila-2col .card { overflow: visible; min-height: 240px; }
+  .pagina-llena { overflow: auto; }
+}
 .fila-2col .card { margin-top: 0 !important; }
 .tabla-compacta { max-height: 240px; overflow: auto; }
 .chart-wrap { height: clamp(150px, 24vh, 220px); }
