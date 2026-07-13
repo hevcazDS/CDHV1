@@ -61,7 +61,7 @@ export default function ContabilidadTab() {
         <PolizaManual />
       </Group>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 20, alignItems: 'start' }}>
+      <div className="split-2">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header">
             <h3>Libro mayor</h3>

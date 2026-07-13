@@ -24,7 +24,7 @@ export default function ProveedoresTab() {
   });
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 20, alignItems: 'start' }}>
+    <div className="split-2">
       <Card withBorder radius="md" p="lg" className="card">
         <div className="card-header"><h3>Nuevo proveedor</h3></div>
         <TextInput label="Nombre *" value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} mb="sm" />

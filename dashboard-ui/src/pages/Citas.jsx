@@ -61,7 +61,7 @@ export default function Citas() {
     <div>
       <div className="page-title">Citas</div>
       <div className="page-sub">Agenda de la semana — el bot agenda solo cuando el módulo Citas está activo</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'start' }}>
+      <div className="split-2w">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Agendar manual</h3></div>
           <TextInput label="Teléfono *" value={nueva.telefono} onChange={e => setNueva({ ...nueva, telefono: e.target.value })} mb="sm" />

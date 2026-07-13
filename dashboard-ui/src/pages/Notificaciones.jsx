@@ -299,7 +299,7 @@ export default function Notificaciones() {
       </Tabs>
 
       {tab === 'individual' && (
-        <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
+        <div className="split-2">
           <Card withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{txt('👥 Seleccionar cliente')}</div>
@@ -437,7 +437,7 @@ export default function Notificaciones() {
       )}
 
       {tab === 'masivo' && (
-        <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
+        <div className="split-2">
           <Card withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{txt('🎯 Audiencia')}</div>

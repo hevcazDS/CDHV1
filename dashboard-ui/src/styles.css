@@ -462,6 +462,14 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   .pagina-llena { overflow: auto; }
 }
 .fila-2col .card { margin-top: 0 !important; }
+
+/* Rejillas de 2 columnas (formulario + contenido) REUTILIZABLES y responsivas.
+   Reemplazan los ~30 `style={{gridTemplateColumns:'1fr 1.Xfr'}}` inline que se
+   aplastaban en ventana angosta (mismo bug que .fila-2col, replicado a mano).
+   Apilan a 1 columna por debajo de 1000px. */
+.split-2  { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; align-items: start; }
+.split-2w { display: grid; grid-template-columns: 1fr 2fr;   gap: 20px; align-items: start; }
+@media (max-width: 1000px) { .split-2, .split-2w { grid-template-columns: 1fr; } }
 .tabla-compacta { max-height: 240px; overflow: auto; }
 .chart-wrap { height: clamp(150px, 24vh, 220px); }
 

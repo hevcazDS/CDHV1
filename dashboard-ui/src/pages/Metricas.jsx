@@ -121,7 +121,7 @@ export default function Metricas() {
       <div className="page-sub">Pedidos, conversión y reportes</div>
 
       {/* Ingresos (dinero cobrado) + satisfacción del cliente */}
-      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 24 }}>
+      <div className="kpi-grid" style={{ marginBottom: 24 }}>
         <Card withBorder radius="md" p="xl" className="kpi-card kpi-dark">
           <Text size="sm" c="dimmed">Ingresos hoy</Text>
           <Text size="26px" fw={700} className="kpi-num">${fmt(d?.ingresos?.hoy || 0)}</Text>
@@ -147,7 +147,7 @@ export default function Metricas() {
         </Card>
       </div>
 
-      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 16 }}>
+      <div className="kpi-grid" style={{ marginBottom: 16 }}>
         <Card withBorder radius="md" p="lg" className="kpi-card">
           <Text size="sm" c="dimmed">Pedidos hoy</Text>
           <Text size="26px" fw={700}>{d?.pedidos?.hoy?.n ?? '-'}</Text>
@@ -414,7 +414,7 @@ export default function Metricas() {
       {embudos && (
         <Card withBorder radius="md" p="lg" style={{ marginBottom: 16 }}>
           <Title order={4} mb="md">{txt('🕳️ Fugas: búsquedas sin resultado y carritos')}</Title>
-          <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 14 }}>
+          <div className="kpi-grid" style={{ marginBottom: 14 }}>
             <div><Text size="xs" c="dimmed">Búsquedas sin resultado</Text><Text fw={700} size="lg" c={embudos.busquedas_sin_resultado?.total > 0 ? 'orange' : undefined}>{embudos.busquedas_sin_resultado?.total ?? 0}</Text></div>
             <div><Text size="xs" c="dimmed">Carritos abandonados</Text><Text fw={700} size="lg">{embudos.carritos?.abandonados ?? 0}</Text></div>
             <div><Text size="xs" c="dimmed">Recuperados</Text><Text fw={700} size="lg" c={embudos.carritos?.recuperados > 0 ? 'green' : undefined}>{embudos.carritos?.recuperados ?? 0} <Text span size="xs" c="dimmed">{embudos.carritos?.tasa_recuperacion_pct != null ? '(' + embudos.carritos.tasa_recuperacion_pct + '%)' : ''}</Text></Text></div>

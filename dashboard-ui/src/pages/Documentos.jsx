@@ -68,7 +68,7 @@ export default function Documentos() {
       {off ? (
         <Card withBorder radius="md" p="lg" className="card"><Text size="sm" c="dimmed">Activa el módulo <strong>Documentos</strong> en Módulos para emitir cotizaciones, pagarés y contratos.</Text></Card>
       ) : (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 20, alignItems: 'start' }}>
+      <div className="split-2">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Emitir {TIPOS.find(t => t.value === tipo)?.label}</h3></div>
           <Select label="Plantilla *" mb="sm" value={form.id_plantilla} onChange={v => setForm({ ...form, id_plantilla: v })}

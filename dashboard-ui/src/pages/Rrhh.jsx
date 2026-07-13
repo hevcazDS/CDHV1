@@ -76,7 +76,7 @@ export default function Rrhh() {
       </Tabs>
 
       {tab === 'empleados' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 20, alignItems: 'start' }}>
+        <div className="split-2">
           <Card withBorder radius="md" p="lg" className="card">
             <div className="card-header"><h3>Nuevo empleado</h3></div>
             <TextInput label="Nombre *" value={emp.nombre} onChange={e => setEmp({ ...emp, nombre: e.target.value })} mb="sm" />

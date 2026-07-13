@@ -68,7 +68,7 @@ export default function Mesas() {
     <div>
       <div className="page-title">Mesas</div>
       <div className="page-sub">Abre mesas, toma la orden con comentarios, manda a cocina y cobra</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'start' }}>
+      <div className="split-2w">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Mesas abiertas</h3></div>
           <Group mb="md">

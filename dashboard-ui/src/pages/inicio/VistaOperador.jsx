@@ -23,7 +23,7 @@ export default function VistaOperador() {
 
   return (
     <div className="pagina-llena" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div className="kpi-grid6" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+      <div className="kpi-grid">
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq kpi-dark">
           <Kpi Icono={Wallet} color="rgba(255,255,255,0.95)" label="Mis ventas cobradas hoy">{fmtMoneda(corte?.total_sistema)}</Kpi>
         </Card>

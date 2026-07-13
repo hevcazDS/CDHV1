@@ -55,7 +55,7 @@ export default function ConteoTab() {
   const difs = resultado?.resultado?.filter(x => x.diferencia !== 0) || [];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 20, alignItems: 'start' }}>
+    <div className="split-2">
       <Card withBorder radius="md" p="lg" className="card">
         <div className="card-header"><h3>Archivo de conteo</h3></div>
         <TextInput label="Sucursal / bodega *" value={sucursal} onChange={e => setSucursal(e.target.value)} mb="sm" />

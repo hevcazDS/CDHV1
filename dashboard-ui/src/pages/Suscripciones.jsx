@@ -62,7 +62,7 @@ export default function Suscripciones() {
         </Card>
       </Group>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'start' }}>
+      <div className="split-2w">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Nueva suscripción</h3></div>
           <TextInput label="Cliente *" value={nueva.nombre} onChange={e => setNueva({ ...nueva, nombre: e.target.value })} mb="sm" />

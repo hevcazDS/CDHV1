@@ -113,7 +113,7 @@ export function VistaRh() {
 function Plantilla({ items, boton, tabla, tabla2 }) {
   return (
     <div className="pagina-llena" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div className="kpi-grid6" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+      <div className="kpi-grid">
         {items.map((it, i) => (
           <Card key={i} withBorder radius="md" p="md" className="kpi-card kpi-sq">
             <Kpi Icono={it.Icono} color={it.color} label={it.label}>{it.valor}</Kpi>

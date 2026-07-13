@@ -29,7 +29,7 @@ export default function ResumenAlmacenTab() {
 
   return (
     <div>
-      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
+      <div className="kpi-grid" style={{ marginBottom: 20 }}>
         <Kpi valor={agotados.length} label="Agotados (con mínimo definido)" alerta={agotados.length > 0} />
         <Kpi valor={criticos.length} label="En stock crítico (≤ mínimo)" alerta={criticos.length > 0} />
         <Kpi valor={llegadas.length} label="OC con llegada programada" />

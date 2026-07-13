@@ -31,7 +31,7 @@ export default function ResumenComprasTab({ irA }) {
 
   return (
     <div>
-      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
+      <div className="kpi-grid" style={{ marginBottom: 20 }}>
         <Kpi valor={abiertas.length} label={`OC abiertas · ${money(montoAbiertas)}`} onClick={() => irA('ordenes')} />
         <Kpi valor={vencidas.length} label="Facturas VENCIDAS sin pagar" alerta={vencidas.length > 0} onClick={() => irA('cxp')} />
         <Kpi valor={porVencer7.length} label="Por vencer esta semana" onClick={() => irA('cxp')} />
