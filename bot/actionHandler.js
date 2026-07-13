@@ -8,6 +8,7 @@ const { safeEqual } = require('./validators');
 const ventaPreviaService = require('../services/ventaPreviaService');
 const abandonoHandler = require('./handlers/abandonoHandler');
 const giroFlows = require('./flows/giroFlows');
+const { moduloActivo } = require('./flows/_config');
 const llmHandler = (() => { try { return require('./handlers/llmHandler'); } catch(_) { return { handle: async () => null }; } })();
 const {
     S, db, sessionManager, log,
@@ -143,7 +144,11 @@ async function handleAction(userId, session, message, client) {
     const isImage = !!(message.hasMedia && (message.type === 'image' || message.type === 'sticker'));
     const ctx = { userId, session, message, client, raw, action, step, data, tel, isImage };
     const _giro = (() => { try { return getValor('giro', 'jugueteria'); } catch(_) { return 'jugueteria'; } })();
-    const _flowsActivos = [...FLOWS, ...giroFlows.flowsDeGiro(_giro)];
+    // Motor de flujo configurable: se evalúa el flag POR REQUEST (moduloActivo se
+    // refresca cada 60s; cachearlo al require rompería el toggle sin reiniciar).
+    // OFF (default) o sin grafo activo → el motor no participa y corre el código de hoy.
+    const _motor = (() => { try { return moduloActivo('motor_flujo_activo') ? require('./flows/motor/interprete') : null; } catch(_) { return null; } })();
+    const _flowsActivos = [...FLOWS, ...(_motor ? [_motor] : []), ...giroFlows.flowsDeGiro(_giro)];
     for (const flow of _flowsActivos) {
         if (!flow || !Array.isArray(flow.STEPS) || !flow.STEPS.includes(step)) continue;
         try {

@@ -56,6 +56,9 @@ const DEFAULT_OFF = [
     'documentos_activo',
     // F5.4: baúl de contabilidad (archivero local de CFDIs + export por lote).
     'baul_contable_activo',
+    // Motor de flujo configurable por grafo (Fase 2). OFF = FLOWS de código intacto,
+    // Julio Cepeda byte-idéntico. Incluso ON sin grafo activo el motor no-opea.
+    'motor_flujo_activo',
 ];
 
 // Dependencias entre módulos (idea Odoo): activar la llave exige que sus

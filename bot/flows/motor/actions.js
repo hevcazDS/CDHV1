@@ -71,4 +71,12 @@ const ACTIONS = {
     // ya dejan lista la BD para cuando lleguen.
 };
 
-module.exports = { ACTIONS };
+// run(nombre, ctx, params) — dispatcher que usa el intérprete. Lanza si la acción
+// no existe → el catch del intérprete cae fail-closed al router viejo (§D.3).
+async function run(nombre, ctx, params = {}) {
+    const fn = ACTIONS[nombre];
+    if (typeof fn !== 'function') throw new Error('acción de motor desconocida: ' + nombre);
+    return await fn(ctx, params);
+}
+
+module.exports = { ACTIONS, run };
