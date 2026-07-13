@@ -4,9 +4,45 @@
 // nodo (ej. porcentaje de anticipo 30↔50) sin deploy, re-corriendo el linter
 // antes de conservar el grafo activo. La topología/aristas y la lógica sellada
 // NO se editan aquí (eso es la frontera de seguridad, §D). Ver DISENO_MOTOR_FLUJO.md §B.1.
+const fs = require('fs');
+const path = require('path');
 const construirModulo = require('./_construirModulo');
 const grafo = require('../../bot/flows/motor/grafo');
 const linter = require('../../bot/flows/motor/linter');
+const seeder = require('../../bot/flows/motor/seeder');
+
+const DIR_PLANTILLAS = path.join(__dirname, '..', '..', 'bot', 'flows', 'motor', 'plantillas');
+
+// GET /api/prime/motor/plantillas — presets de flujo "congelados" disponibles.
+function plantillasGet(req, res, ctx) {
+    const { json } = ctx;
+    let nombres = [];
+    try { nombres = fs.readdirSync(DIR_PLANTILLAS).filter(f => f.endsWith('.json')).map(f => f.replace(/\.json$/, '')).sort(); }
+    catch (_) {}
+    return json(res, { plantillas: nombres });
+}
+
+// POST /api/prime/motor/activar — { plantilla } siembra ese preset y lo deja
+// ACTIVO (desactiva el anterior). Es cómo se "sustituye el flujo actual por otro
+// congelado". Rechaza si el preset no pasa el linter (fail-closed).
+function activarPost(req, res, ctx) {
+    const { db, json, readJson } = ctx;
+    return readJson(req, res, body => {
+        const nombre = String(body.plantilla || '').trim();
+        if (!/^[a-z0-9_]+$/i.test(nombre)) return json(res, { ok: false, error: 'Plantilla inválida' }, 400);
+        let plantilla;
+        try { plantilla = seeder.cargarPlantilla(nombre); }
+        catch (_) { return json(res, { ok: false, error: 'No existe la plantilla ' + nombre }, 404); }
+        const r = seeder.sembrar(db, plantilla, { activar: true });
+        if (!r.valido) {
+            // No dejar un grafo inválido "activo": eliminarlo.
+            try { db.prepare('DELETE FROM flujo_grafo WHERE id=?').run(r.id); grafo.invalidar(); } catch (_) {}
+            return json(res, { ok: false, error: 'La plantilla no pasó el linter', errs: r.errs }, 400);
+        }
+        grafo.invalidar();
+        return json(res, { ok: true, id: r.id, giro_base: plantilla.giro_base });
+    });
+}
 
 // GET /api/prime/motor — el grafo activo + estado del flag del motor.
 function motorGet(req, res, ctx) {
@@ -52,8 +88,10 @@ function nodoPut(req, res, ctx) {
 }
 
 const RUTAS = [
-    { metodo: 'GET', path: '/api/prime/motor',      roles: ['prime'], handler: motorGet },
-    { metodo: 'PUT', path: '/api/prime/motor/nodo', roles: ['prime'], handler: nodoPut },
+    { metodo: 'GET',  path: '/api/prime/motor',            roles: ['prime'], handler: motorGet },
+    { metodo: 'GET',  path: '/api/prime/motor/plantillas', roles: ['prime'], handler: plantillasGet },
+    { metodo: 'POST', path: '/api/prime/motor/activar',    roles: ['prime'], handler: activarPost },
+    { metodo: 'PUT',  path: '/api/prime/motor/nodo',       roles: ['prime'], handler: nodoPut },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/prime/motor' });
