@@ -526,8 +526,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   .mkt-card .mkt-hint { display: none; }
   .fila-2col { margin-top: 10px; }
   .fila-2col .card { padding: 14px 18px; }
-  .tabla-compacta { max-height: 190px; }
-  .chart-wrap { height: clamp(140px, 22vh, 200px); }
+  /* Prioridad a la gráfica en pantallas bajas (1366×768): en vez de forzar todo
+     en un alto de viewport y RECORTAR la gráfica, la página fluye y hace scroll
+     dentro de .content. La gráfica recupera su altura y las tarjetas se ajustan. */
+  .pagina-llena { flex: none; }
+  .pagina-llena .fila-2col { flex: none; grid-template-rows: auto; }
+  .pagina-llena .fila-2col .card { overflow: visible; min-height: 0; }
+  .pagina-llena .chart-wrap { flex: none; height: 240px; min-height: 240px; }
+  .pagina-llena .tabla-compacta { max-height: 260px; flex: none; }
+  .tabla-compacta { max-height: 260px; }
 }
 .kpi-flex { display: flex; align-items: center; gap: 14px; }
 .kpi-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -714,8 +721,8 @@ tr:last-child td { border-bottom: none; }
 }
 .card-hover:hover, .kpi-clic:hover {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--brand) 20%, var(--border));
-  box-shadow: 0 4px 16px rgba(16,17,20,0.05);
+  border-color: color-mix(in srgb, var(--brand) 16%, var(--border));
+  box-shadow: 0 2px 12px rgba(16,17,20,0.035);
 }
 .card-hover:active, .kpi-clic:active { transform: translateY(0); transition-duration: var(--dur-1); }
 /* Micro-interacción en las tarjetas del tablero (KPI + marketing): un
@@ -723,8 +730,8 @@ tr:last-child td { border-bottom: none; }
    para que el panel no se sienta estático sin competir con las accionables. */
 .kpi-card:hover, .mkt-card:hover {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--brand) 12%, var(--border));
-  box-shadow: 0 3px 12px rgba(16,17,20,0.04);
+  border-color: color-mix(in srgb, var(--brand) 10%, var(--border));
+  box-shadow: 0 2px 10px rgba(16,17,20,0.025);
 }
 .kpi-card:active, .mkt-card:active { transform: translateY(0); transition-duration: var(--dur-1); }
 
