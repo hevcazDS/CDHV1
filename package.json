@@ -21,6 +21,7 @@
     "test:schema": "node scripts/db/schema_guard.js",
     "test:smoke": "node tests/test_rutas_smoke.js",
     "test:bot": "node tests/test_bot.js",
+    "test:golden": "node tests/golden_snapshot.js",
     "test:db": "node tests/test_db_flujo.js",
     "test:estres": "node tests/test_estres_bd.js",
     "test:carrito": "node tests/test_carrito.js",

@@ -1,0 +1,146 @@
+{
+  "1_menu": [
+    {
+      "in": "hola",
+      "out": "🧸 ¡Hola! Bienvenido a *Julio Cepeda Jugueterías* 🎉\n\nSoy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido\n\n_Escribe el número de tu opción._"
+    }
+  ],
+  "2_buscar_ver": [
+    {
+      "in": "hola",
+      "out": "🧸 ¡Hola! Bienvenido a *Julio Cepeda Jugueterías* 🎉\n\nSoy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido\n\n_Escribe el número de tu opción._"
+    },
+    {
+      "in": "1",
+      "out": "🔍 ¿Qué juguete buscas? Puedes:\n\n· Escribir el nombre o descripción\n· Enviar una *foto* del juguete 📸\n· Pegar el *link* de donde lo viste 🔗\n\n_Ej: \"carro de control remoto\"_"
+    },
+    {
+      "in": "lego",
+      "out": "✅ 1 resultado para *\"lego\"*:\n\n1. *Lego City Policía*\n   📦 construccion · 💰 $599.00\n\nElige un número para ver imagen y detalle."
+    },
+    {
+      "in": "1",
+      "out": "🧸 *Lego City Policía*\n📦 construccion  ·  💰 *$599.00 MXN*\n\n📝 Lego City Policía\n1️⃣  🛒 Agregar y seguir buscando\n2️⃣  ✅ Agregar y pagar\n3️⃣  🔙 Ver otros\n4️⃣  🔍 Buscar otro"
+    }
+  ],
+  "3_pickup": [
+    {
+      "in": "hola",
+      "out": "🧸 ¡Hola! Bienvenido a *Julio Cepeda Jugueterías* 🎉\n\nSoy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido\n\n_Escribe el número de tu opción._"
+    },
+    {
+      "in": "1",
+      "out": "🔍 ¿Qué juguete buscas? Puedes:\n\n· Escribir el nombre o descripción\n· Enviar una *foto* del juguete 📸\n· Pegar el *link* de donde lo viste 🔗\n\n_Ej: \"carro de control remoto\"_"
+    },
+    {
+      "in": "lego",
+      "out": "✅ 1 resultado para *\"lego\"*:\n\n1. *Lego City Policía*\n   📦 construccion · 💰 $599.00\n\nElige un número para ver imagen y detalle."
+    },
+    {
+      "in": "1",
+      "out": "🧸 *Lego City Policía*\n📦 construccion  ·  💰 *$599.00 MXN*\n\n📝 Lego City Policía\n1️⃣  🛒 Agregar y seguir buscando\n2️⃣  ✅ Agregar y pagar\n3️⃣  🔙 Ver otros\n4️⃣  🔍 Buscar otro"
+    },
+    {
+      "in": "2",
+      "out": "✅ *Lego City Policía* agregado al carrito 🛒\n\n📮 Dime tu *código postal* para revisar disponibilidad y proceder al pago:\n\n1. *Lego City Policía*\n   💰 $599.00 × 1 = *$599.00*\n\n━━━━━━━━━━━━━━━━━\n🛒 Subtotal: *$599.00 MXN*"
+    },
+    {
+      "in": "64000",
+      "out": "📦 Los productos de tu carrito se surten desde almacén central.\n\n1. *Lego City Policía*\n   💰 $599.00 × 1 = *$599.00*\n\n━━━━━━━━━━━━━━━━━\n🛒 Subtotal: *$599.00 MXN*\n📦 Envío: *$99 MXN*\n💵 *Total: $698.00 MXN*\n\n1️⃣  🚚 Envío a domicilio — *$99 MXN*\n2️⃣  🏪 Recibir todo en sucursal _(espera ~5 días)_\n3️⃣  👤 Hablar con un asesor"
+    },
+    {
+      "in": "2",
+      "out": "👤 Hemos notificado a nuestro equipo.\n⏰ Horario: *11:00 am – 8:00 pm, todos los días*\n\nUn asesor te contactará en cuanto esté disponible (normalmente en menos de 15 min en horario). ¡Gracias! 🧸"
+    }
+  ],
+  "4_envio_dir": [
+    {
+      "in": "hola",
+      "out": "🧸 ¡Hola! Bienvenido a *Julio Cepeda Jugueterías* 🎉\n\nSoy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido\n\n_Escribe el número de tu opción._"
+    },
+    {
+      "in": "1",
+      "out": "🔍 ¿Qué juguete buscas? Puedes:\n\n· Escribir el nombre o descripción\n· Enviar una *foto* del juguete 📸\n· Pegar el *link* de donde lo viste 🔗\n\n_Ej: \"carro de control remoto\"_"
+    },
+    {
+      "in": "lego",
+      "out": "✅ 1 resultado para *\"lego\"*:\n\n1. *Lego City Policía*\n   📦 construccion · 💰 $599.00\n\nElige un número para ver imagen y detalle."
+    },
+    {
+      "in": "1",
+      "out": "🧸 *Lego City Policía*\n📦 construccion  ·  💰 *$599.00 MXN*\n\n📝 Lego City Policía\n1️⃣  🛒 Agregar y seguir buscando\n2️⃣  ✅ Agregar y pagar\n3️⃣  🔙 Ver otros\n4️⃣  🔍 Buscar otro"
+    },
+    {
+      "in": "2",
+      "out": "✅ *Lego City Policía* agregado al carrito 🛒\n\n📮 Dime tu *código postal* para revisar disponibilidad y proceder al pago:\n\n1. *Lego City Policía*\n   💰 $599.00 × 1 = *$599.00*\n\n━━━━━━━━━━━━━━━━━\n🛒 Subtotal: *$599.00 MXN*"
+    },
+    {
+      "in": "64000",
+      "out": "📦 Los productos de tu carrito se surten desde almacén central.\n\n1. *Lego City Policía*\n   💰 $599.00 × 1 = *$599.00*\n\n━━━━━━━━━━━━━━━━━\n🛒 Subtotal: *$599.00 MXN*\n📦 Envío: *$99 MXN*\n💵 *Total: $698.00 MXN*\n\n1️⃣  🚚 Envío a domicilio — *$99 MXN*\n2️⃣  🏪 Recibir todo en sucursal _(espera ~5 días)_\n3️⃣  👤 Hablar con un asesor"
+    },
+    {
+      "in": "1",
+      "out": "🚚 ¡Perfecto! ¿Cuál es tu *nombre completo*?"
+    }
+  ],
+  "5_wizard": [
+    {
+      "in": "hola",
+      "out": "🧸 ¡Hola! Bienvenido a *Julio Cepeda Jugueterías* 🎉\n\nSoy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido\n\n_Escribe el número de tu opción._"
+    },
+    {
+      "in": "2",
+      "out": "🧙 ¡Te ayudo a encontrar el regalo perfecto! 🎁\n\n*Pregunta 1 de 3* — ¿Para quién es el juguete?\n\n1️⃣  👶 Bebé (0–2 años)\n2️⃣  🧒 Niño/a (3–8 años)\n3️⃣  🧑 Preadolescente (9–12)\n4️⃣  🎓 Adolescente / Adulto"
+    },
+    {
+      "in": "2",
+      "out": "*Pregunta 2 de 3* — ¿Es para niño o niña? 🎀\n\n1️⃣  👦 Niño\n2️⃣  👧 Niña\n3️⃣  🤝 Sin preferencia"
+    },
+    {
+      "in": "1",
+      "out": "*Pregunta 3 de 3* — ¿Qué tipo de juguete? 🧠\n\n1️⃣  🎮 Entretenimiento / Diversión\n2️⃣  📚 Educativo / Aprendizaje\n3️⃣  🎨 Creativo / Manualidades\n4️⃣  🏆 Coleccionable / Especial"
+    },
+    {
+      "in": "3",
+      "out": "*Última pregunta* — ¿Cuánto quieres gastar? 💰\n\n1️⃣  💵 Hasta $250\n2️⃣  💴 $250 – $500\n3️⃣  💶 $500 – $800\n4️⃣  💎 Sin límite"
+    }
+  ],
+  "6_sin_stock": [
+    {
+      "in": "hola",
+      "out": "🧸 ¡Hola! Bienvenido a *Julio Cepeda Jugueterías* 🎉\n\nSoy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido\n\n_Escribe el número de tu opción._"
+    },
+    {
+      "in": "1",
+      "out": "🔍 ¿Qué juguete buscas? Puedes:\n\n· Escribir el nombre o descripción\n· Enviar una *foto* del juguete 📸\n· Pegar el *link* de donde lo viste 🔗\n\n_Ej: \"carro de control remoto\"_"
+    },
+    {
+      "in": "balón",
+      "out": "✅ 1 resultado para *\"balón\"*:\n\n1. *Balón de fútbol*\n   📦 deportes · 💰 $199.00\n\nElige un número para ver imagen y detalle."
+    },
+    {
+      "in": "1",
+      "out": "🧸 *Balón de fútbol*\n📦 deportes  ·  💰 *$199.00 MXN*\n\n📝 Balón de fútbol\n1️⃣  🛒 Agregar y seguir buscando\n2️⃣  ✅ Agregar y pagar\n3️⃣  🔙 Ver otros\n4️⃣  🔍 Buscar otro"
+    }
+  ],
+  "7_asesor": [
+    {
+      "in": "hola",
+      "out": "🧸 ¡Hola! Bienvenido a *Julio Cepeda Jugueterías* 🎉\n\nSoy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido\n\n_Escribe el número de tu opción._"
+    },
+    {
+      "in": "4",
+      "out": "👤 Hemos notificado a nuestro equipo de ventas — dentro de horario suelen responder en menos de 15 minutos.\n\n⏰ Horario de atención: *11:00 am – 8:00 pm, todos los días*\n\nUn asesor te contactará en cuanto esté disponible (normalmente en menos de 15 min en horario). ¡Gracias! 🧸"
+    }
+  ],
+  "8_referidos": [
+    {
+      "in": "hola",
+      "out": "🧸 ¡Hola! Bienvenido a *Julio Cepeda Jugueterías* 🎉\n\nSoy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido\n\n_Escribe el número de tu opción._"
+    },
+    {
+      "in": "5",
+      "out": "🎁 Realiza tu primera compra para obtener tu código de referido.\n\n🧸 ¡Hola! Bienvenido a *Julio Cepeda Jugueterías* 🎉\n\nSoy tu asistente de ventas. ¿Cómo te puedo ayudar?\n\n1️⃣  🔍 Sé qué juguete busco\n2️⃣  🧙 No sé qué pedir — ¡ayúdame!\n3️⃣  📦 Rastrear mi pedido\n4️⃣  👤 Hablar con un asesor\n5️⃣  🎁 Mi código de referido\n\n_Escribe el número de tu opción._"
+    }
+  ]
+}

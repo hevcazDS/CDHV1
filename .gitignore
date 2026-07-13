@@ -6,6 +6,7 @@
 *.json
 !package.json
 !package-lock.json
+!tests/golden/*.json
 .env
 .env.*
 !.env.example
