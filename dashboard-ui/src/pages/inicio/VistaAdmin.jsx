@@ -77,27 +77,12 @@ export default function VistaAdmin() {
     espera: colaAtencion, esperaLabel: 'Esperando atención',
   };
 
-  const acciones = [
-    { n: colaAtencion, txt: 'esperando atención', to: '/cola' },
-    { n: solPendientes, txt: 'solicitudes de compra por aprobar', to: '/compras?tab=solicitudes' },
-    { n: cxpVencidas, txt: 'facturas de proveedor VENCIDAS', to: '/compras?tab=cxp', rojo: true },
-    { n: pagosPendientes, txt: 'pagos por cobrar', to: '/pedidos' },
-  ].filter(a => a.n > 0);
+  // La franja "Requiere tu acción" se retiró: era redundante con la campana de
+  // notificaciones (arriba a la derecha), que ya agrega estos pendientes.
 
   return (
     <div className="pagina-llena" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {error && <div className="login-error mb-5">No se pudieron cargar los pedidos: {error.message}</div>}
-
-      {acciones.length > 0 && (
-        <div className="accion-strip">
-          <span className="accion-titulo">Requiere tu acción</span>
-          {acciones.map(a => (
-            <Link key={a.to + a.txt} to={a.to} className={'accion-chip' + (a.rojo ? ' rojo' : '')}>
-              <strong>{a.n}</strong> {a.txt}
-            </Link>
-          ))}
-        </div>
-      )}
 
       <div className="kpi-head">
         <button className={`swap-kpi${kpiPct ? '' : ' activo'}`} onClick={() => setKpiPct(false)} title="Números absolutos">123</button>

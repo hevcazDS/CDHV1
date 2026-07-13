@@ -722,7 +722,8 @@ tr:last-child td { border-bottom: none; }
 .card-hover:hover, .kpi-clic:hover {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--brand) 16%, var(--border));
-  box-shadow: 0 2px 12px rgba(16,17,20,0.035);
+  /* Blur amplio + offset chico = sombra DIFUSA (se difumina), no un borde duro. */
+  box-shadow: 0 3px 24px rgba(16,17,20,0.05);
 }
 .card-hover:active, .kpi-clic:active { transform: translateY(0); transition-duration: var(--dur-1); }
 /* Micro-interacción en las tarjetas del tablero (KPI + marketing): un
@@ -731,7 +732,8 @@ tr:last-child td { border-bottom: none; }
 .kpi-card:hover, .mkt-card:hover {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--brand) 10%, var(--border));
-  box-shadow: 0 2px 10px rgba(16,17,20,0.025);
+  /* Difusa y tenue: blur amplio (20px), offset mínimo, opacidad baja. */
+  box-shadow: 0 2px 20px rgba(16,17,20,0.04);
 }
 .kpi-card:active, .mkt-card:active { transform: translateY(0); transition-duration: var(--dur-1); }
 
