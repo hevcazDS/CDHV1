@@ -47,6 +47,19 @@ function slotsToVars(data) {
     return vars;
 }
 
+// Render de un nodo: si declara `render` (una acción que ENVUELVE el código de
+// render existente, ej. menuPrincipal/formatProducts), se usa esa salida —
+// permite reproducir prompts DINÁMICOS byte-idénticos. Si no, el prompt estático
+// sale de t(frase_clave). El layout dinámico queda en código (sellado como el
+// dinero); solo el texto estático es editable por frase. Ver §A.2 / decisión Fase 3.
+async function renderNodo(nodo, ctx, data) {
+    if (nodo.render) {
+        const r = await A.run(nodo.render, { ...ctx, data });
+        return typeof r === 'string' ? r : (r && (r.texto ?? r.text)) || '';
+    }
+    return t(nodo.frase_clave, slotsToVars(data));
+}
+
 // Invoca directamente el flow de CÓDIGO dueño de un paso 'sistema' (handoff C.3),
 // para que "conversación → checkout sellado" ocurra en el mismo turno.
 let _FLOWS_SISTEMA = null;
@@ -85,7 +98,7 @@ async function handle(ctx) {
             return t('escalar_asesor') || t('msg_asesor');
         }
         sm.updateSession(ctx.userId, ctx.step, { ...ctx.data, _reintentos: reintentos });
-        return t(nodo.frase_clave + '_invalido') || t(nodo.frase_clave, slotsToVars(ctx.data));
+        return t(nodo.frase_clave + '_invalido') || await renderNodo(nodo, ctx, ctx.data);
     }
 
     // 3. acción de la transición (fail-closed: si lanza → router viejo)
@@ -117,8 +130,8 @@ async function handle(ctx) {
         return await dispatchSistema(destino, { ...ctx, step: destino, data: nuevaData });
     }
 
-    // 8. render del prompt del nodo destino con las frases de la tienda
-    return nodoDestino ? t(nodoDestino.frase_clave, slotsToVars(nuevaData)) : undefined;
+    // 8. render del prompt del nodo destino (dinámico vía render, o estático vía frase)
+    return nodoDestino ? await renderNodo(nodoDestino, ctx, nuevaData) : undefined;
 }
 
 module.exports = {

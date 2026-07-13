@@ -63,6 +63,11 @@ const ACTIONS = {
         return { resultado: 'escalado', data: {} };
     },
 
+    // ── RENDER (Fase 3): envuelven el código de render existente para reproducir
+    //    prompts DINÁMICOS byte-idénticos. Devuelven string. El intérprete las
+    //    llama vía nodo.render. NO deciden topología ni tocan dinero. ──────────
+    render_menu: (ctx) => shared.menuPrincipal(ctx.tel),
+
     // ── PENDIENTE Fase 4 ────────────────────────────────────────────────────
     // ponytail: crear_cita / cobrar_anticipo se agregan en la Fase 4 (deltas de
     // giro) con sus helpers sellados reales (registrarCita / crearAnticipoDeCita),

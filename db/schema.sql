@@ -1250,6 +1250,7 @@ CREATE TABLE IF NOT EXISTS flujo_nodo (
                  CHECK(tipo IN ('conversacion','sistema')),
   frase_clave    TEXT,
   accion_entrada TEXT,
+  render         TEXT,                              -- 0066: acción de render dinámico (NULL = frase estática)
   params_json    TEXT NOT NULL DEFAULT '{}',
   es_inicial     INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (id_grafo, paso)

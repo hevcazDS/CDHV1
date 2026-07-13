@@ -37,7 +37,7 @@ function cargarGrafoActivo() {
     for (const n of nodosRaw) {
         nodos[n.paso] = {
             paso: n.paso, tipo: n.tipo, frase_clave: n.frase_clave,
-            accion_entrada: n.accion_entrada, params: _parse(n.params_json),
+            accion_entrada: n.accion_entrada, render: n.render, params: _parse(n.params_json),
             es_inicial: !!n.es_inicial,
         };
         if (n.es_inicial) inicial = n.paso;
