@@ -605,6 +605,11 @@ function procesarColaNotificaciones() {
         // el patrón que los sistemas antispam de WhatsApp usan para banear números.
         // 1.5-3s de jitter por mensaje deja ~15-27s para 10 mensajes, dentro del
         // ciclo de 30s del setInterval que llama a esta función.
+        // INMUTABLE mientras se use whatsapp-web.js (número personal): NO reducir ni
+        // eliminar el jitter. Junto con el escalonamiento 15-120s de /api/masivo, es
+        // lo que evita el baneo. Solo se relaja al pasar a la API oficial de Meta.
+        // Este loop de entrega es INDEPENDIENTE del motor de flujo (ComfyUI): las
+        // notificaciones/comunicados NO se interpretan en el grafo; solo se entregan.
         let _delayAcumulado = 0;
         for (const notif of pendientes) {
             const dest = (notif.destinatario || '').trim();

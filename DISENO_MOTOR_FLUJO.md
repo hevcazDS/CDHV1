@@ -915,11 +915,37 @@ sucursal, asientos, puntos, ticket, aviso) ocurre en código existente que el mo
 duplica**. Integrarlo es cablear la acción `grabar_pedido` a `insertarPedidoConCarrito` con la sucursal
 de sesión — nada más.
 
-**Cierre:** con G.1–G.6 respetadas, encender el motor no cambia una sola de las rutas de
-queja/frustración/escalada/envío/**cobro** que hoy funcionan: el intérprete es un inquilino tardío del
-pipeline que solo reemplaza el cuerpo conversacional, y todo lo que protege al cliente (filtros), lo
-conecta con un humano (ASESOR) y **convierte una compra en un cobro real con descuento de inventario y
-ticket** queda exactamente donde está, sellado y multitienda.
+### G.7 Comunicados masivos: FUERA del motor, humano-supervisados, timing INMUTABLE
+
+Invariante duro (decisión del dueño, verificado en código). Los **comunicados masivos / campañas** a
+clientes:
+
+1. **JAMÁS los lanza el bot solo.** El único disparador es **`POST /api/masivo`**, gateado
+   **`roles:['gerente']`** (`comunicacionPedidos.js:444`) — un humano los envía desde el panel. El bot
+   solo **entrega** lo que un humano ya encoló; nunca decide enviar una campaña. Refuerzo adicional: el
+   poller **nunca contacta primero** — si el destinatario no tiene fila en `clientes` (nunca escribió),
+   se bloquea (`bot/index.js:616-624`, `estatus='bloqueado_sin_contacto_previo'`).
+2. **NO entran en el motor de flujo (ComfyUI).** El envío masivo vive en la ruta del dashboard + el
+   **poller de `cola_notificaciones`** (`bot/index.js:600-653`), que es **independiente** del router de
+   conversación (`actionHandler`/`FLOWS`/motor). El grafo del editor **no** puede modelar, programar ni
+   disparar un comunicado masivo — está fuera de su alcance por diseño. El motor solo reordena el
+   **embudo conversacional 1-a-1**; los envíos salientes en lote no son "flujo".
+3. **El escalonamiento (timing) es INMUTABLE mientras se use `whatsapp-web.js`** (número personal, no API
+   oficial). Dos capas anti-baneo, ambas hardcodeadas y NO configurables: (a) `/api/masivo` separa cada
+   mensaje **15-120s** (`comunicacionPedidos.js:_accSeg`); (b) el poller añade **1.5-3s** de jitter por
+   entrega (`index.js:626`). No se reducen, no se vuelven params del grafo, no se "optimizan". **Solo se
+   relaja al migrar a la API oficial de Meta (WhatsApp Business Platform)** — hasta entonces, tocar estos
+   tiempos = arriesgar el baneo del número, que es existencial para el negocio.
+
+En una línea: **los comunicados masivos son una capacidad del PANEL operada por un HUMANO, con throttling
+fijo anti-baneo; el motor de flujo ni los ve ni los controla.**
+
+**Cierre:** con G.1–G.7 respetadas, encender el motor no cambia una sola de las rutas de
+queja/frustración/escalada/envío/**cobro** que hoy funcionan, ni toca los comunicados masivos: el
+intérprete es un inquilino tardío del pipeline que solo reemplaza el cuerpo conversacional, y todo lo que
+protege al cliente (filtros), lo conecta con un humano (ASESOR), **convierte una compra en un cobro real
+con descuento de inventario y ticket**, y **mantiene los envíos masivos humano-supervisados y con timing
+inmutable** queda exactamente donde está, sellado y multitienda.
 
 ---
 
