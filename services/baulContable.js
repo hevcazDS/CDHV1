@@ -64,7 +64,7 @@ async function exportarZip(db, mes) {
     }
     if (!archivos.length) return { ok: false, error: 'No hay CFDI timbrados para ' + m };
     const { crearZip } = require('./zipService');
-    return { ok: true, zip: crearZip(archivos), nombre: 'CFDI_' + m + '.zip', count: archivos.length };
+    return { ok: true, zip: crearZip(archivos), nombre: 'CFDI_' + String(m).replace(/[^0-9-]/g, '') + '.zip', count: archivos.length };
 }
 
 module.exports = { activo, archivar, listar, exportarZip };

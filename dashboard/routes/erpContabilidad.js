@@ -350,7 +350,7 @@ function diot(req, res, ctx) {
         // tipo_operacion(85 otros)|RFC|||valor_actos_16|iva_acreditable_16
         const lineas = filas.map(f => ['04', '85', f.rfc, '', '', String(Math.round(f.base)), String(Math.round(f.iva_acreditable))].join('|'));
         const txt = lineas.join('\r\n') + (lineas.length ? '\r\n' : '');
-        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="DIOT_${mes}.txt"` });
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="DIOT_${String(mes).replace(/[^0-9-]/g, '')}.txt"` });
         return res.end(txt);
     }
     const tot = filas.reduce((s, f) => ({ base: s.base + f.base, iva: s.iva + f.iva_acreditable }), { base: 0, iva: 0 });
@@ -412,7 +412,7 @@ function contabilidadElectronica(req, res, ctx) {
         xml = `<?xml version="1.0" encoding="UTF-8"?>\n<BCE:Balanza xmlns:BCE="http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/BalanzaComprobacion" Version="1.3" RFC="${_xmlEsc(rfc)}" Mes="${m}" Anio="${anio}" TipoEnvio="N">\n${rows}\n</BCE:Balanza>`;
     }
     if (sp.get('descargar') === '1') {
-        res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Content-Disposition': `attachment; filename="${tipo}_${mes}.xml"` });
+        res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Content-Disposition': `attachment; filename="${tipo}_${String(mes).replace(/[^0-9-]/g, '')}.xml"` });
         return res.end(xml);
     }
     const _sin = [...sinMapear];
