@@ -10,21 +10,20 @@
 // correr este runner.
 //
 // Uso:
-//   node scripts/migrate.js            # aplica todas las pendientes
-//   node scripts/migrate.js --status   # solo lista aplicadas/pendientes, no escribe nada
+//   node scripts/migrate.js            # aplica pendientes a DB_PATH (.env)
+//   node scripts/migrate.js --status   # solo lista aplicadas/pendientes, no escribe
+//   node scripts/migrate.js --db <ruta># aplica a una BD específica
+//   node scripts/migrate.js --all      # aplica a DB_PATH + TODAS las instancias/*.db
+//                                       # (hosting multi-instancia: cada tienda su BD;
+//                                       #  sin esto una tienda queda sin las tablas nuevas)
 'use strict';
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-const DB_PATH = process.env.DB_PATH;
-if (!DB_PATH) {
-    console.error('[HS-102] [migrate] ERROR: falta DB_PATH en el entorno (.env).');
-    process.exit(1);
-}
-
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
+const INSTANCIAS_DIR = path.join(__dirname, '..', 'instancias');
 
 // Split ingenuo por ';' pero respetando profundidad BEGIN/END, para no
 // cortar a la mitad el cuerpo de un CREATE TRIGGER (que tiene sus propios
@@ -65,9 +64,9 @@ function listaMigraciones() {
     return fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql')).sort();
 }
 
-function main() {
-    const soloStatus = process.argv.includes('--status');
-    const db = new Database(DB_PATH);
+function migrarBase(dbPath, soloStatus) {
+    console.log(`\n[migrate] === ${dbPath} ===`);
+    const db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
     db.pragma('busy_timeout = 5000');
     db.pragma('foreign_keys = ON');
@@ -117,6 +116,37 @@ function main() {
 
     db.close();
     console.log(`[migrate] listo — ${pendientes.length} migración(es) aplicada(s).`);
+}
+
+// Lista de BDs a migrar según los flags. Por defecto solo DB_PATH (compatible).
+function basesAMigrar() {
+    const args = process.argv.slice(2);
+    const iDb = args.indexOf('--db');
+    if (iDb >= 0 && args[iDb + 1]) return [args[iDb + 1]];
+    const bases = [];
+    if (process.env.DB_PATH) bases.push(process.env.DB_PATH);
+    if (args.includes('--all')) {
+        try {
+            for (const f of fs.readdirSync(INSTANCIAS_DIR)) {
+                if (f.endsWith('.db')) bases.push(path.join(INSTANCIAS_DIR, f));
+            }
+        } catch (_) { /* sin carpeta instancias — nada que agregar */ }
+    }
+    // dedupe por ruta absoluta resuelta
+    return [...new Map(bases.map(p => [path.resolve(p), p])).values()];
+}
+
+function main() {
+    const soloStatus = process.argv.includes('--status');
+    const bases = basesAMigrar();
+    if (!bases.length) {
+        console.error('[HS-102] [migrate] ERROR: falta DB_PATH en el entorno (.env) o --db/--all.');
+        process.exit(1);
+    }
+    for (const dbPath of bases) {
+        if (!fs.existsSync(dbPath)) { console.warn(`[migrate] (omitida, no existe) ${dbPath}`); continue; }
+        migrarBase(dbPath, soloStatus);
+    }
 }
 
 main();
