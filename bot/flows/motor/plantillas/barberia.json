@@ -1,0 +1,16 @@
+{
+  "giro_base": "barberia",
+  "_doc": "Delta de giro sobre la base JC (Fase 4): barbería = base sin WIZARD (no aplica el quiz de regalo) + los CITA_* colgados. Nodos DELEGADOS: el motor los posee (topología en datos) pero corren el código existente (menuFlow con menú adaptativo de barbería → opción 'agendar'; citasFlow para las citas) → paridad byte con la barbería-en-código. El anticipo (barberia-anticipo.json) es una variante que agrega el nodo CITA_ANTICIPO sellado. Un giro edita labels/aristas para tomar control como datos.",
+  "nodos": [
+    { "paso": "MENU",          "tipo": "conversacion", "es_inicial": 1, "params": { "delegar": true } },
+    { "paso": "SEARCHING",     "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "VIEW_PRODUCT",  "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "VARIANTE",      "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "ADD_MORE",      "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "REFERIDOS",     "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "CITA_SERVICIO", "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "CITA_FECHA",    "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "CITA_HORA",     "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "CITA_CONFIRMA", "tipo": "conversacion", "params": { "delegar": true } }
+  ]
+}

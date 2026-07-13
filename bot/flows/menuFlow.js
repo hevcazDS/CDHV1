@@ -117,6 +117,12 @@ async function handle(ctx) {
             sessionManager.updateSession(userId, S.WIZARD_Q1, { carrito: data.carrito || [] });
             return t('wizard_q1') || `🧙 ¡Te ayudo a encontrar el regalo perfecto! 🎁\n\n*Pregunta 1 de 3* — ¿Para quién es el juguete?\n\n1️⃣  👶 Bebé (0–2 años)\n2️⃣  🧒 Niño/a (3–8 años)\n3️⃣  🧑 Preadolescente (9–12)\n4️⃣  🎓 Adolescente / Adulto`;
         }
+        // Restaurante: "mesa"/"comer aquí" → consumo en mesa por WhatsApp (F6).
+        // Gated a giro restaurante + mesas_activo → otros giros (incl. JC) no cambian.
+        if (moduloActivo('mesas_activo') && shared.getValor('giro', 'jugueteria') === 'restaurante'
+            && /\bmesa\b|comer aqu[ií]|estoy en el restaurante/i.test(raw)) {
+            return require('./mesaFlow').iniciar(userId, { carrito: data.carrito || [] });
+        }
         // Detección de devolución por texto libre — todas las variantes
         if (/devolver|devolv|devoluci[oó]n|devuelta|cambiar.*producto|cambio.*producto|quiero.*devolver|quiero.*cambiar|repetido|duplicado|ya.*ten[ií]a|me.*llegó.*mal|llegó.*incorrecto|no.*funciona|est[aá].*roto|est[aá].*da[nñ]ado|garantia|garant[ií]a|me.*equivoqu[eé]|pedido.*mal/i.test(raw)) {
             sessionManager.updateSession(userId, S.DEVOLUCION, { paso: 'bienvenida' });

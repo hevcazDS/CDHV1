@@ -782,6 +782,27 @@ function checkFiadosVencidos() {
     return total;
 }
 
+// F6: cobro recurrente automático de suscripciones. Genera el cargo del período
+// (reusa la ruta de dinero sellada vía suscripcionCobro) para las activas vencidas
+// y avisa al cliente por la cola. El avance de proximo_cobro (un mes) evita el
+// doble cargo en ticks siguientes — no hace falta dedup extra. El cobro real se
+// confirma en marcar-pagado, igual que todo.
+function checkSuscripcionesVencidas() {
+    if (db.prepare("SELECT valor FROM configuracion WHERE clave='suscripcion_activo'").get()?.valor !== '1') return 0;
+    const { generarCobrosVencidos } = require('./suscripcionCobro');
+    const r = generarCobrosVencidos(db, { username: 'auto' });
+    let avisos = 0;
+    for (const c of r.cargos) {
+        if (!c.telefono) continue;
+        const nombre = (c.nombre || '').split(' ')[0] || 'Hola';
+        const cuerpo = '📅 ' + nombre + ', se generó el cargo de tu suscripción (*' + c.folio + '*) por $' + Number(c.subtotal).toFixed(2) + '. Te avisamos para que puedas cubrirlo. ¡Gracias! 🙏';
+        try { _insertCola(c.telefono, 'Suscripcion cargo ' + c.folio, cuerpo, 'suscripcion'); avisos++; }
+        catch (e) { log.debug('No se pudo encolar aviso de suscripción: ' + e.message); }
+    }
+    if (r.generados > 0) log.info('Suscripciones: ' + r.generados + ' cargos generados, ' + avisos + ' avisos');
+    return r.generados;
+}
+
 async function runAll() {
     try {
         // Solo ejecutar checks costosos si hay datos relevantes
@@ -808,6 +829,7 @@ async function runAll() {
         _runCheck(checkRecompraConsumibles, 'checkRecompraConsumibles');
         _runCheck(checkLinksPagoPorVencer, 'checkLinksPagoPorVencer');
         _runCheck(checkFiadosVencidos, 'checkFiadosVencidos');
+        _runCheck(checkSuscripcionesVencidas, 'checkSuscripcionesVencidas');
         _runCheck(checkBackupReciente, 'checkBackupReciente');
         _runCheck(checkRelojSistema, 'checkRelojSistema');
         _runCheck(purgarImagenesAntiguas, 'purgarImagenesAntiguas');

@@ -18,11 +18,7 @@ function proximaFecha(diaCorte) {
     const f = new Date(y, m, d);
     return f.toISOString().slice(0, 10);
 }
-function sumarMes(fechaISO) {
-    const [y, m, d] = fechaISO.split('-').map(Number);
-    const f = new Date(y, (m - 1) + 1, Math.min(d, 28));
-    return f.toISOString().slice(0, 10);
-}
+const { generarCargo, generarCobrosVencidos } = require('../../services/suscripcionCobro');
 
 function listar(req, res, ctx) {
     const { db, json } = ctx;
@@ -74,27 +70,6 @@ function actualizar(req, res, ctx, { params }) {
     });
 }
 
-// Genera el cargo de UN período: pedido (canal 'suscripcion') + links_pago
-// 'generado'. Avanza proximo_cobro un mes. El cobro real = marcar-pagado.
-function _generarCargo(db, s, ses) {
-    const shared = require('../../bot/flows/_shared');
-    const { sucursalDeSesion } = require('../../services/sucursalService');
-    const sucursal = s.sucursal || sucursalDeSesion(db, ses) || '';
-    const folio = shared.generarFolio('pedido');
-    const carrito = [{ id: null, name: s.concepto || 'Suscripción', price: s.monto, cantidad: 1, tipo: 'servicio' }];
-    let idCliente = s.id_cliente || null;
-    if (!idCliente && s.telefono) { try { idCliente = shared.upsertCliente(s.telefono, s.nombre)?.id || null; } catch (_) {} }
-    const r = db.transaction(() => {
-        const { pedidoRowid, subtotal } = shared.insertarPedidoConCarrito(s.nombre, carrito, '', 'pendiente', sucursal, folio, idCliente, 'suscripcion');
-        db.prepare("UPDATE pedidos SET subtotal=?, total=?, metodo_entrega='pickup' WHERE id_pedido=?").run(subtotal, subtotal, pedidoRowid);
-        db.prepare("INSERT INTO links_pago (id_pedido, monto, moneda, estatus, creado_en) VALUES (?,?,'MXN','generado',datetime('now','localtime'))").run(pedidoRowid, subtotal);
-        const nuevo = sumarMes(s.proximo_cobro || new Date().toISOString().slice(0, 10));
-        db.prepare('UPDATE suscripciones SET proximo_cobro=? WHERE id=?').run(nuevo, s.id);
-        return { pedidoRowid, subtotal, folio, proximo: nuevo };
-    })();
-    return r;
-}
-
 function cobrar(req, res, ctx, { params, ses }) {
     const { db, json } = ctx;
     if (!activo(db)) return json(res, { ok: false, error: 'Módulo desactivado' }, 403);
@@ -102,20 +77,17 @@ function cobrar(req, res, ctx, { params, ses }) {
     const s = db.prepare('SELECT * FROM suscripciones WHERE id=?').get(id);
     if (!s) return json(res, { ok: false, error: 'Suscripción no encontrada' }, 404);
     if (s.estatus !== 'activa') return json(res, { ok: false, error: 'La suscripción no está activa' }, 400);
-    try { const r = _generarCargo(db, s, ses); return json(res, { ok: true, folio: r.folio, id_pedido: r.pedidoRowid, total: r.subtotal, proximo_cobro: r.proximo }); }
+    try { const r = generarCargo(db, s, ses); return json(res, { ok: true, folio: r.folio, id_pedido: r.pedidoRowid, total: r.subtotal, proximo_cobro: r.proximo }); }
     catch (e) { return json(res, { ok: false, error: e.message }, 500); }
 }
 
 // Genera los cargos de TODAS las activas vencidas hoy (o antes). Botón manual;
-// un tick (stockWatcher) puede llamar la misma lógica más adelante.
+// el tick automático de stockWatcher (checkSuscripcionesVencidas) usa la MISMA lógica.
 function generarCobros(req, res, ctx, { ses }) {
     const { db, json } = ctx;
     if (!activo(db)) return json(res, { ok: false, error: 'Módulo desactivado' }, 403);
-    const hoy = new Date().toISOString().slice(0, 10);
-    const pend = db.prepare("SELECT * FROM suscripciones WHERE estatus='activa' AND proximo_cobro IS NOT NULL AND proximo_cobro<=?").all(hoy);
-    let generados = 0, total = 0;
-    for (const s of pend) { try { const r = _generarCargo(db, s, ses); generados++; total += r.subtotal; } catch (_) {} }
-    return json(res, { ok: true, generados, total: Math.round(total * 100) / 100 });
+    const r = generarCobrosVencidos(db, ses);
+    return json(res, { ok: true, generados: r.generados, total: r.total });
 }
 
 const RUTAS = [

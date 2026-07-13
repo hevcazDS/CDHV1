@@ -62,7 +62,7 @@ function sembrar(db, plantilla, opts = {}) {
 // delta de barbería (base sin wizard + citas); el resto comparte la base JC.
 const PLANTILLA_POR_GIRO = {
     jugueteria: 'jugueteria', retail: 'jugueteria', abarrotes: 'jugueteria',
-    carniceria: 'jugueteria', ferreteria: 'jugueteria', restaurante: 'jugueteria', custom: 'jugueteria',
+    carniceria: 'jugueteria', ferreteria: 'jugueteria', restaurante: 'restaurante', custom: 'jugueteria',
     servicios: 'barberia', mantenimiento: 'barberia', barberia: 'barberia',
     tatuajes: 'barberia', estetica: 'barberia', unas: 'barberia', freelancer: 'barberia',
 };

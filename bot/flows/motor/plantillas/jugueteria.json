@@ -1,0 +1,15 @@
+{
+  "giro_base": "jugueteria",
+  "_doc": "Plantilla BASE del motor = Julio Cepeda. Los estados de conversación son nodos DELEGADOS: el motor los posee (topología en datos, editable por giro) pero su turno lo procesa el flow de código existente → paridad byte garantizada. El checkout/relevo sellado NO se incluye como nodos del motor (los toman los FLOWS de código: cartFlow/orderFlow/addressFlow/asesorFlow). Un giro reemplaza un nodo `delegar` por aristas+render reales para tomar control como datos (Fase 4).",
+  "nodos": [
+    { "paso": "MENU",         "tipo": "conversacion", "es_inicial": 1, "params": { "delegar": true } },
+    { "paso": "SEARCHING",    "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "VIEW_PRODUCT", "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "VARIANTE",     "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "ADD_MORE",     "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "WIZARD_Q1",    "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "WIZARD_Q2",    "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "WIZARD_Q3",    "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "REFERIDOS",    "tipo": "conversacion", "params": { "delegar": true } }
+  ]
+}

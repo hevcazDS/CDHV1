@@ -26,7 +26,7 @@
 // extensión documentado, no una feature a medias.
 const _CITAS = [require('./citasFlow')];
 const GIRO_FLOWS = {
-    // restaurante: [ require('./restauranteFlow') ],
+    restaurante:   [require('./mesaFlow')],   // consumo en mesa por WhatsApp (F6)
     servicios:     _CITAS,
     freelancer:    _CITAS,   // freelancer se cubre como servicios (F5.0): mismo flujo de Citas
     mantenimiento: _CITAS,

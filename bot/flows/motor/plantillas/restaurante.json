@@ -1,0 +1,17 @@
+{
+  "giro_base": "restaurante",
+  "_doc": "Delta de restaurante (F6): base JC (mantiene el menú de 5 opciones + búsqueda/carrito de siempre) + los MESA_* colgados (consumo en mesa por WhatsApp). Nodos DELEGADOS → paridad byte con el código (menuFlow + mesaFlow). El wizard de regalo se conserva porque restaurante usa el menú estándar; se entra a mesa por keyword ('mesa'/'comer aquí'), gated por mesas_activo.",
+  "nodos": [
+    { "paso": "MENU",          "tipo": "conversacion", "es_inicial": 1, "params": { "delegar": true } },
+    { "paso": "SEARCHING",     "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "VIEW_PRODUCT",  "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "VARIANTE",      "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "ADD_MORE",      "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "WIZARD_Q1",     "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "WIZARD_Q2",     "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "WIZARD_Q3",     "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "REFERIDOS",     "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "MESA_ABRIR",    "tipo": "conversacion", "params": { "delegar": true } },
+    { "paso": "MESA_CONSUMO",  "tipo": "conversacion", "params": { "delegar": true } }
+  ]
+}
