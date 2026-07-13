@@ -192,10 +192,14 @@ export default function Layout() {
   // Monograma del negocio ("Julio Cepeda Jugueterías" → JC): es el botón
   // de contraer/extraer
   const monograma = nombreNegocio.split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
+  // Iconos del riel colapsado: DEBEN coincidir con los títulos reales de GRUPOS
+  // (Panel/Ventas/Envíos/Clientes y bot/Catálogo/Almacén/Compras y finanzas/
+  // Personal/Ajustes). Antes tenían claves viejas ('Mostrador'/'Configuración'…)
+  // que no matcheaban → todos caían al fallback Home y se veían duplicados.
   const ICONO_CATEGORIA = {
-    'Panel': Home, 'Mostrador': ReceiptText, 'Pedidos y atención': Package, 'Clientes': Users,
-    'Envíos': Truck, 'Promociones': Tag, 'Catálogo e inventario': Warehouse, 'Reportes': BarChart3,
-    'Compras y finanzas': Landmark, 'Personal': IdCard, 'Configuración': Settings,
+    'Panel': Home, 'Ventas': ReceiptText, 'Envíos': Truck, 'Clientes y bot': Users,
+    'Catálogo': Tags, 'Almacén': Warehouse, 'Compras y finanzas': Landmark,
+    'Personal': IdCard, 'Ajustes': Settings,
   };
 
   // Acordeón de un grupo abierto a la vez, siempre el de la ruta activa

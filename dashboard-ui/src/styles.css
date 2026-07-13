@@ -706,23 +706,25 @@ tr:last-child td { border-bottom: none; }
 
 /* B1 — cards: elevación solo en interactivas */
 .card, .kpi-card {
-  transition: box-shadow var(--dur-2) var(--ease-out-quart),
+  /* La sombra entra con un fade más lento (dur-3) = desvanecido sutil, no un
+     golpe seco; el movimiento (transform/borde) sigue ágil. */
+  transition: box-shadow var(--dur-3) var(--ease-out-quart),
               border-color var(--dur-2) var(--ease-out-quart),
               transform var(--dur-2) var(--ease-out-quart);
 }
 .card-hover:hover, .kpi-clic:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--brand) 30%, var(--border));
-  box-shadow: 0 1px 2px rgba(16,17,20,0.04), 0 8px 20px rgba(16,17,20,0.07);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--brand) 20%, var(--border));
+  box-shadow: 0 4px 16px rgba(16,17,20,0.05);
 }
 .card-hover:active, .kpi-clic:active { transform: translateY(0); transition-duration: var(--dur-1); }
-/* Micro-interacción en las tarjetas del tablero (KPI + marketing): elevación
-   sutil al pasar el cursor para que el panel no se sienta estático. Más leve que
-   las clicables (-1px), sin sombra fuerte, para no competir con las accionables. */
+/* Micro-interacción en las tarjetas del tablero (KPI + marketing): un
+   desvanecido MUY sutil al pasar el cursor — sombra difusa y tenue, sin salto,
+   para que el panel no se sienta estático sin competir con las accionables. */
 .kpi-card:hover, .mkt-card:hover {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--brand) 22%, var(--border));
-  box-shadow: 0 1px 2px rgba(16,17,20,0.04), 0 5px 14px rgba(16,17,20,0.06);
+  border-color: color-mix(in srgb, var(--brand) 12%, var(--border));
+  box-shadow: 0 3px 12px rgba(16,17,20,0.04);
 }
 .kpi-card:active, .mkt-card:active { transform: translateY(0); transition-duration: var(--dur-1); }
 
