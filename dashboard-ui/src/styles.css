@@ -103,10 +103,16 @@ td.num { text-align: right; }
   background: linear-gradient(135deg, #fdf2f4 0%, #f7f1fb 55%, #eef4fb 100%) fixed;
 }
 [data-tema="color"] .topbar, [data-tema="color"] .sidebar { background: rgba(255,255,255,0.75); backdrop-filter: blur(8px); }
+/* Coherencia con el default: el tema Color ya NO usa la sombra flotante de 28px
+   (estética landing SaaS que el default rechazó); sombra mínima + borde tenue. */
 [data-tema="color"] .card, [data-tema="color"] .kpi-card {
-  box-shadow: 0 2px 4px rgba(120,80,160,0.05), 0 12px 28px rgba(120,80,160,0.08);
-  border-color: transparent;
+  box-shadow: 0 1px 2px rgba(120,80,160,0.06);
+  border-color: color-mix(in srgb, var(--accent-2) 12%, var(--border));
 }
+/* Unifica la familia tipográfica de los títulos de Mantine (Title/Modal) con la
+   del look ERP (.card-header h3), que convivían con dos fuentes distintas. */
+.mantine-Card-root .mantine-Title-root,
+.mantine-Modal-title { font-family: var(--font-titulos); }
 [data-tema="color"] .kpi-dark { background: linear-gradient(135deg, #ff9a5a, #ff5f3d) !important; }
 [data-tema="color"] .btn-primary { background: linear-gradient(135deg, #ff8a3d, #ff5f6d); }
 [data-tema="color"] .sidebar-link.active { background: rgba(255,122,61,0.12); color: #ff7a3d; }
@@ -730,8 +736,7 @@ tr:last-child td { border-bottom: none; }
 .card-hover:hover, .kpi-clic:hover {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--brand) 16%, var(--border));
-  /* Blur amplio + offset chico = sombra DIFUSA (se difumina), no un borde duro. */
-  box-shadow: 0 3px 24px rgba(16,17,20,0.05);
+  box-shadow: 0 1px 3px rgba(16,17,20,0.07);   /* mínima: 1px */
 }
 .card-hover:active, .kpi-clic:active { transform: translateY(0); transition-duration: var(--dur-1); }
 /* Micro-interacción en las tarjetas del tablero (KPI + marketing): un
@@ -740,8 +745,7 @@ tr:last-child td { border-bottom: none; }
 .kpi-card:hover, .mkt-card:hover {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--brand) 10%, var(--border));
-  /* Difusa y tenue: blur amplio (20px), offset mínimo, opacidad baja. */
-  box-shadow: 0 2px 20px rgba(16,17,20,0.04);
+  box-shadow: 0 1px 2px rgba(16,17,20,0.06);   /* mínima: 1px */
 }
 .kpi-card:active, .mkt-card:active { transform: translateY(0); transition-duration: var(--dur-1); }
 

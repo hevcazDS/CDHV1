@@ -36,10 +36,10 @@ export default function VistaFinanzas() {
           <Kpi Icono={TrendingUp} color="var(--green)" label="Ingresos del mes">{fmtMoneda(met?.ingresos?.mes)}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
-          <Kpi Icono={CreditCard} color="#b16cea" label="Por cobrar (clientes)">{stats?.pagos_pendientes ?? 0}</Kpi>
+          <Kpi Icono={CreditCard} color="var(--accent-2)" label="Por cobrar (clientes)">{stats?.pagos_pendientes ?? 0}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq" style={vencidas > 0 ? { borderColor: 'var(--red)' } : undefined}>
-          <Kpi Icono={FileText} color={vencidas > 0 ? 'var(--red)' : '#4aa8ff'} label={vencidas > 0 ? `Por pagar · ${vencidas} vencida(s)` : 'Por pagar (proveedores)'}>{fmtMoneda(cxpMonto)}</Kpi>
+          <Kpi Icono={FileText} color={vencidas > 0 ? 'var(--red)' : 'var(--info)'} label={vencidas > 0 ? `Por pagar · ${vencidas} vencida(s)` : 'Por pagar (proveedores)'}>{fmtMoneda(cxpMonto)}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
           <Kpi Icono={Landmark} color="var(--accent)" label="Cortes cerrados hoy">{(corte?.cortes || []).length}</Kpi>

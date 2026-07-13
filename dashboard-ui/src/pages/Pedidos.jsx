@@ -171,7 +171,7 @@ export default function Pedidos() {
                   <td className="num"><strong>${fmt(r.total)}</strong></td>
                   <td>
                     <Badge value={r.pago_estatus} map="pago" />
-                    {!!r.a_credito && r.pago_estatus === 'generado' && <span className="chip" style={{ marginLeft: 4, background: 'var(--yellow)', color: '#000' }} title={r.cobrado_por ? 'Vendió: ' + r.cobrado_por : ''}>fiado</span>}
+                    {!!r.a_credito && r.pago_estatus === 'generado' && <span className="badge badge-amarillo" style={{ marginLeft: 4 }} title={r.cobrado_por ? 'Vendió: ' + r.cobrado_por : ''}>fiado</span>}
                   </td>
                   <td>
                     <Select size="xs" data={ESTATUS} value={r.estatus} onChange={v => v && cambiarEstatus(r.id_pedido, v)} comboboxProps={{ withinPortal: true }} />
@@ -181,28 +181,28 @@ export default function Pedidos() {
                   <td className="row-actions">
                     <Group gap={4} wrap="nowrap">
                       {r.pago_estatus === 'generado' && r.id_link_pago && (
-                        <ActionIcon variant="light" color="teal" title="Confirmar pago recibido" onClick={() => setPagoModal(r)}><Check size={16} strokeWidth={1.75} /></ActionIcon>
+                        <ActionIcon variant="light" color="teal" aria-label="Confirmar pago recibido" title="Confirmar pago recibido" onClick={() => setPagoModal(r)}><Check size={16} strokeWidth={1.75} /></ActionIcon>
                       )}
                       {repartidorActivo && (
-                        <ActionIcon variant="light" color="orange" title={r.repartidor_nombre ? `Repartidor: ${r.repartidor_nombre}` : 'Asignar repartidor'} onClick={() => abrirRepartidor(r)}><Bike size={16} strokeWidth={1.75} /></ActionIcon>
+                        <ActionIcon variant="light" color="orange" aria-label="Asignar repartidor" title={r.repartidor_nombre ? `Repartidor: ${r.repartidor_nombre}` : 'Asignar repartidor'} onClick={() => abrirRepartidor(r)}><Bike size={16} strokeWidth={1.75} /></ActionIcon>
                       )}
-                      <ActionIcon variant="default" title="Ver ticket" onClick={() => abrirTicket(r.id_pedido)}><ReceiptText size={16} strokeWidth={1.75} /></ActionIcon>
-                      <ActionIcon variant="default" title="Historial del pedido" onClick={() => verHistorial(r.id_pedido)}><History size={16} strokeWidth={1.75} /></ActionIcon>
+                      <ActionIcon variant="default" aria-label="Ver ticket" title="Ver ticket" onClick={() => abrirTicket(r.id_pedido)}><ReceiptText size={16} strokeWidth={1.75} /></ActionIcon>
+                      <ActionIcon variant="default" aria-label="Historial del pedido" title="Historial del pedido" onClick={() => verHistorial(r.id_pedido)}><History size={16} strokeWidth={1.75} /></ActionIcon>
                       {r.pago_estatus !== 'pagado' && (
-                        <ActionIcon variant="default" title="Enviar link de pago por WhatsApp" onClick={async () => {
+                        <ActionIcon variant="default" aria-label="Enviar link de pago por WhatsApp" title="Enviar link de pago por WhatsApp" onClick={async () => {
                           const rr = await api.post(`/api/pagos/${r.id_pedido}/enviar-link`).catch(e => ({ ok: false, error: e.message }));
                           if (rr.ok) toastOk('Link de pago enviado al cliente por WhatsApp'); else handleApiError(new Error(rr.error || 'No se pudo'));
                         }}><Link2 size={16} strokeWidth={1.75} /></ActionIcon>
                       )}
                       {r.id_link_pago && (r.pago_estatus === 'generado' || r.pago_estatus === 'pagado') && (
-                        <ActionIcon variant="default" color="red" title={r.pago_estatus === 'pagado' ? 'Cancelar y revertir el cobro' : 'Cancelar link de pago'} onClick={async () => {
+                        <ActionIcon variant="default" color="red" aria-label="Cancelar pago" title={r.pago_estatus === 'pagado' ? 'Cancelar y revertir el cobro' : 'Cancelar link de pago'} onClick={async () => {
                           if (!await confirmar({ titulo: 'Cancelar pago', mensaje: r.pago_estatus === 'pagado' ? '¿Cancelar el cobro? Se revierte inventario y puntos.' : '¿Cancelar el link de pago?', peligro: true, textoOk: 'Cancelar' })) return;
                           const rr = await api.post(`/api/pagos/${r.id_link_pago}/cancelar`).catch(e => ({ ok: false, error: e.message }));
                           if (rr.ok) { toastOk(rr.cobro_revertido ? 'Cobro revertido' : 'Link cancelado'); queryClient.invalidateQueries({ queryKey: ['pedidos'] }); } else handleApiError(new Error(rr.error || 'No se pudo'));
                         }}><X size={16} strokeWidth={1.75} /></ActionIcon>
                       )}
                       {r.id_link_pago && (r.pago_estatus === 'cancelado' || r.pago_estatus === 'expirado') && (
-                        <ActionIcon variant="default" title="Regenerar link de pago (48h)" onClick={async () => {
+                        <ActionIcon variant="default" aria-label="Regenerar link de pago" title="Regenerar link de pago (48h)" onClick={async () => {
                           const rr = await api.post(`/api/pagos/${r.id_link_pago}/regenerar`).catch(e => ({ ok: false, error: e.message }));
                           if (rr.ok) { toastOk('Link regenerado (vence en 48h)'); queryClient.invalidateQueries({ queryKey: ['pedidos'] }); } else handleApiError(new Error(rr.error || 'No se pudo'));
                         }}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>

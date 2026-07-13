@@ -51,7 +51,7 @@ export function VistaCompras() {
       boton={{ to: '/compras', label: 'Ir a Compras', Icono: ShoppingCart }}
       items={[
         { Icono: ClipboardList, color: 'var(--accent)', label: 'Solicitudes pendientes', valor: pend.length },
-        { Icono: ShoppingCart, color: '#4aa8ff', label: 'OC abiertas', valor: abiertas.length },
+        { Icono: ShoppingCart, color: 'var(--info)', label: 'OC abiertas', valor: abiertas.length },
         { Icono: FileText, color: porVencer.length > 0 ? 'var(--red)' : 'var(--text-mute)', label: 'CxP vencen en 7 días', valor: porVencer.length },
       ]}
       tabla={{

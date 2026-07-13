@@ -8,7 +8,7 @@ import { prompt, toastOk } from '../lib/ui';
 import Calendario from '../components/Calendario';
 
 const ESTATUS_BADGE = { pendiente: 'badge-amarillo', confirmada: 'badge-azul', completada: 'badge-verde', cancelada: 'badge-rojo', no_asistio: 'badge-rojo' };
-const ESTATUS_COLOR = { pendiente: '#eab308', confirmada: '#4aa8ff', completada: 'var(--green)', cancelada: 'var(--red)', no_asistio: 'var(--red)' };
+const ESTATUS_COLOR = { pendiente: '#eab308', confirmada: 'var(--info)', completada: 'var(--green)', cancelada: 'var(--red)', no_asistio: 'var(--red)' };
 
 // Agenda del día/semana: el bot agenda solo (módulo Citas), aquí se opera
 // (confirmar/completar/cancelar) y se agenda manual por teléfono.

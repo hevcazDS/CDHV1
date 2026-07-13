@@ -40,7 +40,7 @@ export default function VistaOperador() {
           <Kpi Icono={Headset} color={(stats?.cola_atencion || 0) > 0 ? 'var(--red)' : 'var(--text-mute)'} label="Esperando atención">{stats?.cola_atencion ?? 0}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
-          <Kpi Icono={ReceiptText} color="#4aa8ff" label="Pedidos de hoy">{met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0}</Kpi>
+          <Kpi Icono={ReceiptText} color="var(--info)" label="Pedidos de hoy">{met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0}</Kpi>
         </Card>
       </div>
 

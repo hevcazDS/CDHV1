@@ -95,7 +95,7 @@ export default function VistaAdmin() {
           {!kpiPct && <Suspense fallback={null}><Sparkline datos={dias.map(d => ({ v: d.t }))} color="rgba(255,255,255,0.6)" /></Suspense>}
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
-          <Kpi Icono={ReceiptText} color="#4aa8ff" label={kpis.pedidosLabel}>{kpis.pedidos}</Kpi>
+          <Kpi Icono={ReceiptText} color="var(--info)" label={kpis.pedidosLabel}>{kpis.pedidos}</Kpi>
           {!kpiPct && <DeltaAyer hoy={met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0} ayer={stats?.pedidos_ayer} />}
           {!kpiPct && <Suspense fallback={null}><Sparkline datos={dias.map(d => ({ v: d.n }))} color="var(--info)" /></Suspense>}
         </Card>
@@ -106,7 +106,7 @@ export default function VistaAdmin() {
           <Kpi Icono={Users} color="var(--green)" label={kpis.clientesLabel}>{kpis.clientes}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" className="kpi-card kpi-sq">
-          <Kpi Icono={CreditCard} color="#b16cea" label={kpis.pagosLabel}>{kpis.pagos}</Kpi>
+          <Kpi Icono={CreditCard} color="var(--accent-2)" label={kpis.pagosLabel}>{kpis.pagos}</Kpi>
         </Card>
         <Card withBorder radius="md" p="md" component={Link} to="/cola"
           className="kpi-sq kpi-card kpi-clic" style={colaAtencion > 0 ? { borderColor: 'var(--red)' } : undefined}>
