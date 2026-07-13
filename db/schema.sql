@@ -1227,10 +1227,44 @@ CREATE TABLE IF NOT EXISTS citas (
                          CHECK(estatus IN ('pendiente','confirmada','completada','cancelada','no_asistio')),
     notas                TEXT,
     recordatorio_enviado INTEGER NOT NULL DEFAULT 0,
+    anticipo             REAL,                       -- migrations/0065 (anticipo por bot, NULL = sin flujo)
+    saldo_pendiente      REAL,                       -- migrations/0065 (resto a pagar en sucursal)
     creado_en            TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_citas_fecha ON citas(fecha, hora);
 CREATE INDEX IF NOT EXISTS idx_citas_tel ON citas(telefono);
+
+-- 0065: motor de flujo configurable (grafo por instancia). Inerte sin grafo activo.
+CREATE TABLE IF NOT EXISTS flujo_grafo (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  version    INTEGER NOT NULL DEFAULT 1,
+  giro_base  TEXT,
+  activo     INTEGER NOT NULL DEFAULT 0,
+  valido     INTEGER NOT NULL DEFAULT 0,
+  creado_en  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS flujo_nodo (
+  id_grafo       INTEGER NOT NULL REFERENCES flujo_grafo(id) ON DELETE CASCADE,
+  paso           TEXT NOT NULL,
+  tipo           TEXT NOT NULL DEFAULT 'conversacion'
+                 CHECK(tipo IN ('conversacion','sistema')),
+  frase_clave    TEXT,
+  accion_entrada TEXT,
+  params_json    TEXT NOT NULL DEFAULT '{}',
+  es_inicial     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (id_grafo, paso)
+);
+CREATE TABLE IF NOT EXISTS flujo_arista (
+  id_grafo    INTEGER NOT NULL REFERENCES flujo_grafo(id) ON DELETE CASCADE,
+  paso        TEXT NOT NULL,
+  orden       INTEGER NOT NULL,
+  label       TEXT,
+  input       TEXT NOT NULL,
+  destino     TEXT NOT NULL,
+  accion      TEXT,
+  params_json TEXT NOT NULL DEFAULT '{}',
+  PRIMARY KEY (id_grafo, paso, orden)
+);
 
 -- 0027: variantes talla×color con stock por sucursal (ropa/zapatos)
 CREATE TABLE IF NOT EXISTS producto_variantes (
