@@ -10,7 +10,7 @@
 const db = require('../db_connection');
 const sessionManager = require('../sessionManager');
 const { S, getValor, vocab, moduloActivo, logEvento } = require('./_shared');
-const log = require('../logger');
+const log = require('../logger')('citas');
 
 const STEPS = [S.CITA_SERVICIO, S.CITA_FECHA, S.CITA_HORA, S.CITA_CONFIRMA];
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -86,6 +86,20 @@ function iniciar(userId, data) {
     return _pedirFecha(userId, data);
 }
 
+// INSERT de la cita (reusada por CITA_CONFIRMA y por la acción crear_cita del
+// motor). Devuelve el id de la cita creada, o null si falla.
+function registrarCita(data, tel) {
+    const nombre = (() => {
+        try { return db.prepare('SELECT nombre FROM clientes WHERE telefono=?').get(tel)?.nombre || null; }
+        catch (_) { return null; }
+    })();
+    const info = db.prepare('INSERT INTO citas (telefono, nombre, servicio, servicio_precio, id_servicio, fecha, hora) VALUES (?,?,?,?,?,?,?)')
+        .run(tel, nombre, data.cita_servicio || null, Number(data.cita_servicio_precio) || 0, data.cita_servicio_id || null, data.cita_fecha, data.cita_hora);
+    logEvento('cita_agendada', (data.cita_fecha || '') + ' ' + (data.cita_hora || '') + (data.cita_servicio ? ' · ' + data.cita_servicio : ''), tel);
+    log.info(`Cita agendada ${data.cita_fecha} ${data.cita_hora}`, tel);
+    return info.lastInsertRowid;
+}
+
 async function handle(ctx) {
     const { userId, action, step, data, tel } = ctx;
     if (!moduloActivo('citas_activo')) { // fail closed → menú
@@ -132,14 +146,7 @@ async function handle(ctx) {
         if (!slotsLibres(data.cita_fecha).includes(data.cita_hora)) {
             return '😕 Esa hora se acaba de ocupar. ' + iniciar(userId, data);
         }
-        const nombre = (() => {
-            try { return db.prepare('SELECT nombre FROM clientes WHERE telefono=?').get(tel)?.nombre || null; }
-            catch (_) { return null; }
-        })();
-        db.prepare('INSERT INTO citas (telefono, nombre, servicio, servicio_precio, id_servicio, fecha, hora) VALUES (?,?,?,?,?,?,?)')
-          .run(tel, nombre, data.cita_servicio || null, Number(data.cita_servicio_precio) || 0, data.cita_servicio_id || null, data.cita_fecha, data.cita_hora);
-        logEvento('cita_agendada', (data.cita_fecha || '') + ' ' + (data.cita_hora || '') + (data.cita_servicio ? ' · ' + data.cita_servicio : ''), tel);
-        log.info(`Cita agendada ${data.cita_fecha} ${data.cita_hora}`, tel);
+        registrarCita(data, tel);
         sessionManager.updateSession(userId, S.MENU, {});
         const V = vocab();
         return `🎉 ¡Listo! Tu cita quedó agendada:\n\n${data.cita_servicio ? '💈 *' + data.cita_servicio + '*\n' : ''}📅 *${data.cita_label}* a las *${data.cita_hora}*\n\n` +
@@ -149,4 +156,4 @@ async function handle(ctx) {
     return null;
 }
 
-module.exports = { STEPS, handle, iniciar, slotsLibres, diasDisponibles };
+module.exports = { STEPS, handle, iniciar, slotsLibres, diasDisponibles, registrarCita };

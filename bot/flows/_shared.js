@@ -865,6 +865,23 @@ function grabarPedidoPickup(data, telefono) {
     return { folio, total: subtotal, linkUrl, codigo, descuentoReferido };
 }
 
+// Anticipo de cita = un PEDIDO normal de una línea (el servicio) cuyo total es el
+// anticipo, por la MISMA ruta de dinero (insertarPedidoConCarrito + insertarLinkPago)
+// que converge en marcar-pagado. NO descuenta inventario (es un servicio). Reusa el
+// patrón del apartado de preventas. Ver DISENO_MOTOR_FLUJO.md §E.1.
+function grabarPedidoAnticipoCita(data, telefono) {
+    const folio   = generarFolio('pedido');
+    const cliente = upsertCliente(telefono, data.nombre || null);
+    const carrito = data.carrito;                       // [{ id: servicio, name, price: anticipo, cantidad: 1 }]
+    const total   = data.total;                         // = anticipo
+    const { pedidoRowid } = insertarPedidoConCarrito(
+        cliente.nombre || telefono, carrito, '', 'Anticipo Pendiente', '', folio, cliente.id, 'bot'
+    );
+    db.prepare('UPDATE pedidos SET subtotal=?, total=? WHERE id_pedido=?').run(total, total, pedidoRowid);
+    const linkUrl = insertarLinkPago(pedidoRowid, total, folio);
+    return { pedidoRowid, folio, linkUrl };
+}
+
 function grabarPedidoEnvio(data, telefono) {
     const folio   = generarFolio('pedido');
     const cliente = upsertCliente(telefono, data.nombre);
@@ -1303,6 +1320,7 @@ module.exports = {
     insertarPedidoConCarrito,
     grabarPedidoPickup,
     grabarPedidoEnvio,
+    grabarPedidoAnticipoCita,
     grabarPedidoSplit,
     grabarPedidoPickupUnificado,
     formatProducts,

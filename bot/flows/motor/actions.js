@@ -68,12 +68,27 @@ const ACTIONS = {
     //    llama vía nodo.render. NO deciden topología ni tocan dinero. ──────────
     render_menu: (ctx) => shared.menuPrincipal(ctx.tel),
 
-    // ── PENDIENTE Fase 4 ────────────────────────────────────────────────────
-    // ponytail: crear_cita / cobrar_anticipo se agregan en la Fase 4 (deltas de
-    // giro) con sus helpers sellados reales (registrarCita / crearAnticipoDeCita),
-    // NO aquí: sin intérprete (Fase 2) no hay quién las llame y su lógica de dinero
-    // aún no existe. Las columnas citas.anticipo/saldo_pendiente (migración 0065)
-    // ya dejan lista la BD para cuando lleguen.
+    // ── CITA + ANTICIPO (Fase 4) — SELLADAS. El anticipo es un pedido normal por
+    //    la misma ruta de dinero (§E.1); el porcentaje viene del grafo (params),
+    //    el CÓMO se cobra es intocable. barbería-sin-anticipo cae en 'sin_cobro'. ──
+    crear_cita: (ctx) => {
+        const id = require('../citasFlow').registrarCita(ctx.data, ctx.tel);
+        return { resultado: id ? 'ok' : 'no', data: { cita_id: id } };
+    },
+    cobrar_anticipo: (ctx, params = {}) => {
+        const precio     = ctx.data.cita_servicio_precio || 0;
+        const porcentaje = params.porcentaje;
+        // Defensa en profundidad (el linter ya exige porcentaje>0): sin monto/porcentaje
+        // no se cobra — la barbería sin anticipo pasa por aquí sin cobrar.
+        if (!(porcentaje > 0) || !(precio > 0)) return { resultado: 'sin_cobro', data: {} };
+        const anticipo = +(precio * porcentaje / 100).toFixed(2);
+        const saldo    = +(precio - anticipo).toFixed(2);
+        const carrito  = [{ id: ctx.data.cita_servicio_id, name: ctx.data.cita_servicio, price: anticipo, cantidad: 1 }];
+        const r = shared.grabarPedidoAnticipoCita({ ...ctx.data, carrito, total: anticipo }, ctx.tel);
+        // Liga el anticipo en columnas NUEVAS (0065), sin pisar citas.id_pedido (cobro de mostrador).
+        if (ctx.data.cita_id) shared.db.prepare('UPDATE citas SET anticipo=?, saldo_pendiente=? WHERE id=?').run(anticipo, saldo, ctx.data.cita_id);
+        return { resultado: 'cobrar', data: { anticipo, saldo, link: r.linkUrl, folio: r.folio } };
+    },
 };
 
 // run(nombre, ctx, params) — dispatcher que usa el intérprete. Lanza si la acción

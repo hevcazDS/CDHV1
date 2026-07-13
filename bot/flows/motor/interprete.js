@@ -72,7 +72,14 @@ function _flowsSistema() {
     return _FLOWS_SISTEMA;
 }
 async function dispatchSistema(destino, ctx) {
-    for (const f of _flowsSistema()) {
+    // Universales + los del giro activo (ej. citasFlow para barbería/servicios),
+    // así un nodo delegado de un delta de giro corre su código real (paridad).
+    let flows = _flowsSistema();
+    try {
+        const giro = require('../_config').getValor('giro', 'jugueteria');
+        flows = [...flows, ...require('../giroFlows').flowsDeGiro(giro)];
+    } catch (_) { /* sin giro flows → solo universales */ }
+    for (const f of flows) {
         if (Array.isArray(f.STEPS) && f.STEPS.includes(destino)) {
             return await f.handle({ ...ctx, step: destino });
         }
