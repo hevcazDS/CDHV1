@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Tabs } from '@mantine/core';
 import ContabilidadTab from './erp/ContabilidadTab';
 import GastosImpuestosTab from './erp/GastosImpuestosTab';
 import RastroTab from './erp/RastroTab';
@@ -46,26 +47,18 @@ export default function Erp() {
   };
   const activoDef = TABS.find(t => t.key === tab) || TABS[0];
   const Activo = activoDef?.Componente;
-  const grupos = [...new Set(TABS.map(t => t.grupo))];
   return (
     <div>
       <div className="page-title">Finanzas{activoDef ? ' · ' + activoDef.label : ''}</div>
       <div className="page-sub">Contabilidad, flujo de caja, impuestos y reportes de dirección</div>
-      <div className="modulo-layout">
-        <nav className="subnav">
-          {grupos.map(g => (
-            <div key={g}>
-              <div className="subnav-grupo">{g}</div>
-              {TABS.filter(t => t.grupo === g).map(t => (
-                <button key={t.key} className={'subnav-item' + (t.key === tab ? ' activo' : '')} onClick={() => cambiar(t.key)}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-        <div className="modulo-contenido">{Activo && <Activo />}</div>
-      </div>
+      {/* Pestañas horizontales (píldoras) — coherentes con Almacén/Compras/RRHH.
+          Los 9 tabs se envuelven a 2 renglones en la barra de píldoras. */}
+      <Tabs value={tab} onChange={cambiar} mb="md">
+        <Tabs.List>
+          {TABS.map(t => <Tabs.Tab key={t.key} value={t.key}>{t.label}</Tabs.Tab>)}
+        </Tabs.List>
+      </Tabs>
+      <div className="modulo-embebido">{Activo && <Activo />}</div>
     </div>
   );
 }
