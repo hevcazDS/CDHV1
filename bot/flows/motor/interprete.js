@@ -85,6 +85,12 @@ async function handle(ctx) {
     const nodo  = grafo && grafo.nodos[ctx.step];
     if (!nodo || nodo.tipo === 'sistema') return undefined;   // no es del motor → router viejo
 
+    // Nodo DELEGADO: el motor lo POSEE (topología en datos, editable por giro) pero
+    // su turno lo procesa el flow de código existente → paridad byte GARANTIZADA por
+    // correr la misma lógica (usado por la plantilla base jugueteria.json). Un giro
+    // reemplaza `delegar` por aristas+render reales para tomar control como datos.
+    if (nodo.params && nodo.params.delegar) return await dispatchSistema(ctx.step, ctx);
+
     // 1. resolver la arista contra el input del usuario
     const aristas = grafo.aristas[ctx.step] || [];
     const arista  = aristas.find(a => matchInput(a.input, ctx.action, ctx.raw));

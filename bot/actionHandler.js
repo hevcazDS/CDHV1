@@ -148,7 +148,10 @@ async function handleAction(userId, session, message, client) {
     // refresca cada 60s; cachearlo al require rompería el toggle sin reiniciar).
     // OFF (default) o sin grafo activo → el motor no participa y corre el código de hoy.
     const _motor = (() => { try { return moduloActivo('motor_flujo_activo') ? require('./flows/motor/interprete') : null; } catch(_) { return null; } })();
-    const _flowsActivos = [...FLOWS, ...(_motor ? [_motor] : []), ...giroFlows.flowsDeGiro(_giro)];
+    // El motor va PRIMERO: reclama solo los pasos de su grafo (STEPS = nodos
+    // conversación); el checkout sellado no está en sus STEPS, así que los FLOWS
+    // de código lo siguen tomando. Con el flag OFF, _motor es null → orden intacto.
+    const _flowsActivos = [...(_motor ? [_motor] : []), ...FLOWS, ...giroFlows.flowsDeGiro(_giro)];
     for (const flow of _flowsActivos) {
         if (!flow || !Array.isArray(flow.STEPS) || !flow.STEPS.includes(step)) continue;
         try {

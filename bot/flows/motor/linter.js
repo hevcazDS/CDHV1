@@ -37,10 +37,16 @@ function validar(grafo) {
         }
     }
 
-    // 2) nodo huérfano — inalcanzable por BFS desde el inicial (excepto el inicial) (§D.2 #1)
+    // 2) nodo huérfano — inalcanzable por BFS desde el inicial (excepto el inicial) (§D.2 #1).
+    //    Los nodos DELEGADOS se eximen: enrutan por el código del flow viejo (updateSession),
+    //    no por aristas del grafo, así que su "alcanzabilidad" no es visible en la topología.
     if (grafo.inicial && pasos.has(grafo.inicial)) {
         const alcanzables = _bfs(grafo, grafo.inicial);
-        for (const p of pasos) if (!alcanzables.has(p)) errs.push(`nodo huérfano: ${p}`);
+        for (const p of pasos) {
+            if (alcanzables.has(p)) continue;
+            if (grafo.nodos[p] && grafo.nodos[p].params && grafo.nodos[p].params.delegar) continue;
+            errs.push(`nodo huérfano: ${p}`);
+        }
     }
 
     // ponytail: faltan §D.2 #3 (ciclo sin salida vía Tarjan), #5 (nodo sistema
