@@ -1253,6 +1253,8 @@ CREATE TABLE IF NOT EXISTS flujo_nodo (
   render         TEXT,                              -- 0066: acción de render dinámico (NULL = frase estática)
   params_json    TEXT NOT NULL DEFAULT '{}',
   es_inicial     INTEGER NOT NULL DEFAULT 0,
+  pos_x          REAL,                              -- 0067: posición en el lienzo del editor (NULL = auto)
+  pos_y          REAL,                              -- 0067
   PRIMARY KEY (id_grafo, paso)
 );
 CREATE TABLE IF NOT EXISTS flujo_arista (

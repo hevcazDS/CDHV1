@@ -56,6 +56,7 @@ function motorGet(req, res, ctx) {
     const nodos = Object.values(g.nodos).map(n => ({
         paso: n.paso, tipo: n.tipo, frase_clave: n.frase_clave, render: n.render,
         params: n.params, es_inicial: n.es_inicial, delegar: !!(n.params && n.params.delegar),
+        pos_x: n.pos_x, pos_y: n.pos_y,
     }));
     const aristas = Object.entries(g.aristas).flatMap(([paso, arr]) =>
         arr.map(a => ({ paso, orden: a.orden, label: a.label, input: a.input, destino: a.destino, accion: a.accion, params: a.params })));
@@ -87,11 +88,90 @@ function nodoPut(req, res, ctx) {
     });
 }
 
+// PUT /api/prime/motor/grafo — guarda el grafo COMPLETO del editor visual como
+// VERSIÓN NUEVA (la anterior queda inactiva, para revertir). Body:
+//   { nodos: [{paso,tipo,frase_clave,accion_entrada,render,params,es_inicial,pos_x,pos_y}],
+//     aristas: [{paso,orden,label,input,destino,accion,params}] }
+// Candados de la frontera sellada (§D), aplicados en el SERVIDOR (el lienzo solo
+// los refleja): un nodo 'sistema' o delegado existente no puede cambiar su
+// tipo/accion_entrada/render ni borrarse — solo posición, frase_clave y params
+// whitelisted. Lintea ANTES de activar; si falla, no persiste nada.
+function grafoPut(req, res, ctx) {
+    const { db, json, readJson } = ctx;
+    return readJson(req, res, body => {
+        const nodos = Array.isArray(body.nodos) ? body.nodos : null;
+        const aristas = Array.isArray(body.aristas) ? body.aristas : [];
+        if (!nodos || !nodos.length) return json(res, { ok: false, error: 'nodos requeridos' }, 400);
+
+        const actual = grafo.cargarGrafoActivo();
+        const porPaso = {};
+        for (const n of nodos) {
+            const paso = String(n.paso || '').trim();
+            if (!/^[A-Z0-9_]+$/i.test(paso)) return json(res, { ok: false, error: 'paso inválido: ' + n.paso }, 400);
+            if (porPaso[paso]) return json(res, { ok: false, error: 'paso duplicado: ' + paso }, 400);
+            porPaso[paso] = n;
+        }
+
+        // Candados contra el grafo activo actual (si existe).
+        if (actual) {
+            for (const [paso, na] of Object.entries(actual.nodos)) {
+                const sellado = na.tipo === 'sistema' || (na.params && na.params.delegar);
+                if (!sellado) continue;
+                const nn = porPaso[paso];
+                if (!nn) return json(res, { ok: false, error: 'no se puede borrar el nodo sellado ' + paso }, 400);
+                if ((nn.tipo || 'conversacion') !== na.tipo) return json(res, { ok: false, error: 'no se puede cambiar el tipo del nodo sellado ' + paso }, 400);
+                if ((nn.accion_entrada || null) !== (na.accion_entrada || null) || (nn.render || null) !== (na.render || null)) {
+                    return json(res, { ok: false, error: 'no se puede cambiar la acción/render del nodo sellado ' + paso }, 400);
+                }
+                if (na.params && na.params.delegar && !(nn.params && nn.params.delegar)) {
+                    return json(res, { ok: false, error: 'no se puede des-delegar ' + paso + ' desde el editor' }, 400);
+                }
+            }
+        }
+
+        // Lintear la forma en memoria ANTES de tocar la BD.
+        const mem = { inicial: (nodos.find(n => n.es_inicial) || {}).paso || null, nodos: {}, aristas: {} };
+        for (const n of nodos) mem.nodos[n.paso] = { paso: n.paso, tipo: n.tipo || 'conversacion', accion_entrada: n.accion_entrada || null, params: n.params || {}, es_inicial: !!n.es_inicial };
+        for (const a of aristas) {
+            if (!porPaso[a.paso]) return json(res, { ok: false, error: 'arista desde nodo inexistente: ' + a.paso }, 400);
+            (mem.aristas[a.paso] = mem.aristas[a.paso] || []).push({ input: String(a.input || ''), destino: String(a.destino || ''), accion: a.accion || null, params: a.params || {} });
+        }
+        const val = linter.validar(mem);
+        if (!val.ok) return json(res, { ok: false, error: 'el grafo no pasa el linter', errs: val.errs }, 400);
+
+        // Persistir como versión nueva activa (transaccional).
+        const tx = db.transaction(() => {
+            const ver = (db.prepare('SELECT MAX(version) v FROM flujo_grafo').get().v || 0) + 1;
+            db.prepare('UPDATE flujo_grafo SET activo=0').run();
+            const gid = db.prepare('INSERT INTO flujo_grafo (version, giro_base, activo, valido) VALUES (?,?,1,1)')
+                .run(ver, actual?.giro_base || null).lastInsertRowid;
+            const insN = db.prepare('INSERT INTO flujo_nodo (id_grafo, paso, tipo, render, frase_clave, accion_entrada, params_json, es_inicial, pos_x, pos_y) VALUES (?,?,?,?,?,?,?,?,?,?)');
+            const insA = db.prepare('INSERT INTO flujo_arista (id_grafo, paso, orden, label, input, destino, accion, params_json) VALUES (?,?,?,?,?,?,?,?)');
+            for (const n of nodos) {
+                insN.run(gid, n.paso, n.tipo || 'conversacion', n.render || null, n.frase_clave || null,
+                    n.accion_entrada || null, JSON.stringify(n.params || {}), n.es_inicial ? 1 : 0,
+                    Number.isFinite(n.pos_x) ? n.pos_x : null, Number.isFinite(n.pos_y) ? n.pos_y : null);
+            }
+            const ordenPor = {};
+            for (const a of aristas) {
+                const o = a.orden ?? (ordenPor[a.paso] = (ordenPor[a.paso] || 0) + 1);
+                insA.run(gid, a.paso, o, a.label || null, String(a.input), String(a.destino), a.accion || null, JSON.stringify(a.params || {}));
+            }
+            return { gid, ver };
+        });
+        const r = tx();
+        grafo.invalidar();
+        return json(res, { ok: true, id: r.gid, version: r.ver });
+    });
+}
+
 const RUTAS = [
     { metodo: 'GET',  path: '/api/prime/motor',            roles: ['prime'], handler: motorGet },
     { metodo: 'GET',  path: '/api/prime/motor/plantillas', roles: ['prime'], handler: plantillasGet },
     { metodo: 'POST', path: '/api/prime/motor/activar',    roles: ['prime'], handler: activarPost },
+    { metodo: 'PUT',  path: '/api/prime/motor/grafo',      roles: ['prime'], handler: grafoPut },
     { metodo: 'PUT',  path: '/api/prime/motor/nodo',       roles: ['prime'], handler: nodoPut },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/prime/motor' });
+module.exports._test = { grafoPut, activarPost };   // contract tests (sin HTTP)
