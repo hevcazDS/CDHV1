@@ -70,7 +70,7 @@ export default function Etiquetas() {
               <img
                 src={`/api/imagenes_clientes/${encodeURIComponent(r.archivo_imagen)}`}
                 alt="Foto de cliente"
-                style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 6, marginBottom: 8 }}
+                style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 'var(--radius)', marginBottom: 8 }}
               />
               <Group gap={4} mb={6} wrap="wrap">
                 {(r.labels || []).slice(0, 6).map((l, i) => <Badge key={i} size="sm" variant="light">{l}</Badge>)}

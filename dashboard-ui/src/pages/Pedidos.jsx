@@ -249,7 +249,7 @@ export default function Pedidos() {
               <TextInput placeholder="RFC" value={rfc} onChange={e => setRfc(e.target.value)} mb="sm" size="xs" />
               <Button size="xs" disabled={guardarFacturacionMutation.isPending} onClick={guardarFacturacion}>Guardar</Button>
               {(razonSocial.trim() || rfc.trim()) && (
-                <div style={{ marginTop: 12, padding: 10, border: '1px dashed var(--border)', borderRadius: 6, fontSize: 12 }}>
+                <div style={{ marginTop: 12, padding: 10, border: '1px dashed var(--border)', borderRadius: 'var(--radius)', fontSize: 12 }}>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>Comprobante para facturación</div>
                   <div>Referencia: <strong>{ticket.pedido.folio || '#' + ticket.pedido.id_pedido}</strong></div>
                   {razonSocial.trim() && <div>Razón social: {razonSocial}</div>}
@@ -289,7 +289,7 @@ export default function Pedidos() {
             <Button variant="default" onClick={() => { setPagoModal(null); setReferencia(''); }}>Cancelar</Button>
             <Button onClick={confirmarPago}>Confirmar</Button>
           </>}>
-          <div style={{ background: 'var(--panel-2)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13 }}>
+          <div style={{ background: 'var(--panel-2)', borderRadius: 'var(--radius)', padding: '8px 12px', marginBottom: 12, fontSize: 13 }}>
             <div><strong>{pagoModal.cliente || '—'}</strong> · {pagoModal.folio || '#' + pagoModal.id_pedido}</div>
             <div>Monto: <strong>${fmt(pagoModal.total)}</strong>{!!pagoModal.a_credito && <span> · fiado{pagoModal.fiado_vence_en ? ' vence ' + pagoModal.fiado_vence_en : ''}</span>}</div>
           </div>

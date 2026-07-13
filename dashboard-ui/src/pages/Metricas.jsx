@@ -189,7 +189,7 @@ export default function Metricas() {
                     <XAxis dataKey="diaCorto" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} />
                     <YAxis stroke={C_DIM} fontSize={11} tickLine={false} axisLine={false} width={32} />
                     <Tooltip
-                      contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 8, fontSize: 12 }}
+                      contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 'var(--radius)', fontSize: 12 }}
                       labelStyle={{ color: '#fff' }}
                       formatter={(value, name) => [name === 't' ? `$${fmt(value)}` : value, name === 't' ? 'Monto' : 'Pedidos']}
                     />
@@ -201,7 +201,7 @@ export default function Metricas() {
                     <XAxis dataKey="diaCorto" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} />
                     <YAxis stroke={C_DIM} fontSize={11} tickLine={false} axisLine={false} width={32} />
                     <Tooltip
-                      contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 8, fontSize: 12 }}
+                      contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 'var(--radius)', fontSize: 12 }}
                       labelStyle={{ color: '#fff' }}
                       formatter={(value, name) => [name === 't' ? `$${fmt(value)}` : value, name === 't' ? 'Monto' : 'Pedidos']}
                     />
@@ -279,7 +279,7 @@ export default function Metricas() {
                 <CartesianGrid stroke={C_GRID} horizontal={false} />
                 <XAxis type="number" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} allowDecimals={false} />
                 <YAxis type="category" dataKey="campana" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={false} width={140} />
-                <Tooltip contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 8, fontSize: 12 }} labelStyle={{ color: '#fff' }} />
+                <Tooltip contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 'var(--radius)', fontSize: 12 }} labelStyle={{ color: '#fff' }} />
                 <Bar dataKey="enviados" name="Enviados" fill={C_GRID} radius={[0, 4, 4, 0]} />
                 <Bar dataKey="convertidos" name="Convertidos" fill={C_GREEN} radius={[0, 4, 4, 0]} />
               </BarChart>
@@ -296,7 +296,7 @@ export default function Metricas() {
                   <Pie data={motivos} dataKey="n" nameKey="motivo" innerRadius={32} outerRadius={58} paddingAngle={2}>
                     {motivos.map((m, i) => <Cell key={i} fill={MOTIVO_COLOR[m.motivo] || C_DIM} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 8, fontSize: 12 }} />
+                  <Tooltip contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 'var(--radius)', fontSize: 12 }} />
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ flex: 1 }}>

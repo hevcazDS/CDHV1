@@ -78,7 +78,7 @@ export default function Mesas() {
           {mesas.length === 0 && <div className="empty">Sin mesas abiertas</div>}
           {mesas.map(m => (
             <div key={m.id} onClick={() => setSel(m.id)}
-              style={{ padding: '10px 12px', borderRadius: 8, marginBottom: 6, cursor: 'pointer',
+              style={{ padding: '10px 12px', borderRadius: 'var(--radius)', marginBottom: 6, cursor: 'pointer',
                 border: '1px solid ' + (m.id === sel ? 'var(--accent)' : 'var(--border)'),
                 background: m.id === sel ? 'var(--panel-2)' : undefined }}>
               <strong>Mesa {m.numero}</strong>

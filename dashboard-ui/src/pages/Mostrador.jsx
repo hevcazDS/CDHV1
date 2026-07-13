@@ -158,7 +158,7 @@ export default function Mostrador() {
         </Group>
       )}
       {config && config.inventario === false && (
-        <div style={{ marginBottom: 12, padding: '9px 14px', borderRadius: 8, background: 'rgba(251,189,35,0.15)', border: '1px solid var(--yellow)', color: 'var(--text)', fontSize: 13 }}>
+        <div style={{ marginBottom: 12, padding: '9px 14px', borderRadius: 'var(--radius)', background: 'rgba(251,189,35,0.15)', border: '1px solid var(--yellow)', color: 'var(--text)', fontSize: 13 }}>
           ⚠️ El <strong>control de inventario está desactivado</strong>: estas ventas <strong>no descuentan stock</strong>. Actívalo en Módulos si tu negocio maneja existencias.
         </div>
       )}
@@ -172,7 +172,7 @@ export default function Mostrador() {
           <TextInput placeholder="…o buscar por nombre o SKU" value={busqueda} onChange={e => buscar(e.target.value)} mb="xs" />
           <Button variant="subtle" size="xs" mb="xs" onClick={reimprimir}>Reimprimir último ticket</Button>
           {sugeridos.length > 0 && (
-            <div style={{ marginBottom: 8, padding: 8, background: 'var(--panel-2)', borderRadius: 8 }}>
+            <div style={{ marginBottom: 8, padding: 8, background: 'var(--panel-2)', borderRadius: 'var(--radius)' }}>
               <div style={{ fontSize: 11, color: 'var(--text-mute)', marginBottom: 4 }}>Suele llevarse también:</div>
               <Group gap={6}>
                 {sugeridos.map(s => (
@@ -183,7 +183,7 @@ export default function Mostrador() {
             </div>
           )}
           {resultados.length > 0 && (
-            <div className="table-wrap" style={{ maxHeight: 200, overflow: 'auto', marginBottom: 8, border: '1px solid var(--border)', borderRadius: 6 }}>
+            <div className="table-wrap" style={{ maxHeight: 200, overflow: 'auto', marginBottom: 8, border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
               <Table highlightOnHover verticalSpacing={4}>
                 <tbody>
                   {resultados.map(p => (
@@ -241,19 +241,19 @@ export default function Mostrador() {
           <TextInput label={aCredito ? 'Teléfono del cliente (requerido para fiado)' : 'Teléfono del cliente (opcional, para puntos)'} value={clienteTel} onChange={e => setClienteTel(e.target.value)} mb="xs" />
           <TextInput label="Nombre del cliente (opcional)" value={clienteNombre} onChange={e => setClienteNombre(e.target.value)} mb="sm" />
           {config?.credito && (
-            <div style={{ border: '1px dashed var(--border)', borderRadius: 6, padding: 10, marginBottom: 12 }}>
+            <div style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: 10, marginBottom: 12 }}>
               <Checkbox label="Vender a crédito (fiado) — se cobra después" checked={aCredito} onChange={e => setACredito(e.currentTarget.checked)} />
               {aCredito && <div style={{ fontSize: 11, color: 'var(--text-mute)', marginTop: 6 }}>Se entrega la mercancía y queda como cuenta por cobrar. Cóbralo luego desde Pedidos (marcar pagado). Requiere identificar al cliente.</div>}
             </div>
           )}
           {config?.facturacion && (
-            <div style={{ border: '1px dashed var(--border)', borderRadius: 6, padding: 10, marginBottom: 12 }}>
+            <div style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: 10, marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6 }}>¿Va a facturar? (opcional)</div>
               <TextInput placeholder="Razón social" value={razonSocial} onChange={e => setRazonSocial(e.target.value)} mb="xs" size="xs" />
               <TextInput placeholder="RFC" value={rfc} onChange={e => setRfc(e.target.value)} size="xs" />
             </div>
           )}
-          <div style={{ border: '1px dashed var(--border)', borderRadius: 6, padding: 10, marginBottom: 12 }}>
+          <div style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: 10, marginBottom: 12 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6 }}>Cupón / descuento (opcional)</div>
             {cuponInfo ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>

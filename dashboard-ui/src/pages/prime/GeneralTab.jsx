@@ -446,7 +446,7 @@ function PacConfig() {
       </Group>
 
       {keyOnly ? (
-        <div style={{ background: 'var(--panel-2)', borderRadius: 8, padding: 12, marginBottom: 8 }}>
+        <div style={{ background: 'var(--panel-2)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 8 }}>
           <Text size="sm" fw={600} mb={4}>API key {c.proveedor === 'facturapi' ? '(sk_live_… o sk_test_…)' : '(usuario:contraseña)'} {cargado(flags.tiene_api_key)}</Text>
           <PasswordInput placeholder={flags.tiene_api_key ? '•••••• (dejar vacío para conservar)' : 'Pega aquí tu API key del PAC'} value={sec.api_key} onChange={e => setSec({ ...sec, api_key: e.target.value })} />
           <Text size="xs" c="dimmed" mt={6}>El certificado CSD lo subes una vez en el portal de {c.proveedor === 'facturapi' ? 'Facturapi' : 'Facturama'}. Aquí solo va la key: no manejamos tus certificados.</Text>
@@ -522,7 +522,7 @@ function PasarelaConfig() {
         <SegmentedControl value={c.ambiente} onChange={v => setC({ ...c, ambiente: v })} data={[{ label: 'Pruebas', value: 'sandbox' }, { label: 'Producción', value: 'live' }]} />
       </Group>
       {!c.demo && (
-        <div style={{ background: 'var(--panel-2)', borderRadius: 8, padding: 12, marginBottom: 8 }}>
+        <div style={{ background: 'var(--panel-2)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 8 }}>
           <Text size="sm" fw={600} mb={4}>API key del proveedor {cargado(flags.tiene_api_key)}</Text>
           <PasswordInput placeholder={flags.tiene_api_key ? '•••••• (dejar vacío para conservar)' : 'Pega aquí la secret key / access token'} value={apiKey} onChange={e => setApiKey(e.target.value)} />
           <Text size="xs" c="dimmed" mt={6}>Solo la key: nosotros no guardamos tarjetas ni datos de pago — el proveedor hospeda la página de cobro.</Text>
@@ -686,7 +686,7 @@ function CifradoBackup() {
         <button className="btn" style={{ borderColor: 'var(--yellow)' }} onClick={restaurar}>Restaurar base de datos…</button>
       </div>
       {claveMostrada && (
-        <div style={{ marginTop: 10, padding: 10, border: '2px solid var(--red)', borderRadius: 8 }}>
+        <div style={{ marginTop: 10, padding: 10, border: '2px solid var(--red)', borderRadius: 'var(--radius)' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--red)' }}>APUNTA O FOTOGRAFÍA ESTA CLAVE — no se vuelve a mostrar:</div>
           <code style={{ fontSize: 12, wordBreak: 'break-all' }}>{claveMostrada}</code>
         </div>

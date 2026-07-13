@@ -47,7 +47,7 @@ export default function BotEditorTab() {
               </Group>
             </div>
             <Text size="xs" c="dimmed" mb={6}>Hoy el cliente ve:</Text>
-            <div style={{ background: 'var(--panel-2)', borderRadius: 8, padding: '10px 14px', fontSize: 13, whiteSpace: 'pre-wrap', marginBottom: 10 }}>
+            <div style={{ background: 'var(--panel-2)', borderRadius: 'var(--radius)', padding: '10px 14px', fontSize: 13, whiteSpace: 'pre-wrap', marginBottom: 10 }}>
               {f.efectivo || <em>(vacía)</em>}
             </div>
             <Textarea autosize minRows={2} placeholder="Escribe aquí tu versión personalizada (vacío = usar la original)..."

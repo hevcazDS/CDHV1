@@ -358,7 +358,7 @@ export default function Notificaciones() {
                   const bg = m.rol === 'bot' ? '#1e3a5f' : m.rol === 'asesor' ? '#16432e' : 'var(--panel-2)';
                   return (
                     <div key={i} style={{ display: 'flex', justifyContent: dcha ? 'flex-end' : 'flex-start', marginBottom: 6 }}>
-                      <div style={{ maxWidth: '80%', background: bg, borderRadius: 8, padding: '6px 10px', fontSize: 12 }}>
+                      <div style={{ maxWidth: '80%', background: bg, borderRadius: 'var(--radius)', padding: '6px 10px', fontSize: 12 }}>
                         <div>{m.contenido}</div>
                         <div className="text-muted" style={{ fontSize: 10, marginTop: 2 }}>{m.rol} · {fdate(m.enviado_en)}</div>
                       </div>
@@ -494,7 +494,7 @@ export default function Notificaciones() {
                 <Button variant="default" size="xs" disabled={!cuponSelMas} onClick={insertarCuponMasivo}>Insertar</Button>
               </Group>
             )}
-            <div style={{ padding: '8px 12px', background: 'var(--panel-2)', borderRadius: 6, fontSize: 12, color: 'var(--yellow)', marginBottom: 10 }}>
+            <div style={{ padding: '8px 12px', background: 'var(--panel-2)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--yellow)', marginBottom: 10 }}>
               {txt('⚠️ Excluidos: troll, blacklist, queja, devolucion')}
             </div>
             <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 10 }}>

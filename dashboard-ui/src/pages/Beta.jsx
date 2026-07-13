@@ -58,7 +58,7 @@ export default function Beta() {
           <Button variant="default" fullWidth mb={10} onClick={verHealth}>Verificar /health</Button>
           {!health && !healthError && <div className="empty">Presiona el botón para verificar</div>}
           {healthError && <div className="login-error">No se pudo conectar</div>}
-          {health && <pre style={{ fontSize: 11, background: 'var(--panel-2)', padding: 10, borderRadius: 6, overflowX: 'auto' }}>{JSON.stringify(health, null, 2)}</pre>}
+          {health && <pre style={{ fontSize: 11, background: 'var(--panel-2)', padding: 10, borderRadius: 'var(--radius)', overflowX: 'auto' }}>{JSON.stringify(health, null, 2)}</pre>}
         </Card>
       </div>
 
