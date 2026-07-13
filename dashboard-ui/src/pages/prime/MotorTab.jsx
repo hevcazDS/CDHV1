@@ -36,17 +36,17 @@ export default function MotorTab() {
           <Badge color={data.motor_activo ? 'green' : 'gray'}>{data.motor_activo ? 'motor ON' : 'motor OFF'}</Badge>
         </Group>
         {data.activo
-          ? <Text size="sm">Grafo activo: <strong>{data.giro_base}</strong> · {data.nodos.length} nodos.</Text>
-          : <Text size="sm" c="dimmed">No hay un grafo activo. Elige una plantilla congelada y actívala para ver y editar el flujo.</Text>}
+          ? <Text size="sm">Flujo actual: <strong>{data.giro_base}</strong> · {data.nodos.length} piezas.</Text>
+          : <Text size="sm" c="dimmed">Aún no hay un flujo cargado. Elige un diseño listo abajo y actívalo para verlo y editarlo.</Text>}
         <Text size="xs" c="dimmed" mt={6}>
           {data.motor_activo
-            ? 'El bot está usando este grafo.'
-            : 'El grafo puede estar activo aunque el motor esté apagado: se enciende en Módulos. Apagado, el bot corre el flujo base en código.'}
+            ? 'El bot está usando este flujo para conversar.'
+            : 'Puedes ver y editar el flujo aunque el motor esté apagado (se enciende en Módulos). Apagado, el bot responde con el flujo base de siempre.'}
         </Text>
         <Group gap="xs" mt="sm" align="flex-end">
-          <Select label="Plantilla congelada" placeholder="Elige una" data={opciones} value={sel} onChange={setSel} style={{ width: 240 }} size="xs" />
+          <Select label="Diseños listos para usar" placeholder="Elige uno" data={opciones} value={sel} onChange={setSel} style={{ width: 240 }} size="xs" />
           <Button size="xs" loading={activar.isPending} disabled={!sel} onClick={() => activar.mutate(sel)}>
-            {data.activo ? 'Sustituir por esta' : 'Activar esta plantilla'}
+            {data.activo ? 'Cambiar a este diseño' : 'Usar este diseño'}
           </Button>
         </Group>
       </Card>
@@ -55,7 +55,7 @@ export default function MotorTab() {
         ? <MotorCanvas key={data.id + ':' + data.nodos.length} data={data} />
         : (
           <Card withBorder radius="md" p="lg" className="card">
-            <Text size="sm" c="dimmed">Activa una plantilla arriba para abrir el lienzo del flujo.</Text>
+            <Text size="sm" c="dimmed">Activa un diseño arriba para abrir el editor visual del flujo.</Text>
           </Card>
         )}
     </div>
