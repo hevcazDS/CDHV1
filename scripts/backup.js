@@ -256,32 +256,51 @@ function enviarBackup(adjuntos, asunto) {
     });
 }
 
-// ── Backup DB (11:00 AM) ───────────────────────────────────────────
+// TODAS las bases a respaldar (AUDITORIA_ERP_COMPLETITUD P5): antes solo se
+// respaldaba la BD ACTIVA (puntero o .env) — las instancias NO activas
+// (barberia.db, restaurante.db…) quedaban SIN copia fuera del servidor, nunca.
+// Ahora: la activa + la principal del .env + instancias/*.db, deduplicadas.
+function _basesARespaldar() {
+    const bases = new Map();   // ruta resuelta → etiqueta (dedup)
+    const agregar = (ruta) => {
+        try { const r = path.resolve(ruta); if (fs.existsSync(r)) bases.set(r, path.basename(r, '.db')); } catch (_) {}
+    };
+    agregar(DB_PATH);                                       // la activa (puntero o env)
+    if (process.env.DB_PATH) agregar(process.env.DB_PATH);  // la principal SIEMPRE
+    try {
+        const dir = path.join(__dirname, '..', 'instancias');
+        for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.db'))) agregar(path.join(dir, f));
+    } catch (_) { /* sin carpeta instancias/ → solo la principal */ }
+    return [...bases.entries()];   // [[ruta, etiqueta], ...]
+}
+
+// ── Backup DB (11:00 AM) — multi-instancia ──────────────────────────
 async function runBackupDB() {
     const fecha = new Date().toISOString().slice(0, 10);
-    console.log('[backup] Iniciando backup DB -> ' + DEST_MAIL);
-    if (!fs.existsSync(DB_PATH)) { console.error('[backup] DB no encontrada:', DB_PATH); return false; }
+    const bases = _basesARespaldar();
+    console.log('[backup] Iniciando backup de ' + bases.length + ' base(s) -> ' + DEST_MAIL);
+    if (!bases.length) { console.error('[backup] Ninguna DB encontrada'); return false; }
     try {
-        const _gz = await comprimirArchivo(DB_PATH);
-        const cif = cifrarSiAplica(_gz);
-        if (cif.omitir) {
-            // Fail-closed: no mandamos la BD en claro. Registramos el fallo
-            // (checkBackupReciente alertará por >36h) y encolamos aviso YA.
-            console.error('[backup] DB NO enviada (cifrado requerido): ' + cif.motivo);
-            _alertarCifradoBackup(cif.motivo);
-            const registro = cargarRegistro();
-            registro.ultimo_backup_db = new Date().toISOString();
-            registro.ultimo_backup_db_ok = false;
-            guardarRegistro(registro);
-            return false;
+        const adjuntos = [];
+        for (const [ruta, etiqueta] of bases) {
+            const _gz = await comprimirArchivo(ruta);
+            const cif = cifrarSiAplica(_gz);
+            if (cif.omitir) {
+                // Fail-closed: no mandamos NINGUNA BD en claro. Registramos el fallo
+                // (checkBackupReciente alertará por >36h) y encolamos aviso YA.
+                console.error('[backup] DBs NO enviadas (cifrado requerido): ' + cif.motivo);
+                _alertarCifradoBackup(cif.motivo);
+                const registro = cargarRegistro();
+                registro.ultimo_backup_db = new Date().toISOString();
+                registro.ultimo_backup_db_ok = false;
+                guardarRegistro(registro);
+                return false;
+            }
+            adjuntos.push({ nombre: etiqueta + '_' + fecha + '.db' + cif.ext, data: cif.buf });
+            console.log('[backup] ' + etiqueta + ' comprimida' + (cif.ext === '.gz.enc' ? ' + CIFRADA' : '') + ': ' + (cif.buf.length / 1024).toFixed(0) + ' KB');
         }
-        const { buf, ext } = cif;
-        console.log('[backup] DB comprimida' + (ext === '.gz.enc' ? ' + CIFRADA' : '') + ': ' + (buf.length / 1024).toFixed(0) + ' KB');
-        const ok = await enviarBackup(
-            [{ nombre: 'jugueteria_' + fecha + '.db' + ext, data: buf }],
-            'Backup DB Julio Cepeda - ' + fecha
-        );
-        console.log(ok ? '[backup] OK DB enviada a ' + DEST_MAIL : '[backup] ERROR DB fallo');
+        const ok = await enviarBackup(adjuntos, 'Backup DB (' + adjuntos.length + ' tienda' + (adjuntos.length > 1 ? 's' : '') + ') - ' + fecha);
+        console.log(ok ? '[backup] OK ' + adjuntos.length + ' DB(s) enviadas a ' + DEST_MAIL : '[backup] ERROR DB fallo');
         // Antes no había ningún registro persistido de si el backup de DB
         // (el más importante — es la única copia fuera del servidor) corrió
         // o falló; stockWatcher.checkBackupReciente() depende de este campo
