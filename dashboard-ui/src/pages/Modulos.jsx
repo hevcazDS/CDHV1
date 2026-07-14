@@ -182,9 +182,10 @@ export default function Modulos() {
   const cambiarTono = (t) => cambiarTonoMutation.mutate(t);
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Módulos</div>
       <div className="page-sub">Funciones del bot y modo de conversación</div>
+      <div className="page-scrollable">
 
       {/* El panel "Estado de módulos" (claves crudas tipo `puntos_activo`) se
           retiró: jerga interna redundante con los toggles — se percibía como
@@ -222,6 +223,7 @@ export default function Modulos() {
         </div>
         {cambiarTonoMutation.isSuccess && <div className="card" style={{ marginTop: 12 }}>Modo actualizado. Aplica en menos de 60 segundos.</div>}
         {cambiarTonoMutation.isError && <div className="login-error" style={{ marginTop: 12 }}>{cambiarTonoMutation.error.message}</div>}
+      </div>
       </div>
     </div>
   );

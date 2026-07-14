@@ -23,13 +23,13 @@ export default function MarketingModulo() {
   const activo = TABS.find(t => t.key === tab);
   const Activo = activo?.Componente;
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Marketing · {activo?.label}</div>
       <div className="page-sub">Ofertas, cupones, lista de espera y preventas</div>
       <Tabs value={tab} onChange={cambiar} mb="md">
         <Tabs.List>{TABS.map(t => <Tabs.Tab key={t.key} value={t.key}>{t.label}</Tabs.Tab>)}</Tabs.List>
       </Tabs>
-      <div className="modulo-embebido">{Activo && <Activo />}</div>
+      <div className="modulo-embebido page-scrollable">{Activo && <Activo />}</div>
     </div>
   );
 }

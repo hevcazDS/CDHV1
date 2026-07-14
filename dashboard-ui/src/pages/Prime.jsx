@@ -51,7 +51,7 @@ export default function Prime() {
   const TabActivo = tabsVisibles.find(t => t.key === tab)?.Componente;
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Configuración</div>
       <div className="page-sub">{esPrime ? 'Identidad del negocio, sucursales, usuarios y bot — rol prime' : 'Sucursales, usuarios y filtros'}</div>
 
@@ -61,7 +61,7 @@ export default function Prime() {
         </Tabs.List>
       </Tabs>
 
-      {TabActivo && <TabActivo />}
+      <div className="page-scrollable">{TabActivo && <TabActivo />}</div>
     </div>
   );
 }

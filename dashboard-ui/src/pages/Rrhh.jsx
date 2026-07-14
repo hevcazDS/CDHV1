@@ -59,7 +59,7 @@ export default function Rrhh() {
   });
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Recursos Humanos</div>
       <div className="page-sub">Empleados, horarios y nómina · cálculo aproximado — valida impuestos con tu contador</div>
       {moduloApagado && (
@@ -75,6 +75,7 @@ export default function Rrhh() {
         </Tabs.List>
       </Tabs>
 
+      <div className="page-scrollable">
       {tab === 'empleados' && (
         <div className="split-2">
           <Card withBorder radius="md" p="lg" className="card">
@@ -203,6 +204,7 @@ export default function Rrhh() {
       )}
 
       {tab === 'liquidaciones' && <Liquidaciones empleados={empleados} />}
+      </div>
     </div>
   );
 }

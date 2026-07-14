@@ -287,9 +287,10 @@ export default function Notificaciones() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Operación diaria</div>
       <div className="page-sub">Chat en vivo, venta previa y campañas masivas</div>
+      <div className="page-scrollable">
 
       <Tabs value={tab} onChange={setTab} mb="md">
         <Tabs.List>
@@ -551,6 +552,7 @@ export default function Notificaciones() {
           </Card>
         </div>
       )}
+      </div>
     </div>
   );
 }

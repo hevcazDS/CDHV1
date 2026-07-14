@@ -74,6 +74,13 @@
 4. **Carga = `<Skeleton>` de Mantine**, nunca texto "Cargando...".
 5. **Columnas = clases responsivas** (`.split-2`/`.cols-2`/`.cols-3`/`.kpi-grid`),
    nunca `gridTemplateColumns` inline (§2).
+6. **SIN scroll de página** (las 18 rutas verificadas a 1366×768): root de página
+   = `.sin-scroll`, título/filtros fijos, y TODO lo scrolleable dentro de
+   `.page-scrollable` (tablas grandes: la Card lleva `.sin-scroll-card` y el
+   `.table-wrap` lleva `page-scrollable` → thead sticky gratis). Módulos con
+   tabs: la lista de tabs fija y el contenido del tab en `.page-scrollable`
+   (el scroll se resetea al cambiar de tab). Página nueva que scrollea la
+   página entera = regresión.
 
 ### Esqueleto canónico de página nueva (copiar/pegar)
 

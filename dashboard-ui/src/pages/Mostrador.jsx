@@ -146,9 +146,10 @@ export default function Mostrador() {
   };
 
   return (
-    <div className="pos-mode">
+    <div className="pos-mode sin-scroll">
       <div className="page-title">Mostrador</div>
       <div className="page-sub">Punto de venta — cobra ventas presenciales{config?.sucursal ? ` · sucursal: ${sucursalSel || config.sucursal}` : ''}</div>
+      <div className="page-scrollable">
       {Array.isArray(config?.sucursales) && config.sucursales.length > 1 && (
         <Group gap="xs" mb="sm">
           <Select size="xs" style={{ maxWidth: 260 }} allowDeselect={false}
@@ -316,6 +317,7 @@ export default function Mostrador() {
       {mostrarCorte && <CorteCaja txt={txt} />}
 
       {config?.reparto && <RepartoPropinas txt={txt} />}
+      </div>
     </div>
   );
 }

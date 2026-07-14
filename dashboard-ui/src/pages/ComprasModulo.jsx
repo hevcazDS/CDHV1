@@ -27,13 +27,13 @@ export default function ComprasModulo() {
   const activo = TABS.find(t => t.key === tab);
   const Activo = activo?.Componente;
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Compras · {activo?.label}</div>
       <div className="page-sub">Solicitudes, órdenes, recepción, facturas y pagos a proveedor — el ciclo completo</div>
       <Tabs value={tab} onChange={cambiar} mb="md">
         <Tabs.List>{TABS.map(t => <Tabs.Tab key={t.key} value={t.key}>{t.label}</Tabs.Tab>)}</Tabs.List>
       </Tabs>
-      <div className="modulo-embebido">{Activo && <Activo irA={cambiar} />}</div>
+      <div className="modulo-embebido page-scrollable">{Activo && <Activo irA={cambiar} />}</div>
     </div>
   );
 }

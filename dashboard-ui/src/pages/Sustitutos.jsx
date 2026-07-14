@@ -60,9 +60,10 @@ export default function Sustitutos() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Relacionados</div>
       <div className="page-sub">Productos sustitutos sugeridos cuando hay quiebre de stock</div>
+      <div className="page-scrollable">
 
       <div className="cols-2">
         <Card withBorder radius="md" p="lg">
@@ -103,6 +104,7 @@ export default function Sustitutos() {
             </>
           )}
         </Card>
+      </div>
       </div>
     </div>
   );

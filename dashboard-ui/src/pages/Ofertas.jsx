@@ -14,9 +14,10 @@ export default function Ofertas() {
   });
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Ofertas</div>
       <div className="page-sub">Ofertas activas con precio rebajado</div>
+      <div className="page-scrollable">
       {error && <div className="login-error">No se pudieron cargar las ofertas: {error.message}</div>}
 
       <Card withBorder radius="md" p="lg">
@@ -44,6 +45,7 @@ export default function Ofertas() {
           </Table>
         </div>
       </Card>
+      </div>
     </div>
   );
 }

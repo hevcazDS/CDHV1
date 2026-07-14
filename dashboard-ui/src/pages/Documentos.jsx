@@ -69,9 +69,10 @@ export default function Documentos() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Documentos</div>
       <div className="page-sub">Cotizaciones, pagarés y contratos — plantillas estándar o la de tu sucursal</div>
+      <div className="page-scrollable">
       <SegmentedControl mb="md" value={tipo} onChange={setTipo} data={TIPOS} />
 
       {off ? (
@@ -135,6 +136,7 @@ export default function Documentos() {
         </Card>
       </div>
       )}
+      </div>
     </div>
   );
 }

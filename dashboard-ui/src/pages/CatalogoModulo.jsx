@@ -22,13 +22,13 @@ export default function CatalogoModulo() {
   const activo = TABS.find(t => t.key === tab);
   const Activo = activo?.Componente;
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Catálogo · {activo?.label}</div>
       <div className="page-sub">Alta y edición de productos, etiquetas de visión y relacionados</div>
       <Tabs value={tab} onChange={cambiar} mb="md">
         <Tabs.List>{TABS.map(t => <Tabs.Tab key={t.key} value={t.key}>{t.label}</Tabs.Tab>)}</Tabs.List>
       </Tabs>
-      <div className="modulo-embebido">{Activo && <Activo />}</div>
+      <div className="modulo-embebido page-scrollable">{Activo && <Activo />}</div>
     </div>
   );
 }

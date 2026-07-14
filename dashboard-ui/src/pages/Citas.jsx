@@ -58,9 +58,10 @@ export default function Citas() {
   const porDia = citas.reduce((m, c) => ((m[c.fecha] = m[c.fecha] || []).push(c), m), {});
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Citas</div>
       <div className="page-sub">Agenda de la semana — el bot agenda solo cuando el módulo Citas está activo</div>
+      <div className="page-scrollable">
       <div className="split-2w">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Agendar manual</h3></div>
@@ -131,6 +132,7 @@ export default function Citas() {
             </div>
           ))}
         </Card>
+      </div>
       </div>
     </div>
   );

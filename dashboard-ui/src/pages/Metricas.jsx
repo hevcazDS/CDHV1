@@ -119,9 +119,10 @@ export default function Metricas() {
   });
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Métricas</div>
       <div className="page-sub">Pedidos, conversión y reportes</div>
+      <div className="page-scrollable">
 
       {/* Ingresos (dinero cobrado) + satisfacción del cliente */}
       <div className="kpi-grid" style={{ marginBottom: 24 }}>
@@ -139,14 +140,24 @@ export default function Metricas() {
         </Card>
         <Card withBorder radius="md" p="xl" className="kpi-card">
           <Text size="sm" c="dimmed">Satisfacción (CSAT)</Text>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <RingProgress
-              size={72} thickness={7} roundCaps rootColor="var(--panel-2)"
-              sections={[{ value: d?.csat?.promedio ? Math.min(100, (d.csat.promedio / 5) * 100) : 0, color: 'var(--green)' }]}
-              label={<Text ta="center" size="sm" fw={700}>{d?.csat?.promedio ? Math.round((d.csat.promedio / 5) * 100) + '%' : '—'}</Text>}
-            />
-            <Text size="xs" c="dimmed">{d?.csat?.n || 0} {(d?.csat?.n || 0) === 1 ? 'valoración' : 'valoraciones'}</Text>
-          </div>
+          {document.documentElement.getAttribute('data-tema-ui') !== 'clasico' ? (
+            /* F: sin anillo — número grande + contexto (REDISENO_UI_F.md §4.2) */
+            <>
+              <Text size="26px" fw={300} className="kpi-num" c={d?.csat?.promedio >= 4 ? 'var(--green)' : undefined}>
+                {d?.csat?.promedio ? Math.round((d.csat.promedio / 5) * 100) + '%' : '—'}
+              </Text>
+              <Text size="xs" c="dimmed">{d?.csat?.n || 0} {(d?.csat?.n || 0) === 1 ? 'valoración' : 'valoraciones'}</Text>
+            </>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <RingProgress
+                size={72} thickness={7} roundCaps rootColor="var(--panel-2)"
+                sections={[{ value: d?.csat?.promedio ? Math.min(100, (d.csat.promedio / 5) * 100) : 0, color: 'var(--green)' }]}
+                label={<Text ta="center" size="sm" fw={700}>{d?.csat?.promedio ? Math.round((d.csat.promedio / 5) * 100) + '%' : '—'}</Text>}
+              />
+              <Text size="xs" c="dimmed">{d?.csat?.n || 0} {(d?.csat?.n || 0) === 1 ? 'valoración' : 'valoraciones'}</Text>
+            </div>
+          )}
         </Card>
       </div>
 
@@ -450,6 +461,7 @@ export default function Metricas() {
         {reporteMsg && <div className={reporteMsg.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(reporteMsg.texto)}</div>}
       </Card>
       <ComisionesCard />
+      </div>
     </div>
   );
 }

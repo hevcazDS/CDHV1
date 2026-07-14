@@ -33,13 +33,13 @@ export default function Almacen() {
   const [tab, setTab] = useState('resumen');
   const Activo = TABS.find(t => t.key === tab)?.C;
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Almacén</div>
       <div className="page-sub">{auditor ? 'Lectura de auditoría' : soloLectura ? 'Inventario en solo lectura' : 'Inventario, ubicaciones, conteos y movimientos'}</div>
       <Tabs value={tab} onChange={setTab} mb="md">
         <Tabs.List>{TABS.map(t => <Tabs.Tab key={t.key} value={t.key}>{t.label}</Tabs.Tab>)}</Tabs.List>
       </Tabs>
-      {Activo && <Activo soloLectura={soloLectura} />}
+      <div className="page-scrollable">{Activo && <Activo soloLectura={soloLectura} />}</div>
     </div>
   );
 }

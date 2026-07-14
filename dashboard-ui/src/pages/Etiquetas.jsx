@@ -47,9 +47,10 @@ export default function Etiquetas() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Etiquetas</div>
       <div className="page-sub">Revisión humana de las etiquetas que Vision le puso a fotos de clientes</div>
+      <div className="page-scrollable">
       {error && <div className="login-error">No se pudieron cargar las etiquetas: {error.message}</div>}
 
       <Card withBorder radius="md" p="lg">
@@ -100,6 +101,7 @@ export default function Etiquetas() {
           <TextInput autoFocus placeholder="Ej: lego duplo" value={etiquetaNueva} onChange={e => setEtiquetaNueva(e.target.value)} />
         </Modal>
       )}
+      </div>
     </div>
   );
 }

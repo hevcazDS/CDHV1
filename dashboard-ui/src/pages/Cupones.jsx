@@ -95,9 +95,10 @@ export default function Cupones() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Cupones</div>
       <div className="page-sub">Cupones y descuentos manuales</div>
+      <div className="page-scrollable">
       {error && <div className="login-error">No se pudieron cargar las promociones: {error.message}</div>}
 
       <div className="cols-2">
@@ -194,6 +195,7 @@ export default function Cupones() {
           <TextInput placeholder="Motivo (si elegiste Otro)" value={motivoBaja} onChange={e => setMotivoBaja(e.target.value)} />
         </Modal>
       )}
+      </div>
     </div>
   );
 }

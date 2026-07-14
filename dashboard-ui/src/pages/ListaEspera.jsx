@@ -30,9 +30,10 @@ export default function ListaEspera() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Lista de Espera</div>
       <div className="page-sub">Clientes esperando que vuelva el stock</div>
+      <div className="page-scrollable">
       {error && <div className="login-error">No se pudo cargar la lista de espera: {error.message}</div>}
 
       <Card withBorder radius="md" p="lg">
@@ -64,6 +65,7 @@ export default function ListaEspera() {
           </Table>
         </div>
       </Card>
+      </div>
     </div>
   );
 }

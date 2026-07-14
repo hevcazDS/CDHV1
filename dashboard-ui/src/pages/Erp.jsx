@@ -48,7 +48,7 @@ export default function Erp() {
   const activoDef = TABS.find(t => t.key === tab) || TABS[0];
   const Activo = activoDef?.Componente;
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Finanzas{activoDef ? ' · ' + activoDef.label : ''}</div>
       <div className="page-sub">Contabilidad, flujo de caja, impuestos y reportes de dirección</div>
       {/* Pestañas horizontales (píldoras) — coherentes con Almacén/Compras/RRHH.
@@ -58,7 +58,7 @@ export default function Erp() {
           {TABS.map(t => <Tabs.Tab key={t.key} value={t.key}>{t.label}</Tabs.Tab>)}
         </Tabs.List>
       </Tabs>
-      <div className="modulo-embebido">{Activo && <Activo />}</div>
+      <div className="modulo-embebido page-scrollable">{Activo && <Activo />}</div>
     </div>
   );
 }

@@ -65,9 +65,10 @@ export default function ColaEnvios() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Cola de envíos</div>
       <div className="page-sub">Mensajes pendientes, campañas programadas e historial de notificaciones</div>
+      <div className="page-scrollable">
 
       <Tabs value={tab} onChange={setTab} mb="md">
         <Tabs.List>
@@ -164,6 +165,7 @@ export default function ColaEnvios() {
           </div>
         </Card>
       )}
+      </div>
     </div>
   );
 }

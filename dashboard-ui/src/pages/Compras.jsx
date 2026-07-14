@@ -46,9 +46,10 @@ export default function Compras() {
   });
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Compras</div>
       <div className="page-sub">Solicitudes de adquisición y facturas de proveedor</div>
+      <div className="page-scrollable">
       <div className="split-2">
         <div>
           <Card withBorder radius="md" p="lg" className="card" mb="lg">
@@ -135,6 +136,7 @@ export default function Compras() {
             </table>
           </div>
         </Card>
+      </div>
       </div>
     </div>
   );

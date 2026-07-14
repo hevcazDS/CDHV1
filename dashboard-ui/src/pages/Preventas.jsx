@@ -62,9 +62,10 @@ export default function Preventas() {
   });
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Preventas</div>
       <div className="page-sub">Productos en preventa con apartado anticipado</div>
+      <div className="page-scrollable">
       {error && <div className="login-error">No se pudieron cargar las preventas: {error.message}</div>}
 
       <div className="cols-2">
@@ -113,6 +114,7 @@ export default function Preventas() {
           <TextInput type="date" autoFocus value={fechaLlegada} onChange={e => setFechaLlegada(e.target.value)} />
         </Modal>
       )}
+      </div>
     </div>
   );
 }

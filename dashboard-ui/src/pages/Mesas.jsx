@@ -65,9 +65,10 @@ export default function Mesas() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Mesas</div>
       <div className="page-sub">Abre mesas, toma la orden con comentarios, manda a cocina y cobra</div>
+      <div className="page-scrollable">
       <div className="split-2w">
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Mesas abiertas</h3></div>
@@ -143,6 +144,7 @@ export default function Mesas() {
             </>
           )}
         </Card>
+      </div>
       </div>
     </div>
   );
