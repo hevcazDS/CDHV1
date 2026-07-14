@@ -17,17 +17,17 @@ export default function Ranking() {
   });
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Ranking</div>
       <div className="page-sub">Top clientes por puntos de lealtad</div>
       {error && <div className="login-error">No se pudo cargar el ranking: {error.message}</div>}
 
-      <Card withBorder radius="md" p="lg">
+      <Card withBorder radius="md" p="lg" className="sin-scroll-card">
         <Group justify="space-between" mb="md">
           <Title order={4}>{txt('🏆 Top clientes por puntos')}</Title>
           <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
         </Group>
-        <div className="table-wrap">
+        <div className="table-wrap page-scrollable">
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>#</th><th>Cliente</th><th>Teléfono</th><th>Puntos ganados</th><th>Disponibles</th><th>Canjeados</th><th>Último mov.</th></tr></thead>
             <tbody>

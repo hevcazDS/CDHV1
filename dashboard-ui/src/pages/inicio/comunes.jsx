@@ -11,8 +11,20 @@ export function pillEstatus(estatus) {
   return 'badge badge-azul';
 }
 
-// KPI cuadrado: anillo con icono, número y label
+// KPI cuadrado. Tema clásico: anillo con icono + número + label. Tema F: SIN
+// anillo (anti-patrón según REDISENO_UI_F.md §4.2) — label en versalitas,
+// número grande ligero, el icono desaparece. Un solo lugar arregla las 14+
+// instancias de todas las vistas de Inicio y Métricas.
 export function Kpi({ Icono, color, label, children }) {
+  const esF = document.documentElement.getAttribute('data-tema-ui') !== 'clasico';
+  if (esF) {
+    return (
+      <div className="kpi-sq-inner kpi-f">
+        <Text size="xs" className="kpi-f-label">{label}</Text>
+        <Text className="kpi-num kpi-f-num">{children}</Text>
+      </div>
+    );
+  }
   return (
     <div className="kpi-sq-inner">
       <RingProgress

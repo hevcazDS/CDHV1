@@ -363,6 +363,22 @@ html[data-tema-ui="f"] .page-anim { animation: hoja-entrada .18s var(--ease-out-
   .f-stagger > *, html[data-tema-ui="f"] .page-anim { animation: none; }
 }
 
+/* ═══ 23. KPIs sin anillo (Kpi de comunes.jsx bajo F) + mkt-cards ═══ */
+html[data-tema-ui="f"] .kpi-f { gap: 6px; }
+html[data-tema-ui="f"] .kpi-f-label {
+  font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--niebla); text-align: center;
+}
+html[data-tema-ui="f"] .kpi-f-num { font-size: 26px; font-weight: 300; font-variant-numeric: tabular-nums; }
+html[data-tema-ui="f"] .kpi-dark .kpi-f-label { color: rgba(242, 239, 232, 0.5); }
+html[data-tema-ui="f"] .kpi-dark .kpi-f-num { font-weight: 400; }
+/* las 4 tarjetas de marketing del Inicio clásico: fundidas al papel */
+html[data-tema-ui="f"] .mkt-card { background: var(--papel); border: 1px solid var(--hair); box-shadow: none; }
+html[data-tema-ui="f"] .mkt-num { font-weight: 300; font-size: 22px; }
+html[data-tema-ui="f"] .mkt-label {
+  font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--niebla);
+}
+
 /* ═══ 22. Avatar y soporte: tonos suaves (nada negro fuerte ni rojo pleno) ═══ */
 /* avatar = estilo kamon: transparente con trazo de tinta, no bloque negro */
 html[data-tema-ui="f"] .avatar-chip {

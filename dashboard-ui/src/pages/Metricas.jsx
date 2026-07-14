@@ -18,7 +18,10 @@ const ESTILOS_CHART = [
 const CHART_TIPO_KEY = 'metricas_chart_tipo';
 
 const ESTATUS_COLOR = { pendiente: 'amarillo', confirmado: 'azul', preparando: 'azul', enviado: 'azul', entregado: 'verde', cancelado: 'rojo' };
-const C_ACCENT = '#5b8cff', C_GREEN = '#36d399', C_YELLOW = '#fbbd23', C_RED = '#f4566c', C_GRID = '#262f42', C_DIM = '#9aa4b8';
+// Colores por TOKEN (no hex): la página se tematiza sola en clásico y en F
+// (donde --accent=bermellón, --border=hairline, etc. — REDISENO_UI_F.md).
+const C_ACCENT = 'var(--graf-hoy, var(--accent))', C_GREEN = 'var(--green)', C_YELLOW = 'var(--yellow)',
+      C_RED = 'var(--red)', C_GRID = 'var(--border)', C_DIM = 'var(--text-mute)';
 const MOTIVO_LABEL = { precio: 'Precio', envio: 'Envío', otro: 'Otro' };
 const TONO_LABEL = { A: 'A · Formal', B: 'B · Casual', C: 'C · Amigable', D: 'D · Ventas', sin_dato: 'Sin dato (anterior a esta métrica)' };
 const TONO_COLOR = { A: 'azul', B: 'verde', C: 'amarillo', D: 'rojo', sin_dato: 'azul' };
@@ -189,8 +192,8 @@ export default function Metricas() {
                     <XAxis dataKey="diaCorto" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} />
                     <YAxis stroke={C_DIM} fontSize={11} tickLine={false} axisLine={false} width={32} />
                     <Tooltip
-                      contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 'var(--radius)', fontSize: 12 }}
-                      labelStyle={{ color: '#fff' }}
+                      contentStyle={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12 }}
+                      labelStyle={{ color: 'var(--text)' }}
                       formatter={(value, name) => [name === 't' ? `$${fmt(value)}` : value, name === 't' ? 'Monto' : 'Pedidos']}
                     />
                     <Line type="monotone" dataKey="t" stroke={C_ACCENT} strokeWidth={2} dot={{ r: 3, fill: C_ACCENT }} />
@@ -201,8 +204,8 @@ export default function Metricas() {
                     <XAxis dataKey="diaCorto" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} />
                     <YAxis stroke={C_DIM} fontSize={11} tickLine={false} axisLine={false} width={32} />
                     <Tooltip
-                      contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 'var(--radius)', fontSize: 12 }}
-                      labelStyle={{ color: '#fff' }}
+                      contentStyle={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12 }}
+                      labelStyle={{ color: 'var(--text)' }}
                       formatter={(value, name) => [name === 't' ? `$${fmt(value)}` : value, name === 't' ? 'Monto' : 'Pedidos']}
                     />
                     <Bar dataKey="t" fill={C_ACCENT} radius={[4, 4, 0, 0]} />
@@ -279,7 +282,7 @@ export default function Metricas() {
                 <CartesianGrid stroke={C_GRID} horizontal={false} />
                 <XAxis type="number" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={{ stroke: C_GRID }} allowDecimals={false} />
                 <YAxis type="category" dataKey="campana" stroke={C_DIM} fontSize={11} tickLine={false} axisLine={false} width={140} />
-                <Tooltip contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 'var(--radius)', fontSize: 12 }} labelStyle={{ color: '#fff' }} />
+                <Tooltip contentStyle={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12 }} labelStyle={{ color: 'var(--text)' }} />
                 <Bar dataKey="enviados" name="Enviados" fill={C_GRID} radius={[0, 4, 4, 0]} />
                 <Bar dataKey="convertidos" name="Convertidos" fill={C_GREEN} radius={[0, 4, 4, 0]} />
               </BarChart>
@@ -296,7 +299,7 @@ export default function Metricas() {
                   <Pie data={motivos} dataKey="n" nameKey="motivo" innerRadius={32} outerRadius={58} paddingAngle={2}>
                     {motivos.map((m, i) => <Cell key={i} fill={MOTIVO_COLOR[m.motivo] || C_DIM} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ background: '#1c2333', border: '1px solid #262f42', borderRadius: 'var(--radius)', fontSize: 12 }} />
+                  <Tooltip contentStyle={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12 }} />
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ flex: 1 }}>

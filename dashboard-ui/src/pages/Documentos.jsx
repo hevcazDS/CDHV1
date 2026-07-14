@@ -115,7 +115,7 @@ export default function Documentos() {
 
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Emitidos</h3></div>
-          <div className="table-wrap" style={{ maxHeight: 520, overflow: 'auto' }}>
+          <div className="table-wrap page-scrollable">
             <table>
               <thead><tr><th>Folio</th><th>Contraparte</th><th className="num">Monto</th><th>Estatus</th><th></th></tr></thead>
               <tbody>

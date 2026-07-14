@@ -14,16 +14,16 @@ export default function Busquedas() {
   });
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Búsquedas</div>
       <div className="page-sub">Términos que los clientes buscan en el bot</div>
 
-      <Card withBorder radius="md" p="lg">
+      <Card withBorder radius="md" p="lg" className="sin-scroll-card">
         <Group justify="space-between" mb="md">
           <Title order={4}>{txt('🔍 Log de búsquedas')}</Title>
           <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
         </Group>
-        <div className="table-wrap">
+        <div className="table-wrap page-scrollable">
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Término buscado</th><th>Veces</th><th>Compras</th><th>Última búsqueda</th></tr></thead>
             <tbody>

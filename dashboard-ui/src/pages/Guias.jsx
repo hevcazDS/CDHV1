@@ -41,18 +41,18 @@ export default function Guias() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Guías Estafeta</div>
       <div className="page-sub">Rastreo y actualización de guías de envío</div>
       {error && <div className="login-error">No se pudieron cargar las guías: {error.message}</div>}
 
       <div className="cols-2">
-        <Card withBorder radius="md" p="lg">
+        <Card withBorder radius="md" p="lg" className="sin-scroll-card">
           <Group justify="space-between" mb="md">
             <Title order={4}>{txt('🚚 Guías activas')}</Title>
             <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
-          <div className="table-wrap">
+          <div className="table-wrap page-scrollable">
             <Table highlightOnHover verticalSpacing="xs">
               <thead><tr><th>Guía</th><th>Cliente</th><th>Destino</th><th>Estatus</th><th>Entrega est.</th><th></th></tr></thead>
               <tbody>
@@ -73,7 +73,7 @@ export default function Guias() {
           </div>
         </Card>
 
-        <Card withBorder radius="md" p="lg">
+        <Card withBorder radius="md" p="lg" className="sin-scroll-card">
           <Title order={4} mb="md">{txt('✏️ Actualizar guía')}</Title>
           <TextInput label="Número de guía" placeholder="HVCZ-000001" value={numero} onChange={e => setNumero(e.target.value)} mb="sm" />
           <Select label="Nuevo estatus" data={ESTATUS_GUIA} value={estatus} onChange={v => setEstatus(v ?? estatus)} comboboxProps={{ withinPortal: true }} mb="sm" />

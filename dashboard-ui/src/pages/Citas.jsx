@@ -98,7 +98,7 @@ export default function Citas() {
           {modo === 'lista' && Object.entries(porDia).map(([fecha, lista]) => (
             <div key={fecha} style={{ marginBottom: 16 }}>
               <Text size="sm" fw={700} mb={6}>{fecha === hoy ? 'HOY · ' + fecha : fecha}</Text>
-              <div className="table-wrap">
+              <div className="table-wrap page-scrollable">
                 <table>
                   <tbody>
                     {lista.map(c => (
