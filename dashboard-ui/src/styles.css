@@ -27,12 +27,15 @@
   /* Radios sobrios (16/24px + pills = look "template"; un ERP se ve serio a 10/14) */
   --radius:    10px;
   --radius-lg: 14px;
-  /* Sin Google Fonts (CSP): Poppins/Inter nunca cargaban — el stack real ES el
-     del sistema. Se declara honesto, con Segoe UI Variable para Win11. */
-  --font-titulos: -apple-system, "Segoe UI Variable Display", "Segoe UI", system-ui, Roboto, sans-serif;
+  /* Fuentes self-hosteadas vía @fontsource (main.jsx) — NUNCA Google Fonts CDN
+     (CSP 'self'). Títulos = Poppins, el MISMO valor que headings del tema
+     Mantine: una sola fuente de verdad (el comentario viejo "Poppins nunca
+     carga" quedó obsoleto al self-hostearla). Cuerpo = Inter (el selector de
+     fuente del operador puede cambiarla en runtime, ver lib/fontPrefs.js). */
+  --font-titulos: "Poppins", "Inter", -apple-system, "Segoe UI Variable Display", "Segoe UI", system-ui, Roboto, sans-serif;
   --font-mono: "Cascadia Code", ui-monospace, "Segoe UI Mono", Consolas, monospace;
   --shadow:    0 8px 24px rgba(0,0,0,0.35);
-  font-family: -apple-system, "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, sans-serif;
+  font-family: "Inter", -apple-system, "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, sans-serif;
 }
 
 /* ── Reglas de composición del ERP (ver PROPUESTA_UI_ERP.md §D6) ──

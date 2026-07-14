@@ -8,6 +8,7 @@
 !package-lock.json
 !tests/golden/*.json
 !bot/flows/motor/plantillas/*.json
+!scripts/ui/estilo_baseline.json
 .env
 .env.*
 !.env.example

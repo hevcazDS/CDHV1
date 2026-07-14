@@ -34,11 +34,33 @@ const queryClient = new QueryClient({
 
 const FUENTE = '"Inter", -apple-system, "Segoe UI", system-ui, Roboto, sans-serif';
 const FUENTE_TITULOS = '"Poppins", "Inter", -apple-system, "Segoe UI", system-ui, sans-serif';
+// ═══ UNA SOLA FUENTE DE VERDAD DE DISEÑO (candado F1 — CONVENCIONES_UI.md §10) ═══
+// La marca del PRODUCTO (verde bosque #1a4d3e, la misma --brand del tema claro en
+// styles.css) vive AQUÍ como paleta Mantine de 10 tonos → primaryColor 'brand'.
+// Antes primaryColor era 'dark' (botones negros genéricos) mientras la marca solo
+// existía en CSS: dos sistemas peleando. Radios y sombras se alinean a los tokens
+// CSS (--radius 10 / --radius-lg 14; sombra 1px) — nunca dos esquinas distintas.
 const mantineTheme = {
   fontFamily: FUENTE,
   headings: { fontFamily: FUENTE_TITULOS, fontWeight: '600' },
-  defaultRadius: 'lg',
-  primaryColor: 'dark',
+  colors: {
+    brand: [
+      '#e8f1ee', '#d0e3dd', '#a8cabf', '#7fb0a2', '#5b9384',
+      '#3f7a69', '#2c6a56', '#1a4d3e', '#123c30', '#0e2b22',
+    ],
+  },
+  primaryColor: 'brand',
+  primaryShade: { light: 7, dark: 4 },   // claro = tinta firma #1a4d3e; oscuro = tono legible
+  radius: { xs: '4px', sm: '6px', md: '10px', lg: '14px', xl: '20px' },
+  defaultRadius: 'md',                    // = --radius (10px) de styles.css
+  shadows: {
+    // sombra mínima 1px (regla del dueño) — idéntica a la de .card en styles.css
+    xs: '0 1px 2px rgba(16,17,20,0.04)',
+    sm: '0 1px 2px rgba(16,17,20,0.06)',
+    md: '0 1px 3px rgba(16,17,20,0.08)',
+    lg: '0 2px 8px rgba(16,17,20,0.10)',
+    xl: '0 4px 16px rgba(16,17,20,0.12)',
+  },
 };
 
 createRoot(document.getElementById('root')).render(

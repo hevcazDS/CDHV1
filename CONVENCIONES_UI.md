@@ -50,5 +50,66 @@
 - Validación de payload: `ctx.validar(d, Schema, res, ruta)` (Zod) para los POST con esquema.
 - Nombres de archivo en `Content-Disposition`: saneados (`replace(/[^0-9-]/g,'')` para periodos, `_slug` para folios) — nunca interpolar input crudo.
 
+## 10. Candados de consistencia (F1 — vigilados por `scripts/ui/estilo_guard.js`)
+
+> **UNA sola fuente de verdad de diseño**: la marca del producto (verde bosque
+> `#1a4d3e`) vive en el theme de Mantine (`main.jsx` → `colors.brand`,
+> `primaryColor:'brand'`) Y en `--brand` de `styles.css` — el MISMO valor.
+> Radios (`--radius` 10 / `--radius-lg` 14) y sombras (1px mínima) están
+> alineados entre ambos. Si tocas uno, toca el otro.
+>
+> El guard es un **trinquete**: `npm run test:ui-estilo` cuenta los
+> anti-patrones de abajo y **falla si el conteo SUBE** respecto al baseline
+> (`scripts/ui/estilo_baseline.json`); cuando bajan, el baseline se aprieta
+> solo. Lo viejo no hay que arreglarlo de golpe — lo nuevo no puede nacer mal.
+
+1. **Color: token o nada.** Ningún hex nuevo en JSX. Usa `var(--brand)`,
+   `var(--text-dim)`, `var(--red)`… o los colores del theme Mantine
+   (`color="brand"`). Excepción única: lienzos oscuros especiales (MotorCanvas)
+   ya contados en el baseline.
+2. **Tabla nueva = patrón estándar**, nunca `<table>` cruda nueva (las
+   existentes se migran gradualmente; el guard impide sumar una más).
+3. **Botones = `<Button>` de Mantine** (hereda la marca del theme), nunca
+   `className="btn..."` nuevo.
+4. **Carga = `<Skeleton>` de Mantine**, nunca texto "Cargando...".
+5. **Columnas = clases responsivas** (`.split-2`/`.cols-2`/`.cols-3`/`.kpi-grid`),
+   nunca `gridTemplateColumns` inline (§2).
+
+### Esqueleto canónico de página nueva (copiar/pegar)
+
+```jsx
+import { useQuery } from '@tanstack/react-query';
+import { Card, Button, Skeleton, Group, Text } from '@mantine/core';
+import { api } from '../api';
+
+export default function MiPagina() {
+  const { data } = useQuery({ queryKey: ['mi-clave'], queryFn: () => api.get('/api/mi-ruta') });
+
+  if (!data) return (            /* carga: Skeleton, nunca "Cargando..." */
+    <div>
+      <Skeleton height={90} radius="md" mb="md" />
+      <Skeleton height={260} radius="md" />
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="split-2">  {/* columnas: clase responsiva, no grid inline */}
+        <Card withBorder radius="md" p="lg" className="card">
+          <div className="card-header"><h3>Sección</h3></div>
+          {/* contenido; colores SOLO por token/tema */}
+          <Group mt="md"><Button>Acción</Button></Group> {/* hereda la marca */}
+        </Card>
+        <Card withBorder radius="md" p="lg" className="card">…</Card>
+      </div>
+    </div>
+  );
+}
+```
+
+Registro: página nueva = `React.lazy` en `App.jsx` (nunca import estático) +
+entrada en el grupo correcto del sidebar (`Layout.jsx`, con `rolRequerido`/
+`area`/`moduloRequerido` según aplique).
+
 ---
-**En una línea:** clase antes que `style` inline; variable antes que literal; Mantine `<Tabs>` para pestañas; `.split-2`/`.kpi-grid` para columnas; `readJson` para bodies. Así cada hoja nueva nace con la misma base.
+**En una línea:** clase antes que `style` inline; variable antes que literal; Mantine `<Tabs>` para pestañas; `.split-2`/`.kpi-grid` para columnas; `readJson` para bodies; **token o nada, Button/Skeleton de Mantine, y el trinquete (`test:ui-estilo`) vigila que cada hoja nueva nazca igual.**
