@@ -66,7 +66,7 @@ export default function GastosImpuestosTab() {
 
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3>Impuestos del periodo</h3></div>
-          {!imp ? <div className="empty">Cargando...</div> : (
+          {!imp ? <div className="empty cargando">Cargando...</div> : (
             <table style={{ width: '100%' }}>
               <tbody>
                 <tr><td className="text-muted" style={{ padding: '6px 0' }}>Ventas (base gravable)</td><td style={{ textAlign: 'right', fontWeight: 600 }}>{money(imp.ventas_base)}</td></tr>

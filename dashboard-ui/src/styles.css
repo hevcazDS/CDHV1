@@ -499,6 +499,21 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 @media (max-width: 720px)  { .cols-3 { grid-template-columns: 1fr; } }
 .tabla-compacta { max-height: 240px; overflow: auto; }
 
+/* ── Estado de carga: el texto "Cargando..." se vuelve SHIMMER ─────────────
+   (dos barras que respiran). El texto queda en el DOM para lectores de
+   pantalla pero invisible. Marcador: className="empty cargando". */
+.empty.cargando { color: transparent !important; user-select: none; position: relative; min-height: 52px; }
+.empty.cargando::before, .empty.cargando::after {
+  content: ""; position: absolute; left: 18%; height: 10px; border-radius: 6px;
+  background: linear-gradient(90deg, var(--panel-2) 25%, var(--border) 50%, var(--panel-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+.empty.cargando::before { right: 18%; top: calc(50% - 12px); }
+.empty.cargando::after  { right: 38%; top: calc(50% + 4px); animation-delay: .15s; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .empty.cargando::before, .empty.cargando::after { animation: none; } }
+
 /* ── Patrón SIN-SCROLL de página (ANALISIS_SIN_SCROLL.md) ─────────────────
    La página llena el alto y NUNCA scrollea; solo scrollea la lista interna.
    Uso: root de la página = .sin-scroll; la Card de la tabla = .sin-scroll-card;

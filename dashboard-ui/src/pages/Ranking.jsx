@@ -31,7 +31,7 @@ export default function Ranking() {
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>#</th><th>Cliente</th><th>Teléfono</th><th>Puntos ganados</th><th>Disponibles</th><th>Canjeados</th><th>Último mov.</th></tr></thead>
             <tbody>
-              {rows === undefined && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
+              {rows === undefined && <tr><td colSpan={7} className="empty cargando">Cargando...</td></tr>}
               {rows?.length === 0 && <tr><td colSpan={7} className="empty">Sin datos de puntos aún</td></tr>}
               {rows?.map((r, i) => (
                 <tr key={i}>

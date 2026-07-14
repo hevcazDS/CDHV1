@@ -86,7 +86,7 @@ export default function Sustitutos() {
             <>
               <strong style={{ fontSize: 13 }}>{base.nombre}</strong>
               <div style={{ margin: '8px 0', borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-                {relacionados === undefined && <div className="empty">Cargando...</div>}
+                {relacionados === undefined && <div className="empty cargando">Cargando...</div>}
                 {relacionados?.length === 0 && <div className="empty">Sin relacionados definidos</div>}
                 {relacionados?.map(r => (
                   <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>

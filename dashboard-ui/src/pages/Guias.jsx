@@ -56,7 +56,7 @@ export default function Guias() {
             <Table highlightOnHover verticalSpacing="xs">
               <thead><tr><th>Guía</th><th>Cliente</th><th>Destino</th><th>Estatus</th><th>Entrega est.</th><th></th></tr></thead>
               <tbody>
-                {rows === undefined && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
+                {rows === undefined && <tr><td colSpan={6} className="empty cargando">Cargando...</td></tr>}
                 {rows?.length === 0 && <tr><td colSpan={6} className="empty">Sin guías</td></tr>}
                 {rows?.map(r => (
                   <tr key={r.id}>

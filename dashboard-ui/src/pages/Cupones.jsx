@@ -110,7 +110,7 @@ export default function Cupones() {
               <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
             </Group>
           </Group>
-          {rows === undefined && <div className="empty">Cargando...</div>}
+          {rows === undefined && <div className="empty cargando">Cargando...</div>}
           {rows?.length === 0 && <div className="empty">Sin cupones</div>}
           {rows?.map(r => {
             const val = r.tipo === 'porcentaje' ? `${r.valor}%` : `$${fmt(r.valor)}`;

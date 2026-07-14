@@ -42,7 +42,7 @@ export default function VariantesModal({ producto, onClose }) {
         Cada fila es una combinación (talla/color) con su stock EN CADA SUCURSAL. El stock total del producto
         se mantiene como la suma y queda auditado en el kardex. UPC/SKU propios permiten escanearla directo en el POS.
       </Text>
-      {!filas ? <div className="empty">Cargando...</div> : (
+      {!filas ? <div className="empty cargando">Cargando...</div> : (
         <div className="table-wrap" style={{ maxHeight: 380, overflow: 'auto' }}>
           <table>
             <thead><tr><th>Talla</th><th>Color</th><th>SKU</th><th>UPC</th>{nombres.map(n => <th key={n}>{n}</th>)}<th></th></tr></thead>

@@ -71,7 +71,7 @@ export default function Beta() {
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Proceso</th><th>Motivo</th><th>Contexto</th><th>Fecha</th></tr></thead>
             <tbody>
-              {errores === undefined && <tr><td colSpan={4} className="empty">Cargando...</td></tr>}
+              {errores === undefined && <tr><td colSpan={4} className="empty cargando">Cargando...</td></tr>}
               {errores?.length === 0 && <tr><td colSpan={4} className="empty">Sin errores registrados</td></tr>}
               {errores?.map(e => (
                 <tr key={e.id}>

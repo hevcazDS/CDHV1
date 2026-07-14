@@ -22,7 +22,7 @@ export default function BotEditorTab() {
     onError: handleApiError,
   });
 
-  if (!data) return <div className="empty">Cargando frases del bot...</div>;
+  if (!data) return <div className="empty cargando">Cargando frases del bot...</div>;
 
   return (
     <div>

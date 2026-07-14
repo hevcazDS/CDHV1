@@ -62,7 +62,7 @@ export default function Etiquetas() {
           </Group>
         </Group>
 
-        {rows === undefined && <div className="empty">Cargando...</div>}
+        {rows === undefined && <div className="empty cargando">Cargando...</div>}
         {rows?.length === 0 && <div className="empty">Sin fotos en este estado</div>}
 
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">

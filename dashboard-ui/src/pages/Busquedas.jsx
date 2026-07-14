@@ -27,7 +27,7 @@ export default function Busquedas() {
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Término buscado</th><th>Veces</th><th>Compras</th><th>Última búsqueda</th></tr></thead>
             <tbody>
-              {filas === undefined && <tr><td colSpan={4} className="empty">Cargando...</td></tr>}
+              {filas === undefined && <tr><td colSpan={4} className="empty cargando">Cargando...</td></tr>}
               {filas?.length === 0 && <tr><td colSpan={4} className="empty">Sin búsquedas registradas</td></tr>}
               {filas?.map((r, i) => (
                 <tr key={i}>

@@ -11,7 +11,7 @@ const money = (n) => n == null ? '—' : '$' + Number(n || 0).toLocaleString('es
 export default function FlujoCajaTab() {
   const { data } = useQuery({ queryKey: ['erp-flujo-caja'], queryFn: () => api.get('/api/erp/flujo-caja') });
   const { data: salud } = useQuery({ queryKey: ['erp-salud'], queryFn: () => api.get('/api/erp/salud-financiera').catch(() => null) });
-  if (!data) return <div className="empty">Cargando…</div>;
+  if (!data) return <div className="empty cargando">Cargando…</div>;
   const { saldo_actual, por_cobrar, por_pagar, proyeccion, conta_activa } = data;
   const cols = [['vencido', 'Vencido'], ['d0_30', '0–30 días'], ['d31_60', '31–60 días'], ['d61mas', '61+ días'], ['sin_fecha', 'Sin fecha']];
 

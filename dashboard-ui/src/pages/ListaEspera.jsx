@@ -45,7 +45,7 @@ export default function ListaEspera() {
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>En espera</th><th>Acción</th></tr></thead>
             <tbody>
-              {lista === undefined && <tr><td colSpan={5} className="empty">Cargando...</td></tr>}
+              {lista === undefined && <tr><td colSpan={5} className="empty cargando">Cargando...</td></tr>}
               {lista?.length === 0 && <tr><td colSpan={5} className="empty">Sin clientes en espera</td></tr>}
               {lista?.map((p, i) => {
                 const conStock = p.stock_tienda > 0 || p.stock_cedis > 0;

@@ -29,7 +29,7 @@ export default function Ofertas() {
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Código</th><th>Producto</th><th>Descuento</th><th>Precio oferta</th><th>Vence</th><th>Usos</th></tr></thead>
             <tbody>
-              {rows === undefined && <tr><td colSpan={6} className="empty">Cargando...</td></tr>}
+              {rows === undefined && <tr><td colSpan={6} className="empty cargando">Cargando...</td></tr>}
               {rows?.length === 0 && <tr><td colSpan={6} className="empty">Sin ofertas activas</td></tr>}
               {rows?.map(r => (
                 <tr key={r.id}>

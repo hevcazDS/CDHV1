@@ -55,7 +55,7 @@ export default function ColaAtencion() {
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Cliente</th><th>Teléfono</th><th>Motivo</th><th>Prioridad</th><th>Estatus</th><th>Desde</th><th></th></tr></thead>
             <tbody>
-              {rows === undefined && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
+              {rows === undefined && <tr><td colSpan={7} className="empty cargando">Cargando...</td></tr>}
               {rows?.length === 0 && <tr><td colSpan={7} className="empty">Sin clientes en este estatus</td></tr>}
               {rows?.map(r => (
                 <tr key={r.id}>

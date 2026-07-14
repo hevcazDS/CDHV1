@@ -74,7 +74,7 @@ export default function Preventas() {
             <Title order={4}>{txt('📅 Preventas activas')}</Title>
             <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
-          {rows === undefined && <div className="empty">Cargando...</div>}
+          {rows === undefined && <div className="empty cargando">Cargando...</div>}
           {rows?.length === 0 && <div className="empty">Sin preventas activas</div>}
           {rows?.map(r => (
             <div key={r.id} style={{ border: '1px solid var(--border)', borderRadius: 7, padding: 12, marginBottom: 8 }}>

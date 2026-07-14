@@ -25,7 +25,7 @@ export default function MotorTab() {
     onError: handleApiError,
   });
 
-  if (!data) return <div className="empty">Cargando motor de flujo...</div>;
+  if (!data) return <div className="empty cargando">Cargando motor de flujo...</div>;
   const opciones = (plas?.plantillas || []).map(p => ({ value: p, label: p }));
 
   return (

@@ -53,7 +53,7 @@ export default function VistaFinanzas() {
         <Card withBorder radius="md" p="lg" className="card">
           <div className="card-header"><h3><TrendingUp size={16} strokeWidth={1.75} style={{ verticalAlign: '-3px', marginRight: 7 }} />Pedidos últimos 7 días</h3></div>
           <div className="chart-wrap">
-            <Suspense fallback={<div className="empty">Cargando...</div>}>
+            <Suspense fallback={<div className="empty cargando">Cargando...</div>}>
               <GraficaSemana dias={dias} fmtMoneda={fmtMoneda} altura="100%" />
             </Suspense>
           </div>

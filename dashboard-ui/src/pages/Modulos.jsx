@@ -31,7 +31,7 @@ function MetodosPagoCard({ txt }) {
       <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 14 }}>
         Activa los que aceptas. El bot solo los ofrece al cliente si el módulo <strong>Pago multi-método</strong> está encendido.
       </p>
-      {!metodos && <div className="empty">Cargando...</div>}
+      {!metodos && <div className="empty cargando">Cargando...</div>}
       {metodos?.map(m => (
         <div key={m.id} className="toggle-row">
           <div className="info">

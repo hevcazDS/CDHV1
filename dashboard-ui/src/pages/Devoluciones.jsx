@@ -65,7 +65,7 @@ export default function Devoluciones() {
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Pedido</th><th>Cliente</th><th>Motivo</th><th>Foto</th><th>Estatus</th><th>Fecha</th><th>Decisión del asesor</th></tr></thead>
             <tbody>
-              {rows === undefined && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
+              {rows === undefined && <tr><td colSpan={7} className="empty cargando">Cargando...</td></tr>}
               {rows?.length === 0 && <tr><td colSpan={7} className="empty">Sin devoluciones</td></tr>}
               {rows?.map(r => (
                 <tr key={r.id}>

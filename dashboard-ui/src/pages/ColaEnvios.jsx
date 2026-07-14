@@ -95,7 +95,7 @@ export default function ColaEnvios() {
             <Table highlightOnHover verticalSpacing="xs">
               <thead><tr><th>ID</th><th>Destinatario</th><th>Asunto</th><th>Estatus</th><th>Intentos</th><th>Fecha</th><th></th></tr></thead>
               <tbody>
-                {cola === undefined && <tr><td colSpan={7} className="empty">Cargando...</td></tr>}
+                {cola === undefined && <tr><td colSpan={7} className="empty cargando">Cargando...</td></tr>}
                 {cola?.items?.length === 0 && <tr><td colSpan={7} className="empty">Cola vacía</td></tr>}
                 {cola?.items?.map(r => (
                   <tr key={r.id}>
@@ -120,7 +120,7 @@ export default function ColaEnvios() {
             <Title order={4}>{txt('🗓️ Campañas programadas')}</Title>
             <ActionIcon variant="default" onClick={() => refetchProgramados()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
-          {programados === undefined && <div className="empty">Cargando...</div>}
+          {programados === undefined && <div className="empty cargando">Cargando...</div>}
           {programados?.length === 0 && <div className="empty">No hay campañas programadas</div>}
           {programados?.map((r, i) => (
             <div key={i} style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 7, marginBottom: 8 }}>
@@ -149,7 +149,7 @@ export default function ColaEnvios() {
             <Table highlightOnHover verticalSpacing="xs">
               <thead><tr><th>Destinatario</th><th>Asunto</th><th>Estatus</th><th>Intentos</th><th>Fecha</th></tr></thead>
               <tbody>
-                {historial === undefined && <tr><td colSpan={5} className="empty">Cargando...</td></tr>}
+                {historial === undefined && <tr><td colSpan={5} className="empty cargando">Cargando...</td></tr>}
                 {historial?.length === 0 && <tr><td colSpan={5} className="empty">Sin historial</td></tr>}
                 {historial?.map((r, i) => (
                   <tr key={i}>

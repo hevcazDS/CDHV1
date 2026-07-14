@@ -150,7 +150,7 @@ export default function VistaAdmin() {
             </div>
           </div>
           <div className="chart-wrap">
-            <Suspense fallback={<div className="empty">Cargando gráfica...</div>}>
+            <Suspense fallback={<div className="empty cargando">Cargando gráfica...</div>}>
               <GraficaSemana dias={dias} fmtMoneda={fmtMoneda} altura="100%" modo={modoGrafica} />
             </Suspense>
           </div>
@@ -168,7 +168,7 @@ export default function VistaAdmin() {
             <table>
               <thead><tr><th>Folio</th><th>Estatus</th><th>Fecha</th></tr></thead>
               <tbody>
-                {pedidos === undefined && <tr><td colSpan={3} className="empty">Cargando...</td></tr>}
+                {pedidos === undefined && <tr><td colSpan={3} className="empty cargando">Cargando...</td></tr>}
                 {ultimos.length === 0 && pedidos !== undefined && <tr><td colSpan={3} className="empty">Sin pedidos todavía</td></tr>}
                 {ultimos.map(p => (
                   <tr key={p.id_pedido} title={p.cliente || ''}>
