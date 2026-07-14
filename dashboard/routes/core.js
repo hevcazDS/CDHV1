@@ -12,19 +12,69 @@
 const { permite, rangoDe } = require('../permisos');
 const construirModulo = require('./_construirModulo');
 
-// GET /api/buscar?q= — buscador global del topbar (handler ÚNICO; antes había
-// una copia en atencionCliente que nunca se alcanzaba — colisión consolidada).
-function buscar(req, res, ctx) {
-    const { db, json } = ctx;
-    const q = ((new URL(req.url, 'http://x')).searchParams.get('q') || '').trim();
-    if (q.length < 2) return json(res, { clientes: [], pedidos: [], productos: [], guias: [] });
+// (module.exports._test al final expone buscar para el contract test de roles)
+// GET /api/buscar?q= — buscador global del topbar, con ALCANCE POR ROL.
+// Principio: "buscas lo que puedes operar" (matriz aprobada por el dueño):
+//   · prime / gerente(admin) / auditor → TODO;
+//   · cajero/operador/usuario → clientes, pedidos, productos, guías;
+//   · contabilidad → clientes(cobranza), pedidos, documentos, proveedores;
+//   · almacén → productos; compras → productos, proveedores; rh → empleados.
+// El alcance lo decide EL SERVIDOR con la sesión (permite()), nunca la UI —
+// así el buscador no es una fuga de datos por API. Además: detección de forma
+// (folio/teléfono), techo de 5 por fuente y rastro en log_eventos.
+function buscar(req, res, ctx, { ses }) {
+    const { db, json, log, obtenerSesion } = ctx;
+    const q = ((new URL(req.url, 'http://x')).searchParams.get('q') || '').trim().slice(0, 80);
+    const vacio = { clientes: [], pedidos: [], productos: [], guias: [], documentos: [], proveedores: [], empleados: [] };
+    if (q.length < 2) return json(res, vacio);
+
+    // Ruta de gate global (sin area/roles) → el tronco no adjunta `ses`;
+    // se lee de la cookie directamente. Sin sesión válida → alcance CERO.
+    const sesion = ses || (obtenerSesion ? obtenerSesion(req) : null);
+    const rol = sesion?.rol || '';
+    const veTodo = ['prime', 'gerente', 'admin', 'auditor'].includes(rol);
+    const puede = (area) => veTodo || permite(rol, area);
+    // pos = cajero; operacion = operador/atención (permisos.js AREAS_POR_ROL)
+    const veClientes  = veTodo || puede('operacion') || puede('pos') || puede('finanzas');
+    const veVentas    = veClientes;
+    const veProductos = veTodo || puede('operacion') || puede('pos') || puede('almacen') || puede('compras');
+    const veDocs      = veTodo || puede('finanzas');
+    const veProv      = veTodo || puede('finanzas') || puede('compras');
+    const veEmp       = veTodo || puede('rrhh');
+
+    // Detección de forma: teléfono (solo dígitos, 7+) o folio (XXX-###) afinan la consulta.
+    const esTel   = /^\d{7,}$/.test(q.replace(/\D/g, '')) && /^[\d\s\-+]+$/.test(q);
     const like = '%' + q + '%';
-    const clientes = db.prepare("SELECT id, nombre, telefono FROM clientes WHERE activo=1 AND (nombre LIKE ? OR telefono LIKE ?) ORDER BY id DESC LIMIT 5").all(like, like);
-    const pedidos = db.prepare("SELECT id_pedido, folio, cliente, estatus, total, creado_en FROM pedidos WHERE folio LIKE ? OR cliente LIKE ? ORDER BY id_pedido DESC LIMIT 5").all(like, like);
-    const productos = db.prepare("SELECT id, name, price FROM productos WHERE activo=1 AND name LIKE ? LIMIT 5").all(like);
-    let guias = [];
-    try { guias = db.prepare("SELECT numero_guia, estatus, dest_nombre, dest_ciudad FROM guias_estafeta WHERE numero_guia LIKE ? OR dest_nombre LIKE ? LIMIT 5").all(like, like); } catch (_) {}
-    return json(res, { clientes, pedidos, productos, guias });
+    const r = { ...vacio };
+    const safe = (fn) => { try { return fn(); } catch (_) { return []; } };
+
+    if (veClientes) {
+        r.clientes = safe(() => esTel
+            ? db.prepare("SELECT id, nombre, telefono FROM clientes WHERE activo=1 AND telefono LIKE ? ORDER BY id DESC LIMIT 5").all('%' + q.replace(/\D/g, '') + '%')
+            : db.prepare("SELECT id, nombre, telefono FROM clientes WHERE activo=1 AND (nombre LIKE ? OR telefono LIKE ?) ORDER BY id DESC LIMIT 5").all(like, like));
+    }
+    if (veVentas) {
+        r.pedidos = safe(() => db.prepare("SELECT id_pedido, folio, cliente, estatus, total, creado_en FROM pedidos WHERE folio LIKE ? OR cliente LIKE ? ORDER BY id_pedido DESC LIMIT 5").all(like, like));
+        r.guias = safe(() => db.prepare("SELECT numero_guia, estatus, dest_nombre, dest_ciudad FROM guias_estafeta WHERE numero_guia LIKE ? OR dest_nombre LIKE ? LIMIT 5").all(like, like));
+    }
+    if (veProductos) {
+        r.productos = safe(() => db.prepare("SELECT id, name, price FROM productos WHERE activo=1 AND (name LIKE ? OR sku LIKE ? OR upc = ?) LIMIT 5").all(like, like, q));
+    }
+    if (veDocs) {
+        r.documentos = safe(() => db.prepare("SELECT id, tipo, contraparte_nombre, monto FROM documentos WHERE contraparte_nombre LIKE ? OR contraparte_ref LIKE ? ORDER BY id DESC LIMIT 5").all(like, like));
+    }
+    if (veProv) {
+        r.proveedores = safe(() => db.prepare("SELECT id, nombre, rfc FROM proveedores WHERE activo=1 AND (nombre LIKE ? OR rfc LIKE ?) LIMIT 5").all(like, like));
+    }
+    if (veEmp) {
+        r.empleados = safe(() => db.prepare("SELECT id, nombre, puesto FROM empleados WHERE nombre LIKE ? OR puesto LIKE ? LIMIT 5").all(like, like));
+    }
+
+    // Rastro: quién buscó qué (mismo log_eventos que usa el bot para búsquedas).
+    try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('busqueda_panel', 'panel', ?, ?)").run(q, sesion?.username || null); }
+    catch (e) { log.debug('log busqueda_panel: ' + e.message); }
+
+    return json(res, r);
 }
 
 // POST /api/login {username, password} — pública (whitelist). Crea sesión.
@@ -268,3 +318,4 @@ const RUTAS = [
 ];
 
 module.exports = construirModulo(RUTAS);
+module.exports._test = { buscar };   // contract test de alcance por rol

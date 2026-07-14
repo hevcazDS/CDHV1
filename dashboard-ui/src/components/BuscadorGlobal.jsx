@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Users, Package, Tag, CornerDownLeft } from 'lucide-react';
+import { Search, Users, Package, Tag, CornerDownLeft, Truck, FileText, Factory, IdCard } from 'lucide-react';
 import { api } from '../api';
 import { soloTelefono } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
@@ -46,6 +46,29 @@ const DESTINOS = [
 ];
 
 const _norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+// Categor\u00edas de resultados (el SERVIDOR ya filtr\u00f3 por rol \u2014 aqu\u00ed solo se pinta
+// lo que lleg\u00f3). `linea` arma t\u00edtulo/detalle; `to` decide a d\u00f3nde navega.
+const CATEGORIAS = {
+  clientes:    { titulo: 'Clientes',    Icono: Users,    to: () => '/clientes', linea: c => [c.nombre || 'Sin nombre', soloTelefono(c.telefono)] },
+  pedidos:     { titulo: 'Pedidos',     Icono: Package,  to: () => '/pedidos', linea: p => [p.folio, `${p.cliente || '-'} \u00b7 ${p.estatus}${p.total ? ' \u00b7 $' + Number(p.total).toFixed(2) : ''}`] },
+  productos:   { titulo: 'Productos',   Icono: Tag,      to: null, linea: p => [p.name, '$' + Number(p.price).toFixed(2)] },
+  guias:       { titulo: 'Gu\u00edas',       Icono: Truck,    to: () => '/guias', linea: g => [g.numero_guia, `${g.dest_nombre || '-'} \u00b7 ${g.estatus || ''}`] },
+  documentos:  { titulo: 'Documentos',  Icono: FileText, to: () => '/documentos', linea: d => [d.contraparte_nombre || d.tipo, `${d.tipo}${d.monto ? ' \u00b7 $' + Number(d.monto).toFixed(2) : ''}`] },
+  proveedores: { titulo: 'Proveedores', Icono: Factory,  to: () => '/compras?tab=proveedores', linea: p => [p.nombre, p.rfc || ''] },
+  empleados:   { titulo: 'Empleados',   Icono: IdCard,   to: () => '/rrhh', linea: e => [e.nombre, e.puesto || ''] },
+};
+
+// Ranking por rol: el MISMO query ordena distinto seg\u00fan qui\u00e9n busca \u2014 el
+// cajero ve productos primero; cobranza ve folios/documentos; RH su gente.
+const ORDEN_DEFAULT = ['clientes', 'pedidos', 'productos', 'guias', 'documentos', 'proveedores', 'empleados'];
+const ORDEN_POR_ROL = {
+  cajero:       ['productos', 'clientes', 'pedidos', 'guias'],
+  almacen:      ['productos'],
+  compras:      ['productos', 'proveedores'],
+  contabilidad: ['pedidos', 'documentos', 'proveedores', 'clientes'],
+  rh:           ['empleados'],
+};
 
 export default function BuscadorGlobal() {
   const navigate = useNavigate();
@@ -99,7 +122,10 @@ export default function BuscadorGlobal() {
     ? DESTINOS.filter(d => pasaGate(d) && _norm(d.label).includes(nq)).slice(0, 6)
     : [];
 
-  const hay = (res && (res.clientes?.length || res.pedidos?.length || res.productos?.length)) || destinos.length;
+  // Orden de categorías según el rol (ranking); solo las que traen resultados.
+  const orden = ORDEN_POR_ROL[user?.rol] || ORDEN_DEFAULT;
+  const cats = orden.filter(k => res?.[k]?.length > 0);
+  const hay = cats.length > 0 || destinos.length > 0;
 
   return (
     <div className="buscador" ref={ref}>
@@ -122,24 +148,23 @@ export default function BuscadorGlobal() {
               <strong>{d.label}</strong><span>{d.to.split('?')[0]}</span>
             </button>
           ))}
-          {res?.clientes?.length > 0 && <div className="buscador-seccion"><Users size={12} /> Clientes</div>}
-          {res?.clientes?.map(c => (
-            <button key={'c' + c.id} className="buscador-item" onClick={() => ir('/clientes')}>
-              <strong>{c.nombre || 'Sin nombre'}</strong><span>{soloTelefono(c.telefono)}</span>
-            </button>
-          ))}
-          {res?.pedidos?.length > 0 && <div className="buscador-seccion"><Package size={12} /> Pedidos</div>}
-          {res?.pedidos?.map(pd => (
-            <button key={'p' + pd.id_pedido} className="buscador-item" onClick={() => ir('/pedidos')}>
-              <strong>{pd.folio}</strong><span>{pd.cliente || '-'} · {pd.estatus}{pd.total ? ' · $' + Number(pd.total).toFixed(2) : ''}</span>
-            </button>
-          ))}
-          {res?.productos?.length > 0 && <div className="buscador-seccion"><Tag size={12} /> Productos</div>}
-          {res?.productos?.map(pr => (
-            <button key={'x' + pr.id} className="buscador-item" onClick={() => setAbierto(false)}>
-              <strong>{pr.name}</strong><span>${Number(pr.price).toFixed(2)}</span>
-            </button>
-          ))}
+          {cats.map(k => {
+            const cat = CATEGORIAS[k];
+            return (
+              <div key={k}>
+                <div className="buscador-seccion"><cat.Icono size={12} /> {cat.titulo}</div>
+                {res[k].map((item, i) => {
+                  const [titulo, detalle] = cat.linea(item);
+                  return (
+                    <button key={k + (item.id ?? item.id_pedido ?? item.numero_guia ?? i)} className="buscador-item"
+                      onClick={() => (cat.to ? ir(cat.to(item)) : setAbierto(false))}>
+                      <strong>{titulo}</strong><span>{detalle}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
