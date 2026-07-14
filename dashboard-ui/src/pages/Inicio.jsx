@@ -4,6 +4,7 @@ import { useWhatsAppQR } from '../hooks/useWhatsAppQR';
 import WhatsAppQR from '../components/WhatsAppQR';
 import { esAdminOMas } from '../lib/permisos';
 import VistaAdmin from './inicio/VistaAdmin';
+import VistaAdminF from './inicio/VistaAdminF';
 import VistaOperador from './inicio/VistaOperador';
 import VistaCajero from './inicio/VistaCajero';
 import VistaFinanzas from './inicio/VistaFinanzas';
@@ -40,7 +41,10 @@ export default function Inicio() {
 
   const _fecha = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const hoyLargo = _fecha.charAt(0).toUpperCase() + _fecha.slice(1);
-  const Vista = esAdmin ? VistaAdmin : (VISTA_POR_ROL[user?.rol] || VistaCajero);
+  // Bajo el tema F el admin ve el Inicio P3 (REDISENO_UI_F.md); el clásico
+  // conserva su vista original — parte de la promesa de reversión.
+  const esF = document.documentElement.getAttribute('data-tema-ui') !== 'clasico';
+  const Vista = esAdmin ? (esF ? VistaAdminF : VistaAdmin) : (VISTA_POR_ROL[user?.rol] || VistaCajero);
 
   return (
     <div className="pagina-llena">

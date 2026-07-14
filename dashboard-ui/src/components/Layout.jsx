@@ -306,7 +306,10 @@ export default function Layout() {
       </AppShell.Navbar>
 
       <AppShell.Main className="content">
-        <Outlet />
+        {/* key por ruta re-dispara la animación de entrada (tema F, 180ms) */}
+        <div key={location.pathname} className="page-anim">
+          <Outlet />
+        </div>
       </AppShell.Main>
       <SoporteWidget />
     </AppShell>

@@ -294,6 +294,74 @@ html[data-tema-ui="f"][data-tono-f="azul"] {
   --text-dim: #64788c; --text-mute: var(--niebla);
   --graf-bar: #2e3d4d;
 }
+/* ═══ 16. INICIO F (propuesta P3 aprobada) ═══ */
+html[data-tema-ui="f"] { --sumi: #3f3931; }             /* héroe: sumi SUAVE, no negro */
+html[data-tema-ui="f"][data-tono-f="oscuro"] { --sumi: #26231e; }
+.f-top { display: flex; gap: 40px; margin-bottom: 26px; align-items: stretch; }
+.f-hero {
+  background: var(--sumi); color: #f2efe8; border-radius: 6px;
+  padding: 20px 26px; min-width: 300px; display: flex; flex-direction: column;
+}
+.f-hero small { font-size: 10px; letter-spacing: .26em; color: rgba(242,239,232,.5); text-transform: uppercase; }
+.f-hero .v { font-size: 34px; font-weight: 300; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.f-hero .d { font-size: 12px; color: #9fc08b; margin-top: 2px; }
+.f-hero .sp { margin-top: auto; padding-top: 8px; }
+.f-resto { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 44px; align-content: center; }
+.f-k {
+  display: flex; align-items: baseline; gap: 14px; padding: 9px 0;
+  border-bottom: 1px solid var(--hair); color: inherit; text-decoration: none;
+}
+.f-k small { width: 150px; flex: none; font-size: 10px; letter-spacing: .2em; color: var(--niebla); text-transform: uppercase; }
+.f-k .v { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.f-k .v.ocre { color: var(--ocre); } .f-k .v.beru { color: var(--beru); }
+.f-k .d { margin-left: auto; font-size: 11px; color: var(--text-dim); }
+.f-k .d.urg { color: var(--beru); font-weight: 600; }
+.f-seccion { min-width: 0; display: flex; flex-direction: column; }
+.f-h4 {
+  font-size: 10.5px; letter-spacing: .24em; text-transform: uppercase;
+  color: var(--niebla); font-weight: 500; margin-bottom: 12px;
+  display: flex; align-items: baseline;
+}
+.f-h4 .der { margin-left: auto; letter-spacing: .02em; text-transform: none; font-size: 11.5px; color: var(--text-dim); display: flex; align-items: center; gap: 10px; }
+.f-h4 .der b { color: var(--text); }
+.f-h4 .lnk { color: var(--beru); font-weight: 600; text-decoration: none; }
+.f-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 14px;
+  padding: 10px 0; border-bottom: 1px solid var(--hair); font-size: 13px;
+  color: inherit; text-decoration: none;
+}
+.f-row .who { font-weight: 500; min-width: 0; }
+.f-row .t { color: var(--text-mute); font-size: 11px; font-weight: 400; }
+.f-row .mono { font-family: var(--font-mono); }
+.f-row .go { color: var(--beru); font-size: 11.5px; font-weight: 600; flex: none; }
+.f-row .st { font-size: 11.5px; color: var(--text-dim); flex: none; }
+.f-row .st::before { content: "●"; font-size: 6px; vertical-align: 2px; margin-right: 6px; }
+.f-row .st-entregado::before, .f-row .st-confirmado::before { color: var(--matcha); }
+.f-row .st-pendiente::before, .f-row .st-preparando::before { color: var(--ocre); }
+.f-row .st-enviado::before { color: var(--azulg); }
+.f-row .st-cancelado::before { color: var(--beru); }
+
+/* entrada escalonada (notificaciones / listas) */
+.f-stagger > * { animation: graf-entrada .4s var(--ease-out-quart, ease-out) both; }
+.f-stagger > *:nth-child(1) { animation-delay: .03s; }
+.f-stagger > *:nth-child(2) { animation-delay: .09s; }
+.f-stagger > *:nth-child(3) { animation-delay: .15s; }
+.f-stagger > *:nth-child(4) { animation-delay: .21s; }
+.f-stagger > *:nth-child(5) { animation-delay: .27s; }
+.f-stagger > *:nth-child(6) { animation-delay: .33s; }
+
+/* ═══ 17. Transición entre hojas (180ms — que respire, no que estorbe) ═══ */
+.page-anim { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.page-anim > * { flex: 1; min-height: 0; }
+html[data-tema-ui="f"] .page-anim { animation: hoja-entrada .18s var(--ease-out-quart, ease-out) both; }
+@keyframes hoja-entrada {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .f-stagger > *, html[data-tema-ui="f"] .page-anim { animation: none; }
+}
+
 /* los flotantes siguen al tono (no quedan blancos sobre oscuro) */
 html[data-tema-ui="f"] .mantine-Menu-dropdown,
 html[data-tema-ui="f"] .mantine-Modal-content,

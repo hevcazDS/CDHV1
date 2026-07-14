@@ -1,4 +1,4 @@
-import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from 'recharts';
 
 // modo: 'barras' | 'linea'
 // Colores por token con fallback: bajo el tema F --graf-bar/--graf-hoy pintan
@@ -27,7 +27,15 @@ export default function GraficaSemana({ dias = [], fmtMoneda, altura = 200, modo
 
   return (
       <ResponsiveContainer width="100%" height={altura} className="grafica-anim">
-        {modo === 'linea' ? (
+        {modo === 'area' ? (
+          <AreaChart data={dias}>
+            {ejes}{tooltip}
+            <Area type="monotone" dataKey="n" stroke="var(--graf-bar, var(--accent))" strokeWidth={1.8}
+              fill="var(--graf-bar, var(--accent))" fillOpacity={0.07}
+              dot={false} activeDot={{ r: 4, fill: 'var(--graf-hoy, var(--accent))', strokeWidth: 0 }}
+              animationDuration={900} animationEasing="ease-out" />
+          </AreaChart>
+        ) : modo === 'linea' ? (
           <LineChart data={dias}>
             {ejes}{tooltip}
             <Line type="monotone" dataKey="n" stroke="var(--graf-hoy, var(--accent))" strokeWidth={2}
