@@ -1,8 +1,13 @@
 import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from 'recharts';
 
 // modo: 'barras' | 'linea'
+// Colores por token con fallback: bajo el tema F --graf-bar/--graf-hoy pintan
+// barras de tinta con HOY en bermellón (REDISENO_UI_F.md §4.2); en el clásico
+// caen a panel-2/accent como siempre. La ÚLTIMA barra es "hoy" (la serie del
+// backend termina en el día actual). Entrada ANIMADA (recharts) + fade del
+// contenedor vía CSS (.grafica-anim, respeta prefers-reduced-motion).
 export default function GraficaSemana({ dias = [], fmtMoneda, altura = 200, modo = 'barras' }) {
-  const maxN = Math.max(1, ...dias.map(d => d.n));
+  const iHoy = dias.length - 1;
 
   const ejes = (
     <>
@@ -21,22 +26,26 @@ export default function GraficaSemana({ dias = [], fmtMoneda, altura = 200, modo
   );
 
   return (
-    <ResponsiveContainer width="100%" height={altura}>
-      {modo === 'linea' ? (
-        <LineChart data={dias}>
-          {ejes}{tooltip}
-          <Line type="monotone" dataKey="n" stroke="var(--accent)" strokeWidth={2.5} dot={{ r: 4, fill: 'var(--accent)', strokeWidth: 0 }} />
-        </LineChart>
-      ) : (
-        <BarChart data={dias} barCategoryGap="28%">
-          {ejes}{tooltip}
-          <Bar dataKey="n" radius={[10, 10, 6, 6]}>
-            {dias.map(d => (
-              <Cell key={d.dia} fill={d.n === maxN && d.n > 0 ? 'var(--accent)' : 'var(--panel-2)'} stroke="var(--border)" />
-            ))}
-          </Bar>
-        </BarChart>
-      )}
-    </ResponsiveContainer>
+      <ResponsiveContainer width="100%" height={altura} className="grafica-anim">
+        {modo === 'linea' ? (
+          <LineChart data={dias}>
+            {ejes}{tooltip}
+            <Line type="monotone" dataKey="n" stroke="var(--graf-hoy, var(--accent))" strokeWidth={2}
+              dot={{ r: 3, fill: 'var(--graf-hoy, var(--accent))', strokeWidth: 0 }}
+              animationDuration={900} animationEasing="ease-out" />
+          </LineChart>
+        ) : (
+          <BarChart data={dias} barCategoryGap="28%">
+            {ejes}{tooltip}
+            <Bar dataKey="n" radius={[2, 2, 0, 0]} animationDuration={900} animationEasing="ease-out">
+              {dias.map((d, i) => (
+                <Cell key={d.dia}
+                  fill={i === iHoy ? 'var(--graf-hoy, var(--accent))' : 'var(--graf-bar, var(--panel-2))'}
+                  stroke={i === iHoy ? 'none' : 'var(--border)'} />
+              ))}
+            </Bar>
+          </BarChart>
+        )}
+      </ResponsiveContainer>
   );
 }

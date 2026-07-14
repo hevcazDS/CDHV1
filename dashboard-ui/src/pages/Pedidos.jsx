@@ -7,6 +7,7 @@ import { fmt, fdate } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
 import { confirmar, toastOk } from '../lib/ui';
 import Badge from '../components/Badge';
+import EstatusMenu from '../components/EstatusMenu';
 import Modal from '../components/Modal';
 import { useTextoEmoji } from '../context/EmojiContext';
 import { useAuth } from '../context/AuthContext';
@@ -174,7 +175,7 @@ export default function Pedidos() {
                     {!!r.a_credito && r.pago_estatus === 'generado' && <span className="badge badge-amarillo" style={{ marginLeft: 4 }} title={r.cobrado_por ? 'Vendió: ' + r.cobrado_por : ''}>fiado</span>}
                   </td>
                   <td>
-                    <Select size="xs" data={ESTATUS} value={r.estatus} onChange={v => v && cambiarEstatus(r.id_pedido, v)} comboboxProps={{ withinPortal: true }} />
+                    <EstatusMenu value={r.estatus} opciones={ESTATUS} onChange={v => cambiarEstatus(r.id_pedido, v)} />
                   </td>
                   <td style={{ fontSize: 11 }}>{r.numero_guia ? <code>{r.numero_guia}</code> : '-'}</td>
                   <td className="text-muted" style={{ fontSize: 11 }}>{r.fecha_entrega_est || '-'}</td>

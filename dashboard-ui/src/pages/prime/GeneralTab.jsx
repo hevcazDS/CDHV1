@@ -20,6 +20,9 @@ export default function GeneralTab() {
   const [costoPedido, setCostoPedido] = useState('');
   const [nombreNegocio, setNombreNegocio] = useState('');
   const [temaUi, setTemaUi] = useState('f');
+  const [tonoF, setTonoF] = useState(() => {
+    try { const t = localStorage.getItem('tono-f'); return ['oscuro', 'confort', 'azul'].includes(t) ? t : 'papel'; } catch (_) { return 'papel'; }
+  });
   const [diasEntrega, setDiasEntrega] = useState('');
   const [msg, setMsg] = useState('');
 
@@ -180,6 +183,24 @@ export default function GeneralTab() {
               try { localStorage.setItem('tema-ui', v); } catch (_) {}
             } catch (e) { setMsg(e.message); }
           }} />
+          {temaUi === 'f' && (
+            <>
+              <p className="page-sub" style={{ margin: '16px 0 8px' }}>
+                Tono del lienzo (preferencia de este equipo): papel cálido, oscuro,
+                confort visual o azules claros.
+              </p>
+              <SegmentedControl fullWidth size="xs" value={tonoF} data={[
+                { value: 'papel', label: 'Papel' },
+                { value: 'oscuro', label: 'Oscuro' },
+                { value: 'confort', label: 'Confort' },
+                { value: 'azul', label: 'Azul claro' },
+              ]} onChange={(v) => {
+                setTonoF(v);
+                document.documentElement.setAttribute('data-tono-f', v);
+                try { localStorage.setItem('tono-f', v); } catch (_) {}
+              }} />
+            </>
+          )}
         </Card>
 
         <Card withBorder radius="md" p="lg">

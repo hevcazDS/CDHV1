@@ -229,3 +229,88 @@ html[data-tema-ui="f"] .kpi-num, html[data-tema-ui="f"] .tot, html[data-tema-ui=
 
 /* ── 13. La franja de color por módulo se vuelve hairline ── */
 html[data-tema-ui="f"] .content { border-top-width: 1px; }
+
+/* ── 14. Gráficas: colores F + entrada animada ── */
+html[data-tema-ui="f"] {
+  --graf-bar: #34322d;      /* barras = tinta ligera */
+  --graf-hoy: var(--beru);  /* HOY = bermellón */
+}
+.grafica-anim { animation: graf-entrada .5s var(--ease-out-quart, ease-out) both; }
+@keyframes graf-entrada {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .grafica-anim { animation: none; }
+}
+
+/* ═══ 15. TONOS del tema F (Prime → Ajustes → Diseño del panel) ═══
+   'papel' (default) · 'oscuro' · 'confort' (no cansa la vista) · 'azul'
+   (azules muy claros). Solo cambian el LIENZO; la esencia (hairlines,
+   punto+palabra, bermellón como acción) es la misma. ── */
+
+/* — OSCURO: sumi (tinta sobre papel nocturno) — */
+html[data-tema-ui="f"][data-tono-f="oscuro"] {
+  --papel:  #171613;
+  --tinta:  #e8e4da;
+  --hair:   #2a2823;
+  --niebla: #6f6a5e;
+  --beru:   #e0554a;
+  --matcha: #93b381;
+  --ocre:   #c9a45c;
+  --azulg:  #8aa5c2;
+  --bg: var(--papel); --bg-soft: var(--papel); --panel: var(--papel);
+  --panel-2: #201e1a;
+  --border: var(--hair); --text: var(--tinta);
+  --text-dim: #a29b8c; --text-mute: var(--niebla);
+  --brand: var(--beru); --accent: var(--beru); --accent-2: var(--beru);
+  --brand-soft: rgba(224, 85, 74, 0.12); --accent-soft: rgba(224, 85, 74, 0.12);
+  --green: var(--matcha); --yellow: var(--ocre); --red: var(--beru); --info: var(--azulg);
+  --graf-bar: #cfc9bc;
+  color-scheme: dark;
+}
+/* — CONFORT: sepia cálido de baja fatiga (contraste suavizado) — */
+html[data-tema-ui="f"][data-tono-f="confort"] {
+  --papel:  #f3ecdd;
+  --tinta:  #3d382e;
+  --hair:   #e3d9c6;
+  --niebla: #b3a88f;
+  --panel-2: #ece3d1;
+  --bg: var(--papel); --bg-soft: var(--papel); --panel: var(--papel);
+  --border: var(--hair); --text: var(--tinta);
+  --text-dim: #857c68; --text-mute: var(--niebla);
+  --graf-bar: #4d473a;
+}
+/* — AZUL: azules muy claros (aire frío y limpio) — */
+html[data-tema-ui="f"][data-tono-f="azul"] {
+  --papel:  #f3f7fb;
+  --tinta:  #1c2733;
+  --hair:   #dfe9f2;
+  --niebla: #a6b8c9;
+  --azulg:  #4a7099;
+  --panel-2: #e9f0f7;
+  --bg: var(--papel); --bg-soft: var(--papel); --panel: var(--papel);
+  --border: var(--hair); --text: var(--tinta);
+  --text-dim: #64788c; --text-mute: var(--niebla);
+  --graf-bar: #2e3d4d;
+}
+/* los flotantes siguen al tono (no quedan blancos sobre oscuro) */
+html[data-tema-ui="f"] .mantine-Menu-dropdown,
+html[data-tema-ui="f"] .mantine-Modal-content,
+html[data-tema-ui="f"] .mantine-Popover-dropdown,
+html[data-tema-ui="f"] .mantine-Select-dropdown,
+html[data-tema-ui="f"] .mantine-Combobox-dropdown {
+  background: var(--papel); color: var(--text);
+}
+html[data-tema-ui="f"][data-tono-f="oscuro"] .mantine-Menu-item,
+html[data-tema-ui="f"][data-tono-f="oscuro"] .mantine-Combobox-option { color: var(--text); }
+html[data-tema-ui="f"][data-tono-f="oscuro"] .kpi-dark { background: #000 !important; }
+/* en oscuro, nada puede quedarse con fondo claro heredado (buscador, iconos,
+   controles del topbar, inputs de Mantine que traen su gris de fábrica) */
+html[data-tema-ui="f"][data-tono-f="oscuro"] .topbar input,
+html[data-tema-ui="f"][data-tono-f="oscuro"] .topbar button:not(.mantine-Button-root),
+html[data-tema-ui="f"][data-tono-f="oscuro"] .mantine-ActionIcon-root[data-variant="default"],
+html[data-tema-ui="f"][data-tono-f="oscuro"] .mantine-Input-input {
+  background: var(--panel-2); color: var(--text); border-color: var(--hair);
+}
+html[data-tema-ui="f"][data-tono-f="oscuro"] ::placeholder { color: var(--niebla); }

@@ -32,6 +32,9 @@ cargarPreferenciasFuente();
 // contra /api/negocio al cargar. Ver REDISENO_UI_F.md.
 try {
   document.documentElement.setAttribute('data-tema-ui', localStorage.getItem('tema-ui') === 'clasico' ? 'clasico' : 'f');
+  // Tono del tema F (preferencia de este equipo): papel | oscuro | confort | azul
+  const tono = localStorage.getItem('tono-f');
+  document.documentElement.setAttribute('data-tono-f', ['oscuro', 'confort', 'azul'].includes(tono) ? tono : 'papel');
 } catch (_) { document.documentElement.setAttribute('data-tema-ui', 'f'); }
 
 // staleTime > 0: el panel refresca vía invalidateQueries tras cada mutación,
