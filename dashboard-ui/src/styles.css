@@ -634,6 +634,13 @@ tr:last-child td { border-bottom: none; }
   text-align: right; font-size: 30px; font-weight: 800; margin-top: 10px;
   letter-spacing: -0.01em;
 }
+/* Burbujas del chat (Notificaciones) — colores del tema clásico; el tema F
+   las re-tematiza en temaF.css (cliente=papel sombreado, bot=delineado). */
+.chat-burbuja { max-width: 80%; border-radius: var(--radius); padding: 6px 10px; font-size: 12px; background: var(--panel-2); }
+.chat-burbuja.rol-bot { background: #1e3a5f; }
+.chat-burbuja.rol-asesor { background: #16432e; }
+.chat-meta { font-size: 10px; margin-top: 2px; color: var(--text-mute); }
+
 .pos-cambio { font-size: 17px; margin-bottom: 8px; }
 .pos-cambio strong { font-size: 21px; color: var(--green); }
 

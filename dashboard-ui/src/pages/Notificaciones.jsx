@@ -355,12 +355,11 @@ export default function Notificaciones() {
                 {hilo?.length === 0 && <div className="text-muted" style={{ fontSize: 12 }}>Sin mensajes registrados todavía.</div>}
                 {hilo?.map((m, i) => {
                   const dcha = m.rol === 'bot' || m.rol === 'asesor';
-                  const bg = m.rol === 'bot' ? '#1e3a5f' : m.rol === 'asesor' ? '#16432e' : 'var(--panel-2)';
                   return (
                     <div key={i} style={{ display: 'flex', justifyContent: dcha ? 'flex-end' : 'flex-start', marginBottom: 6 }}>
-                      <div style={{ maxWidth: '80%', background: bg, borderRadius: 'var(--radius)', padding: '6px 10px', fontSize: 12 }}>
+                      <div className={`chat-burbuja rol-${m.rol}`}>
                         <div>{m.contenido}</div>
-                        <div className="text-muted" style={{ fontSize: 10, marginTop: 2 }}>{m.rol} · {fdate(m.enviado_en)}</div>
+                        <div className="chat-meta">{m.rol} · {fdate(m.enviado_en)}</div>
                       </div>
                     </div>
                   );

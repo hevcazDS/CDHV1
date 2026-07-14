@@ -363,6 +363,40 @@ html[data-tema-ui="f"] .page-anim { animation: hoja-entrada .18s var(--ease-out-
   .f-stagger > *, html[data-tema-ui="f"] .page-anim { animation: none; }
 }
 
+/* ═══ 19. Buscador del topbar: ligero, de línea (no pastilla gris) ═══ */
+html[data-tema-ui="f"] .buscador-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--hair);
+  border-radius: 0;
+  font-size: 13px;
+}
+html[data-tema-ui="f"] .buscador-input:focus {
+  background: transparent;
+  border-bottom-color: var(--tinta);
+}
+
+/* ═══ 20. Chat (Notificaciones): cliente=papel sombreado, bot=delineado ═══ */
+html[data-tema-ui="f"] .chat-burbuja { background: var(--panel-2); border-radius: 2px 12px 12px 12px; }
+html[data-tema-ui="f"] .chat-burbuja.rol-bot,
+html[data-tema-ui="f"] .chat-burbuja.rol-asesor {
+  background: transparent;
+  border: 1px solid var(--hair);
+  border-radius: 12px 2px 12px 12px;
+}
+html[data-tema-ui="f"] .chat-burbuja.rol-bot .chat-meta { color: var(--matcha); }
+html[data-tema-ui="f"] .chat-burbuja.rol-asesor .chat-meta { color: var(--beru); }
+
+/* ═══ 21. POS (Mostrador): ticket en papel sombreado, total ligero, cobrar bermellón ═══ */
+html[data-tema-ui="f"] .pos-mode .card { background: var(--panel-2); border: none; }
+html[data-tema-ui="f"] .pos-total { font-weight: 300; font-size: 30px; }
+html[data-tema-ui="f"] .pos-total strong, html[data-tema-ui="f"] .pos-total b { font-weight: 600; }
+html[data-tema-ui="f"] .pos-cambio strong { color: var(--matcha); }
+html[data-tema-ui="f"] .pos-mode .mantine-Button-root[data-variant="filled"] {
+  background: var(--beru); letter-spacing: .12em; font-weight: 600;
+}
+html[data-tema-ui="f"] .pos-mode .mantine-Button-root[data-variant="filled"]:hover { background: var(--brand-ink); }
+
 /* ═══ 18. Campana de pendientes (aplica en ambos temas) ═══
    Con pendientes: la casilla ENTERA se pone roja con la silueta blanca (sin
    burbuja numérica). Al llegar algo nuevo pulsa suave entre rojo fuerte y rojo
