@@ -140,12 +140,12 @@ export default function Pedidos() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Pedidos</div>
       <div className="page-sub">Pedidos recientes (últimos 100)</div>
       {error && <div className="login-error">No se pudieron cargar los pedidos: {error.message}</div>}
 
-      <Card withBorder radius="md" p="lg">
+      <Card withBorder radius="md" p="lg" className="sin-scroll-card">
         <Group justify="space-between" mb="md">
           <Title order={4}>{txt('📦 Pedidos recientes')}</Title>
           <Group gap="xs">
@@ -157,7 +157,7 @@ export default function Pedidos() {
             <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
         </Group>
-        <div className="table-wrap">
+        <div className="table-wrap page-scrollable">
           <Table highlightOnHover verticalSpacing="xs">
             <thead>
               <tr><th>Folio</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Estatus</th><th>Guía</th><th>Entrega est.</th><th></th></tr>

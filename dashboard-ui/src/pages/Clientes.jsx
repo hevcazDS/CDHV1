@@ -97,12 +97,12 @@ export default function Clientes() {
   });
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Clientes</div>
       <div className="page-sub">Clientes registrados vía WhatsApp — click en un cliente para ver su ficha</div>
       {error && <div className="login-error">No se pudieron cargar los clientes: {error.message}</div>}
 
-      <Card withBorder radius="md" p="lg">
+      <Card withBorder radius="md" p="lg" className="sin-scroll-card">
         <Group justify="space-between" mb="md">
           <Title order={4}>{txt('👥 Clientes')}</Title>
           <Group gap="xs">
@@ -110,7 +110,7 @@ export default function Clientes() {
             <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
         </Group>
-        <div className="table-wrap">
+        <div className="table-wrap page-scrollable">
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Nombre</th><th>Teléfono</th><th>Canal</th><th>Cód. referido</th><th>Tags</th><th>Registro</th></tr></thead>
             <tbody>

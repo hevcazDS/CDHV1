@@ -73,7 +73,7 @@ export default function Fiados() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Fiados (cuentas por cobrar)</div>
       <div className="page-sub">Cartera de crédito del mostrador. Cobra el abono aquí mismo con el botón <strong>Cobrar</strong>.</div>
 
@@ -88,8 +88,8 @@ export default function Fiados() {
         </Card>
       </Group>
 
-      <Card withBorder radius="md" p="lg" className="card">
-        <div className="table-wrap">
+      <Card withBorder radius="md" p="lg" className="card sin-scroll-card">
+        <div className="table-wrap page-scrollable">
           <table>
             <thead><tr><th>Cliente</th><th>Teléfono</th><th>Pedidos</th><th>Adeudo</th><th>Límite</th><th>Vence</th><th>Estado</th>{mostrarAcciones && <th></th>}</tr></thead>
             <tbody>

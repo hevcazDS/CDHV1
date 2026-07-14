@@ -363,6 +363,25 @@ html[data-tema-ui="f"] .page-anim { animation: hoja-entrada .18s var(--ease-out-
   .f-stagger > *, html[data-tema-ui="f"] .page-anim { animation: none; }
 }
 
+/* ═══ 22. Avatar y soporte: tonos suaves (nada negro fuerte ni rojo pleno) ═══ */
+/* avatar = estilo kamon: transparente con trazo de tinta, no bloque negro */
+html[data-tema-ui="f"] .avatar-chip {
+  background: transparent;
+  border: 1.5px solid var(--text-dim);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+html[data-tema-ui="f"] .avatar-chip:hover { border-color: var(--tinta); color: var(--tinta); }
+/* H de soporte: discreto (papel sombreado + trazo), sin rojo pleno ni sombra dura */
+html[data-tema-ui="f"] .soporte-fab {
+  background: var(--panel-2);
+  border: 1px solid var(--hair);
+  color: var(--text-dim);
+  box-shadow: 0 2px 8px rgba(31, 29, 26, 0.10);
+}
+html[data-tema-ui="f"] .soporte-fab:hover { color: var(--tinta); border-color: var(--niebla); }
+html[data-tema-ui="f"] .soporte-fab .mono-h { font-weight: 700; }
+
 /* ═══ 19. Buscador del topbar: ligero, de línea (no pastilla gris) ═══ */
 html[data-tema-ui="f"] .buscador-input {
   background: transparent;

@@ -305,6 +305,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .sidebar-top { align-items: center; }
 .sidebar-brand { padding: 0 0 0 10px; }
 
+/* Botón flotante de soporte (H de Hevcaz) — el tema F lo suaviza en temaF.css */
+.soporte-fab {
+  position: fixed; bottom: 18px; right: 18px; z-index: 1000;
+  width: 52px; height: 52px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 20px rgba(0,0,0,.4);
+}
+
 /* Monograma H de Hevcaz (botón flotante de soporte) */
 .mono-h { font-family: var(--font-titulos); font-weight: 800; font-size: 21px; line-height: 1; }
 .mono-h.chico {
@@ -489,6 +498,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 @media (max-width: 1000px) { .split-2, .split-2w, .cols-2, .cols-3 { grid-template-columns: 1fr; } }
 @media (max-width: 720px)  { .cols-3 { grid-template-columns: 1fr; } }
 .tabla-compacta { max-height: 240px; overflow: auto; }
+
+/* ── Patrón SIN-SCROLL de página (ANALISIS_SIN_SCROLL.md) ─────────────────
+   La página llena el alto y NUNCA scrollea; solo scrollea la lista interna.
+   Uso: root de la página = .sin-scroll; la Card de la tabla = .sin-scroll-card;
+   el contenedor de la tabla = .page-scrollable. Head/filtros quedan fijos. */
+.sin-scroll { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.sin-scroll-card { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.page-scrollable { flex: 1; min-height: 0; overflow: auto; }
+.page-scrollable thead th { position: sticky; top: 0; background: var(--panel); z-index: 2; }
 .chart-wrap { height: clamp(150px, 24vh, 220px); }
 
 /* KPIs cuadrados: SIEMPRE 6 exactos en una fila (dash de monitor) */

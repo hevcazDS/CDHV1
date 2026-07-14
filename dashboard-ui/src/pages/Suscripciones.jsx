@@ -44,7 +44,7 @@ export default function Suscripciones() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Suscripciones</div>
       <div className="page-sub">Cobro recurrente mensual — el MRR proyecta tu ingreso recurrente</div>
 
@@ -78,9 +78,9 @@ export default function Suscripciones() {
           <Button fullWidth onClick={() => crear.mutate()} disabled={!nueva.nombre.trim() || !(Number(nueva.monto) > 0)}>Crear suscripción</Button>
         </Card>
 
-        <Card withBorder radius="md" p="lg" className="card">
+        <Card withBorder radius="md" p="lg" className="card sin-scroll-card">
           <div className="card-header"><h3>Suscripciones</h3></div>
-          <div className="table-wrap">
+          <div className="table-wrap page-scrollable">
             <table>
               <thead><tr><th>Cliente</th><th className="num">Monto</th><th>Corte</th><th>Próximo cobro</th><th>Estatus</th><th></th></tr></thead>
               <tbody>

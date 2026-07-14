@@ -49,16 +49,7 @@ export default function SoporteWidget() {
           </div>
         </div>
       )}
-      <button
-        onClick={() => setAbierto(a => !a)}
-        title={`Soporte — ${nombre}`}
-        style={{
-          position: 'fixed', bottom: 18, right: 18, zIndex: 1000,
-          width: 52, height: 52, borderRadius: '50%', border: 'none', cursor: 'pointer',
-          background: 'var(--accent, #5b7cfa)', color: '#fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 6px 20px rgba(0,0,0,.4)',
-        }}>
+      <button className="soporte-fab" onClick={() => setAbierto(a => !a)} title={`Soporte — ${nombre}`}>
         {abierto ? <X size={22} strokeWidth={1.75} /> : <span className="mono-h">H</span>}
       </button>
     </>

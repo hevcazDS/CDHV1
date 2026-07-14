@@ -35,7 +35,7 @@ export default function ColaAtencion() {
   const marcar = (id, estatus) => marcarMutation.mutate({ id, estatus });
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Cola de atención</div>
       <div className="page-sub">Clientes escalados a un asesor humano</div>
       {error && <div className="login-error">No se pudo cargar la cola: {error.message}</div>}
@@ -46,12 +46,12 @@ export default function ColaAtencion() {
         </Tabs.List>
       </Tabs>
 
-      <Card withBorder radius="md" p="lg">
+      <Card withBorder radius="md" p="lg" className="sin-scroll-card">
         <Group justify="space-between" mb="md">
           <Title order={4}>{txt('🚨 Cola de atención humana')}</Title>
           <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
         </Group>
-        <div className="table-wrap">
+        <div className="table-wrap page-scrollable">
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Cliente</th><th>Teléfono</th><th>Motivo</th><th>Prioridad</th><th>Estatus</th><th>Desde</th><th></th></tr></thead>
             <tbody>

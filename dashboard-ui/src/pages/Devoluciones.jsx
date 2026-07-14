@@ -48,12 +48,12 @@ export default function Devoluciones() {
   };
 
   return (
-    <div>
+    <div className="sin-scroll">
       <div className="page-title">Devoluciones</div>
       <div className="page-sub">Solicitudes de devolución de clientes</div>
       {error && <div className="login-error">No se pudieron cargar las devoluciones: {error.message}</div>}
 
-      <Card withBorder radius="md" p="lg">
+      <Card withBorder radius="md" p="lg" className="sin-scroll-card">
         <Group justify="space-between" mb="md">
           <Title order={4}>{txt('↩️ Devoluciones')}</Title>
           <Group gap="xs">
@@ -61,7 +61,7 @@ export default function Devoluciones() {
             <ActionIcon variant="default" onClick={() => refetch()}><RefreshCw size={16} strokeWidth={1.75} /></ActionIcon>
           </Group>
         </Group>
-        <div className="table-wrap">
+        <div className="table-wrap page-scrollable">
           <Table highlightOnHover verticalSpacing="xs">
             <thead><tr><th>Pedido</th><th>Cliente</th><th>Motivo</th><th>Foto</th><th>Estatus</th><th>Fecha</th><th>Decisión del asesor</th></tr></thead>
             <tbody>
