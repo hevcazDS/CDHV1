@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<style>
+  /* OPCIÓN F — "MA" (minimalismo japonés): papel cálido, vacío como estructura,
+     sin bordes (el espacio separa), tipografía ligera, UN acento bermellón
+     (sello hanko). Nada grita; todo respira. */
+  :root{
+    --papel:#fbfaf7; --tinta:#1f1d1a; --gris:#8a8578; --niebla:#c9c4b8;
+    --hair:#eceae4; --beru:#c73e3a; --beru-soft:#f8e9e8;
+    --matcha:#6d7f5e; --ocre:#a8853c;
+    font-family:"Yu Gothic UI","Segoe UI",system-ui,sans-serif;
+  }
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--papel);color:var(--tinta);font-size:13.5px;display:flex;width:1440px;height:640px;overflow:hidden}
+
+  .side{width:200px;padding:38px 0 30px 38px;display:flex;flex-direction:column}
+  .kamon{width:40px;height:40px;border:1.5px solid var(--tinta);border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:12px;margin-bottom:8px}
+  .marca{font-size:13px;font-weight:600;letter-spacing:.02em;margin-bottom:44px;line-height:1.3}
+  .marca small{display:block;color:var(--gris);font-weight:400;font-size:10.5px;letter-spacing:.18em;margin-top:3px}
+  .nv{padding:8px 0;color:var(--gris);font-size:13px;font-weight:400;letter-spacing:.03em;display:flex;align-items:center}
+  .nv.on{color:var(--tinta);font-weight:600}
+  .nv.on::before{content:"";width:18px;height:1.5px;background:var(--beru);margin-right:12px}
+  .nv:not(.on){padding-left:30px}
+  .nv .n{margin-left:10px;color:var(--beru);font-size:11px;font-weight:600}
+  .side .foot{margin-top:auto;color:var(--gris);font-size:11.5px;line-height:1.6}
+  .side .foot b{color:var(--tinta);font-weight:600}
+  .hanko{width:26px;height:26px;background:var(--beru);border-radius:5px;color:#fff;display:grid;place-items:center;font-size:9px;font-weight:700;margin-bottom:8px}
+
+  .main{flex:1;padding:34px 46px 0 56px;min-width:0;display:flex;flex-direction:column}
+  .top{display:flex;align-items:baseline;gap:26px;color:var(--gris);font-size:12px;margin-bottom:34px}
+  .top .sr{letter-spacing:.05em}
+  .top .sr kbd{border:1px solid var(--hair);border-radius:4px;padding:1px 6px;font-size:10px;margin-left:8px;color:var(--niebla);font-family:inherit}
+  .top .right{margin-left:auto;display:flex;gap:22px;align-items:baseline}
+  .top .st i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ocre);margin-right:7px;font-style:normal}
+
+  .hero{display:flex;align-items:flex-end;margin-bottom:30px}
+  h1{font-size:30px;font-weight:300;letter-spacing:.01em}
+  h1 b{font-weight:600}
+  .sub{color:var(--gris);font-size:12.5px;margin-top:8px;letter-spacing:.02em}
+  .sub b{color:var(--beru);font-weight:600}
+  .nums{margin-left:auto;display:flex;gap:52px;text-align:right}
+  .num small{display:block;font-size:10px;letter-spacing:.26em;color:var(--niebla);margin-bottom:6px;text-transform:uppercase}
+  .num .v{font-size:21px;font-weight:300;font-variant-numeric:tabular-nums}
+  .num .v b{font-weight:600}
+
+  .filters{display:flex;gap:26px;font-size:12px;color:var(--gris);letter-spacing:.04em;border-bottom:1px solid var(--hair);padding-bottom:12px}
+  .f.on{color:var(--tinta);font-weight:600;position:relative}
+  .f.on::after{content:"";position:absolute;left:0;right:0;bottom:-13px;height:1.5px;background:var(--beru)}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--niebla);text-align:left;padding:16px 0 10px;font-weight:500}
+  td{padding:13px 0;vertical-align:baseline;border-bottom:1px solid var(--hair)}
+  td.pad, th.pad{padding-right:34px}
+  .mono{font-family:Consolas,monospace;font-size:11.5px;color:var(--niebla);letter-spacing:.04em}
+  .cli{font-weight:500}
+  .tot{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+  .st2{font-size:12px;color:var(--gris)}
+  .st2::before{content:"●";font-size:7px;vertical-align:2px;margin-right:8px}
+  .pg::before{color:var(--matcha)} .pc::before{color:var(--ocre)} .cx::before{color:var(--beru)}
+  .cf::before{color:#5a7391} .pd::before{color:var(--niebla)}
+  .lnk{color:var(--beru);font-size:12px;font-weight:600;letter-spacing:.04em}
+  tr.hov td{background:#f6f4ee}
+</style></head>
+<body>
+  <div class="side">
+    <div class="kamon">JC</div>
+    <div class="marca">Julio Cepeda<small>JUGUETERÍAS</small></div>
+    <div class="nv">Inicio</div>
+    <div class="nv on">Pedidos<span class="n">37</span></div>
+    <div class="nv">Mostrador</div>
+    <div class="nv">Atención<span class="n" style="color:var(--ocre)">7</span></div>
+    <div class="nv">Clientes</div>
+    <div class="nv">Almacén</div>
+    <div class="nv">Finanzas</div>
+    <div class="nv">Ajustes</div>
+    <div class="foot"><div class="hanko">主</div><b>prime</b><br>propietario</div>
+  </div>
+
+  <div class="main">
+    <div class="top">
+      <span class="sr">buscar<kbd>ctrl k</kbd></span>
+      <div class="right">
+        <span class="st"><i></i>bot en pausa</span>
+        <span>juguetería</span>
+        <span style="color:var(--tinta);font-weight:600">PR</span>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div>
+        <h1>Pedidos <b>· 100</b></h1>
+        <div class="sub"><b>37 por cobrar</b> — el resto fluye solo</div>
+      </div>
+      <div class="nums">
+        <div class="num"><small>hoy</small><div class="v"><b>$12,480</b></div></div>
+        <div class="num"><small>semana</small><div class="v">$51,007</div></div>
+        <div class="num"><small>por cobrar</small><div class="v" style="color:var(--ocre)">$48,320</div></div>
+      </div>
+    </div>
+
+    <div class="filters">
+      <span class="f on">Todos</span><span class="f">Por cobrar</span><span class="f">Pagados</span><span class="f">Entregados</span><span class="f">Cancelados</span>
+    </div>
+
+    <table>
+      <tr><th class="pad">Folio</th><th class="pad">Cliente</th><th class="pad" style="text-align:right">Total</th><th class="pad">Pago</th><th class="pad">Estatus</th><th class="pad">Guía</th><th></th></tr>
+      <tr><td class="mono pad">DEMO-0082</td><td class="cli pad">Jorge Demo</td><td class="tot pad">$2,353.00</td><td class="pad"><span class="st2 pc">por cobrar</span></td><td class="pad"><span class="st2 cx">cancelado</span></td><td class="mono pad">—</td><td></td></tr>
+      <tr class="hov"><td class="mono pad">DEMO-0081</td><td class="cli pad">Luis Demo</td><td class="tot pad">$1,305.00</td><td class="pad"><span class="st2 pc">por cobrar</span></td><td class="pad"><span class="st2 cf">confirmado</span></td><td class="mono pad">—</td><td><span class="lnk">cobrar</span></td></tr>
+      <tr><td class="mono pad">DEMO-0080</td><td class="cli pad">Pedro Demo</td><td class="tot pad">$1,498.00</td><td class="pad"><span class="st2 pg">pagado</span></td><td class="pad"><span class="st2 pg">entregado</span></td><td class="mono pad">EST-88301</td><td></td></tr>
+      <tr><td class="mono pad">DEMO-0079</td><td class="cli pad">Raúl Demo</td><td class="tot pad">$1,448.00</td><td class="pad"><span class="st2 pg">pagado</span></td><td class="pad"><span class="st2 cf">confirmado</span></td><td class="mono pad">—</td><td><span class="lnk">guía</span></td></tr>
+      <tr><td class="mono pad">DEMO-0078</td><td class="cli pad">Ana Demo</td><td class="tot pad">$1,823.00</td><td class="pad"><span class="st2 pg">pagado</span></td><td class="pad"><span class="st2 pg">entregado</span></td><td class="mono pad">EST-88274</td><td></td></tr>
+      <tr><td class="mono pad">DEMO-0077</td><td class="cli pad">Luis Demo</td><td class="tot pad">$2,202.00</td><td class="pad"><span class="st2 pc">por cobrar</span></td><td class="pad"><span class="st2 pd">pendiente</span></td><td class="mono pad">—</td><td><span class="lnk">cobrar</span></td></tr>
+      <tr><td class="mono pad">DEMO-0076</td><td class="cli pad">Marta Demo</td><td class="tot pad">$2,210.00</td><td class="pad"><span class="st2 pg">pagado</span></td><td class="pad"><span class="st2 cf">confirmado</span></td><td class="mono pad">—</td><td><span class="lnk">guía</span></td></tr>
+    </table>
+  </div>
+</body></html>

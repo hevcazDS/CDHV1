@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<style>
+  :root{
+    --papel:#fbfaf7; --tinta:#1f1d1a; --gris:#8a8578; --niebla:#c9c4b8;
+    --hair:#eceae4; --beru:#c73e3a; --matcha:#6d7f5e; --ocre:#a8853c;
+    font-family:"Yu Gothic UI","Segoe UI",system-ui,sans-serif;
+  }
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--papel);color:var(--tinta);font-size:13.5px;display:flex;width:1440px;height:760px;overflow:hidden}
+  .side{width:200px;padding:38px 0 30px 38px;display:flex;flex-direction:column}
+  .kamon{width:40px;height:40px;border:1.5px solid var(--tinta);border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:12px;margin-bottom:8px}
+  .marca{font-size:13px;font-weight:600;margin-bottom:44px;line-height:1.3}
+  .marca small{display:block;color:var(--gris);font-weight:400;font-size:10.5px;letter-spacing:.18em;margin-top:3px}
+  .nv{padding:8px 0;color:var(--gris);font-size:13px;display:flex;align-items:center}
+  .nv.on{color:var(--tinta);font-weight:600}
+  .nv.on::before{content:"";width:18px;height:1.5px;background:var(--beru);margin-right:12px}
+  .nv:not(.on){padding-left:30px}
+  .nv .n{margin-left:10px;color:var(--beru);font-size:11px;font-weight:600}
+  .foot{margin-top:auto;color:var(--gris);font-size:11.5px;line-height:1.6}
+  .foot b{color:var(--tinta)}
+  .hanko{width:26px;height:26px;background:var(--beru);border-radius:5px;color:#fff;display:grid;place-items:center;font-size:9px;font-weight:700;margin-bottom:8px}
+
+  .main{flex:1;padding:34px 46px 0 56px;min-width:0}
+  .top{display:flex;align-items:baseline;gap:26px;color:var(--gris);font-size:12px;margin-bottom:38px}
+  .top kbd{border:1px solid var(--hair);border-radius:4px;padding:1px 6px;font-size:10px;margin-left:8px;color:var(--niebla);font-family:inherit}
+  .top .right{margin-left:auto;display:flex;gap:22px;align-items:baseline}
+  .top .st i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ocre);margin-right:7px;font-style:normal}
+
+  h1{font-size:28px;font-weight:300}
+  h1 b{font-weight:600}
+  .sub{color:var(--gris);font-size:12.5px;margin-top:6px}
+  .sub b{color:var(--beru);font-weight:600}
+
+  .kpis{display:flex;gap:56px;margin:34px 0 40px}
+  .kpi small{display:block;font-size:10px;letter-spacing:.26em;color:var(--niebla);text-transform:uppercase;margin-bottom:7px}
+  .kpi .v{font-size:27px;font-weight:300;font-variant-numeric:tabular-nums}
+  .kpi .v b{font-weight:600}
+  .kpi .d{font-size:11px;margin-top:5px;color:var(--matcha)}
+  .kpi .d.down{color:var(--beru)}
+  .kpi.alert .v{color:var(--beru);font-weight:400}
+
+  .cols{display:flex;gap:64px}
+  .colL{flex:1.5;min-width:0}
+  .colR{flex:1;min-width:0}
+  h4{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--niebla);font-weight:500;margin-bottom:18px;display:flex;align-items:baseline}
+  h4 span{margin-left:auto;color:var(--gris);letter-spacing:.02em;text-transform:none;font-size:11.5px}
+  h4 .lnk{color:var(--beru);font-weight:600}
+
+  /* gráfica de barras: tinta ligera, HOY en bermellón, hairline base */
+  .chart{position:relative;padding-bottom:4px}
+  .bars{display:flex;align-items:flex-end;gap:34px;height:170px;border-bottom:1px solid var(--hair);padding:0 8px}
+  .b{width:22px;display:flex;flex-direction:column;align-items:center;gap:8px}
+  .b i{width:100%;background:#31302c;opacity:.85;border-radius:1px;font-style:normal}
+  .b.today i{background:var(--beru);opacity:1}
+  .b .val{font-size:10.5px;color:var(--gris);font-variant-numeric:tabular-nums}
+  .b.today .val{color:var(--beru);font-weight:600}
+  .days{display:flex;gap:34px;padding:8px 8px 0}
+  .days span{width:22px;text-align:center;font-size:10.5px;color:var(--niebla)}
+  .days span.today{color:var(--beru);font-weight:600}
+  .chart .media{position:absolute;left:0;right:0;top:58px;border-top:1px dashed var(--niebla);opacity:.5}
+  .chart .media em{position:absolute;right:0;top:-16px;font-size:10px;color:var(--niebla);font-style:normal;letter-spacing:.06em}
+
+  .row{display:flex;justify-content:space-between;align-items:baseline;padding:10.5px 0;border-bottom:1px solid var(--hair);font-size:13px}
+  .row .who{font-weight:500}
+  .row .who small{color:var(--niebla);font-weight:400;margin-left:10px;font-family:Consolas,monospace;font-size:11px}
+  .row .st2{font-size:11.5px;color:var(--gris)}
+  .row .st2::before{content:"●";font-size:6px;vertical-align:2px;margin-right:7px}
+  .pg::before{color:var(--matcha)} .pc::before{color:var(--ocre)} .cf::before{color:#5a7391}
+  .row .m{font-weight:600;font-variant-numeric:tabular-nums;width:80px;text-align:right}
+  .row .go{color:var(--beru);font-size:11.5px;font-weight:600;margin-left:18px}
+
+  .pend .row .who{font-weight:400}
+  .pend .row .t{color:var(--gris);font-size:11px}
+  .spark{margin-top:44px}
+  .spark svg{display:block}
+</style></head>
+<body>
+  <div class="side">
+    <div class="kamon">JC</div>
+    <div class="marca">Julio Cepeda<small>JUGUETERÍAS</small></div>
+    <div class="nv on">Inicio</div>
+    <div class="nv">Pedidos<span class="n">37</span></div>
+    <div class="nv">Mostrador</div>
+    <div class="nv">Atención<span class="n" style="color:var(--ocre)">7</span></div>
+    <div class="nv">Clientes</div>
+    <div class="nv">Almacén</div>
+    <div class="nv">Finanzas</div>
+    <div class="nv">Ajustes</div>
+    <div class="foot"><div class="hanko">主</div><b>prime</b><br>propietario</div>
+  </div>
+
+  <div class="main">
+    <div class="top">
+      <span>buscar<kbd>ctrl k</kbd></span>
+      <div class="right"><span class="st"><i></i>bot en pausa</span><span>lunes, 13 de julio</span><span style="color:var(--tinta);font-weight:600">PR</span></div>
+    </div>
+
+    <h1>Buenos días<b>, Prime</b></h1>
+    <div class="sub">La semana va <b style="color:var(--matcha)">12% arriba</b> · <b>7 clientes esperan atención</b></div>
+
+    <div class="kpis">
+      <div class="kpi"><small>ventas hoy</small><div class="v"><b>$12,480</b></div><div class="d">▲ 8% vs ayer</div></div>
+      <div class="kpi"><small>pedidos hoy</small><div class="v">9</div><div class="d">▲ 2</div></div>
+      <div class="kpi"><small>por cobrar</small><div class="v" style="color:var(--ocre)">$48,320</div><div class="d" style="color:var(--gris)">37 pedidos</div></div>
+      <div class="kpi alert"><small>esperando atención</small><div class="v">7</div><div class="d down">responder ahora →</div></div>
+      <div class="kpi"><small>clientes activos</small><div class="v">14</div><div class="d" style="color:var(--gris)">30 días</div></div>
+    </div>
+
+    <div class="cols">
+      <div class="colL">
+        <h4>Ventas · últimos 7 días<span>total <b style="color:var(--tinta)">$51,007</b></span></h4>
+        <div class="chart">
+          <div class="media"><em>media $7,286</em></div>
+          <div class="bars">
+            <div class="b"><span class="val">5.2k</span><i style="height:62px"></i></div>
+            <div class="b"><span class="val">7.8k</span><i style="height:93px"></i></div>
+            <div class="b"><span class="val">6.1k</span><i style="height:73px"></i></div>
+            <div class="b"><span class="val">9.4k</span><i style="height:112px"></i></div>
+            <div class="b"><span class="val">4.9k</span><i style="height:58px"></i></div>
+            <div class="b"><span class="val">5.1k</span><i style="height:61px"></i></div>
+            <div class="b today"><span class="val">12.4k</span><i style="height:148px"></i></div>
+          </div>
+          <div class="days"><span>mar</span><span>mié</span><span>jue</span><span>vie</span><span>sáb</span><span>dom</span><span class="today">hoy</span></div>
+        </div>
+
+        <div class="spark">
+          <h4>Búsquedas del bot · 14 días<span>231 búsquedas · <b style="color:var(--matcha)">13%</b> terminan en pago</span></h4>
+          <svg width="100%" height="46" viewBox="0 0 640 46" preserveAspectRatio="none">
+            <polyline points="0,34 46,30 92,36 138,22 184,26 230,18 276,28 322,14 368,20 414,10 460,16 506,8 552,14 598,6 640,10"
+              fill="none" stroke="#31302c" stroke-width="1.5"/>
+            <circle cx="640" cy="10" r="3" fill="#c73e3a"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="colR">
+        <h4>Requiere tu mano<span class="lnk">ver todo →</span></h4>
+        <div class="pend">
+          <div class="row"><span class="who">Luis Demo <span class="t">· esperando 22 min</span></span><span class="go">responder</span></div>
+          <div class="row"><span class="who">Marta Demo <span class="t">· cotización mayorista</span></span><span class="go">responder</span></div>
+          <div class="row"><span class="who">4 fiados vencidos <span class="t">· $6,120</span></span><span class="go">cobrar</span></div>
+          <div class="row"><span class="who">Corte de caja de ayer <span class="t">· sin cerrar</span></span><span class="go">cerrar</span></div>
+        </div>
+
+        <h4 style="margin-top:38px">Últimos pedidos<span class="lnk">ver todos →</span></h4>
+        <div class="row"><span class="who">Luis Demo<small>DEMO-0081</small></span><span class="st2 pc">por cobrar</span><span class="m">$1,305</span></div>
+        <div class="row"><span class="who">Pedro Demo<small>DEMO-0080</small></span><span class="st2 pg">entregado</span><span class="m">$1,498</span></div>
+        <div class="row"><span class="who">Raúl Demo<small>DEMO-0079</small></span><span class="st2 cf">confirmado</span><span class="m">$1,448</span></div>
+        <div class="row"><span class="who">Ana Demo<small>DEMO-0078</small></span><span class="st2 pg">entregado</span><span class="m">$1,823</span></div>
+      </div>
+    </div>
+  </div>
+</body></html>

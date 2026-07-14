@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<style>
+  :root{
+    --papel:#fbfaf7; --tinta:#1f1d1a; --gris:#8a8578; --niebla:#c9c4b8;
+    --hair:#eceae4; --beru:#c73e3a; --matcha:#6d7f5e; --ocre:#a8853c;
+    font-family:"Yu Gothic UI","Segoe UI",system-ui,sans-serif;
+  }
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--papel);color:var(--tinta);font-size:13.5px;display:flex;width:1440px;height:760px;overflow:hidden}
+  .side{width:200px;padding:38px 0 30px 38px;display:flex;flex-direction:column}
+  .kamon{width:40px;height:40px;border:1.5px solid var(--tinta);border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:12px;margin-bottom:8px}
+  .marca{font-size:13px;font-weight:600;margin-bottom:44px;line-height:1.3}
+  .marca small{display:block;color:var(--gris);font-weight:400;font-size:10.5px;letter-spacing:.18em;margin-top:3px}
+  .nv{padding:8px 0;color:var(--gris);font-size:13px;display:flex;align-items:center}
+  .nv.on{color:var(--tinta);font-weight:600}
+  .nv.on::before{content:"";width:18px;height:1.5px;background:var(--beru);margin-right:12px}
+  .nv:not(.on){padding-left:30px}
+  .foot{margin-top:auto;color:var(--gris);font-size:11.5px;line-height:1.6}
+  .foot b{color:var(--tinta)}
+  .hanko{width:26px;height:26px;background:var(--beru);border-radius:5px;color:#fff;display:grid;place-items:center;font-size:9px;font-weight:700;margin-bottom:8px}
+
+  .main{flex:1;padding:34px 0 0 56px;min-width:0;display:flex}
+  .zona{flex:1;padding-right:44px;min-width:0}
+  h1{font-size:28px;font-weight:300}
+  h1 b{font-weight:600}
+  .sub{color:var(--gris);font-size:12.5px;margin:6px 0 26px}
+  .scan{display:flex;align-items:baseline;gap:14px;border-bottom:1.5px solid var(--tinta);padding-bottom:10px;margin-bottom:30px;max-width:520px}
+  .scan .ph{color:var(--niebla);font-size:15px;font-weight:300}
+  .scan kbd{margin-left:auto;color:var(--niebla);font-size:10px;border:1px solid var(--hair);border-radius:4px;padding:1px 6px;font-family:inherit}
+  h4{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--niebla);font-weight:500;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0 44px}
+  .prod{padding:14px 0;border-bottom:1px solid var(--hair);display:flex;justify-content:space-between;align-items:baseline}
+  .prod .n{font-weight:500;font-size:13px}
+  .prod .n small{display:block;color:var(--niebla);font-weight:400;font-size:10.5px;margin-top:3px;letter-spacing:.04em}
+  .prod .p{font-weight:600;font-variant-numeric:tabular-nums}
+  .prod .p em{display:block;font-style:normal;text-align:right;font-size:10px;color:var(--matcha);font-weight:500;margin-top:3px}
+  .prod .p em.low{color:var(--ocre)}
+
+  .ticket{width:400px;background:#f6f4ee;padding:34px 38px;display:flex;flex-direction:column}
+  .ticket h4{color:var(--gris)}
+  .ticket h4 b{color:var(--tinta);letter-spacing:0}
+  .it{display:flex;align-items:baseline;padding:11px 0;border-bottom:1px solid #e7e4da;font-size:13px}
+  .it .q{width:34px;color:var(--beru);font-weight:600}
+  .it .n{flex:1;font-weight:500}
+  .it .m{font-weight:600;font-variant-numeric:tabular-nums}
+  .it .x{color:var(--niebla);margin-left:14px}
+  .tot{margin-top:auto}
+  .ln{display:flex;justify-content:space-between;font-size:12.5px;color:var(--gris);padding:5px 0}
+  .ln b{color:var(--tinta);font-variant-numeric:tabular-nums;font-weight:500}
+  .gran{border-top:1.5px solid var(--tinta);margin-top:12px;padding-top:14px;display:flex;justify-content:space-between;align-items:baseline}
+  .gran small{font-size:11px;letter-spacing:.24em;color:var(--gris)}
+  .gran .v{font-size:34px;font-weight:300}
+  .gran .v b{font-weight:600}
+  .pago{display:flex;gap:10px;margin:20px 0 12px}
+  .pm{flex:1;text-align:center;border:1px solid var(--niebla);border-radius:4px;padding:8px 0;font-size:11.5px;letter-spacing:.08em;color:var(--gris)}
+  .pm.on{border:1.5px solid var(--tinta);color:var(--tinta);font-weight:600}
+  .cobrar{background:var(--beru);color:#fff;text-align:center;padding:15px;border-radius:5px;font-size:13px;letter-spacing:.26em;font-weight:600}
+  .cli{font-size:11.5px;color:var(--gris);text-align:center;margin-top:12px}
+  .cli b{color:var(--tinta)}
+</style></head>
+<body>
+  <div class="side">
+    <div class="kamon">JC</div>
+    <div class="marca">Julio Cepeda<small>JUGUETERÍAS</small></div>
+    <div class="nv">Inicio</div>
+    <div class="nv">Pedidos</div>
+    <div class="nv on">Mostrador</div>
+    <div class="nv">Atención</div>
+    <div class="nv">Clientes</div>
+    <div class="nv">Almacén</div>
+    <div class="nv">Finanzas</div>
+    <div class="nv">Ajustes</div>
+    <div class="foot"><div class="hanko">主</div><b>prime</b><br>caja matriz</div>
+  </div>
+
+  <div class="main">
+    <div class="zona">
+      <h1>Mostrador<b> · venta</b></h1>
+      <div class="sub">escanea el código o escribe el nombre — <b style="color:var(--tinta)">F2</b> cobra</div>
+      <div class="scan"><span class="ph">escanear o buscar producto…</span><kbd>F1</kbd></div>
+
+      <h4>Frecuentes</h4>
+      <div class="grid">
+        <div class="prod"><div class="n">Lego City Policía<small>LEGO · 8 pzas</small></div><div class="p">$599<em>stock 8</em></div></div>
+        <div class="prod"><div class="n">Muñeca Barbie<small>MATTEL</small></div><div class="p">$349<em class="low">stock 4</em></div></div>
+        <div class="prod"><div class="n">Hot Wheels pista<small>MATTEL</small></div><div class="p">$799<em>stock 12</em></div></div>
+        <div class="prod"><div class="n">Nerf Elite 2.0<small>HASBRO</small></div><div class="p">$649<em>stock 9</em></div></div>
+        <div class="prod"><div class="n">UNO clásico<small>MATTEL GAMES</small></div><div class="p">$129<em>stock 22</em></div></div>
+        <div class="prod"><div class="n">Peluche dino<small>IMPORTADO</small></div><div class="p">$249<em class="low">stock 3</em></div></div>
+        <div class="prod"><div class="n">Rompecabezas 500<small>RAVENSBURGER</small></div><div class="p">$399<em>stock 7</em></div></div>
+        <div class="prod"><div class="n">Balón de fútbol<small>DEPORTES</small></div><div class="p">$199<em class="low">agotado</em></div></div>
+        <div class="prod"><div class="n">Kit slime<small>CREATIVO</small></div><div class="p">$179<em>stock 15</em></div></div>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <h4>Ticket · <b>caja matriz</b></h4>
+      <div class="it"><span class="q">1×</span><span class="n">Lego City Policía</span><span class="m">$599.00</span><span class="x">×</span></div>
+      <div class="it"><span class="q">2×</span><span class="n">UNO clásico</span><span class="m">$258.00</span><span class="x">×</span></div>
+      <div class="it"><span class="q">1×</span><span class="n">Peluche dino</span><span class="m">$249.00</span><span class="x">×</span></div>
+
+      <div class="tot">
+        <div class="ln">Subtotal<b>$1,106.00</b></div>
+        <div class="ln">IVA incluido<b>$152.55</b></div>
+        <div class="ln">Puntos del cliente<b style="color:var(--matcha)">+1,106</b></div>
+        <div class="gran"><small>TOTAL</small><div class="v"><b>$1,106</b>.00</div></div>
+        <div class="pago"><span class="pm on">EFECTIVO</span><span class="pm">TARJETA</span><span class="pm">TRANSFER.</span></div>
+        <div class="cobrar">COBRAR · F2</div>
+        <div class="cli">cliente <b>Luis Demo</b> · 521 555 ··· 001 · <span style="color:var(--beru);font-weight:600">cambiar</span></div>
+      </div>
+    </div>
+  </div>
+</body></html>

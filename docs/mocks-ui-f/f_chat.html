@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<style>
+  :root{
+    --papel:#fbfaf7; --tinta:#1f1d1a; --gris:#8a8578; --niebla:#c9c4b8;
+    --hair:#eceae4; --beru:#c73e3a; --matcha:#6d7f5e; --ocre:#a8853c;
+    font-family:"Yu Gothic UI","Segoe UI",system-ui,sans-serif;
+  }
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--papel);color:var(--tinta);font-size:13.5px;display:flex;width:1440px;height:760px;overflow:hidden}
+  .side{width:200px;padding:38px 0 30px 38px;display:flex;flex-direction:column}
+  .kamon{width:40px;height:40px;border:1.5px solid var(--tinta);border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:12px;margin-bottom:8px}
+  .marca{font-size:13px;font-weight:600;margin-bottom:44px;line-height:1.3}
+  .marca small{display:block;color:var(--gris);font-weight:400;font-size:10.5px;letter-spacing:.18em;margin-top:3px}
+  .nv{padding:8px 0;color:var(--gris);font-size:13px;display:flex;align-items:center}
+  .nv.on{color:var(--tinta);font-weight:600}
+  .nv.on::before{content:"";width:18px;height:1.5px;background:var(--beru);margin-right:12px}
+  .nv:not(.on){padding-left:30px}
+  .nv .n{margin-left:10px;color:var(--beru);font-size:11px;font-weight:600}
+  .foot{margin-top:auto;color:var(--gris);font-size:11.5px;line-height:1.6}
+  .foot b{color:var(--tinta)}
+  .hanko{width:26px;height:26px;background:var(--beru);border-radius:5px;color:#fff;display:grid;place-items:center;font-size:9px;font-weight:700;margin-bottom:8px}
+
+  .lista{width:320px;border-right:1px solid var(--hair);padding:34px 0 0;display:flex;flex-direction:column}
+  .lista h1{font-size:22px;font-weight:300;padding:0 28px}
+  .lista h1 b{font-weight:600}
+  .lista .sub{color:var(--gris);font-size:12px;padding:6px 28px 18px}
+  .lista .sub b{color:var(--beru)}
+  .conv{padding:14px 28px;border-bottom:1px solid var(--hair)}
+  .conv.on{background:#f4f2ea;border-left:2px solid var(--beru);padding-left:26px}
+  .conv .l1{display:flex;justify-content:space-between;align-items:baseline}
+  .conv .who{font-weight:600;font-size:13px}
+  .conv .t{color:var(--niebla);font-size:10.5px}
+  .conv .prev{color:var(--gris);font-size:12px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .conv .st{font-size:10.5px;margin-top:6px;letter-spacing:.06em}
+  .conv .st.urg{color:var(--beru);font-weight:600}
+  .conv .st.bot{color:var(--matcha)}
+  .conv .st.esp{color:var(--ocre);font-weight:600}
+
+  .chat{flex:1;display:flex;flex-direction:column;min-width:0}
+  .head{display:flex;align-items:baseline;gap:16px;padding:34px 44px 18px;border-bottom:1px solid var(--hair)}
+  .head .who{font-size:19px;font-weight:600}
+  .head .tel{color:var(--niebla);font-size:12px;font-family:Consolas,monospace}
+  .head .tags{margin-left:auto;display:flex;gap:16px;font-size:11.5px;color:var(--gris)}
+  .head .tags b{color:var(--tinta)}
+  .head .accion{color:var(--beru);font-weight:600;font-size:12px}
+
+  .msgs{flex:1;padding:30px 44px;display:flex;flex-direction:column;gap:18px;overflow:hidden}
+  .m{max-width:56%}
+  .m .b{padding:11px 16px;font-size:13px;line-height:1.55}
+  .m .meta{font-size:10px;color:var(--niebla);margin-top:5px;letter-spacing:.06em}
+  .m.cli .b{background:#f1efe8;border-radius:2px 14px 14px 14px}
+  .m.bot{align-self:flex-end;text-align:right}
+  .m.bot .b{background:transparent;border:1px solid var(--hair);border-radius:14px 2px 14px 14px;text-align:left}
+  .m.bot .meta::after{content:" · bot";color:var(--matcha)}
+  .m.sys{align-self:center;max-width:70%;text-align:center}
+  .m.sys .b{background:transparent;color:var(--gris);font-size:11.5px;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);padding:8px 22px;border-radius:0}
+  .m.sys .b b{color:var(--beru)}
+
+  .redact{border-top:1px solid var(--hair);padding:18px 44px 26px;display:flex;align-items:baseline;gap:18px}
+  .redact .ph{flex:1;border-bottom:1.5px solid var(--tinta);padding-bottom:9px;color:var(--niebla);font-size:14px;font-weight:300}
+  .redact .send{background:var(--tinta);color:#fff;padding:9px 26px;border-radius:4px;font-size:11.5px;letter-spacing:.2em;font-weight:600}
+  .redact .plant{color:var(--gris);font-size:11.5px}
+</style></head>
+<body>
+  <div class="side">
+    <div class="kamon">JC</div>
+    <div class="marca">Julio Cepeda<small>JUGUETERÍAS</small></div>
+    <div class="nv">Inicio</div>
+    <div class="nv">Pedidos</div>
+    <div class="nv">Mostrador</div>
+    <div class="nv on">Atención<span class="n">7</span></div>
+    <div class="nv">Clientes</div>
+    <div class="nv">Almacén</div>
+    <div class="nv">Finanzas</div>
+    <div class="nv">Ajustes</div>
+    <div class="foot"><div class="hanko">主</div><b>prime</b><br>propietario</div>
+  </div>
+
+  <div class="lista">
+    <h1>Atención<b> · 7</b></h1>
+    <div class="sub"><b>2 urgentes</b> · el bot atiende el resto</div>
+    <div class="conv on">
+      <div class="l1"><span class="who">Luis Demo</span><span class="t">hace 22 min</span></div>
+      <div class="prev">¿me pueden hacer precio si llevo tres?</div>
+      <div class="st urg">esperando asesor · mayoreo</div>
+    </div>
+    <div class="conv">
+      <div class="l1"><span class="who">Marta Demo</span><span class="t">hace 40 min</span></div>
+      <div class="prev">quiero cotizar 20 piezas para un evento…</div>
+      <div class="st urg">esperando asesor · cotización</div>
+    </div>
+    <div class="conv">
+      <div class="l1"><span class="who">Jorge Demo</span><span class="t">11:02</span></div>
+      <div class="prev">gracias, quedo al pendiente del envío</div>
+      <div class="st esp">queja resuelta · seguimiento</div>
+    </div>
+    <div class="conv">
+      <div class="l1"><span class="who">Ana Demo</span><span class="t">10:44</span></div>
+      <div class="prev">1</div>
+      <div class="st bot">con el bot · eligiendo producto</div>
+    </div>
+    <div class="conv">
+      <div class="l1"><span class="who">Raúl Demo</span><span class="t">10:12</span></div>
+      <div class="prev">DEMO-0079</div>
+      <div class="st bot">con el bot · rastreo</div>
+    </div>
+  </div>
+
+  <div class="chat">
+    <div class="head">
+      <span class="who">Luis Demo</span><span class="tel">521 555 ··· 001</span>
+      <div class="tags"><span>cliente <b>recurrente</b></span><span>compras <b>$8,420</b></span><span>puntos <b>2,140</b></span><span class="accion">devolver al bot →</span></div>
+    </div>
+    <div class="msgs">
+      <div class="m cli"><div class="b">Hola, vi el Lego City de policía ¿lo tienen disponible?</div><div class="meta">11:38</div></div>
+      <div class="m bot"><div class="b">¡Hola Luis! 🧸 Sí — <b>Lego City Policía</b> disponible: <b>$599.00</b>. ¿Te lo aparto o quieres verlo con más detalle?</div><div class="meta">11:38</div></div>
+      <div class="m cli"><div class="b">¿me pueden hacer precio si llevo tres?</div><div class="meta">11:42</div></div>
+      <div class="m sys"><div class="b">el bot escaló a asesor — <b>pedido mayorista</b> · quedó en silencio para no pisarte</div></div>
+      <div class="m cli"><div class="b">?</div><div class="meta">12:01</div></div>
+    </div>
+    <div class="redact">
+      <span class="ph">escribe como Julio Cepeda…</span>
+      <span class="plant">plantillas ↓</span>
+      <span class="send">ENVIAR</span>
+    </div>
+  </div>
+</body></html>

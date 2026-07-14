@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<style>
+  :root{
+    --papel:#fbfaf7; --tinta:#1f1d1a; --gris:#8a8578; --niebla:#c9c4b8;
+    --hair:#eceae4; --beru:#c73e3a; --matcha:#6d7f5e; --ocre:#a8853c;
+    font-family:"Yu Gothic UI","Segoe UI",system-ui,sans-serif;
+  }
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--papel);color:var(--tinta);font-size:13.5px;display:flex;width:1440px;height:760px;overflow:hidden}
+  .side{width:200px;padding:38px 0 30px 38px;display:flex;flex-direction:column}
+  .kamon{width:40px;height:40px;border:1.5px solid var(--tinta);border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:12px;margin-bottom:8px}
+  .marca{font-size:13px;font-weight:600;margin-bottom:44px;line-height:1.3}
+  .marca small{display:block;color:var(--gris);font-weight:400;font-size:10.5px;letter-spacing:.18em;margin-top:3px}
+  .nv{padding:8px 0;color:var(--gris);font-size:13px;display:flex;align-items:center}
+  .nv.on{color:var(--tinta);font-weight:600}
+  .nv.on::before{content:"";width:18px;height:1.5px;background:var(--beru);margin-right:12px}
+  .nv:not(.on){padding-left:30px}
+  .foot{margin-top:auto;color:var(--gris);font-size:11.5px;line-height:1.6}
+  .foot b{color:var(--tinta)}
+  .hanko{width:26px;height:26px;background:var(--beru);border-radius:5px;color:#fff;display:grid;place-items:center;font-size:9px;font-weight:700;margin-bottom:8px}
+
+  .main{flex:1;padding:34px 46px 0 56px;min-width:0}
+  .top{display:flex;align-items:baseline;gap:26px;color:var(--gris);font-size:12px;margin-bottom:30px}
+  .top .right{margin-left:auto;display:flex;gap:22px}
+  h1{font-size:28px;font-weight:300}
+  h1 b{font-weight:600}
+  .sub{color:var(--gris);font-size:12.5px;margin-top:6px}
+  .tabs{display:flex;gap:24px;font-size:12px;color:var(--gris);border-bottom:1px solid var(--hair);padding-bottom:12px;margin:26px 0 30px;letter-spacing:.03em}
+  .t.on{color:var(--tinta);font-weight:600;position:relative}
+  .t.on::after{content:"";position:absolute;left:0;right:0;bottom:-13px;height:1.5px;background:var(--beru)}
+  .filtros{margin-left:auto;color:var(--niebla);font-size:11.5px}
+  .filtros b{color:var(--gris);font-weight:500}
+
+  .cols{display:flex;gap:64px}
+  .col{flex:1;min-width:0}
+  h4{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--niebla);font-weight:500;margin-bottom:20px;display:flex}
+  h4 span{margin-left:auto;text-transform:none;letter-spacing:.02em;font-size:11.5px;color:var(--matcha);font-weight:600}
+
+  /* estado de resultados: barras horizontales finas */
+  .pl .ln{margin-bottom:17px}
+  .pl .lbl{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px}
+  .pl .lbl b{font-variant-numeric:tabular-nums;font-weight:600}
+  .pl .lbl .neg{color:var(--beru)}
+  .pl .bar{height:4px;background:var(--hair);border-radius:2px;overflow:hidden}
+  .pl .bar i{display:block;height:100%;border-radius:2px;background:#31302c}
+  .pl .bar i.m{background:var(--matcha)} .pl .bar i.r{background:var(--beru)} .pl .bar i.o{background:var(--ocre)}
+  .pl .total{border-top:1px solid var(--tinta);margin-top:22px;padding-top:14px;display:flex;justify-content:space-between;align-items:baseline}
+  .pl .total .v{font-size:24px;font-weight:300}
+  .pl .total .v b{font-weight:600;color:var(--matcha)}
+
+  .dl{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--hair);font-size:13px;color:var(--gris)}
+  .dl b{color:var(--tinta);font-weight:600;font-variant-numeric:tabular-nums}
+  .dl.cap{border-bottom:1px solid var(--tinta)}
+  .dl .ok{color:var(--matcha);font-size:11px;letter-spacing:.1em;margin-left:10px}
+
+  /* aging: bloques proporcionales en una sola línea */
+  .aging{margin-top:34px}
+  .abar{display:flex;height:10px;border-radius:2px;overflow:hidden;gap:2px}
+  .abar i{font-style:normal}
+  .aleg{display:flex;gap:26px;margin-top:12px;font-size:11.5px;color:var(--gris)}
+  .aleg b{display:block;color:var(--tinta);font-variant-numeric:tabular-nums;font-size:13px}
+  .aleg .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+  .flujo{margin-top:34px}
+  .flujo svg{display:block}
+  .flujo .cero{font-size:10px;color:var(--niebla)}
+</style></head>
+<body>
+  <div class="side">
+    <div class="kamon">JC</div>
+    <div class="marca">Julio Cepeda<small>JUGUETERÍAS</small></div>
+    <div class="nv">Inicio</div>
+    <div class="nv">Pedidos</div>
+    <div class="nv">Mostrador</div>
+    <div class="nv">Atención</div>
+    <div class="nv">Clientes</div>
+    <div class="nv">Almacén</div>
+    <div class="nv on">Finanzas</div>
+    <div class="nv">Ajustes</div>
+    <div class="foot"><div class="hanko">主</div><b>prime</b><br>propietario</div>
+  </div>
+
+  <div class="main">
+    <div class="top"><span>buscar <span style="color:var(--niebla)">ctrl k</span></span>
+      <div class="right"><span>14 jun — 14 jul</span><span>todo el negocio</span><span style="color:var(--tinta);font-weight:600">PR</span></div>
+    </div>
+
+    <h1>Finanzas<b> · dirección</b></h1>
+    <div class="sub">El mes cierra con <b style="color:var(--matcha)">margen operativo de 43%</b> · la caja cubre <b style="color:var(--tinta)">4.2 meses</b> de gastos</div>
+
+    <div class="tabs">
+      <span class="t on">Tablero</span><span class="t">Flujo de caja</span><span class="t">Contabilidad</span><span class="t">Impuestos</span><span class="t">Conciliación</span><span class="t">CFDI</span>
+      <span class="filtros">período <b>jun 14 — jul 14</b> · tienda <b>todas</b></span>
+    </div>
+
+    <div class="cols">
+      <div class="col">
+        <h4>Estado de resultados<span>▲ 12% vs período anterior</span></h4>
+        <div class="pl">
+          <div class="ln"><div class="lbl"><span>Ventas</span><b>$51,007</b></div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="ln"><div class="lbl"><span>Costo de ventas</span><b class="neg">− $18,362</b></div><div class="bar"><i class="r" style="width:36%"></i></div></div>
+          <div class="ln"><div class="lbl"><span>Utilidad bruta</span><b>$32,645</b></div><div class="bar"><i class="m" style="width:64%"></i></div></div>
+          <div class="ln"><div class="lbl"><span>Gastos operativos</span><b class="neg">− $10,710</b></div><div class="bar"><i class="o" style="width:21%"></i></div></div>
+          <div class="total"><span style="color:var(--gris);font-size:12px;letter-spacing:.14em">UTILIDAD OPERATIVA</span><div class="v"><b>$21,935</b> · 43%</div></div>
+        </div>
+
+        <div class="flujo">
+          <h4>Flujo de caja · 6 meses</h4>
+          <svg width="100%" height="72" viewBox="0 0 560 72" preserveAspectRatio="none">
+            <line x1="0" y1="52" x2="560" y2="52" stroke="#eceae4" stroke-width="1"/>
+            <polyline points="0,44 93,38 186,48 279,30 372,34 465,18 560,12" fill="none" stroke="#31302c" stroke-width="1.5"/>
+            <circle cx="560" cy="12" r="3" fill="#c73e3a"/>
+            <text x="0" y="66" font-size="10" fill="#c9c4b8">feb</text><text x="270" y="66" font-size="10" fill="#c9c4b8">abr</text><text x="530" y="66" font-size="10" fill="#c9c4b8">jul</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="col">
+        <h4>Balance<span style="color:var(--gris)">cuadra ✓</span></h4>
+        <div class="dl">Activos<b>$72,664</b></div>
+        <div class="dl">Pasivos<b>$11,522</b></div>
+        <div class="dl cap">Capital + utilidad<b>$61,141</b></div>
+        <div class="dl">Caja y bancos <span class="ok">DISPONIBLE HOY</span><b style="color:var(--matcha)">$70,924</b></div>
+        <div class="dl">Atado en inventario y por cobrar<b>$1,740</b></div>
+
+        <div class="aging">
+          <h4>Cartera por antigüedad<span style="color:var(--ocre)">$48,320 por cobrar</span></h4>
+          <div class="abar">
+            <i style="flex:62;background:#31302c"></i>
+            <i style="flex:23;background:#a8853c"></i>
+            <i style="flex:10;background:#c96f3a"></i>
+            <i style="flex:5;background:#c73e3a"></i>
+          </div>
+          <div class="aleg">
+            <span><span class="sw" style="background:#31302c"></span>0–30 días<b>$29,958</b></span>
+            <span><span class="sw" style="background:#a8853c"></span>31–60<b>$11,114</b></span>
+            <span><span class="sw" style="background:#c96f3a"></span>61–90<b>$4,832</b></span>
+            <span><span class="sw" style="background:#c73e3a"></span>90+<b>$2,416</b></span>
+          </div>
+        </div>
+
+        <div class="aging">
+          <h4>Ticket promedio</h4>
+          <div class="dl">Este período · 45 pedidos<b>$1,314.87</b></div>
+          <div class="dl">Anterior<b style="color:var(--gris);font-weight:400">$1,306.11 · ▲ 0.7%</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body></html>
