@@ -363,6 +363,26 @@ html[data-tema-ui="f"] .page-anim { animation: hoja-entrada .18s var(--ease-out-
   .f-stagger > *, html[data-tema-ui="f"] .page-anim { animation: none; }
 }
 
+/* ═══ 24. Scrollbars: finas, del tono del papel, casi invisibles ═══
+   Nada de la barra gris ancha de Windows. Chrome/Electron: 8px con pulgar
+   niebla redondeado SOLO visible al hacer hover sobre el contenedor (auto-
+   ocultas). Firefox: thin + colores del tema (lo máximo que permite). */
+html[data-tema-ui="f"] * {
+  scrollbar-width: thin;                       /* Firefox */
+  scrollbar-color: var(--niebla) transparent;
+}
+html[data-tema-ui="f"] ::-webkit-scrollbar { width: 8px; height: 8px; }
+html[data-tema-ui="f"] ::-webkit-scrollbar-track { background: transparent; }
+html[data-tema-ui="f"] ::-webkit-scrollbar-corner { background: transparent; }
+html[data-tema-ui="f"] ::-webkit-scrollbar-thumb {
+  background: transparent;                     /* invisible en reposo */
+  border-radius: 8px;
+}
+/* aparece suave al pasar el mouse por el contenedor que scrollea */
+html[data-tema-ui="f"] :hover::-webkit-scrollbar-thumb { background: var(--hair); }
+html[data-tema-ui="f"] ::-webkit-scrollbar-thumb:hover { background: var(--niebla); }
+html[data-tema-ui="f"] ::-webkit-scrollbar-thumb:active { background: var(--text-dim); }
+
 /* ═══ 23. KPIs sin anillo (Kpi de comunes.jsx bajo F) + mkt-cards ═══ */
 html[data-tema-ui="f"] .kpi-f { gap: 6px; }
 html[data-tema-ui="f"] .kpi-f-label {
