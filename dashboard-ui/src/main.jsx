@@ -22,9 +22,17 @@ import { AuthProvider } from './context/AuthContext';
 import { EmojiProvider } from './context/EmojiContext';
 import App from './App';
 import './styles.css';
+import './temaF.css';   // tema F (rediseño) — solo aplica bajo html[data-tema-ui="f"]
 import { cargarPreferenciasFuente } from './lib/fontPrefs';
 
 cargarPreferenciasFuente();
+
+// Tema de instancia (rediseño F por default; 'clasico' = reversión desde Prime).
+// Se aplica ANTES del primer render con el valor cacheado; Layout lo confirma
+// contra /api/negocio al cargar. Ver REDISENO_UI_F.md.
+try {
+  document.documentElement.setAttribute('data-tema-ui', localStorage.getItem('tema-ui') === 'clasico' ? 'clasico' : 'f');
+} catch (_) { document.documentElement.setAttribute('data-tema-ui', 'f'); }
 
 // staleTime > 0: el panel refresca vía invalidateQueries tras cada mutación,
 // no al recuperar foco la pestaña

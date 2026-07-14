@@ -20,13 +20,24 @@ export default function ThemeSwitcher() {
     return LEGACY[v] || v;
   });
 
+  const esTemaF = document.documentElement.getAttribute('data-tema-ui') !== 'clasico';
+
   useEffect(() => {
+    // Bajo el tema F (rediseño) las variantes claro/color/oscuro pertenecen al
+    // CLÁSICO (REDISENO_UI_F.md §5): se fuerza esquema claro y el switcher se oculta.
+    if (esTemaF) {
+      setColorScheme('light');
+      document.documentElement.setAttribute('data-tema', 'off');
+      document.documentElement.setAttribute('data-confort', 'off');
+      return;
+    }
     setColorScheme(modo === 'oscuro' ? 'dark' : 'light');
     document.documentElement.setAttribute('data-tema', modo === 'color' ? 'color' : 'off');
     document.documentElement.setAttribute('data-confort', 'off');
     localStorage.setItem(STORAGE_KEY, modo);
-  }, [modo]);
+  }, [modo, esTemaF]);
 
+  if (esTemaF) return null;
   return (
     <SegmentedControl size="xs" value={modo} onChange={setModo} data={OPCIONES} />
   );

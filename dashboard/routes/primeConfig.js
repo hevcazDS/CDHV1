@@ -282,7 +282,20 @@ function estafetaDiasPut(req, res, ctx) {
 function negocioGet(req, res, ctx) {
     const { db, json } = ctx;
     const r = db.prepare("SELECT valor FROM configuracion WHERE clave='nombre_negocio' LIMIT 1").get();
-    return json(res, { nombre_negocio: r ? r.valor : 'Julio Cepeda' });
+    // tema_ui: 'f' (rediseño minimalista, DEFAULT) | 'clasico' (tema anterior).
+    // Reversible por instancia desde Prime → Ajustes (REDISENO_UI_F.md §5).
+    const tema = db.prepare("SELECT valor FROM configuracion WHERE clave='tema_ui' LIMIT 1").get()?.valor;
+    return json(res, { nombre_negocio: r ? r.valor : 'Julio Cepeda', tema_ui: tema === 'clasico' ? 'clasico' : 'f' });
+}
+
+// PUT /api/prime/tema-ui { tema: 'f' | 'clasico' } — selector del rediseño (prime).
+function temaUiPut(req, res, ctx) {
+    const { db, json, readJson } = ctx;
+    return readJson(req, res, d => {
+        const tema = d.tema === 'clasico' ? 'clasico' : 'f';
+        db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('tema_ui', ?, datetime('now','localtime'))").run(tema);
+        return json(res, { ok: true, tema_ui: tema });
+    });
 }
 function negocioPut(req, res, ctx) {
     const { db, json, readBody, validar, log, NegocioSchema } = ctx;
@@ -536,6 +549,7 @@ const RUTAS = [
     { metodo: 'PUT',  path: '/api/prime/estafeta-dias-entrega',             roles: ['prime'], handler: estafetaDiasPut },
     { metodo: 'GET',  path: '/api/negocio',                                 handler: negocioGet },
     { metodo: 'PUT',  path: '/api/prime/negocio',                           roles: ['prime'], handler: negocioPut },
+    { metodo: 'PUT',  path: '/api/prime/tema-ui',                           roles: ['prime'], handler: temaUiPut },
     { metodo: 'GET',  path: '/api/regimen-fiscal',                          handler: regimenGet },
     { metodo: 'PUT',  path: '/api/regimen-fiscal',                          roles: ['prime'], handler: regimenPut },
     { metodo: 'GET',  path: '/api/prime/pac',                               roles: ['prime'], handler: pacGet },

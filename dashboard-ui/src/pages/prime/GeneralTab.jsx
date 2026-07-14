@@ -19,6 +19,7 @@ export default function GeneralTab() {
   const [idPedido, setIdPedido] = useState('');
   const [costoPedido, setCostoPedido] = useState('');
   const [nombreNegocio, setNombreNegocio] = useState('');
+  const [temaUi, setTemaUi] = useState('f');
   const [diasEntrega, setDiasEntrega] = useState('');
   const [msg, setMsg] = useState('');
 
@@ -56,7 +57,7 @@ export default function GeneralTab() {
   useEffect(() => {
     api.get('/api/prime/envio-default').then(d => setCostoDefault(String(d.costo_envio_default)));
     api.get('/api/prime/estafeta-dias-entrega').then(d => setDiasEntrega(String(d.dias_entrega)));
-    api.get('/api/negocio').then(d => setNombreNegocio(d.nombre_negocio));
+    api.get('/api/negocio').then(d => { setNombreNegocio(d.nombre_negocio); setTemaUi(d.tema_ui === 'clasico' ? 'clasico' : 'f'); });
     api.get('/api/prime/config').then(d => setReconexionAuto(!!d.reconexion_auto_activo)).catch(() => {});
     api.get('/api/prime/config-contacto').then(d => contactoForm.setValues({
       operador_telefono: d.operador_telefono || '', soporte_url: d.soporte_url || '',
@@ -160,6 +161,25 @@ export default function GeneralTab() {
           </p>
           <TextInput maxLength={80} value={nombreNegocio} onChange={e => setNombreNegocio(e.target.value)} mb="sm" />
           <Button onClick={guardarNegocio}>Guardar</Button>
+        </Card>
+
+        <Card withBorder radius="md" p="lg">
+          <Title order={4} mb={4}>Diseño del panel</Title>
+          <p className="page-sub" style={{ margin: '4px 0 16px' }}>
+            El diseño nuevo (minimalista) es el estándar. Si este cliente prefiere el
+            diseño anterior, cámbialo aquí — aplica solo a esta instancia.
+          </p>
+          <SegmentedControl fullWidth value={temaUi} data={[
+            { value: 'f', label: 'Nuevo (minimalista)' },
+            { value: 'clasico', label: 'Clásico (anterior)' },
+          ]} onChange={async (v) => {
+            setTemaUi(v);
+            try {
+              await api.put('/api/prime/tema-ui', { tema: v });
+              document.documentElement.setAttribute('data-tema-ui', v);
+              try { localStorage.setItem('tema-ui', v); } catch (_) {}
+            } catch (e) { setMsg(e.message); }
+          }} />
         </Card>
 
         <Card withBorder radius="md" p="lg">

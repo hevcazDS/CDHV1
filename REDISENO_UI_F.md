@@ -129,7 +129,34 @@ importa: los montos y lo accionable.
 - Los temas existentes (dark/confort/color del ThemeSwitcher de navegador) se
   mantienen como variantes del CLÁSICO; F trae su propia variante única (papel).
 
-## 6. Plan de ejecución (cuando se dé la orden de construir)
+## 6. Plan de ejecución — EN CURSO
+
+### ✅ Capa 1 HECHA (2026-07-14): tema F activo + reversión
+- `configuracion.tema_ui` ('f' default | 'clasico') · `GET /api/negocio` lo expone ·
+  `PUT /api/prime/tema-ui` (prime) lo cambia · selector en Prime → General
+  ("Diseño del panel: Nuevo (minimalista) ↔ Clásico (anterior)").
+- `dashboard-ui/src/temaF.css` — TODO bajo `html[data-tema-ui="f"]` (clásico
+  intacto): tokens remapeados (papel/tinta/hair/beru/matcha/ocre), cero sombras,
+  sidebar solo-texto con kamon y trazo bermellón, grupos en versalitas,
+  contadores bermellón sin pastilla, cards fundidas a hairline con headers
+  versalitas, tablas hairline + hover papel, badges (CSS y Mantine) → punto+palabra,
+  botones planos (filled=tinta, primary CSS=beru), inputs foco tinta, tabs
+  subrayado bermellón, títulos peso 300, fuente Yu Gothic UI.
+- ThemeSwitcher (claro/color/oscuro) se OCULTA bajo F (pertenece al clásico) y
+  se fuerza esquema claro. El atributo se aplica pre-render (main.jsx, cacheado).
+- Verificado con captura headless real: Inicio y Pedidos ya rinden en F.
+
+### ⏭ Capas siguientes
+1. **Selects nativos de tablas → punto+menú** (Pedidos estatus) y kebab de
+   acciones — el residuo más visible del look viejo.
+2. Gráficas al estilo F (barras tinta + HOY bermellón, sparklines) en Inicio/
+   Métricas; arreglar tipografía KPI fila 2 ("Precio").
+3. POS/ticket, Chat/burbujas, topbar-como-línea (quitar fondo del buscador).
+4. Trinquete con métricas F + CONVENCIONES_UI.md re-basado a F.
+5. Franja superior de módulo (--modulo-color): hoy se ve como línea bermellón
+   arriba — decidir si se queda como acento hanko o se elimina.
+
+## 6b. Plan original (referencia)
 
 1. **Tokens + Layout global** (sidebar texto/kamon/trazo, "topbar" de línea,
    tipografía) bajo `data-tema-ui="f"` — con el switch de §5 desde el día 1.

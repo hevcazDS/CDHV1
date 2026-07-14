@@ -147,6 +147,11 @@ export default function Layout() {
         setNombreNegocio(d.nombre_negocio);
         try { localStorage.setItem('nombre-negocio', d.nombre_negocio); } catch (_) {}
       }
+      // Tema de instancia: 'f' (rediseño, default) | 'clasico' (reversión).
+      // Se cachea para que el primer render de la próxima carga ya salga bien.
+      const tema = d?.tema_ui === 'clasico' ? 'clasico' : 'f';
+      document.documentElement.setAttribute('data-tema-ui', tema);
+      try { localStorage.setItem('tema-ui', tema); } catch (_) {}
     }).catch(() => {});
   }, []);
 

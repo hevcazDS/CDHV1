@@ -1,0 +1,231 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   TEMA F — "MA" (minimalismo japonés). REDISENO_UI_F.md es la espec.
+   TODO vive bajo html[data-tema-ui="f"]: el tema clásico queda intacto y
+   se revierte por instancia desde Prime → Ajustes (configuracion.tema_ui).
+   Esencia: el vacío es la estructura; hairlines 1px como único separador;
+   un solo acento (bermellón hanko) para lo urgente y la acción principal.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Tokens ── */
+html[data-tema-ui="f"] {
+  --papel:  #fbfaf7;
+  --tinta:  #1f1d1a;
+  --hair:   #eceae4;
+  --beru:   #c73e3a;
+  --matcha: #6d7f5e;
+  --ocre:   #a8853c;
+  --azulg:  #5a7391;
+  --niebla: #c9c4b8;
+
+  /* remapeo de los tokens del sistema → F (todas las páginas heredan) */
+  --bg:        var(--papel);
+  --bg-soft:   var(--papel);
+  --panel:     var(--papel);
+  --panel-2:   #f6f4ee;
+  --border:    var(--hair);
+  --text:      var(--tinta);
+  --text-dim:  #8a8578;
+  --text-mute: var(--niebla);
+  --brand:     var(--beru);
+  --brand-soft: rgba(199, 62, 58, 0.07);
+  --brand-ink: #a53230;
+  --accent:    var(--beru);
+  --accent-2:  var(--beru);
+  --accent-soft: rgba(199, 62, 58, 0.07);
+  --green:     var(--matcha);
+  --yellow:    var(--ocre);
+  --red:       var(--beru);
+  --info:      var(--azulg);
+  --radius:    4px;
+  --radius-lg: 5px;
+  --shadow:    none;
+  --font-titulos: "Yu Gothic UI", "Segoe UI", system-ui, sans-serif;
+  font-family: "Yu Gothic UI", "Segoe UI", system-ui, sans-serif;
+  /* Mantine hereda la letra de F */
+  --mantine-font-family: "Yu Gothic UI", "Segoe UI", system-ui, sans-serif;
+  --mantine-font-family-headings: "Yu Gothic UI", "Segoe UI", system-ui, sans-serif;
+}
+html[data-tema-ui="f"] body { background: var(--papel); color: var(--tinta); }
+
+/* ── 2. Sombras: ninguna (la profundidad es superficie o hairline) ── */
+html[data-tema-ui="f"] .card,
+html[data-tema-ui="f"] .kpi-card,
+html[data-tema-ui="f"] .topbar,
+html[data-tema-ui="f"] .sidebar,
+html[data-tema-ui="f"] .mantine-Card-root,
+html[data-tema-ui="f"] .mantine-Paper-root { box-shadow: none !important; }
+/* los flotantes sí necesitan despegar del papel (menús, modales) */
+html[data-tema-ui="f"] .mantine-Menu-dropdown,
+html[data-tema-ui="f"] .mantine-Modal-content,
+html[data-tema-ui="f"] .mantine-Popover-dropdown {
+  box-shadow: 0 4px 24px rgba(31, 29, 26, 0.10) !important;
+  border: 1px solid var(--hair);
+}
+
+/* ── 3. Topbar: deja de ser barra — línea de texto al aire ── */
+html[data-tema-ui="f"] .topbar {
+  background: transparent;
+  border-bottom: 1px solid var(--hair);
+}
+
+/* ── 4. Sidebar: solo texto, kamon, trazo bermellón ── */
+html[data-tema-ui="f"] .sidebar { background: transparent; border-right: none; }
+html[data-tema-ui="f"] .sidebar-brand {
+  font-size: 13.5px; font-weight: 600; letter-spacing: .01em;
+}
+/* kamon: el monograma circular con borde de tinta */
+html[data-tema-ui="f"] .brand-mono {
+  background: transparent !important;
+  border: 1.5px solid var(--tinta);
+  color: var(--tinta) !important;
+  border-radius: 50%;
+}
+/* enlaces expandidos: sin iconos, sin pastilla — trazo bermellón en el activo */
+html[data-tema-ui="f"] .sidebar-nav .mantine-Accordion-panel .sidebar-link svg { display: none; }
+html[data-tema-ui="f"] .sidebar-link {
+  border-radius: 0; color: var(--text-dim); font-weight: 400; font-size: 13px;
+  padding-left: 30px; position: relative;
+}
+html[data-tema-ui="f"] .sidebar-link:hover { background: transparent; color: var(--tinta); }
+html[data-tema-ui="f"] .sidebar-link.active {
+  background: transparent; color: var(--tinta); font-weight: 600;
+}
+html[data-tema-ui="f"] .sidebar-link.active::before {
+  content: ""; position: absolute; left: 0; top: 50%; margin-top: -1px;
+  width: 18px; height: 1.5px; background: var(--beru);
+}
+/* el riel colapsado conserva iconos (usabilidad), pero plano */
+html[data-tema-ui="f"] .sidebar-link.solo-icono { padding-left: 10px; }
+html[data-tema-ui="f"] .sidebar-link.solo-icono.active::before { display: none; }
+html[data-tema-ui="f"] .sidebar-link.solo-icono.active { color: var(--beru); }
+/* títulos de grupo (Accordion): versalitas niebla */
+html[data-tema-ui="f"] .mantine-Accordion-control {
+  font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--niebla); font-weight: 500;
+}
+html[data-tema-ui="f"] .mantine-Accordion-control:hover { background: transparent; color: var(--text-dim); }
+html[data-tema-ui="f"] .mantine-Accordion-item { border: none; }
+/* contadores: número bermellón, sin pastilla */
+html[data-tema-ui="f"] .nav-badge {
+  background: transparent !important; color: var(--beru) !important;
+  font-size: 11px; font-weight: 600; padding: 0; min-width: 0;
+}
+html[data-tema-ui="f"] .sidebar-user-name { font-weight: 600; }
+html[data-tema-ui="f"] .sidebar-user-rol { color: var(--niebla); }
+
+/* ── 5. Cards: sección delineada por hairline, fundida con el papel ── */
+html[data-tema-ui="f"] .card,
+html[data-tema-ui="f"] .kpi-card,
+html[data-tema-ui="f"] .mantine-Card-root {
+  background: var(--papel);
+  border: 1px solid var(--hair);
+  border-radius: 5px;
+}
+/* el header de card se vuelve label de sección (versalitas) */
+html[data-tema-ui="f"] .card-header h3 {
+  font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--niebla); font-weight: 500;
+}
+/* la card héroe oscura del Inicio → tinta plana */
+html[data-tema-ui="f"] .kpi-dark { background: var(--tinta) !important; }
+
+/* ── 6. Tipografía de página ── */
+html[data-tema-ui="f"] .page-title { font-weight: 300; letter-spacing: 0; }
+html[data-tema-ui="f"] .page-title b, html[data-tema-ui="f"] .page-title strong { font-weight: 600; }
+html[data-tema-ui="f"] .page-sub { color: var(--text-dim); font-size: 12.5px; }
+html[data-tema-ui="f"] h1, html[data-tema-ui="f"] h2 { font-weight: 300; }
+html[data-tema-ui="f"] .mantine-Title-root { font-weight: 300 !important; }
+
+/* ── 7. Tablas: hairlines, versalitas, hover papel sombreado ── */
+html[data-tema-ui="f"] table { font-size: 13px; }
+html[data-tema-ui="f"] table th {
+  font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--niebla); font-weight: 500; background: transparent;
+  border-bottom: 1px solid var(--hair);
+}
+html[data-tema-ui="f"] table td { border-bottom: 1px solid var(--hair); background: transparent; }
+html[data-tema-ui="f"] table tbody tr:hover td { background: var(--panel-2); }
+
+/* ── 8. Estatus: punto + palabra (nunca pastilla) ── */
+/* badges CSS legacy (.badge badge-*) */
+html[data-tema-ui="f"] .badge {
+  background: transparent !important; border: none !important;
+  color: var(--text-dim) !important; padding: 0; font-weight: 400;
+  font-size: 12px; letter-spacing: .01em; border-radius: 0;
+}
+html[data-tema-ui="f"] .badge::before {
+  content: "●"; font-size: 7px; vertical-align: 2px; margin-right: 7px;
+}
+html[data-tema-ui="f"] .badge-verde::before,  html[data-tema-ui="f"] .badge-online::before  { color: var(--matcha); }
+html[data-tema-ui="f"] .badge-amarillo::before, html[data-tema-ui="f"] .badge-warning::before { color: var(--ocre); }
+html[data-tema-ui="f"] .badge-rojo::before,   html[data-tema-ui="f"] .badge-offline::before { color: var(--beru); }
+html[data-tema-ui="f"] .badge-azul::before    { color: var(--azulg); }
+/* Badge de Mantine: mismo tratamiento (el color del tema pinta el punto) */
+html[data-tema-ui="f"] .mantine-Badge-root {
+  background: transparent !important; padding: 0; border: none;
+  font-weight: 400; font-size: 12px; letter-spacing: .01em; text-transform: none;
+  height: auto; line-height: 1.5; overflow: visible;
+}
+html[data-tema-ui="f"] .mantine-Badge-root::before {
+  content: "●"; font-size: 7px; vertical-align: 2px; margin-right: 7px;
+}
+html[data-tema-ui="f"] .mantine-Badge-label { color: var(--text-dim); font-weight: 400; }
+
+/* ── 9. Botones ── */
+html[data-tema-ui="f"] .btn {
+  background: transparent; border: 1px solid var(--niebla); border-radius: 4px;
+  color: var(--text-dim); font-weight: 500; box-shadow: none;
+}
+html[data-tema-ui="f"] .btn:hover { border-color: var(--tinta); color: var(--tinta); }
+html[data-tema-ui="f"] .btn-primary {
+  background: var(--beru); border-color: var(--beru); color: #fff;
+  letter-spacing: .06em; font-weight: 600;
+}
+html[data-tema-ui="f"] .btn-danger { border-color: var(--beru); color: var(--beru); }
+/* Mantine: filled = bloque de tinta (la acción principal bermellón se pide
+   explícita con color="red"/btn-primary); light/default = delineado */
+html[data-tema-ui="f"] .mantine-Button-root[data-variant="filled"] { background: var(--tinta); }
+html[data-tema-ui="f"] .mantine-Button-root[data-variant="filled"]:hover { background: #000; }
+html[data-tema-ui="f"] .mantine-Button-root[data-variant="light"],
+html[data-tema-ui="f"] .mantine-Button-root[data-variant="default"] {
+  background: transparent; border: 1px solid var(--niebla); color: var(--text-dim);
+}
+html[data-tema-ui="f"] .mantine-Button-root[data-variant="light"]:hover,
+html[data-tema-ui="f"] .mantine-Button-root[data-variant="default"]:hover {
+  border-color: var(--tinta); color: var(--tinta); background: transparent;
+}
+
+/* ── 10. Inputs: planos, foco de tinta ── */
+html[data-tema-ui="f"] input, html[data-tema-ui="f"] select, html[data-tema-ui="f"] textarea {
+  border-radius: 4px;
+}
+html[data-tema-ui="f"] .mantine-Input-input,
+html[data-tema-ui="f"] .mantine-TextInput-input,
+html[data-tema-ui="f"] .mantine-Select-input,
+html[data-tema-ui="f"] .mantine-Textarea-input,
+html[data-tema-ui="f"] .mantine-NumberInput-input {
+  background: transparent; border: 1px solid var(--hair); border-radius: 4px;
+}
+html[data-tema-ui="f"] .mantine-Input-input:focus,
+html[data-tema-ui="f"] .mantine-TextInput-input:focus,
+html[data-tema-ui="f"] .mantine-Select-input:focus,
+html[data-tema-ui="f"] .mantine-Textarea-input:focus,
+html[data-tema-ui="f"] .mantine-NumberInput-input:focus { border-color: var(--tinta); }
+
+/* ── 11. Tabs pill → subrayado bermellón ── */
+html[data-tema-ui="f"] .mantine-Tabs-list { background: transparent; border-bottom: 1px solid var(--hair); gap: 20px; padding: 0; }
+html[data-tema-ui="f"] .mantine-Tabs-tab {
+  background: transparent !important; border: none; border-radius: 0;
+  color: var(--text-dim); font-size: 12.5px; padding: 8px 2px 11px;
+}
+html[data-tema-ui="f"] .mantine-Tabs-tab[data-active] {
+  color: var(--tinta); font-weight: 600;
+  border-bottom: 1.5px solid var(--beru);
+  box-shadow: none;
+}
+
+/* ── 12. Números: siempre tabulares ── */
+html[data-tema-ui="f"] .kpi-num, html[data-tema-ui="f"] .tot, html[data-tema-ui="f"] td { font-variant-numeric: tabular-nums; }
+
+/* ── 13. La franja de color por módulo se vuelve hairline ── */
+html[data-tema-ui="f"] .content { border-top-width: 1px; }
