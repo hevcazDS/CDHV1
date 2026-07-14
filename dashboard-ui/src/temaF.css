@@ -110,8 +110,9 @@ html[data-tema-ui="f"] .nav-badge {
   background: transparent !important; color: var(--beru) !important;
   font-size: 11px; font-weight: 600; padding: 0; min-width: 0;
 }
-html[data-tema-ui="f"] .sidebar-user-name { font-weight: 600; }
-html[data-tema-ui="f"] .sidebar-user-rol { color: var(--niebla); }
+/* la identidad vive ARRIBA (avatar → menú con cierre confirmado); el pie del
+   sidebar ya no la duplica bajo F. El clásico conserva su pie. */
+html[data-tema-ui="f"] .sidebar-foot { display: none; }
 
 /* ── 5. Cards: sección delineada por hairline, fundida con el papel ── */
 html[data-tema-ui="f"] .card,
@@ -361,6 +362,23 @@ html[data-tema-ui="f"] .page-anim { animation: hoja-entrada .18s var(--ease-out-
 @media (prefers-reduced-motion: reduce) {
   .f-stagger > *, html[data-tema-ui="f"] .page-anim { animation: none; }
 }
+
+/* ═══ 18. Campana de pendientes (aplica en ambos temas) ═══
+   Con pendientes: la casilla ENTERA se pone roja con la silueta blanca (sin
+   burbuja numérica). Al llegar algo nuevo pulsa suave entre rojo fuerte y rojo
+   claro ~4s y queda fija. El detalle vive en el dropdown al hacer click. */
+.campana-activa {
+  background: var(--red) !important;
+  border-color: var(--red) !important;
+  color: #fff !important;
+  transition: background .3s ease;
+}
+.campana-pulso { animation: campana-late 1.1s ease-in-out 3; }
+@keyframes campana-late {
+  0%, 100% { background: var(--red); }
+  50%      { background: #e88079; }
+}
+@media (prefers-reduced-motion: reduce) { .campana-pulso { animation: none; } }
 
 /* los flotantes siguen al tono (no quedan blancos sobre oscuro) */
 html[data-tema-ui="f"] .mantine-Menu-dropdown,

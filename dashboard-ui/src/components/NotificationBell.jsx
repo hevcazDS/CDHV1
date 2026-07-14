@@ -1,6 +1,7 @@
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Indicator, ActionIcon, Menu, Text } from '@mantine/core';
+import { ActionIcon, Menu, Text } from '@mantine/core';
 import { Bell, Tag, Headset, TriangleAlert, ClipboardList } from 'lucide-react';
 import { api } from '../api';
 
@@ -41,14 +42,31 @@ export default function NotificationBell() {
 
   const total = avisos.reduce((s, a) => s + a.n, 0);
 
+  // Al SUBIR el total (llegó algo nuevo) la campana pulsa suave unos segundos
+  // entre rojo fuerte y rojo claro; luego queda en rojo sólido fijo.
+  const prevTotal = useRef(0);
+  const [pulso, setPulso] = useState(false);
+  useEffect(() => {
+    if (total > prevTotal.current) {
+      setPulso(true);
+      const t = setTimeout(() => setPulso(false), 4000);
+      return () => clearTimeout(t);
+    }
+    prevTotal.current = total;
+  }, [total]);
+  useEffect(() => { prevTotal.current = total; });
+
+  const hay = total > 0;
   return (
     <Menu position="bottom-end" width={300} shadow="md">
       <Menu.Target>
-        <Indicator label={total > 99 ? '99+' : total} size={16} color="red" disabled={avisos.length === 0} offset={4}>
-          <ActionIcon variant="default" size="lg" radius="md" title={avisos.length ? `${avisos.length} aviso(s)` : 'Sin pendientes'}>
-            <Bell size={17} strokeWidth={1.75} />
-          </ActionIcon>
-        </Indicator>
+        <ActionIcon
+          variant={hay ? 'filled' : 'default'} size="lg" radius="md"
+          className={`campana${hay ? ' campana-activa' : ''}${pulso ? ' campana-pulso' : ''}`}
+          title={hay ? `${total} pendiente(s)` : 'Sin pendientes'}
+        >
+          <Bell size={17} strokeWidth={1.75} />
+        </ActionIcon>
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>Pendientes</Menu.Label>

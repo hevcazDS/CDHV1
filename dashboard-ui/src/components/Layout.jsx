@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { AppShell, Accordion } from '@mantine/core';
+import { AppShell, Accordion, Menu } from '@mantine/core';
+import { confirmar } from '../lib/ui';
 import { useAuth } from '../context/AuthContext';
 import {
   Home, ReceiptText, Package, Undo2, MessagesSquare, MessageCircle,
@@ -227,13 +228,21 @@ export default function Layout() {
           <NotificationBell />
           {/* El bot es un módulo (no la base): solo operación/gerente lo ven y controlan */}
           {permite(user?.rol, 'operacion') && <BotStatusWidget />}
-          {/* Identidad del rol visible (no solo en hover): que un Administrador
-              sepa de un vistazo que está en su panel, no en el de un operador. */}
-          <span className="rol-chip" style={{
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.02em', padding: '3px 9px',
-            borderRadius: 999, border: '1px solid var(--border)', color: 'var(--text-mute)', whiteSpace: 'nowrap',
-          }}>{etiquetaRol(user?.rol)}</span>
-          <div className="avatar-chip" title={`${user?.username} · ${etiquetaRol(user?.rol)}${user?.version ? ' · v' + user.version : ''}`}>{iniciales}</div>
+          {/* Identidad ÚNICA del usuario (arriba, estándar): avatar → menú con
+              nombre/rol y "Cerrar sesión" CON confirmación (evita el click
+              accidental). El pie del sidebar ya no duplica al usuario (tema F). */}
+          <Menu position="bottom-end" width={220} shadow="md">
+            <Menu.Target>
+              <button className="avatar-chip" title={`${user?.username} · ${etiquetaRol(user?.rol)}${user?.version ? ' · v' + user.version : ''}`} style={{ cursor: 'pointer' }}>{iniciales}</button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>{user?.username} · {etiquetaRol(user?.rol)}</Menu.Label>
+              <Menu.Divider />
+              <Menu.Item color="red" leftSection={<LogOut size={14} />} onClick={async () => {
+                if (await confirmar({ titulo: 'Cerrar sesión', mensaje: '¿Cerrar tu sesión en el panel?', textoOk: 'Cerrar sesión' })) logout();
+              }}>Cerrar sesión</Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         </div>
       </AppShell.Header>
 
