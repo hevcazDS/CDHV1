@@ -113,7 +113,7 @@ function productosGet(req, res, ctx, { ses }) {
     const q = (new URL(req.url, 'http://x').searchParams.get('q') || '').trim();
     const suc = _sucursalOperativa(db, ses, new URL(req.url, 'http://x').searchParams.get('sucursal'));
     const rows = db.prepare(`
-        SELECT p.id, p.name, p.price, p.sku, p.upc, p.tipo,
+        SELECT p.id, p.name, p.price, p.sku, p.upc, p.tipo, p.unidad_medida,
                COALESCE((SELECT stock FROM inventarios WHERE id_producto=p.id AND sucursal=?), 0) AS stock
         FROM productos p
         WHERE p.activo=1 AND (? = '' OR p.name LIKE ? OR p.sku LIKE ? OR p.upc = ?)
@@ -155,7 +155,7 @@ function ventaPost(req, res, ctx, { ses }) {
             }
             const carrito = [];
             for (const it of items) {
-                const prod = db.prepare('SELECT id, name, price, tipo FROM productos WHERE id=?').get(Number(it.id_producto));
+                const prod = db.prepare('SELECT id, name, price, tipo, unidad_medida FROM productos WHERE id=?').get(Number(it.id_producto));
                 if (!prod) return json(res, { ok: false, error: 'Producto no encontrado: ' + it.id_producto }, 400);
                 const cantidad = Math.max(0.001, Math.round((parseFloat(it.cantidad) || 1) * 1000) / 1000);
                 let price = prod.price;
@@ -168,7 +168,7 @@ function ventaPost(req, res, ctx, { ses }) {
                         return json(res, { ok: false, error: `Precio fuera de rango para ${prod.name} (permitido: $${(prod.price * 0.5).toFixed(2)} a $${Number(prod.price).toFixed(2)})` }, 400);
                     }
                 }
-                carrito.push({ id: prod.id, name: prod.name, price, cantidad, tipo: prod.tipo || 'fisico', id_variante: it.id_variante || null, variante: it.variante || null });
+                carrito.push({ id: prod.id, name: prod.name, price, cantidad, tipo: prod.tipo || 'fisico', unidad: prod.unidad_medida || 'pza', id_variante: it.id_variante || null, variante: it.variante || null });
             }
             // Antisobreventa: NO cobrar más de lo que hay (salvo PIN → sobre pedido).
             const _faltantes = [];
@@ -250,7 +250,7 @@ function ventaPost(req, res, ctx, { ses }) {
                 descuento: _cupon ? _cupon.descuento : 0,
                 cupon: _cupon ? { codigo: _cupon.promo.codigo, descripcion: _cupon.descripcion } : null,
                 razon_social: String(d.razon_social || '').trim() || null, rfc: String(d.rfc || '').trim() || null,
-                items: carrito.map(i => ({ name: i.name, cantidad: i.cantidad, price: i.price, subtotal: i.price * i.cantidad })),
+                items: carrito.map(i => ({ name: i.name, cantidad: i.cantidad, unidad: i.unidad, price: i.price, subtotal: i.price * i.cantidad })),
                 a_credito: esCredito,
             });
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }

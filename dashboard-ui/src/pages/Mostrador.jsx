@@ -87,7 +87,8 @@ export default function Mostrador() {
     setCarrito(c => {
       const i = c.findIndex(x => x.id === p.id);
       if (i >= 0) { const n = [...c]; n[i] = { ...n[i], cantidad: n[i].cantidad + 1 }; return n; }
-      return [...c, { id: p.id, name: p.name, price: p.price, cantidad: 1 }];
+      const esGranel = p.unidad_medida && p.unidad_medida !== 'pza';
+      return [...c, { id: p.id, name: p.name, price: p.price, cantidad: 1, unidad: p.unidad_medida || 'pza', esGranel }];
     });
     setBusqueda(''); setResultados([]);
   };
@@ -206,7 +207,7 @@ export default function Mostrador() {
               {carrito.map(i => (
                 <tr key={i.id}>
                   <td>{i.name}<br /><span className="text-muted" style={{ fontSize: 11 }}>${fmt(i.price)} c/u</span></td>
-                  <td><NumberInput decimalScale={3} step={1} size="xs" min={1} value={i.cantidad} onChange={v => setCantidad(i.id, Number(v) || 1)} /></td>
+                  <td><Group gap={4} wrap="nowrap"><NumberInput decimalScale={3} step={i.esGranel ? 0.1 : 1} size="xs" min={i.esGranel ? 0.001 : 1} value={i.cantidad} onChange={v => setCantidad(i.id, Number(v) || (i.esGranel ? 0.001 : 1))} style={{ width: 90 }} />{i.esGranel && <span className="text-muted" style={{ fontSize: 11 }}>{i.unidad}</span>}</Group></td>
                   <td style={{ textAlign: 'right' }}>${fmt(i.price * i.cantidad)}</td>
                   <td><ActionIcon variant="subtle" color="red" onClick={() => quitar(i.id)}><Trash2 size={16} strokeWidth={1.75} /></ActionIcon></td>
                 </tr>
@@ -278,7 +279,7 @@ export default function Mostrador() {
             <div className="card" style={{ marginTop: 14, fontSize: 13 }}>
               <strong>Venta {ticket.folio}</strong>
               <div style={{ marginTop: 6 }}>
-                {ticket.items.map((it, i) => <div key={i}>{it.cantidad}× {it.name} — ${fmt(it.subtotal)}</div>)}
+                {ticket.items.map((it, i) => <div key={i}>{it.cantidad}{it.unidad && it.unidad !== 'pza' ? ' ' + it.unidad : '×'} {it.name} — ${fmt(it.subtotal)}</div>)}
               </div>
               {ticket.descuento > 0 && <div style={{ color: 'var(--text-mute)' }}>Subtotal: ${fmt(ticket.subtotal)} · Descuento{ticket.cupon ? ' (' + ticket.cupon.codigo + ')' : ''}: -${fmt(ticket.descuento)}</div>}
               <div style={{ marginTop: 6 }}>Total: <strong>${fmt(ticket.total)}</strong> ({ticket.metodo_pago})</div>

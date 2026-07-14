@@ -23,7 +23,7 @@ export const TIPO_JUGUETE_OPTIONS = [
 
 export const PRODUCTO_VACIO = {
   tipo: 'fisico',
-  name: '', price: '', costo: '', sku: '', upc: '', brand: '', handle: '',
+  name: '', price: '', costo: '', unidad_medida: 'pza', sku: '', upc: '', brand: '', handle: '',
   cat: '', id_categoria: null,
   genero: '', tipo_juguete: '', edad_min: 0, edad_max: 99,
   peso_kg: '', alto_cm: '', ancho_cm: '', largo_cm: '',
@@ -41,6 +41,7 @@ export function armarDatosProducto(v) {
     name: v.name,
     price: Number(v.price),
     costo: (v.costo === '' || v.costo == null) ? undefined : Number(v.costo),
+    unidad_medida: v.unidad_medida || 'pza',
     sku: v.sku || undefined,
     upc: v.upc || undefined,
     brand: v.brand || undefined,
@@ -143,6 +144,12 @@ export function CamposProducto({ form, categorias, onCrearCategoria }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginTop: 8, alignItems: 'center' }}>
           <TextInput label="Costo" type="number" min={0} step="0.01" placeholder="Costo (opcional)" {...form.getInputProps('costo')} />
+          <Select label="Unidad de venta" description="kg/g/lt permiten cantidades decimales en el POS (carnicería, granel)"
+            data={[
+              { value: 'pza', label: 'Pieza (pza)' }, { value: 'kg', label: 'Kilogramo (kg)' },
+              { value: 'g', label: 'Gramo (g)' }, { value: 'lt', label: 'Litro (lt)' },
+              { value: 'ml', label: 'Mililitro (ml)' }, { value: 'm', label: 'Metro (m)' },
+            ]} allowDeselect={false} {...form.getInputProps('unidad_medida')} />
           {(() => {
             const pr = Number(form.values.price), co = Number(form.values.costo);
             if (!(pr > 0) || !(co >= 0) || form.values.costo === '') return <div style={{ fontSize: 12, color: 'var(--text-mute)' }}>Captura el costo para ver tu margen.</div>;

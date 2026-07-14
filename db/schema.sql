@@ -306,6 +306,7 @@ CREATE TABLE IF NOT EXISTS productos (
     stock_cdmx_centro       INTEGER DEFAULT 0,
     activo                  INTEGER NOT NULL DEFAULT 1,
     peso_kg                 REAL DEFAULT 0,
+    unidad_medida           TEXT NOT NULL DEFAULT 'pza',  -- migrations/0068 (pza|kg|g|lt|ml|m)
     alto_cm                 REAL DEFAULT 0,
     ancho_cm                REAL DEFAULT 0,
     largo_cm                REAL DEFAULT 0,
