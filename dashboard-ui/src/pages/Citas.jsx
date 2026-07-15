@@ -18,7 +18,7 @@ export default function Citas() {
   const en7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
   const [rango, setRango] = useState({ desde: hoy, hasta: en7 });
   const [modo, setModo] = useState('calendario');
-  const [nueva, setNueva] = useState({ telefono: '', nombre: '', servicio: '', fecha: hoy, hora: '10:00' });
+  const [nueva, setNueva] = useState({ telefono: '', nombre: '', servicio: '', fecha: hoy, hora: '10:00', id_empleado: '' });
 
   const { data: citas = [] } = useQuery({
     queryKey: ['citas', rango],
@@ -26,8 +26,14 @@ export default function Citas() {
     refetchInterval: 60000,
   });
 
+  // Quién atiende (barbería/estética multi-staff): lista ligera id+nombre.
+  const { data: empleados = [] } = useQuery({
+    queryKey: ['citas-empleados'],
+    queryFn: () => api.get('/api/citas/empleados').catch(() => []),
+  });
+
   const crear = useMutation({
-    mutationFn: () => api.post('/api/citas', nueva),
+    mutationFn: () => api.post('/api/citas', { ...nueva, id_empleado: nueva.id_empleado ? Number(nueva.id_empleado) : undefined }),
     onSuccess: (r) => {
       if (!r.ok) return handleApiError(new Error(r.error));
       setNueva({ ...nueva, telefono: '', nombre: '', servicio: '' });
@@ -70,6 +76,11 @@ export default function Citas() {
             <TextInput label="Nombre" value={nueva.nombre} onChange={e => setNueva({ ...nueva, nombre: e.target.value })} />
             <TextInput label="Servicio" value={nueva.servicio} onChange={e => setNueva({ ...nueva, servicio: e.target.value })} />
           </Group>
+          <Group grow mb="sm">
+            <Select label="Atiende" placeholder="Sin asignar" clearable
+              data={empleados.map(e => ({ value: String(e.id), label: e.nombre + (e.puesto ? ' · ' + e.puesto : '') }))}
+              value={nueva.id_empleado || null} onChange={v => setNueva({ ...nueva, id_empleado: v || '' })} />
+          </Group>
           <Group grow mb="md">
             <TextInput type="date" label="Fecha" value={nueva.fecha} onChange={e => setNueva({ ...nueva, fecha: e.target.value })} />
             <TextInput type="time" label="Hora" value={nueva.hora} onChange={e => setNueva({ ...nueva, hora: e.target.value })} />
@@ -105,7 +116,7 @@ export default function Citas() {
                     {lista.map(c => (
                       <tr key={c.id}>
                         <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{c.hora}</td>
-                        <td><strong>{c.nombre || c.telefono}</strong>{c.servicio && <div className="text-muted" style={{ fontSize: 11 }}>{c.servicio}{c.servicio_precio > 0 ? ' · $' + Number(c.servicio_precio).toFixed(0) : ''}</div>}</td>
+                        <td><strong>{c.nombre || c.telefono}</strong>{(c.servicio || c.empleado_nombre) && <div className="text-muted" style={{ fontSize: 11 }}>{c.servicio}{c.servicio_precio > 0 ? ' · $' + Number(c.servicio_precio).toFixed(0) : ''}{c.empleado_nombre ? ' · atiende ' + c.empleado_nombre : ''}</div>}</td>
                         <td>
                           <span className={`badge ${ESTATUS_BADGE[c.estatus] || 'badge-azul'}`}>{c.estatus.replace('_', ' ')}</span>
                           {c.id_pedido && <span className="badge badge-verde" style={{ marginLeft: 6 }}>cobrada</span>}

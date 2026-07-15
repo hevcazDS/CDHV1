@@ -1149,6 +1149,12 @@ CREATE TABLE IF NOT EXISTS empleados (
     rfc            TEXT,
     curp           TEXT,
     nss            TEXT,
+    fecha_alta     TEXT,                              -- migrations/0033 (espejo reconciliado 2026-07-14)
+    departamento   TEXT,                              -- migrations/0033
+    comision_pct   REAL NOT NULL DEFAULT 0,           -- migrations/0033 (comisión propia; 0 = usa la global)
+    metodo_pago    TEXT NOT NULL DEFAULT 'transferencia',  -- migrations/0033
+    username       TEXT,                              -- migrations/0033
+    contacto_emergencia TEXT,                         -- migrations/0033
     activo         INTEGER NOT NULL DEFAULT 1,
     tipo_baja      TEXT,                              -- migrations/0041 (renuncia|despido_*|jubilacion)
     fecha_baja     TEXT,                              -- migrations/0041
@@ -1183,6 +1189,8 @@ CREATE TABLE IF NOT EXISTS nominas (
     pagada_en    TEXT,
     cfdi_uuid    TEXT,                              -- migrations/0053 (timbrado nómina)
     cfdi_estatus TEXT,                              -- migrations/0053
+    horas_extra  REAL NOT NULL DEFAULT 0,            -- migrations/0033
+    comisiones   REAL NOT NULL DEFAULT 0,            -- migrations/0033
     creada_en    TEXT DEFAULT (datetime('now','localtime')),
     UNIQUE(id_empleado, desde, hasta)
 );
@@ -1228,6 +1236,7 @@ CREATE TABLE IF NOT EXISTS citas (
                          CHECK(estatus IN ('pendiente','confirmada','completada','cancelada','no_asistio')),
     notas                TEXT,
     recordatorio_enviado INTEGER NOT NULL DEFAULT 0,
+    id_empleado          INTEGER,                    -- migrations/0069 (quién atiende; NULL = sin asignar)
     anticipo             REAL,                       -- migrations/0065 (anticipo por bot, NULL = sin flujo)
     saldo_pendiente      REAL,                       -- migrations/0065 (resto a pagar en sucursal)
     creado_en            TEXT NOT NULL DEFAULT (datetime('now','localtime'))
