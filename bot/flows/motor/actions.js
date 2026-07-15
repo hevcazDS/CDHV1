@@ -122,6 +122,27 @@ const ACTIONS = {
     },
 };
 
+// ── M2: catálogo con metadata HUMANA (lo que el lienzo muestra en la paleta).
+// Una entrada por acción del registro. `sellada` = dinero/inventario/relevo:
+// invocable desde el grafo, lógica intocable; sus params se limitan a la
+// whitelist (§D). `salidas` = los `resultado` posibles (para cables resultado:x).
+const CATALOGO = {
+    buscar_producto:  { nombre: 'Buscar producto',        desc: 'Busca en el catálogo lo que el cliente escribió', salidas: ['hay', 'vacio'], sellada: false },
+    agregar_carrito:  { nombre: 'Agregar al carrito',     desc: 'Mete al carrito el producto que el cliente está viendo', salidas: ['ok', 'no', 'escalar'], sellada: false },
+    aplicar_cupon:    { nombre: 'Aplicar cupón',          desc: 'Valida el código de cupón que escribió el cliente', salidas: ['ok', 'no'], sellada: false },
+    cargar_dias_cita: { nombre: 'Cargar días de cita',    desc: 'Consulta qué días hay agenda disponible', salidas: ['hay', 'vacio'], sellada: false },
+    render_menu:      { nombre: 'Mostrar el menú',        desc: 'Muestra el menú principal del negocio (texto dinámico)', salidas: [], sellada: false, esRender: true },
+    crm_cambiar_etapa:{ nombre: 'CRM: mover etapa',       desc: 'Mueve al cliente de etapa en el pipeline (ej. a "cotizado")', salidas: ['ok', 'no'], sellada: false, params: ['etapa'] },
+    crm_crear_tarea:  { nombre: 'CRM: crear tarea',       desc: 'Deja una tarea de seguimiento para el equipo', salidas: ['ok', 'no'], sellada: false, params: ['titulo', 'dias_vence'] },
+    crm_agregar_nota: { nombre: 'CRM: guardar nota',      desc: 'Guarda lo que escribió el cliente como nota en su ficha', salidas: ['ok', 'no'], sellada: false, params: ['texto'] },
+    grabar_pedido_pickup: { nombre: 'Cobrar pedido (pickup) 🔒', desc: 'Graba el pedido para recoger en tienda — misma ruta de dinero de siempre', salidas: ['ok'], sellada: true },
+    grabar_pedido_envio:  { nombre: 'Cobrar pedido (envío) 🔒',  desc: 'Graba el pedido con envío a domicilio — misma ruta de dinero de siempre', salidas: ['ok'], sellada: true },
+    grabar_pedido_split:  { nombre: 'Cobrar pedido (mixto) 🔒',  desc: 'Graba el pedido parte pickup / parte envío', salidas: ['ok'], sellada: true },
+    escalar:          { nombre: 'Pasar con un asesor 🔒',  desc: 'Registra al cliente en la cola de atención humana', salidas: ['escalado'], sellada: true, params: ['motivo'] },
+    crear_cita:       { nombre: 'Agendar la cita 🔒',      desc: 'Registra la cita con los datos ya recolectados', salidas: ['ok', 'no'], sellada: true },
+    cobrar_anticipo:  { nombre: 'Cobrar anticipo 🔒',      desc: 'Cobra un % del servicio como anticipo (requiere porcentaje)', salidas: ['cobrar', 'sin_cobro'], sellada: true, params: ['porcentaje'] },
+};
+
 // run(nombre, ctx, params) — dispatcher que usa el intérprete. Lanza si la acción
 // no existe → el catch del intérprete cae fail-closed al router viejo (§D.3).
 async function run(nombre, ctx, params = {}) {
@@ -130,4 +151,4 @@ async function run(nombre, ctx, params = {}) {
     return await fn(ctx, params);
 }
 
-module.exports = { ACTIONS, run };
+module.exports = { ACTIONS, run, CATALOGO };

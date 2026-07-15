@@ -96,11 +96,16 @@ async function handle(ctx) {
     // su turno lo procesa el flow de código existente → paridad byte GARANTIZADA por
     // correr la misma lógica (usado por la plantilla base jugueteria.json). Un giro
     // reemplaza `delegar` por aristas+render reales para tomar control como datos.
-    if (nodo.params && nodo.params.delegar) return await dispatchSistema(ctx.step, ctx);
+    // C1: las aristas custom dibujadas en el lienzo SÍ ganan sobre el código —
+    // pero '*' NO cuenta en un delegado (se tragaría todo el flujo base; el
+    // linter lo prohíbe). Sin arista custom que matchee → delega como siempre.
+    const delegado = !!(nodo.params && nodo.params.delegar);
 
     // 1. resolver la arista contra el input del usuario
     const aristas = grafo.aristas[ctx.step] || [];
-    const arista  = aristas.find(a => matchInput(a.input, ctx.action, ctx.raw));
+    const arista  = aristas.find(a => (!delegado || a.input !== '*') && matchInput(a.input, ctx.action, ctx.raw));
+
+    if (delegado && !arista) return await dispatchSistema(ctx.step, ctx);
 
     // 2. ningún matcher aplicó → reintento con límite y escape a asesor
     if (!arista) {
@@ -108,7 +113,9 @@ async function handle(ctx) {
         if (reintentos >= MAX_REINTENTOS) {
             sm.updateSession(ctx.userId, 'ASESOR', { ...ctx.data, _reintentos: 0 });
             try { A.run('escalar', ctx, { motivo: 'reintentos_motor' }); } catch (_) {}
-            return t('escalar_asesor') || t('msg_asesor');
+            // Fallback literal: ninguna de las dos claves existe en el catálogo
+            // FRASES → sin él, la escalada mandaba mensaje VACÍO (bot mudo).
+            return t('escalar_asesor') || t('msg_asesor') || 'Te comunico con un asesor 👤 En un momento te atendemos.';
         }
         sm.updateSession(ctx.userId, ctx.step, { ...ctx.data, _reintentos: reintentos });
         return t(nodo.frase_clave + '_invalido') || await renderNodo(nodo, ctx, ctx.data);
@@ -138,8 +145,9 @@ async function handle(ctx) {
     const nuevaData = { ...ctx.data, ...res.data, ...entradaData, _reintentos: 0 };
     sm.updateSession(ctx.userId, destino, nuevaData);
 
-    // 7. destino de sistema → delega al flow de código (handoff en el mismo turno)
-    if (nodoDestino && nodoDestino.tipo === 'sistema') {
+    // 7. destino de sistema O delegado → despacha su código real en el mismo turno
+    //    (C2: un delegado tiene frase_clave=null; renderizarlo daría '' — bot mudo).
+    if (nodoDestino && (nodoDestino.tipo === 'sistema' || (nodoDestino.params && nodoDestino.params.delegar))) {
         return await dispatchSistema(destino, { ...ctx, step: destino, data: nuevaData });
     }
 

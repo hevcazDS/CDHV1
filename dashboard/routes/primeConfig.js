@@ -176,7 +176,15 @@ function frasesPut(req, res, ctx) {
         try {
             const d = JSON.parse(body || '{}');
             const conf = require('../../bot/flows/_config');
-            if (!conf.FRASES[d.clave]) return json(res, { ok: false, error: 'Frase desconocida: ' + d.clave }, 400);
+            // M1: además del catálogo fijo, se aceptan las claves que usa el grafo
+            // activo del motor (piezas creadas en el lienzo escriben su texto aquí).
+            const esDelMotor = (() => {
+                try {
+                    const g = require('../../bot/flows/motor/grafo').cargarGrafoActivo();
+                    return !!(g && Object.values(g.nodos).some(n => n.frase_clave === d.clave));
+                } catch (_) { return false; }
+            })();
+            if (!conf.FRASES[d.clave] && !esDelMotor) return json(res, { ok: false, error: 'Frase desconocida: ' + d.clave }, 400);
             const k = 'frase_' + d.clave;
             const texto = String(d.texto || '').trim();
             if (!texto) db.prepare('DELETE FROM configuracion WHERE clave=?').run(k);
@@ -571,3 +579,4 @@ const RUTAS = [
 ];
 
 module.exports = construirModulo(RUTAS);
+module.exports._test = { frasesPut };   // contract tests (sin HTTP)
