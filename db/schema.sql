@@ -1287,6 +1287,32 @@ CREATE TABLE IF NOT EXISTS crm_notas (
     creado_en  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_crm_notas_cliente ON crm_notas(id_cliente);
+
+-- 0075: CRM fase 2 — tareas de seguimiento + segmentos guardados
+CREATE TABLE IF NOT EXISTS crm_tareas (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente  INTEGER NOT NULL REFERENCES clientes(id),
+    titulo      TEXT NOT NULL,
+    tipo        TEXT NOT NULL DEFAULT 'seguimiento'
+                CHECK(tipo IN ('llamada','whatsapp','visita','seguimiento','otro')),
+    vence_en    TEXT,                                -- YYYY-MM-DD (NULL = sin fecha)
+    asignado_a  TEXT,                                -- username (NULL = cualquiera)
+    estatus     TEXT NOT NULL DEFAULT 'pendiente'
+                CHECK(estatus IN ('pendiente','hecha','cancelada')),
+    creado_por  TEXT,
+    creado_en   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    hecha_en    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_crm_tareas_cliente ON crm_tareas(id_cliente);
+CREATE INDEX IF NOT EXISTS idx_crm_tareas_estatus ON crm_tareas(estatus, vence_en);
+
+CREATE TABLE IF NOT EXISTS crm_segmentos (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre      TEXT NOT NULL,
+    filtro_json TEXT NOT NULL DEFAULT '{}',
+    creado_por  TEXT,
+    creado_en   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
 -- 0065: motor de flujo configurable (grafo por instancia). Inerte sin grafo activo.
 CREATE TABLE IF NOT EXISTS flujo_grafo (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
