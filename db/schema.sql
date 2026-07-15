@@ -1351,7 +1351,17 @@ CREATE TABLE IF NOT EXISTS mesa_items (
     cantidad       INTEGER NOT NULL DEFAULT 1,
     comentario     TEXT,
     enviado_cocina INTEGER NOT NULL DEFAULT 0,
+    listo          INTEGER NOT NULL DEFAULT 0,          -- migrations/0072 (KDS)
     creado_en      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+-- 0072: recetas/insumos (BOM plano) — el platillo descuenta INSUMOS al cobrar
+CREATE TABLE IF NOT EXISTS producto_insumos (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_producto INTEGER NOT NULL REFERENCES productos(id),
+    id_insumo   INTEGER NOT NULL REFERENCES productos(id),
+    cantidad    REAL NOT NULL,
+    UNIQUE(id_producto, id_insumo)
 );
 CREATE INDEX IF NOT EXISTS idx_mesa_items_mesa ON mesa_items(id_mesa);
 

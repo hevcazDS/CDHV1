@@ -393,6 +393,31 @@ function usuariosGet(req, res, ctx) {
 
 // entrada-mercancia: area almacén (o admin+ vía permite). El resto gerente+;
 // usuarios GET solo prime.
+// ── Receta / insumos del platillo (P3, gerente) ────────────────────────────
+function recetaGet(req, res, ctx, { params }) {
+    const { db, json } = ctx;
+    const id = parseInt(params[0]);
+    return json(res, { insumos: require('../../services/recetasService').insumosDe(db, id) });
+}
+// PUT { insumos: [{ id_insumo, cantidad }] } — reemplaza la receta completa.
+function recetaPut(req, res, ctx, { params }) {
+    const { db, json, readJson } = ctx;
+    const id = parseInt(params[0]);
+    return readJson(req, res, d => {
+        const lineas = Array.isArray(d.insumos) ? d.insumos : [];
+        for (const l of lineas) {
+            if (!(Number(l.id_insumo) > 0) || !(Number(l.cantidad) > 0)) return json(res, { ok: false, error: 'Cada insumo requiere id_insumo y cantidad > 0' }, 400);
+            if (Number(l.id_insumo) === id) return json(res, { ok: false, error: 'Un platillo no puede ser insumo de sí mismo' }, 400);
+        }
+        db.transaction(() => {
+            db.prepare('DELETE FROM producto_insumos WHERE id_producto=?').run(id);
+            const ins = db.prepare('INSERT INTO producto_insumos (id_producto, id_insumo, cantidad) VALUES (?,?,?)');
+            for (const l of lineas) ins.run(id, Number(l.id_insumo), Math.round(Number(l.cantidad) * 1000) / 1000);
+        })();
+        return json(res, { ok: true, insumos: lineas.length });
+    });
+}
+
 const RUTAS = [
     { metodo: 'POST',   path: '/api/prime/palabras-filtro',                roles: ['gerente'], handler: palabrasFiltroPost },
     { metodo: 'PUT',    path: /^\/api\/prime\/palabras-filtro\/(\d+)$/,    roles: ['gerente'], handler: palabrasFiltroPut },
@@ -406,6 +431,8 @@ const RUTAS = [
     { metodo: 'GET',    path: '/api/prime/productos',                      roles: ['gerente'], handler: productosGet },
     { metodo: 'POST',   path: '/api/prime/productos',                      roles: ['gerente'], handler: productosPost },
     { metodo: 'PUT',    path: /^\/api\/prime\/productos\/(\d+)$/,          roles: ['gerente'], handler: productosPut },
+    { metodo: 'GET',    path: /^\/api\/prime\/productos\/(\d+)\/receta$/,   roles: ['gerente'], handler: recetaGet },
+    { metodo: 'PUT',    path: /^\/api\/prime\/productos\/(\d+)\/receta$/,   roles: ['gerente'], handler: recetaPut },
     { metodo: 'GET',    path: '/api/prime/inventarios',                    roles: ['gerente'], handler: inventariosGet },
     { metodo: 'PUT',    path: /^\/api\/prime\/inventarios\/(\d+)$/,        roles: ['gerente'], handler: inventariosPut },
     { metodo: 'GET',    path: /^\/api\/prime\/variantes\/(\d+)$/,          roles: ['gerente'], handler: variantesGet },

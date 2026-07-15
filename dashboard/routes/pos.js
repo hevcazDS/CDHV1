@@ -223,7 +223,8 @@ function ventaPost(req, res, ctx, { ses }) {
                 for (const it of carrito) {
                     if (it.tipo === 'servicio' || !inventarioActivo(db)) continue;
                     try {
-                        kardexService.movimiento({ id_producto: it.id, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Venta ' + folio, usuario: ses?.username });
+                        if (!require('../../services/recetasService').descontarVenta(db, { id_producto: it.id, cantidad: it.cantidad, sucursal, motivo: 'Venta ' + folio, usuario: ses?.username }))
+                            kardexService.movimiento({ id_producto: it.id, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Venta ' + folio, usuario: ses?.username });
                         if (it.id_variante) require('../../services/variantesService').descontarVariante(it.id_variante, sucursal, it.cantidad);
                     } catch (e) { log.warn('Kardex POS no aplicado para producto ' + it.id + ': ' + e.message); }
                 }

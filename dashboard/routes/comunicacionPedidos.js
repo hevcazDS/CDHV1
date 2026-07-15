@@ -275,7 +275,8 @@ function pagoMarcarPagado(req, res, ctx, { params, ses }) {
                     FROM pedido_detalle d LEFT JOIN productos pr ON pr.id = d.id_producto WHERE d.id_pedido=?`).all(lp.id_pedido);
                 for (const it of items) {
                     if (it.tipo === 'servicio' || !it.sucursal_origen || !_invActivo) continue;
-                    kardexService.movimiento({ id_producto: it.id_producto, sucursal: it.sucursal_origen, tipo: 'venta', delta: -it.cantidad, motivo: 'Pago pedido ' + lp.id_pedido, usuario: ses.username });
+                    if (!require('../../services/recetasService').descontarVenta(db, { id_producto: it.id_producto, cantidad: it.cantidad, sucursal: it.sucursal_origen, motivo: 'Pago pedido ' + lp.id_pedido, usuario: ses.username }))
+                        kardexService.movimiento({ id_producto: it.id_producto, sucursal: it.sucursal_origen, tipo: 'venta', delta: -it.cantidad, motivo: 'Pago pedido ' + lp.id_pedido, usuario: ses.username });
                 }
                 db.prepare('UPDATE pedidos SET cobrado_por=? WHERE id_pedido=?').run(ses.username, lp.id_pedido);
             })();

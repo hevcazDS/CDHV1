@@ -38,6 +38,7 @@ const GRUPOS = [
   { titulo: 'Ventas', enlaces: [
     { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo', area: 'pos' },
     { to: '/mesas', label: 'Mesas', Icono: Utensils, area: 'pos', moduloRequerido: 'mesas_activo' },
+    { to: '/cocina', label: 'Cocina', Icono: Utensils, area: 'pos', moduloRequerido: 'mesas_activo' },
     { to: '/citas', label: 'Citas', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'citas_activo' },
     { to: '/suscripciones', label: 'Suscripciones', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'suscripcion_activo' },
     { to: '/documentos', label: 'Documentos', Icono: FileText, area: 'operacion', moduloRequerido: 'documentos_activo' },

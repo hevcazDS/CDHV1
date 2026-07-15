@@ -38,6 +38,7 @@ const Citas = lazy(() => import('./pages/Citas'));
 const Suscripciones = lazy(() => import('./pages/Suscripciones'));
 const Documentos = lazy(() => import('./pages/Documentos'));
 const Mesas = lazy(() => import('./pages/Mesas'));
+const Cocina = lazy(() => import('./pages/Cocina'));
 const Fiados = lazy(() => import('./pages/Fiados'));
 const Tareas = lazy(() => import('./pages/Tareas'));
 
@@ -106,6 +107,7 @@ export default function App() {
               {permite(user.rol, 'operacion') && <Route path="/suscripciones" element={<Suscripciones />} />}
               {permite(user.rol, 'operacion') && <Route path="/documentos" element={<Documentos />} />}
               {(permite(user.rol, 'pos') || permite(user.rol, 'operacion')) && <Route path="/mesas" element={<Mesas />} />}
+              {(permite(user.rol, 'pos') || permite(user.rol, 'operacion')) && <Route path="/cocina" element={<Cocina />} />}
               {(permite(user.rol, 'pos') || permite(user.rol, 'finanzas')) && <Route path="/fiados" element={<Fiados />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

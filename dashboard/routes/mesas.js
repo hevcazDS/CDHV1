@@ -146,7 +146,7 @@ function cerrarMesa(req, res, ctx, { params, ses }) {
                 if (invActivo && sucursal) for (const it of items) {
                     if (!it.id_producto) continue;
                     if (db.prepare('SELECT tipo FROM productos WHERE id=?').get(it.id_producto)?.tipo === 'servicio') continue;
-                    try { kardexService.movimiento({ id_producto: it.id_producto, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Mesa ' + mesa.numero, usuario: ses.username }); } catch (_) {}
+                    try { if (!require('../../services/recetasService').descontarVenta(db, { id_producto: it.id_producto, cantidad: it.cantidad, sucursal, motivo: 'Mesa ' + mesa.numero, usuario: ses.username })) kardexService.movimiento({ id_producto: it.id_producto, sucursal, tipo: 'venta', delta: -it.cantidad, motivo: 'Mesa ' + mesa.numero, usuario: ses.username }); } catch (_) {}
                 }
                 try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor) VALUES ('mesa_cobrada','mostrador',?)").run(String(subtotal)); } catch (_) {}
                 return { pedidoRowid, subtotal, folio };
@@ -163,8 +163,26 @@ function cerrarMesa(req, res, ctx, { params, ses }) {
     });
 }
 
+// ── Vista cocina / KDS (P3): comandas enviadas y no listas ─────────────────
+function cocina(req, res, ctx) {
+    const { db, json } = ctx;
+    const items = db.prepare(`
+        SELECT mi.id, mi.nombre, mi.cantidad, mi.comentario, mi.creado_en, m.numero AS mesa
+        FROM mesa_items mi JOIN mesas m ON m.id = mi.id_mesa
+        WHERE mi.enviado_cocina = 1 AND mi.listo = 0 AND m.estatus = 'abierta'
+        ORDER BY mi.creado_en`).all();
+    return json(res, { items });
+}
+function itemListo(req, res, ctx, { params }) {
+    const { db, json } = ctx;
+    db.prepare('UPDATE mesa_items SET listo=1 WHERE id=?').run(parseInt(params[0]));
+    return json(res, { ok: true });
+}
+
 const RUTAS = [
     { metodo: 'GET',    path: '/api/mesas',                         areas: ['pos', 'operacion'], handler: listarMesas },
+    { metodo: 'GET',    path: '/api/mesas/cocina',                  areas: ['pos', 'operacion'], handler: cocina },
+    { metodo: 'POST',   path: /^\/api\/mesas\/item\/(\d+)\/listo$/, areas: ['pos', 'operacion'], handler: itemListo },
     { metodo: 'POST',   path: '/api/mesas',                         areas: ['pos', 'operacion'], handler: abrirMesa },
     { metodo: 'POST',   path: /^\/api\/mesas\/(\d+)\/item$/,        areas: ['pos', 'operacion'], handler: agregarItem },
     { metodo: 'DELETE', path: /^\/api\/mesas\/(\d+)\/item\/(\d+)$/, areas: ['pos', 'operacion'], handler: quitarItem },
