@@ -137,7 +137,7 @@ function cerrarMesa(req, res, ctx, { params, ses }) {
                 db.prepare("UPDATE pedidos SET subtotal=?, total=?, metodo_pago=?, metodo_entrega='pickup', cobrado_por=?, actualizado_en=datetime('now','localtime') WHERE id_pedido=?")
                   .run(subtotal, totalConPropina, metodoPago, ses.username || null, pedidoRowid);
                 const met = db.prepare('SELECT id FROM metodos_pago WHERE nombre=?').get(metodoPago);
-                db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
+                db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, url_link, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,'',?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
                   .run(pedidoRowid, met ? met.id : null, totalConPropina);
                 db.prepare("UPDATE mesas SET estatus='cobrada', id_pedido=?, propina=?, cerrada_en=datetime('now','localtime') WHERE id=?").run(pedidoRowid, propina, idMesa);
                 // Descontar inventario (igual que el POS): platillos del catálogo

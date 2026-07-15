@@ -76,12 +76,14 @@ const PreventaSchema = z.object({
     porcentaje_anticipo: z.number().int().min(10).max(100).default(50),
 });
 
+// Cualquier clave *_activo es un módulo togglable desde el panel — el universo
+// de módulos crece con cada bloque (pos/citas/crm/motor/...) y la vieja whitelist
+// congelada los rechazaba todos con 400. Los flags de API real siguen siendo
+// EXCLUSIVOS de PrimeConfigSchema (abajo) y aquí se rechazan explícitamente.
+const CLAVES_SOLO_PRIME = ['pago_real_activo', 'estafeta_real_activo', 'reconexion_auto_activo'];
 const ModuloConfigSchema = z.object({
-    clave: z.enum([
-        'puntos_activo','vision_activo','ofertas_activo',
-        'upselling_activo','lista_espera_activo','carritos_activo','csat_activo',
-        'referidos_activo','emojis_dashboard_activo',
-    ]),
+    clave: z.string().max(50).regex(/^[a-z0-9_]+_activo$/, 'clave de módulo inválida')
+        .refine(c => !CLAVES_SOLO_PRIME.includes(c), 'ese flag solo se configura desde Prime'),
     activo: z.boolean(),
 });
 

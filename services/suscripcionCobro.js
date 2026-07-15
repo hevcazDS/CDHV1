@@ -32,7 +32,7 @@ function generarCargo(db, s, ses) {
     return db.transaction(() => {
         const { pedidoRowid, subtotal } = shared.insertarPedidoConCarrito(s.nombre, carrito, '', 'pendiente', sucursal, folio, idCliente, 'suscripcion');
         db.prepare("UPDATE pedidos SET subtotal=?, total=?, metodo_entrega='pickup' WHERE id_pedido=?").run(subtotal, subtotal, pedidoRowid);
-        db.prepare("INSERT INTO links_pago (id_pedido, monto, moneda, estatus, creado_en) VALUES (?,?,'MXN','generado',datetime('now','localtime'))").run(pedidoRowid, subtotal);
+        db.prepare("INSERT INTO links_pago (id_pedido, url_link, monto, moneda, estatus, creado_en) VALUES (?,'',?,'MXN','generado',datetime('now','localtime'))").run(pedidoRowid, subtotal);
         const nuevo = _sumarMes(s.proximo_cobro || new Date().toISOString().slice(0, 10));
         db.prepare('UPDATE suscripciones SET proximo_cobro=? WHERE id=?').run(nuevo, s.id);
         return { pedidoRowid, subtotal, folio, proximo: nuevo };

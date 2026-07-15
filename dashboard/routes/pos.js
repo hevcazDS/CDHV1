@@ -216,9 +216,9 @@ function ventaPost(req, res, ctx, { ses }) {
                 const met = db.prepare('SELECT id FROM metodos_pago WHERE nombre=?').get(metodoPago);
                 if (esCredito) {
                     db.prepare("UPDATE pedidos SET a_credito=1, fiado_vence_en=date('now','localtime','+'||?||' days') WHERE id_pedido=?").run(_plazoFiado, pedidoRowid);
-                    db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, fecha_expiracion, creado_en) VALUES (?,?,?,'MXN','generado',NULL,datetime('now','localtime'))").run(pedidoRowid, met ? met.id : null, totalNeto);
+                    db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, url_link, monto, moneda, estatus, fecha_expiracion, creado_en) VALUES (?,?,'',?,'MXN','generado',NULL,datetime('now','localtime'))").run(pedidoRowid, met ? met.id : null, totalNeto);
                 } else {
-                    db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))").run(pedidoRowid, met ? met.id : null, totalNeto);
+                    db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, url_link, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,'',?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))").run(pedidoRowid, met ? met.id : null, totalNeto);
                 }
                 for (const it of carrito) {
                     if (it.tipo === 'servicio' || !inventarioActivo(db)) continue;

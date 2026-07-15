@@ -629,7 +629,7 @@ CREATE TABLE IF NOT EXISTS links_pago (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     id_pedido        INTEGER NOT NULL REFERENCES pedidos(id_pedido),
     id_metodo        INTEGER,
-    url_link         TEXT,
+    url_link         TEXT,           -- OJO drift: en la BD viva de JC es NOT NULL — todo INSERT debe mandar url_link (aunque sea '')
     token_externo    TEXT,
     monto            REAL,
     moneda           TEXT DEFAULT 'MXN',
@@ -1467,6 +1467,8 @@ CREATE INDEX IF NOT EXISTS idx_inventarios_producto ON inventarios(id_producto);
 CREATE INDEX IF NOT EXISTS idx_log_eventos_tipo_fecha ON log_eventos(tipo_evento, registrado_en);
 CREATE INDEX IF NOT EXISTS idx_pedidos_id_cliente ON pedidos(id_cliente);
 CREATE INDEX IF NOT EXISTS idx_links_pago_pedido_estatus ON links_pago(id_pedido, estatus);
+CREATE INDEX IF NOT EXISTS idx_conversaciones_telefono ON conversaciones(telefono);   -- 0077
+CREATE INDEX IF NOT EXISTS idx_mensajes_conv_enviado ON mensajes(id_conversacion, enviado_en);   -- 0077
 
 -- 0047: devoluciones por pedido (historial + clamp de cantidad devolvible).
 CREATE INDEX IF NOT EXISTS idx_devoluciones_pedido ON devoluciones(id_pedido, id_producto);

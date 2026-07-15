@@ -96,7 +96,7 @@ function cobrar(req, res, ctx, { params, ses }) {
                 db.prepare("UPDATE pedidos SET subtotal=?, total=?, metodo_pago=?, metodo_entrega='pickup', cobrado_por=?, actualizado_en=datetime('now','localtime') WHERE id_pedido=?")
                   .run(subtotal, subtotal, metodoPago, ses.username || null, pedidoRowid);
                 const met = db.prepare('SELECT id FROM metodos_pago WHERE nombre=?').get(metodoPago);
-                db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
+                db.prepare("INSERT INTO links_pago (id_pedido, id_metodo, url_link, monto, moneda, estatus, pagado_en, creado_en) VALUES (?,?,'',?,'MXN','pagado',datetime('now','localtime'),datetime('now','localtime'))")
                   .run(pedidoRowid, met ? met.id : null, subtotal);
                 db.prepare("UPDATE citas SET id_pedido=?, estatus='completada' WHERE id=?").run(pedidoRowid, id);
                 try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('cita_cobrada','mostrador',?,?)").run(String(subtotal), cita.telefono || null); } catch (_) {}

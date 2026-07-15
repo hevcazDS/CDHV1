@@ -10,8 +10,11 @@ const ETAPAS = ['lead', 'contactado', 'cotizado', 'ganado', 'perdido'];
 // GET /api/crm/pipeline — clientes agrupados por etapa (efectiva), con score.
 function pipeline(req, res, ctx) {
     const { db, json } = ctx;
+    // Perf (estrés 2026-07): LIMIT en el interior — las subconsultas caras
+    // (último mensaje / pedidos) corren solo sobre las 500 filas devueltas,
+    // no sobre TODOS los clientes; índices 0077 las vuelven lookups.
     const filas = db.prepare(`
-        SELECT c.id, c.nombre, c.telefono, c.tags, c.lead_score, c.etapa, c.creado_en,
+        SELECT c.*,
                COALESCE(c.etapa,
                  CASE WHEN EXISTS (
                    SELECT 1 FROM pedidos p JOIN links_pago lp ON lp.id_pedido = p.id_pedido
@@ -20,10 +23,11 @@ function pipeline(req, res, ctx) {
                (SELECT MAX(m.enviado_en) FROM mensajes m JOIN conversaciones cv ON cv.id = m.id_conversacion
                 WHERE cv.telefono = c.telefono) AS ultimo_mensaje,
                (SELECT COUNT(*) FROM pedidos p WHERE p.id_cliente = c.id) AS pedidos_n
-        FROM clientes c
-        WHERE c.activo = 1
-        ORDER BY c.lead_score DESC, c.id DESC
-        LIMIT 500`).all();
+        FROM (
+          SELECT id, nombre, telefono, tags, lead_score, etapa, creado_en
+          FROM clientes WHERE activo = 1
+          ORDER BY lead_score DESC, id DESC LIMIT 500
+        ) c`).all();
     const columnas = {};
     for (const e of ETAPAS) columnas[e] = [];
     for (const f of filas) (columnas[f.etapa_efectiva] || columnas.lead).push(f);
