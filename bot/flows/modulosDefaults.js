@@ -82,9 +82,10 @@ const MODULOS_POR_GIRO = {
     retail:        ['pos_activo'],
     abarrotes:     ['pos_activo', 'ventas_credito_activo'],
     carniceria:    ['pos_activo', 'ventas_credito_activo'],
-    ferreteria:    ['pos_activo', 'ventas_credito_activo'],
+    ferreteria:    ['pos_activo', 'ventas_credito_activo', 'documentos_activo'],  // cotiza (auditoría de giros r2)
     restaurante:   ['pos_activo', 'mesas_activo', 'entrega_repartidor_activo', 'propina_activo', 'reparto_activo'],
-    servicios:     ['citas_activo'],
+    servicios:     ['citas_activo', 'documentos_activo'],       // contratos/cotizaciones (r2)
+    freelancer:    ['citas_activo', 'documentos_activo', 'suscripcion_activo'],  // retainer mensual + contratos (r2)
     mantenimiento: ['citas_activo'],
     barberia:      ['citas_activo', 'pos_activo'],
     tatuajes:      ['citas_activo', 'pos_activo'],

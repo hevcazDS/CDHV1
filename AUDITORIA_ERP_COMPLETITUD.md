@@ -76,3 +76,35 @@ prometidos) → P2 → P4 → P6 → P3.
 - cantidad→REAL toca el chokepoint de dinero (marcar-pagado descuenta stock):
   migración con cuidado, tests de contrato, golden/paridad verdes.
 - Toda migración: `migrations/NNNN_*.sql` + espejo `db/schema.sql` + `--all`.
+
+
+---
+
+# RONDA 2 (2026-07-14, post P1-P6): re-auditoría por giro
+
+**Veredicto:** ningún giro tiene brecha ESENCIAL — P1-P6 cerraron el núcleo.
+Lo que queda son fricciones de preset/UX. Estado: juguetería/restaurante/
+servicios/mantenimiento ✅; carnicería/abarrotes/ferretería/retail/citas-giros ⚠️
+(fricciones); freelancer era ❌ por presets → arreglado.
+
+## Hecho en esta ronda (S, 1 línea c/u en MODULOS_POR_GIRO)
+- ferretería + documentos_activo (cotizaciones desde el día 1).
+- servicios + documentos_activo (contratos).
+- freelancer: preset PROPIO (citas + documentos + suscripcion_activo → retainer).
+
+## Backlog documentado (M — hacer cuando se venda a esos giros)
+1. **Form de producto por giro** (`productoCampos.jsx`): carnicería/abarrotes/
+   ferretería ven los campos de juguetería (edad/género/tipo_juguete,
+   inaplicables). Preset de campos visibles por giro; para granel, unidad_medida
+   protagonista. Fricción diaria, no bloquea venta.
+2. **Órdenes de servicio/trabajo** (mantenimiento/servicios/ferretería-taller):
+   tabla ordenes_servicio (id_cita?, id_cliente, descripcion, estatus, fechas,
+   fotos_json) + CRUD + página. Sin esto no hay evidencia de trabajo hecho —
+   riesgo moderado para mantenimiento.
+3. **Anticipo de cita configurable por % desde el dashboard** (tatuajes/estética/
+   uñas/barbería): la maquinaria sellada existe (motor cobrar_anticipo + columnas
+   0065); falta la config visual (% por giro/instancia) y/o la plantilla
+   barberia-anticipo del motor. Mitiga no-shows con seña.
+4. **Variantes talla×color en el BOT** (retail/ropa): el POS ya las vende; el bot
+   vende el producto padre sin elegir talla — menor, el flujo VARIANTE existe
+   solo en POS-dashboard.
