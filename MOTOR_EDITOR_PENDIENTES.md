@@ -3,8 +3,11 @@
 > **✅ CERRADO (2026-07-15, commit `dbb6880`):** C1, C2, C3, M1, M2, M3, M4 y las
 > 4 medias están implementados y pinneados en `tests/test_motor_c1c2c3.js`
 > (11/11, `npm run test:lienzo`, encadenado en `npm test`). Golden + paridad JC
-> byte-idéntica verdes. Quedan solo los MENORES (pieza inicial ⭐ desde el
-> editor, simulador de conversación, borrar PUT /nodo redundante, useMemo→useEffect).
+> byte-idéntica verdes. Los MENORES también quedaron
+> (2026-07-15): pieza inicial ⭐ desde el panel, simulador de conversación
+> ("Probar flujo" en el tab, POST /api/prime/motor/simular — sin efectos, jamás
+> ejecuta acciones ni código base), PUT /nodo borrado, useMemo→useEffect.
+> **Este documento queda CERRADO por completo.**
 
 > **Contexto de sesión (2026-07-13):** auditoría de la cadena completa del motor
 > (editor MotorCanvas → `PUT /api/prime/motor/grafo` → `grafo.js` → `interprete.js`

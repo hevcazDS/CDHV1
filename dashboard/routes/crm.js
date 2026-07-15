@@ -31,7 +31,10 @@ function pipeline(req, res, ctx) {
     const columnas = {};
     for (const e of ETAPAS) columnas[e] = [];
     for (const f of filas) (columnas[f.etapa_efectiva] || columnas.lead).push(f);
-    return json(res, { etapas: ETAPAS, columnas });
+    // corte visible, no ciego (estrés 2026-07): el panel avisa cuando hay más
+    // clientes de los 500 mostrados (se muestran los de mayor score).
+    const total = db.prepare('SELECT COUNT(*) n FROM clientes WHERE activo = 1').get().n;
+    return json(res, { etapas: ETAPAS, columnas, total, mostrando: filas.length });
 }
 
 // PUT /api/crm/clientes/:id/etapa { etapa } — mueve en el pipeline + log.

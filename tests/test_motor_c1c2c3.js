@@ -180,9 +180,24 @@ t('M1 frasesPut: acepta clave del grafo activo, rechaza desconocida', () => {
     assert.strictEqual(out2.code, 400);
 });
 
+t('simulador: inicio + cable custom + pieza base — sin efectos en BD', () => {
+    const { simularPost } = require('../dashboard/routes/motorFlujo')._test;
+    const pedidosAntes = db.prepare('SELECT COUNT(*) n FROM pedidos').get().n;
+    const out = {};
+    simularPost({ _body: { inicio: true } }, null, ctx(out));
+    assert(out.d.ok && out.d.paso === 'MENU', JSON.stringify(out.d));
+    const out2 = {};
+    simularPost({ _body: { paso: 'MENU', texto: 'quiero la promo' } }, null, ctx(out2));
+    assert(out2.d.ok && out2.d.paso === 'PROMO_X' && /lienzo|Promo/.test(out2.d.respuesta), JSON.stringify(out2.d));
+    const out3 = {};
+    simularPost({ _body: { paso: 'MENU', texto: '1' } }, null, ctx(out3));
+    assert(out3.d.ok && /código base/.test(out3.d.nota), 'input del flujo base → nota, no ejecución');
+    assert.strictEqual(db.prepare('SELECT COUNT(*) n FROM pedidos').get().n, pedidosAntes, 'el simulador jamás escribe');
+});
+
 (async () => {
     for (const [n, fn] of pruebas) { await fn(); ok++; console.log('✅ ' + n); }
-    console.log('\n' + ok + '/11 OK — C1/C2/C3 + M1/M2/M4 + medias del editor cerrados.');
+    console.log('\n' + ok + '/12 OK — C1/C2/C3 + M1/M2/M4 + medias + simulador cerrados.');
     try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
     process.exit(0);
 })().catch(e => { console.error('❌', e); process.exit(1); });

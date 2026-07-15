@@ -91,7 +91,13 @@ function PipelineTab({ onAbrir }) {
   });
   if (!data) return <Skeleton height={300} radius="md" />;
   return (
-    <div className="crm-cols">
+    <div>
+      {data.total > data.mostrando && (
+        <Text size="xs" c="dimmed" mb="xs">
+          Mostrando los {data.mostrando} clientes con mayor score, de {data.total} activos — usa Segmentos para trabajar el resto.
+        </Text>
+      )}
+      <div className="crm-cols">
       {data.etapas.map(etapa => (
         <div key={etapa}>
           <div className="f-h4"><span>{ETAPA_LABEL[etapa]}</span><span className="der"><b>{data.columnas[etapa].length}</b></span></div>
@@ -110,6 +116,7 @@ function PipelineTab({ onAbrir }) {
           </div>
         </div>
       ))}
+      </div>
     </div>
   );
 }

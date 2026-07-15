@@ -99,31 +99,6 @@ function motorGet(req, res, ctx) {
     return json(res, { activo: true, motor_activo: flag, giro_base: g.giro_base, id: g.id, nodos, aristas });
 }
 
-// PUT /api/prime/motor/nodo — { paso, params } ajusta params_json de un nodo del
-// grafo activo. Re-lintea con el cambio aplicado: si el grafo dejaría de ser
-// válido, NO persiste y devuelve los errores (fail-closed, el grafo bueno queda intacto).
-function nodoPut(req, res, ctx) {
-    const { db, json, readJson } = ctx;
-    return readJson(req, res, body => {
-        const paso = String(body.paso || '').trim();
-        const params = body.params;
-        if (!paso || params == null || typeof params !== 'object') return json(res, { ok: false, error: 'paso y params requeridos' }, 400);
-
-        const g = grafo.cargarGrafoActivo();
-        if (!g || !g.nodos[paso]) return json(res, { ok: false, error: 'nodo no encontrado en el grafo activo' }, 404);
-
-        // Lintear una COPIA con el cambio aplicado antes de tocar la BD.
-        const copia = { inicial: g.inicial, aristas: g.aristas,
-            nodos: { ...g.nodos, [paso]: { ...g.nodos[paso], params } } };
-        const val = linter.validar(copia);
-        if (!val.ok) return json(res, { ok: false, error: 'el cambio invalidaría el grafo', errs: val.errs }, 400);
-
-        db.prepare('UPDATE flujo_nodo SET params_json=? WHERE id_grafo=? AND paso=?').run(JSON.stringify(params), g.id, paso);
-        grafo.invalidar();
-        return json(res, { ok: true });
-    });
-}
-
 // PUT /api/prime/motor/grafo — guarda el grafo COMPLETO del editor visual como
 // VERSIÓN NUEVA (la anterior queda inactiva, para revertir). Body:
 //   { nodos: [{paso,tipo,frase_clave,accion_entrada,render,params,es_inicial,pos_x,pos_y}],
@@ -259,16 +234,77 @@ function revertirPost(req, res, ctx) {
     });
 }
 
+// ── Simulador de conversación (menor #2): prueba el flujo SIN WhatsApp y SIN
+// efectos — NO ejecuta acciones ni código base (solo reporta qué haría) y el
+// estado (paso/data) vive en el panel, no en sesiones. Fail-safe por diseño:
+// nunca toca dinero/inventario/CRM aunque el grafo tenga acciones selladas.
+function simularPost(req, res, ctx) {
+    const { json, readJson } = ctx;
+    return readJson(req, res, body => {
+        const g = grafo.cargarGrafoActivo();
+        if (!g) return json(res, { ok: false, error: 'No hay flujo activo' }, 400);
+        const interprete = require('../../bot/flows/motor/interprete');
+        const conf = require('../../bot/flows/_config');
+        conf.invalidarCache();
+        const textoDe = (n) => n.render
+            ? null
+            : (conf.t(n.frase_clave || '', body.data || {}) || '(esta pieza no tiene texto aún — escríbelo en su panel)');
+
+        // inicio: true → solo renderiza la pieza inicial (arranque del chat de prueba)
+        if (body.inicio) {
+            const ini = g.nodos[g.inicial];
+            if (!ini) return json(res, { ok: false, error: 'el grafo no tiene pieza inicial' }, 400);
+            const selladoIni = ini.tipo === 'sistema' || (ini.params && ini.params.delegar);
+            return json(res, { ok: true, paso: g.inicial, respuesta: selladoIni ? null : textoDe(ini),
+                nota: selladoIni ? `"${g.inicial}" es pieza base: en vivo responde el código real (aquí solo se prueban tus cables personalizados).`
+                    : (ini.render ? 'El texto de esta pieza es dinámico (se genera en vivo).' : null) });
+        }
+
+        const paso  = String(body.paso || g.inicial || '');
+        const texto = String(body.texto || '').trim();
+        const nodo  = g.nodos[paso];
+        if (!nodo) return json(res, { ok: false, error: 'paso fuera del grafo: ' + paso }, 400);
+        const sellado = nodo.tipo === 'sistema' || (nodo.params && nodo.params.delegar);
+        const action  = texto.toLowerCase();
+        const aristas = g.aristas[paso] || [];
+        const arista  = aristas.find(a => (!sellado || a.input !== '*') && interprete.matchInput(a.input, action, texto));
+
+        if (!arista) {
+            if (sellado) return json(res, { ok: true, paso, respuesta: null,
+                nota: `Ese mensaje lo procesa el código base de "${paso}" (el simulador solo sigue tus cables personalizados).` });
+            return json(res, { ok: true, paso, respuesta: textoDe(nodo),
+                nota: 'Ningún camino coincidió: el bot repite la pieza (al 3er intento pasa a asesor).' });
+        }
+
+        const notas = [];
+        if (arista.accion) notas.push(`Ejecutaría la acción "${arista.accion}" (el simulador no la ejecuta).`);
+        if (aristas.some(a => String(a.input || '').startsWith('resultado:'))) {
+            notas.push('Hay caminos por resultado de acción — en vivo la ruta puede variar según ese resultado; aquí se sigue el cable directo.');
+        }
+        const destino = arista.destino;
+        const nd = g.nodos[destino];
+        const destinoSellado = nd && (nd.tipo === 'sistema' || (nd.params && nd.params.delegar));
+        let respuesta = null;
+        if (destinoSellado) notas.push(`La conversación pasa a la pieza base "${destino}" — desde aquí responde el código real.`);
+        else if (nd) {
+            respuesta = textoDe(nd);
+            if (nd.render) notas.push(`El texto de "${destino}" es dinámico (se genera en vivo).`);
+            if (nd.accion_entrada) notas.push(`Al llegar ejecutaría "${nd.accion_entrada}".`);
+        }
+        return json(res, { ok: true, paso: destino, respuesta, nota: notas.join(' ') || null });
+    });
+}
+
 const RUTAS = [
     { metodo: 'GET',  path: '/api/prime/motor',            roles: ['prime'], handler: motorGet },
     { metodo: 'GET',  path: '/api/prime/motor/versiones',  roles: ['prime'], handler: versionesGet },
     { metodo: 'POST', path: '/api/prime/motor/revertir',   roles: ['prime'], handler: revertirPost },
+    { metodo: 'POST', path: '/api/prime/motor/simular',    roles: ['prime'], handler: simularPost },
     { metodo: 'GET',  path: '/api/prime/motor/plantillas', roles: ['prime'], handler: plantillasGet },
     { metodo: 'GET',  path: '/api/prime/motor/acciones',   roles: ['prime'], handler: accionesGet },
     { metodo: 'POST', path: '/api/prime/motor/activar',    roles: ['prime'], handler: activarPost },
     { metodo: 'PUT',  path: '/api/prime/motor/grafo',      roles: ['prime'], handler: grafoPut },
-    { metodo: 'PUT',  path: '/api/prime/motor/nodo',       roles: ['prime'], handler: nodoPut },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/prime/motor' });
-module.exports._test = { grafoPut, activarPost, versionesGet, revertirPost, accionesGet };   // contract tests (sin HTTP)
+module.exports._test = { grafoPut, activarPost, versionesGet, revertirPost, accionesGet, simularPost };   // contract tests (sin HTTP)

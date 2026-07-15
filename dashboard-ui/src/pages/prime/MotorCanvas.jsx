@@ -4,7 +4,7 @@
 // escribe la palabra cita", "con cualquier respuesta") y se guardan internamente
 // como matchers (input '2' | 'kw:cita' | '*' | 'resultado:x'). Los nodos
 // BLOQUEADOS (flujo base) llevan candado; el servidor re-valida todo al guardar.
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ReactFlow, Background, Controls, MiniMap, Handle, Position,
@@ -72,7 +72,7 @@ function ModalCondicion({ abierto, inicial, accionInicial, acciones, onOk, onCan
   const [accion, setAccion] = useState(null);
 
   // sincronizar cuando se abre con un valor existente
-  useMemo(() => {
+  useEffect(() => {
     const inp = inicial || '*';
     if (inp === '*') { setTipo('siempre'); setValor(''); }
     else if (/^\d+$/.test(inp)) { setTipo('opcion'); setValor(inp); }
@@ -315,6 +315,13 @@ export default function MotorCanvas({ data }) {
                   ? 'Esta pieza es del flujo base: funciona sola y no se puede borrar. Puedes moverla y conectarle caminos nuevos.'
                   : 'Pieza personalizada: conéctala con cables y define cuándo se llega a ella.')}
             </Text>
+
+            {!nodoSel.data.es_inicial && (
+              <Button size="xs" variant="default" fullWidth mt="xs"
+                onClick={() => { setDirty(true); setNodes(ns => ns.map(n => ({ ...n, data: { ...n.data, es_inicial: n.id === sel } }))); }}>
+                ⭐ Hacer pieza inicial
+              </Button>
+            )}
 
             <Anchor size="xs" component="button" type="button" onClick={() => setVerJson(v => !v)} style={{ display: 'block', marginTop: 8 }}>
               {verJson ? 'Ocultar detalles técnicos' : 'Detalles técnicos'}
