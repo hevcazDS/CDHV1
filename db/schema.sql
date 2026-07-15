@@ -358,6 +358,8 @@ CREATE TABLE IF NOT EXISTS inventario_movimientos (
     cantidad_anterior INTEGER,
     cantidad_nueva    INTEGER,
     motivo            TEXT,
+    lote              TEXT,                        -- migrations/0070 (entrada)
+    caducidad         TEXT,                        -- migrations/0070 (YYYY-MM-DD, entrada)
     creado_por        TEXT,
     creado_en         TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );

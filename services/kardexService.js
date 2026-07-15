@@ -6,7 +6,7 @@
 let db = require('../bot/db_connection');
 
 // delta: positivo entra, negativo sale. Devuelve { anterior, nueva }.
-function movimiento({ id_producto, sucursal, tipo, delta, motivo, usuario }) {
+function movimiento({ id_producto, sucursal, tipo, delta, motivo, usuario, lote, caducidad }) {
     const fila = db.prepare('SELECT stock FROM inventarios WHERE id_producto=? AND sucursal=?').get(id_producto, sucursal);
     const anterior = fila ? (fila.stock || 0) : 0;
     const nueva = Math.max(0, anterior + delta);
@@ -16,9 +16,9 @@ function movimiento({ id_producto, sucursal, tipo, delta, motivo, usuario }) {
         db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock, stock_minimo) VALUES (?,?,?,0)').run(id_producto, sucursal, nueva);
     }
     try {
-        db.prepare(`INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo, creado_por)
-                    VALUES (?,?,?,?,?,?,?)`)
-          .run(id_producto, sucursal, tipo, anterior, nueva, motivo || null, usuario || null);
+        db.prepare(`INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo, creado_por, lote, caducidad)
+                    VALUES (?,?,?,?,?,?,?,?,?)`)
+          .run(id_producto, sucursal, tipo, anterior, nueva, motivo || null, usuario || null, lote || null, caducidad || null);
     } catch (e1) {
         try {
             db.prepare('INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo) VALUES (?,?,?,?,?,?)')

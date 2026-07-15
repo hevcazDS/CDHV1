@@ -131,9 +131,17 @@ function salida(req, res, ctx, { body, ses }) {
     const { db, json } = ctx;
     try {
         const d = body;
-        const cant = parseInt(d.cantidad, 10);
+        // decimal permitido (granel P1: 0.5 kg de merma es real en carnicería)
+        const cant = Math.round((parseFloat(d.cantidad) || 0) * 1000) / 1000;
         if (!Number.isInteger(d.id_producto) || !(cant > 0) || !d.sucursal) return json(res, { ok: false, error: 'Datos inválidos' }, 400);
-        kardexService.movimiento({ id_producto: d.id_producto, sucursal: d.sucursal, tipo: 'salida', delta: -cant, motivo: d.motivo || 'Salida de almacén', usuario: ses.username });
+        // merma TIPIFICADA (P4): tipo ∈ caducidad|dano|robo|ajuste|otro → el
+        // motivo queda estandarizado 'merma:<tipo>' y el reporte agrupa por él.
+        const TIPOS_MERMA = ['caducidad', 'dano', 'robo', 'ajuste', 'otro'];
+        const tipoMerma = TIPOS_MERMA.includes(d.tipo_merma) ? d.tipo_merma : null;
+        const motivo = tipoMerma
+            ? 'merma:' + tipoMerma + (d.motivo ? ' — ' + String(d.motivo).slice(0, 120) : '')
+            : (d.motivo || 'Salida de almacén');
+        kardexService.movimiento({ id_producto: d.id_producto, sucursal: d.sucursal, tipo: tipoMerma ? 'merma' : 'salida', delta: -cant, motivo, usuario: ses.username });
         return json(res, { ok: true });
     } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
 }
@@ -186,6 +194,49 @@ function conteoAplicar(req, res, ctx, { ses }) {
     });
 }
 
+// GET /api/almacen/mermas?desde&hasta — costo de la merma por tipo (P4).
+// costo = Σ |delta| × productos.costo (o price si no hay costo capturado).
+function mermas(req, res, ctx, { u }) {
+    const { db, json } = ctx;
+    const hoy = new Date().toISOString().slice(0, 10);
+    const desde = (u.searchParams.get('desde') || hoy.slice(0, 8) + '01').slice(0, 10);
+    const hasta = (u.searchParams.get('hasta') || hoy).slice(0, 10);
+    const filas = db.prepare(`
+        SELECT m.id_producto, p.name, m.sucursal, m.motivo, m.creado_en, m.creado_por,
+               (m.cantidad_anterior - m.cantidad_nueva) AS cantidad,
+               (m.cantidad_anterior - m.cantidad_nueva) * COALESCE(p.costo, p.price, 0) AS costo
+        FROM inventario_movimientos m JOIN productos p ON p.id = m.id_producto
+        WHERE m.tipo = 'merma' AND date(m.creado_en) >= ? AND date(m.creado_en) <= ?
+        ORDER BY m.id DESC`).all(desde, hasta);
+    const porTipo = {};
+    for (const f of filas) {
+        const t = (f.motivo || '').match(/^merma:(\w+)/)?.[1] || 'otro';
+        porTipo[t] = porTipo[t] || { tipo: t, eventos: 0, cantidad: 0, costo: 0 };
+        porTipo[t].eventos++; porTipo[t].cantidad += f.cantidad; porTipo[t].costo += f.costo;
+    }
+    const r2 = n => Math.round(n * 100) / 100;
+    return json(res, { desde, hasta, filas,
+        resumen: Object.values(porTipo).map(x => ({ ...x, cantidad: r2(x.cantidad), costo: r2(x.costo) })),
+        costo_total: r2(filas.reduce((s, f) => s + f.costo, 0)) });
+}
+
+// GET /api/almacen/caducidades?dias=30 — entradas con caducidad próxima (P4 lean:
+// por movimiento de entrada, sin FIFO por lote — señal temprana, no inventario exacto).
+function caducidades(req, res, ctx, { u }) {
+    const { db, json } = ctx;
+    const dias = Math.min(365, Math.max(1, parseInt(u.searchParams.get('dias') || '30', 10) || 30));
+    const filas = db.prepare(`
+        SELECT m.id_producto, p.name, m.sucursal, m.lote, m.caducidad, m.creado_en,
+               (m.cantidad_nueva - m.cantidad_anterior) AS cantidad_entrada,
+               COALESCE((SELECT stock FROM inventarios i WHERE i.id_producto = m.id_producto AND i.sucursal = m.sucursal), 0) AS stock_actual,
+               CAST(julianday(m.caducidad) - julianday('now','localtime') AS INTEGER) AS dias_restantes
+        FROM inventario_movimientos m JOIN productos p ON p.id = m.id_producto
+        WHERE m.caducidad IS NOT NULL
+          AND date(m.caducidad) <= date('now','localtime', '+' || ? || ' days')
+        ORDER BY m.caducidad`).all(String(dias));
+    return json(res, { dias, filas: filas.filter(f => f.stock_actual > 0) });
+}
+
 const RUTAS = [
     { metodo: 'GET',  path: '/api/almacen/calendario',        areas: ['almacen', 'almacen_lectura'], handler: calendario },
     { metodo: 'GET',  path: '/api/almacen/inventario',        areas: ['almacen', 'almacen_lectura'], handler: inventario },
@@ -194,8 +245,11 @@ const RUTAS = [
     { metodo: 'PUT',  path: '/api/almacen/ubicacion',         area: 'almacen', handler: ubicacion },
     { metodo: 'POST', path: '/api/almacen/traslado',          area: 'almacen', pin: true, handler: traslado },
     { metodo: 'POST', path: '/api/almacen/salida',            area: 'almacen', pin: true, handler: salida },
+    { metodo: 'GET',  path: '/api/almacen/mermas',            areas: ['almacen', 'finanzas'], handler: mermas },
+    { metodo: 'GET',  path: '/api/almacen/caducidades',       areas: ['almacen', 'almacen_lectura'], handler: caducidades },
     { metodo: 'POST', path: '/api/almacen/conteo',            area: 'almacen', handler: conteo },
     { metodo: 'POST', path: '/api/almacen/conteo/aplicar',    area: 'almacen', handler: conteoAplicar },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/almacen/' });
+module.exports._test = { mermas, caducidades };   // contract test P4

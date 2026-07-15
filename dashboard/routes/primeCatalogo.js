@@ -309,7 +309,7 @@ function entradaMercancia(req, res, ctx, { ses }) {
             const d = JSON.parse(body || '{}');
             const idProducto = parseInt(d.id_producto, 10);
             const sucursal = String(d.sucursal || '').trim();
-            const cantidad = parseInt(d.cantidad, 10);
+            const cantidad = Math.round((parseFloat(d.cantidad) || 0) * 1000) / 1000;   // decimal: granel (P1)
             if (!idProducto || !sucursal || !(cantidad > 0)) return json(res, { ok: false, error: 'id_producto, sucursal y cantidad (>0) son obligatorios' }, 400);
             const prod = db.prepare('SELECT id, name FROM productos WHERE id=?').get(idProducto);
             if (!prod) return json(res, { ok: false, error: 'Producto no encontrado' }, 404);
@@ -327,8 +327,11 @@ function entradaMercancia(req, res, ctx, { ses }) {
                 if (fila) db.prepare(`UPDATE inventarios SET stock=? WHERE ${pk}=?`).run(nueva, fila[pk]);
                 else db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock, stock_minimo) VALUES (?, ?, ?, 0)').run(idProducto, sucursal, nueva);
                 const motivo = 'Entrada de mercancía' + (proveedor ? ' — Proveedor: ' + proveedor : '');
-                db.prepare(`INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo, creado_por)
-                            VALUES (?, ?, 'entrada', ?, ?, ?, ?)`).run(idProducto, sucursal, anterior, nueva, motivo, ses.username);
+                // lote/caducidad (P4 lean): viven en el movimiento de entrada.
+                const lote = String(d.lote || '').trim().slice(0, 40) || null;
+                const caducidad = /^\d{4}-\d{2}-\d{2}$/.test(d.caducidad || '') ? d.caducidad : null;
+                db.prepare(`INSERT INTO inventario_movimientos (id_producto, sucursal, tipo, cantidad_anterior, cantidad_nueva, motivo, creado_por, lote, caducidad)
+                            VALUES (?, ?, 'entrada', ?, ?, ?, ?, ?, ?)`).run(idProducto, sucursal, anterior, nueva, motivo, ses.username, lote, caducidad);
                 return { anterior, nueva };
             });
             const r = tx();
