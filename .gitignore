@@ -93,3 +93,8 @@ dashboard/.instancia_activa
 
 # F5.4: archivero fiscal local (CFDI del PAC) — no se versiona
 contabilidad/
+restauracion/
+stress/
+stress-crm/
+stress-editor/
+stress-bot/

@@ -239,6 +239,15 @@ async function handle(ctx) {
             } catch(e) { /* continuar flujo normal si falla */ }
         }
 
+        // Solicitud de humano en texto libre — DEBE ir antes de la búsqueda de
+        // producto, si no "quiero hablar con una persona" se interpreta como query.
+        // Semiautónomo: cuando el cliente pide un humano, se escala, no se busca.
+        if (/hablar con (una |un )?(persona|humano|alguien|agente|asesor|operador|ejecutivo|representante)|una persona (real|de verdad)|con un humano|atienda una persona|quiero un asesor|pasar(me)? con (un|una) (asesor|persona|humano|agente)|no me est[aá]s? entendiendo|no me entiendes/i.test(raw)) {
+            sessionManager.updateSession(userId, S.ASESOR, { modo:'asesor' });
+            registrarEscalada(userId, null, 'Solicitud de humano (texto libre)', tel);
+            return (t('asesor_notificado', { horario: HORARIO_ASESOR }) || ('👤 Hemos notificado a nuestro equipo de ventas.\n\n⏰ Horario de atención: *' + HORARIO_ASESOR + '*')) + '\n\n' + msgHorarioAsesor();
+        }
+
         // Detección de intención desde MENU (texto libre)
         const _SOLO_SALUDO = new Set(['hola','hi','hey','buenas','buenos','buen','ok','okay','bien','si','no','gracias','adios']);
         const _esUrl = /https?:\/\//i.test(raw);
@@ -522,7 +531,7 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
                     const MessageMedia = _MessageMedia; // cacheado al inicio
                     // Caption lleva nombre + precio — el texto de abajo ya no los repite
                     const caption =
-                        `🧸 *${prod.name}*\n` +
+                        `${vocab().emoji} *${prod.name}*\n` +
                         `📦 ${prod.cat}  ·  💰 *$${Number(prod.price).toFixed(2)} MXN*\n\n` +
                         (desc ? `📝 ${desc}` : '');
                     const media = await MessageMedia.fromUrl(prod.url_imagen, { unsafeMime:true });

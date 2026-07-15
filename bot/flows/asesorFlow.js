@@ -78,7 +78,7 @@ async function handle(ctx) {
         }
         if (!data._notificado) {
             sessionManager.updateSession(userId, S.ASESOR, { ...data, _notificado: true });
-            return 'Tu solicitud fue registrada. 🧸\n⏰ Horario: *' + HORARIO_ASESOR + '*\n\n' + msgHorarioAsesor() + '\n\nEscribe *hola* para volver al menú.';
+            return 'Tu solicitud fue registrada. ' + vocab().emoji + '\n⏰ Horario: *' + HORARIO_ASESOR + '*\n\n' + msgHorarioAsesor() + '\n\nEscribe *hola* para volver al menú.';
         }
         return null; // ya notificado — silencio hasta que escriba hola
     }

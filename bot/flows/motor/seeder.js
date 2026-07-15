@@ -39,8 +39,12 @@ function sembrar(db, plantilla, opts = {}) {
 
     const tx = db.transaction(() => {
         if (opts.activar) db.prepare('UPDATE flujo_grafo SET activo = 0').run();
-        const gid = db.prepare('INSERT INTO flujo_grafo (version, giro_base, activo, valido) VALUES (1, ?, ?, ?)')
-            .run(plantilla.giro_base || null, opts.activar ? 1 : 0, (valido || opts.forzar) ? 1 : 0).lastInsertRowid;
+        // version MONÓTONA (no hardcodeada a 1): activar una plantilla comparte el
+        // mismo espacio de versiones que guardar desde el editor, así el historial
+        // y "revertir por versión" quedan coherentes (hallazgo del estrés 2026-07).
+        const ver = (db.prepare('SELECT MAX(version) v FROM flujo_grafo').get().v || 0) + 1;
+        const gid = db.prepare('INSERT INTO flujo_grafo (version, giro_base, activo, valido) VALUES (?, ?, ?, ?)')
+            .run(ver, plantilla.giro_base || null, opts.activar ? 1 : 0, (valido || opts.forzar) ? 1 : 0).lastInsertRowid;
         const insN = db.prepare('INSERT INTO flujo_nodo (id_grafo, paso, tipo, render, frase_clave, accion_entrada, params_json, es_inicial) VALUES (?,?,?,?,?,?,?,?)');
         const insA = db.prepare('INSERT INTO flujo_arista (id_grafo, paso, orden, label, input, destino, accion, params_json) VALUES (?,?,?,?,?,?,?,?)');
         for (const n of plantilla.nodos) {

@@ -211,7 +211,7 @@ async function handle(ctx) {
         }
         if (action === '4') {
             sessionManager.clearSession(userId);
-            return t('cancelado') || `❌ Pedido cancelado. Escribe *hola* cuando quieras volver. 🧸`;
+            return t('cancelado') || `❌ Pedido cancelado. Escribe *hola* cuando quieras volver. ${vocab().emoji}`;
         }
         return `Responde con 1, 2, 3 o 4.`;
     }
