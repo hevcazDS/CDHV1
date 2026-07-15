@@ -68,6 +68,37 @@ const ACTIONS = {
     //    llama vía nodo.render. NO deciden topología ni tocan dinero. ──────────
     render_menu: (ctx) => shared.menuPrincipal(ctx.tel),
 
+    // ── CRM (Fase 3 del CRM): la conversación alimenta el pipeline SIN código.
+    //    Un flujo del lienzo puede mover etapa / crear tarea / dejar nota. Son
+    //    acciones de DATOS del cliente — jamás envían mensajes masivos (esa
+    //    frontera vive en /api/masivo y campañas, con gate humano). ──────────
+    crm_cambiar_etapa: (ctx, params = {}) => {
+        const ETAPAS = ['lead', 'contactado', 'cotizado', 'ganado', 'perdido'];
+        if (!ETAPAS.includes(params.etapa)) return { resultado: 'no', data: {} };
+        const cli = shared.db.prepare('SELECT id, etapa FROM clientes WHERE telefono=?').get(ctx.tel);
+        if (!cli) return { resultado: 'no', data: {} };
+        shared.db.prepare('UPDATE clientes SET etapa=? WHERE id=?').run(params.etapa, cli.id);
+        try { shared.db.prepare('INSERT INTO crm_etapas (id_cliente, de, a, creado_por) VALUES (?,?,?,?)').run(cli.id, cli.etapa || null, params.etapa, 'bot'); } catch (_) {}
+        return { resultado: 'ok', data: {} };
+    },
+    crm_crear_tarea: (ctx, params = {}) => {
+        const cli = shared.db.prepare('SELECT id FROM clientes WHERE telefono=?').get(ctx.tel);
+        if (!cli || !params.titulo) return { resultado: 'no', data: {} };
+        const vence = Number(params.dias_vence) > 0
+            ? new Date(Date.now() + Number(params.dias_vence) * 86400000).toISOString().slice(0, 10) : null;
+        shared.db.prepare('INSERT INTO crm_tareas (id_cliente, titulo, tipo, vence_en, creado_por) VALUES (?,?,?,?,?)')
+            .run(cli.id, String(params.titulo).slice(0, 300), 'seguimiento', vence, 'bot');
+        return { resultado: 'ok', data: {} };
+    },
+    crm_agregar_nota: (ctx, params = {}) => {
+        const cli = shared.db.prepare('SELECT id FROM clientes WHERE telefono=?').get(ctx.tel);
+        if (!cli) return { resultado: 'no', data: {} };
+        const texto = String(params.texto || ctx.raw || '').trim().slice(0, 2000);
+        if (!texto) return { resultado: 'no', data: {} };
+        shared.db.prepare('INSERT INTO crm_notas (id_cliente, contenido, creado_por) VALUES (?,?,?)').run(cli.id, texto, 'bot');
+        return { resultado: 'ok', data: {} };
+    },
+
     // ── CITA + ANTICIPO (Fase 4) — SELLADAS. El anticipo es un pedido normal por
     //    la misma ruta de dinero (§E.1); el porcentaje viene del grafo (params),
     //    el CÓMO se cobra es intocable. barbería-sin-anticipo cae en 'sin_cobro'. ──

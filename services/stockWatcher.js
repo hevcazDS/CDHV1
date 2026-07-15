@@ -803,6 +803,19 @@ function checkSuscripcionesVencidas() {
     return r.generados;
 }
 
+// CRM F3: avanza campañas ACTIVAS (lanzadas por gerente+). Solo encola a
+// cola_notificaciones — el poller escalonado inmutable del bot hace el envío.
+function checkCampanasCRM() {
+    try {
+        const hay = db.prepare("SELECT COUNT(*) n FROM crm_campanas WHERE estatus='activa'").get()?.n || 0;
+        if (!hay) return 0;
+        const { avanzarCampanas } = require('./crmCampanas');
+        const n = avanzarCampanas(db, _insertCola);
+        if (n > 0) log.info('Campañas CRM: ' + n + ' mensajes encolados');
+        return n;
+    } catch (e) { log.debug('checkCampanasCRM: ' + e.message); return 0; }
+}
+
 async function runAll() {
     try {
         // Solo ejecutar checks costosos si hay datos relevantes
@@ -830,6 +843,7 @@ async function runAll() {
         _runCheck(checkLinksPagoPorVencer, 'checkLinksPagoPorVencer');
         _runCheck(checkFiadosVencidos, 'checkFiadosVencidos');
         _runCheck(checkSuscripcionesVencidas, 'checkSuscripcionesVencidas');
+        _runCheck(checkCampanasCRM, 'checkCampanasCRM');
         _runCheck(checkBackupReciente, 'checkBackupReciente');
         _runCheck(checkRelojSistema, 'checkRelojSistema');
         _runCheck(purgarImagenesAntiguas, 'purgarImagenesAntiguas');

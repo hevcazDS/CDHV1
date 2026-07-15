@@ -193,7 +193,76 @@ function segmentoPreview(req, res, ctx, { u }) {
     return json(res, { ok: true, total: clientes.length, clientes: clientes.slice(0, 50) });
 }
 
+
+// ═══ Fase 3: CAMPAÑAS multi-paso (gate humano OBLIGATORIO al lanzar) ═════════
+
+function campanasGet(req, res, ctx) {
+    const { db, json } = ctx;
+    const camps = db.prepare(`
+        SELECT k.*, s.nombre AS segmento_nombre,
+               (SELECT COUNT(*) FROM crm_campana_inscritos i WHERE i.id_campana = k.id) AS inscritos,
+               (SELECT COUNT(*) FROM crm_campana_inscritos i WHERE i.id_campana = k.id AND i.terminado = 1) AS terminados
+        FROM crm_campanas k LEFT JOIN crm_segmentos s ON s.id = k.id_segmento
+        ORDER BY k.id DESC`).all();
+    const pasos = db.prepare('SELECT * FROM crm_campana_pasos ORDER BY id_campana, orden').all();
+    for (const c of camps) c.pasos = pasos.filter(p => p.id_campana === c.id);
+    return json(res, camps);
+}
+
+// POST — crea en BORRADOR (no corre nada hasta lanzarla).
+function campanaPost(req, res, ctx, { ses }) {
+    const { db, json, readJson } = ctx;
+    return readJson(req, res, d => {
+        const nombre = String(d.nombre || '').trim();
+        const idSeg = Number(d.id_segmento) || 0;
+        const pasos = Array.isArray(d.pasos) ? d.pasos : [];
+        if (!nombre) return json(res, { ok: false, error: 'Nombra la campaña' }, 400);
+        if (!db.prepare('SELECT id FROM crm_segmentos WHERE id=?').get(idSeg)) return json(res, { ok: false, error: 'Elige un segmento válido' }, 400);
+        if (!pasos.length || pasos.length > 5) return json(res, { ok: false, error: 'La campaña necesita de 1 a 5 pasos' }, 400);
+        for (const p of pasos) {
+            if (!String(p.mensaje || '').trim()) return json(res, { ok: false, error: 'Cada paso necesita mensaje' }, 400);
+            if (!(Number(p.dia_offset) >= 0)) return json(res, { ok: false, error: 'Cada paso necesita día (0 = al lanzar)' }, 400);
+        }
+        const r = db.transaction(() => {
+            const rc = db.prepare('INSERT INTO crm_campanas (nombre, id_segmento, creado_por) VALUES (?,?,?)')
+                .run(nombre.slice(0, 80), idSeg, ses?.username || null);
+            const insP = db.prepare('INSERT INTO crm_campana_pasos (id_campana, orden, dia_offset, mensaje, condicion_salto) VALUES (?,?,?,?,?)');
+            pasos.forEach((p, i) => insP.run(rc.lastInsertRowid, i + 1, Math.min(90, Number(p.dia_offset)), String(p.mensaje).trim().slice(0, 1000), p.condicion_salto === 'si_compro' ? 'si_compro' : null));
+            return rc.lastInsertRowid;
+        })();
+        return json(res, { ok: true, id: r });
+    });
+}
+
+// POST /:id/lanzar — EL GATE HUMANO: gerente+ (la ruta lo exige), inscribe el
+// snapshot del segmento y activa. aprobada_por queda como rastro de auditoría.
+function campanaLanzar(req, res, ctx, { params, ses }) {
+    const { db, json } = ctx;
+    const id = parseInt(params[0]);
+    const c = db.prepare('SELECT * FROM crm_campanas WHERE id=?').get(id);
+    if (!c) return json(res, { ok: false, error: 'Campaña no encontrada' }, 404);
+    if (c.estatus === 'activa') return json(res, { ok: false, error: 'Ya está activa' }, 400);
+    if (c.estatus === 'terminada') return json(res, { ok: false, error: 'Ya terminó — crea una nueva' }, 400);
+    const { inscribirSegmento } = require('../../services/crmCampanas');
+    const n = c.estatus === 'borrador' ? inscribirSegmento(db, id, c.id_segmento) : 0;   // pausada → reanuda sin re-inscribir
+    db.prepare("UPDATE crm_campanas SET estatus='activa', aprobada_por=?, aprobada_en=datetime('now','localtime') WHERE id=?")
+      .run(ses?.username || null, id);
+    try { db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('campana_lanzada','panel',?,?)").run(c.nombre + ' #' + id, ses?.username || null); } catch (_) {}
+    return json(res, { ok: true, id, inscritos: n, reanudada: c.estatus === 'pausada' });
+}
+
+function campanaPausar(req, res, ctx, { params }) {
+    const { db, json } = ctx;
+    const r = db.prepare("UPDATE crm_campanas SET estatus='pausada' WHERE id=? AND estatus='activa'").run(parseInt(params[0]));
+    if (!r.changes) return json(res, { ok: false, error: 'Solo se pausa una campaña activa' }, 400);
+    return json(res, { ok: true });
+}
+
 const RUTAS = [
+    { metodo: 'GET',  path: '/api/crm/campanas',                        roles: ['gerente'], handler: campanasGet },
+    { metodo: 'POST', path: '/api/crm/campanas',                        roles: ['gerente'], handler: campanaPost },
+    { metodo: 'POST', path: /^\/api\/crm\/campanas\/(\d+)\/lanzar$/,    roles: ['gerente'], handler: campanaLanzar },
+    { metodo: 'POST', path: /^\/api\/crm\/campanas\/(\d+)\/pausar$/,    roles: ['gerente'], handler: campanaPausar },
     { metodo: 'GET',  path: '/api/crm/tareas',                          area: 'operacion', handler: tareasGet },
     { metodo: 'POST', path: /^\/api\/crm\/clientes\/(\d+)\/tareas$/,    area: 'operacion', handler: tareaPost },
     { metodo: 'PUT',  path: /^\/api\/crm\/tareas\/(\d+)$/,              area: 'operacion', handler: tareaPut },
@@ -209,4 +278,5 @@ const RUTAS = [
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/crm' });
-module.exports._test = { pipeline, etapaPut, notasPost, timeline, tareasGet, tareaPost, tareaPut, segmentoPost, segmentoPreview };   // contract tests
+module.exports._sqlDeFiltro = _sqlDeFiltro;   // usado por services/crmCampanas
+module.exports._test = { pipeline, etapaPut, notasPost, timeline, tareasGet, tareaPost, tareaPut, segmentoPost, segmentoPreview, campanaPost, campanaLanzar };   // contract tests

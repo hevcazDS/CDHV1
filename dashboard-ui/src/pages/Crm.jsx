@@ -218,6 +218,94 @@ function SegmentosTab() {
   );
 }
 
+// ── Tab Campañas (gerente): multi-paso sobre un segmento, con GATE humano ────
+function CampanasTab() {
+  const qc = useQueryClient();
+  const [nueva, setNueva] = useState({ nombre: '', id_segmento: '', pasos: [{ dia_offset: 0, mensaje: '', condicion_salto: '' }] });
+
+  const { data: campanas = [] } = useQuery({ queryKey: ['crm-campanas'], queryFn: () => api.get('/api/crm/campanas') });
+  const { data: segmentos = [] } = useQuery({ queryKey: ['crm-segmentos'], queryFn: () => api.get('/api/crm/segmentos') });
+
+  const crear = useMutation({
+    mutationFn: () => api.post('/api/crm/campanas', { ...nueva, id_segmento: Number(nueva.id_segmento) }),
+    onSuccess: (r) => {
+      if (!r.ok) return handleApiError(new Error(r.error));
+      toastOk('Campaña creada en borrador — lánzala cuando estés listo');
+      setNueva({ nombre: '', id_segmento: '', pasos: [{ dia_offset: 0, mensaje: '', condicion_salto: '' }] });
+      qc.invalidateQueries({ queryKey: ['crm-campanas'] });
+    },
+    onError: handleApiError,
+  });
+
+  const lanzar = async (c) => {
+    const ok = await confirmar({
+      titulo: 'Lanzar campaña',
+      mensaje: `"${c.nombre}" se inscribirá al segmento "${c.segmento_nombre}" y empezará a mandar sus ${c.pasos.length} paso(s) por WhatsApp (escalonado, con tu rastro de aprobación). ¿Lanzar?`,
+      peligro: true, textoOk: 'Lanzar campaña',
+    });
+    if (!ok) return;
+    const r = await api.post(`/api/crm/campanas/${c.id}/lanzar`, {}).catch(e => ({ ok: false, error: e.message }));
+    if (r.ok) { toastOk(`Lanzada — ${r.inscritos} inscritos`); qc.invalidateQueries({ queryKey: ['crm-campanas'] }); }
+    else handleApiError(new Error(r.error));
+  };
+  const pausar = async (c) => {
+    const r = await api.post(`/api/crm/campanas/${c.id}/pausar`, {}).catch(e => ({ ok: false, error: e.message }));
+    if (r.ok) qc.invalidateQueries({ queryKey: ['crm-campanas'] });
+    else handleApiError(new Error(r.error));
+  };
+  const setPaso = (i, campo, v) => setNueva(n => ({ ...n, pasos: n.pasos.map((p, j) => j === i ? { ...p, [campo]: v } : p) }));
+
+  return (
+    <div className="split-2w">
+      <Card withBorder radius="md" p="lg" className="card">
+        <div className="card-header"><h3>Nueva campaña</h3></div>
+        <Group grow mb="sm">
+          <TextInput label="Nombre" placeholder="Reactivación dormidos" value={nueva.nombre} onChange={e => setNueva({ ...nueva, nombre: e.target.value })} />
+          <Select label="Segmento" placeholder="Elige la audiencia" data={segmentos.map(s => ({ value: String(s.id), label: s.nombre }))}
+            value={nueva.id_segmento || null} onChange={v => setNueva({ ...nueva, id_segmento: v || '' })} />
+        </Group>
+        {nueva.pasos.map((p, i) => (
+          <Card key={i} withBorder radius="md" p="sm" className="card" mb="xs">
+            <Group gap="xs" mb="xs" align="flex-end">
+              <Text size="xs" fw={600}>Paso {i + 1}</Text>
+              <NumberInput size="xs" label="Día" description="0 = al lanzar" min={0} max={90} style={{ width: 110 }}
+                value={p.dia_offset} onChange={v => setPaso(i, 'dia_offset', Number(v) || 0)} />
+              <Select size="xs" label="Saltar si…" clearable placeholder="(siempre se manda)" style={{ flex: 1 }}
+                data={[{ value: 'si_compro', label: 'Ya compró desde que inició la campaña' }]}
+                value={p.condicion_salto || null} onChange={v => setPaso(i, 'condicion_salto', v || '')} />
+              {nueva.pasos.length > 1 && <Button size="xs" variant="default" onClick={() => setNueva(n => ({ ...n, pasos: n.pasos.filter((_, j) => j !== i) }))}>×</Button>}
+            </Group>
+            <Textarea size="xs" autosize minRows={2} placeholder="Hola {nombre} 👋 …" value={p.mensaje} onChange={e => setPaso(i, 'mensaje', e.target.value)} />
+          </Card>
+        ))}
+        <Group justify="space-between" mt="sm">
+          <Button size="xs" variant="default" disabled={nueva.pasos.length >= 5}
+            onClick={() => setNueva(n => ({ ...n, pasos: [...n.pasos, { dia_offset: 3, mensaje: '', condicion_salto: 'si_compro' }] }))}>+ paso</Button>
+          <Button size="xs" disabled={!nueva.nombre.trim() || !nueva.id_segmento || crear.isPending} onClick={() => crear.mutate()}>Guardar borrador</Button>
+        </Group>
+        <Text size="xs" c="dimmed" mt="sm">El envío es escalonado (anti-baneo) y cada lanzamiento queda auditado con tu usuario. Quien pidió no recibir marketing jamás entra.</Text>
+      </Card>
+
+      <Card withBorder radius="md" p="lg" className="card">
+        <div className="card-header"><h3>Campañas</h3></div>
+        <div className="f-stagger">
+          {campanas.length === 0 && <Text size="sm" c="dimmed">Sin campañas todavía.</Text>}
+          {campanas.map(c => (
+            <div key={c.id} className="f-row">
+              <span className="who">{c.nombre}
+                <span className="t"> · {c.segmento_nombre || '—'} · {c.pasos.length} paso(s) · {c.inscritos} inscritos ({c.terminados} terminados)</span>
+                <span className="t"> · {c.estatus}{c.aprobada_por ? ' — lanzó ' + c.aprobada_por : ''}</span>
+              </span>
+              {(c.estatus === 'borrador' || c.estatus === 'pausada') && <span className="go" onClick={() => lanzar(c)}>{c.estatus === 'pausada' ? 'reanudar' : 'lanzar'}</span>}
+              {c.estatus === 'activa' && <span className="go" style={{ color: 'var(--yellow)' }} onClick={() => pausar(c)}>pausar</span>}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // CRM — Fase 1: pipeline + notas + timeline · Fase 2: tareas + segmentos.
 export default function Crm() {
   const { user } = useAuth();
@@ -234,12 +322,14 @@ export default function Crm() {
           <Tabs.Tab value="pipeline">Pipeline</Tabs.Tab>
           <Tabs.Tab value="tareas">Tareas</Tabs.Tab>
           {esGerente && <Tabs.Tab value="segmentos">Segmentos</Tabs.Tab>}
+          {esGerente && <Tabs.Tab value="campanas">Campañas</Tabs.Tab>}
         </Tabs.List>
       </Tabs>
       <div className="page-scrollable">
         {tab === 'pipeline' && <PipelineTab onAbrir={setSel} />}
         {tab === 'tareas' && <TareasTab />}
         {tab === 'segmentos' && esGerente && <SegmentosTab />}
+        {tab === 'campanas' && esGerente && <CampanasTab />}
       </div>
       <FichaCliente sel={sel} onClose={() => setSel(null)} />
     </div>
