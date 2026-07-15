@@ -195,9 +195,34 @@ t('simulador: inicio + cable custom + pieza base — sin efectos en BD', () => {
     assert.strictEqual(db.prepare('SELECT COUNT(*) n FROM pedidos').get().n, pedidosAntes, 'el simulador jamás escribe');
 });
 
+t('endurecimiento: tope de piezas, cota de nombre, tope de cables (400 limpio)', () => {
+    // nombre de paso larguísimo → 400 (cota de longitud, no solo charset)
+    const outN = {};
+    grafoPut({ _body: { nodos: [
+        { paso: 'MENU', tipo: 'conversacion', params: { delegar: true }, es_inicial: 1 },
+        { paso: 'X'.repeat(60), tipo: 'conversacion', frase_clave: 'promo_x', params: {} },
+    ], aristas: [] } }, null, ctx(outN));
+    assert.strictEqual(outN.code, 400);
+    // 401 piezas → 400 (tope explícito, no depende del cap de body)
+    const muchos = [{ paso: 'MENU', tipo: 'conversacion', params: { delegar: true }, es_inicial: 1 }];
+    for (let i = 0; i < 401; i++) muchos.push({ paso: 'P' + i, tipo: 'conversacion', frase_clave: 'promo_x', params: {} });
+    const outP = {};
+    grafoPut({ _body: { nodos: muchos, aristas: [] } }, null, ctx(outP));
+    assert.strictEqual(outP.code, 400);
+    assert(/piezas/.test(outP.d.error));
+});
+
+t('versionesGet: el activo SIEMPRE va en la lista + activo_id', () => {
+    const { versionesGet } = require('../dashboard/routes/motorFlujo')._test;
+    const out = {};
+    versionesGet(null, null, ctx(out));
+    assert(out.d.activo_id, 'debe exponer activo_id');
+    assert(out.d.versiones.some(v => v.id === out.d.activo_id && v.activo), 'el activo debe estar en la lista y marcado');
+});
+
 (async () => {
     for (const [n, fn] of pruebas) { await fn(); ok++; console.log('✅ ' + n); }
-    console.log('\n' + ok + '/12 OK — C1/C2/C3 + M1/M2/M4 + medias + simulador cerrados.');
+    console.log('\n' + ok + '/14 OK — C1/C2/C3 + M1/M2/M4 + medias + simulador + endurecimiento.');
     try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
     process.exit(0);
 })().catch(e => { console.error('❌', e); process.exit(1); });

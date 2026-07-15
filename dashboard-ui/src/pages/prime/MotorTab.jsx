@@ -115,7 +115,12 @@ export default function MotorTab() {
 
   if (!data) return <div className="empty cargando">Cargando motor de flujo...</div>;
   const opciones = (plas?.plantillas || []).map(p => ({ value: p, label: p }));
-  const versiones = vers?.versiones || [];
+  // Mostrar 10, pero garantizar que la versión activa siempre aparezca (si es
+  // vieja y quedó fuera del top 10, se agrega al final para poder verla/no-perderla).
+  const _todas = vers?.versiones || [];
+  const _top = _todas.slice(0, 10);
+  const _act = _todas.find(v => v.id === vers?.activo_id);
+  const versiones = (_act && !_top.some(v => v.id === _act.id)) ? [..._top, _act] : _top;
 
   return (
     <div>
@@ -150,7 +155,7 @@ export default function MotorTab() {
               </Menu.Target>
               <Menu.Dropdown>
                 <Menu.Label>Historial — restaurar una versión anterior</Menu.Label>
-                {versiones.slice(0, 10).map(v => (
+                {versiones.map(v => (
                   <Menu.Item key={v.id} disabled={!!v.activo || revertir.isPending}
                     onClick={() => revertir.mutate(v.id)}
                     rightSection={v.activo ? <Badge size="xs" color="green">activa</Badge> : <Text size="xs" c="dimmed">restaurar</Text>}>

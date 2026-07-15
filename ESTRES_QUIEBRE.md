@@ -64,8 +64,9 @@
 ## Plan de mejora (priorizado, siempre a favor del bot)
 1. **[HECHO]** Escalar cuando el cliente pide un humano en texto libre.
 2. **[HECHO]** Emoji por giro (sin leak de 🧸) y versionado monótono del seeder.
-3. **[pendiente, baja]** Editor: versión de historial (`GET /versiones`) que marque
-   cuál es la activa; cota de longitud al nombre de paso; tope explícito de nodos.
+3. **[HECHO]** Endurecimiento del editor: `GET /versiones` garantiza que la versión
+   activa siempre aparezca en la lista (+ `activo_id`) aunque sea vieja; cota de
+   longitud al nombre de paso (≤40); tope explícito de piezas (≤400) y cables (≤2000).
 4. **[pendiente, telemetría primero]** Medir con `log_eventos 'fallback'` si hay tercos
    que dan vueltas; si los hay, contador de sinsentidos consecutivos → oferta de humano
    a nivel de las 3 búsquedas (MENU/SEARCHING/VIEW_PRODUCT), no solo el callejón raro.

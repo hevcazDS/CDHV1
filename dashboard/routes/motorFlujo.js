@@ -113,12 +113,18 @@ function grafoPut(req, res, ctx) {
         const nodos = Array.isArray(body.nodos) ? body.nodos : null;
         const aristas = Array.isArray(body.aristas) ? body.aristas : [];
         if (!nodos || !nodos.length) return json(res, { ok: false, error: 'nodos requeridos' }, 400);
+        // Tope explícito (antes solo lo frenaba el cap de body de 1 MB): un flujo
+        // real de un negocio ronda decenas de piezas; 400/2000 es holgado y evita
+        // que un payload absurdo martille lint+BD.
+        if (nodos.length > 400) return json(res, { ok: false, error: 'demasiadas piezas (máx 400)' }, 400);
+        if (aristas.length > 2000) return json(res, { ok: false, error: 'demasiados caminos (máx 2000)' }, 400);
 
         const actual = grafo.cargarGrafoActivo();
         const porPaso = {};
         for (const n of nodos) {
             const paso = String(n.paso || '').trim();
-            if (!/^[A-Z0-9_]+$/i.test(paso)) return json(res, { ok: false, error: 'paso inválido: ' + n.paso }, 400);
+            // cota de longitud además del charset: un nombre de paso es un identificador corto
+            if (!/^[A-Z0-9_]{1,40}$/i.test(paso)) return json(res, { ok: false, error: 'paso inválido: ' + String(n.paso).slice(0, 30) }, 400);
             if (porPaso[paso]) return json(res, { ok: false, error: 'paso duplicado: ' + paso }, 400);
             porPaso[paso] = n;
         }
@@ -193,11 +199,17 @@ function grafoPut(req, res, ctx) {
 // anterior inactiva en flujo_grafo — esto la lista y permite restaurarla.
 function versionesGet(req, res, ctx) {
     const { db, json } = ctx;
+    // El activo SIEMPRE va en la lista: si se revirtió a una versión vieja y luego
+    // se guardaron 30 más nuevas, el activo caería fuera del LIMIT y la UI no
+    // marcaría ninguna como activa (hallazgo del estrés). Se une explícito.
     const filas = db.prepare(`
         SELECT g.id, g.version, g.giro_base, g.activo, g.valido, g.creado_en,
                (SELECT COUNT(*) FROM flujo_nodo n WHERE n.id_grafo = g.id) AS nodos
-        FROM flujo_grafo g ORDER BY g.version DESC LIMIT 30`).all();
-    return json(res, { versiones: filas });
+        FROM flujo_grafo g
+        WHERE g.activo = 1 OR g.id IN (SELECT id FROM flujo_grafo ORDER BY version DESC LIMIT 30)
+        ORDER BY g.version DESC`).all();
+    const activo = filas.find(f => f.activo);
+    return json(res, { versiones: filas, activo_id: activo ? activo.id : null });
 }
 
 // POST /api/prime/motor/revertir { id } — re-activa una versión anterior,
