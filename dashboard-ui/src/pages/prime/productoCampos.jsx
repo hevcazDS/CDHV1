@@ -23,7 +23,7 @@ export const TIPO_JUGUETE_OPTIONS = [
 
 export const PRODUCTO_VACIO = {
   tipo: 'fisico',
-  name: '', price: '', costo: '', unidad_medida: 'pza', sku: '', upc: '', brand: '', handle: '',
+  name: '', price: '', costo: '', unidad_medida: 'pza', unidad_compra: '', factor_compra: 1, sku: '', upc: '', brand: '', handle: '',
   cat: '', id_categoria: null,
   genero: '', tipo_juguete: '', edad_min: 0, edad_max: 99,
   peso_kg: '', alto_cm: '', ancho_cm: '', largo_cm: '',
@@ -42,6 +42,8 @@ export function armarDatosProducto(v) {
     price: Number(v.price),
     costo: (v.costo === '' || v.costo == null) ? undefined : Number(v.costo),
     unidad_medida: v.unidad_medida || 'pza',
+    unidad_compra: v.unidad_compra || undefined,
+    factor_compra: Number(v.factor_compra) > 0 ? Number(v.factor_compra) : 1,
     sku: v.sku || undefined,
     upc: v.upc || undefined,
     brand: v.brand || undefined,
@@ -150,6 +152,9 @@ export function CamposProducto({ form, categorias, onCrearCategoria }) {
               { value: 'g', label: 'Gramo (g)' }, { value: 'lt', label: 'Litro (lt)' },
               { value: 'ml', label: 'Mililitro (ml)' }, { value: 'm', label: 'Metro (m)' },
             ]} allowDeselect={false} {...form.getInputProps('unidad_medida')} />
+          <TextInput label="Unidad de compra" placeholder="caja / bulto / rollo (opcional)" {...form.getInputProps('unidad_compra')} />
+          <NumberInput label="Factor de compra" description="Cuántas unidades de venta trae 1 unidad de compra (caja de 100 → 100)"
+            min={0.001} decimalScale={3} {...form.getInputProps('factor_compra')} />
           {(() => {
             const pr = Number(form.values.price), co = Number(form.values.costo);
             if (!(pr > 0) || !(co >= 0) || form.values.costo === '') return <div style={{ fontSize: 12, color: 'var(--text-mute)' }}>Captura el costo para ver tu margen.</div>;

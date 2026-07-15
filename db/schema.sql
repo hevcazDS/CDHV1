@@ -307,6 +307,8 @@ CREATE TABLE IF NOT EXISTS productos (
     activo                  INTEGER NOT NULL DEFAULT 1,
     peso_kg                 REAL DEFAULT 0,
     unidad_medida           TEXT NOT NULL DEFAULT 'pza',  -- migrations/0068 (pza|kg|g|lt|ml|m)
+    unidad_compra           TEXT,                        -- migrations/0071 (caja/bulto/rollo…)
+    factor_compra           REAL NOT NULL DEFAULT 1,     -- migrations/0071 (unidades de venta por unidad de compra)
     alto_cm                 REAL DEFAULT 0,
     ancho_cm                REAL DEFAULT 0,
     largo_cm                REAL DEFAULT 0,

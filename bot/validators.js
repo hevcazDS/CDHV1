@@ -203,6 +203,8 @@ const ProductoBaseSchema = z.object({
     price:                 z.number().min(0),
     costo:                 z.number().min(0).optional().nullable(),
     unidad_medida:         z.enum(['pza', 'kg', 'g', 'lt', 'ml', 'm']).optional(),   // 0068: venta por peso/granel
+    unidad_compra:         z.string().max(30).optional().nullable(),               // 0071: caja/bulto/rollo
+    factor_compra:         z.number().min(0.001).optional(),                       // 0071: unidades de venta por unidad de compra
     sku:                   z.string().max(60).optional().nullable(),
     upc:                   z.string().max(60).optional().nullable(),
     brand:                 z.string().max(100).optional().nullable(),

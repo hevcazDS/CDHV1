@@ -191,15 +191,15 @@ function productosPost(req, res, ctx, { ses }) {
             const crear = db.transaction((datos) => {
                 const r = db.prepare(`
                     INSERT INTO productos (
-                        tipo, name, cat, price, costo, unidad_medida, sku, upc, brand, handle, description, url_imagen,
+                        tipo, name, cat, price, costo, unidad_medida, unidad_compra, factor_compra, sku, upc, brand, handle, description, url_imagen,
                         tags, seo_description, material, color, target_audience, tipo_juguete,
                         edad_recomendada, edad_min, edad_max, genero, id_categoria,
                         peso_kg, alto_cm, ancho_cm, largo_cm,
                         stock_tienda, stock_cedis, stock_san_luis_potosi, stock_exhibicion,
                         stock_queretaro, stock_monterrey, stock_cdmx_centro, stock_base, creado_por, creado_en
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))`).run(
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))`).run(
                     datos.tipo || 'fisico',
-                    datos.name, datos.cat || '', datos.price, datos.costo ?? null, ['pza','kg','g','lt','ml','m'].includes(datos.unidad_medida) ? datos.unidad_medida : 'pza', datos.sku || null, datos.upc || null,
+                    datos.name, datos.cat || '', datos.price, datos.costo ?? null, ['pza','kg','g','lt','ml','m'].includes(datos.unidad_medida) ? datos.unidad_medida : 'pza', datos.unidad_compra || null, Number(datos.factor_compra) > 0 ? Number(datos.factor_compra) : 1, datos.sku || null, datos.upc || null,
                     datos.brand || null, datos.handle || null, datos.description || null, datos.url_imagen || null,
                     datos.tags || null, datos.seo_description || null, datos.material || null, datos.color || null,
                     datos.target_audience || null, datos.tipo_juguete || null,
@@ -311,22 +311,32 @@ function entradaMercancia(req, res, ctx, { ses }) {
             const sucursal = String(d.sucursal || '').trim();
             const cantidad = Math.round((parseFloat(d.cantidad) || 0) * 1000) / 1000;   // decimal: granel (P1)
             if (!idProducto || !sucursal || !(cantidad > 0)) return json(res, { ok: false, error: 'id_producto, sucursal y cantidad (>0) son obligatorios' }, 400);
-            const prod = db.prepare('SELECT id, name FROM productos WHERE id=?').get(idProducto);
+            const prod = db.prepare('SELECT id, name, unidad_compra, factor_compra FROM productos WHERE id=?').get(idProducto);
             if (!prod) return json(res, { ok: false, error: 'Producto no encontrado' }, 404);
             const pk = pkInventarios(db);
-            const costoNum = (d.costo !== undefined && d.costo !== null && d.costo !== '') ? Number(d.costo) : null;
+            // P6 (conversión compra↔venta): en_unidad_compra=true → la cantidad
+            // viene en cajas/bultos y se convierte a unidades de VENTA con
+            // factor_compra; el costo capturado (por caja) se prorratea.
+            const factor = Number(prod.factor_compra) > 0 ? Number(prod.factor_compra) : 1;
+            const enUC = !!d.en_unidad_compra && factor !== 1;
+            const cantidadCompra = cantidad;
+            const cantidadEfectiva = enUC ? Math.round(cantidad * factor * 1000) / 1000 : cantidad;
+            let costoNum = (d.costo !== undefined && d.costo !== null && d.costo !== '') ? Number(d.costo) : null;
+            if (enUC && costoNum !== null && costoNum >= 0) costoNum = Math.round((costoNum / factor) * 10000) / 10000;
             const proveedor = String(d.proveedor || '').trim();
             const tx = db.transaction(() => {
                 const fila = db.prepare('SELECT * FROM inventarios WHERE id_producto=? AND sucursal=?').get(idProducto, sucursal);
                 const anterior = fila ? (fila.stock || 0) : 0;
-                const nueva = anterior + cantidad;
+                const nueva = anterior + cantidadEfectiva;
                 if (costoNum !== null && costoNum >= 0) {
-                    try { require('../../services/costeoService').registrarEntrada(idProducto, cantidad, costoNum, 'entrada_manual' + (proveedor ? ':' + proveedor : '')); }
+                    try { require('../../services/costeoService').registrarEntrada(idProducto, cantidadEfectiva, costoNum, 'entrada_manual' + (proveedor ? ':' + proveedor : '')); }
                     catch (_) { db.prepare('UPDATE productos SET costo=? WHERE id=?').run(costoNum, idProducto); }
                 }
                 if (fila) db.prepare(`UPDATE inventarios SET stock=? WHERE ${pk}=?`).run(nueva, fila[pk]);
                 else db.prepare('INSERT INTO inventarios (id_producto, sucursal, stock, stock_minimo) VALUES (?, ?, ?, 0)').run(idProducto, sucursal, nueva);
-                const motivo = 'Entrada de mercancía' + (proveedor ? ' — Proveedor: ' + proveedor : '');
+                const motivo = 'Entrada de mercancía'
+                    + (enUC ? ' — ' + cantidadCompra + ' ' + (prod.unidad_compra || 'caja') + '(s) × ' + factor : '')
+                    + (proveedor ? ' — Proveedor: ' + proveedor : '');
                 // lote/caducidad (P4 lean): viven en el movimiento de entrada.
                 const lote = String(d.lote || '').trim().slice(0, 40) || null;
                 const caducidad = /^\d{4}-\d{2}-\d{2}$/.test(d.caducidad || '') ? d.caducidad : null;
@@ -336,10 +346,10 @@ function entradaMercancia(req, res, ctx, { ses }) {
             });
             const r = tx();
             if (costoNum !== null && costoNum >= 0) {
-                try { require('../../services/contabilidadService').asientoEntradaContado(prod.name + ' ×' + cantidad, costoNum * cantidad); }
+                try { require('../../services/contabilidadService').asientoEntradaContado(prod.name + ' ×' + cantidadEfectiva, costoNum * cantidadEfectiva); }
                 catch (e) { log.debug('Asiento de entrada no registrado: ' + e.message); }
             }
-            log.info('[prime] entrada de mercancía: ' + prod.name + ' +' + cantidad + ' (' + sucursal + ')');
+            log.info('[prime] entrada de mercancía: ' + prod.name + ' +' + cantidadEfectiva + ' (' + sucursal + ')');
             return json(res, { ok: true, id_producto: idProducto, sucursal, stock_anterior: r.anterior, stock_nuevo: r.nueva });
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
     });
