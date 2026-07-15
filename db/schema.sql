@@ -245,6 +245,7 @@ CREATE TABLE IF NOT EXISTS clientes (
     tipo_pref         TEXT,
     presupuesto_pref  TEXT,
     lead_score        INTEGER DEFAULT 0,
+    etapa                  TEXT,                       -- migrations/0074 (pipeline CRM; NULL = derivada)
     -- programa de referidos: código propio del cliente (5 caracteres
     -- alfanuméricos sin prefijo, ver bot/handlers/referidosService.js),
     -- quién lo refirió (si aplica), y si ya usó su 10% de bienvenida como
@@ -1267,6 +1268,25 @@ CREATE TABLE IF NOT EXISTS ordenes_servicio (
 );
 CREATE INDEX IF NOT EXISTS idx_ordenes_servicio_estatus ON ordenes_servicio(estatus);
 
+
+-- 0074: CRM fase 1 — log del pipeline + notas por cliente
+CREATE TABLE IF NOT EXISTS crm_etapas (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente INTEGER NOT NULL REFERENCES clientes(id),
+    de         TEXT,
+    a          TEXT NOT NULL,
+    creado_por TEXT,
+    creado_en  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_crm_etapas_cliente ON crm_etapas(id_cliente);
+CREATE TABLE IF NOT EXISTS crm_notas (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente INTEGER NOT NULL REFERENCES clientes(id),
+    contenido  TEXT NOT NULL,
+    creado_por TEXT,
+    creado_en  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_crm_notas_cliente ON crm_notas(id_cliente);
 -- 0065: motor de flujo configurable (grafo por instancia). Inerte sin grafo activo.
 CREATE TABLE IF NOT EXISTS flujo_grafo (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

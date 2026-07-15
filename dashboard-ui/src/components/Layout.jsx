@@ -9,7 +9,7 @@ import {
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
   LogOut, Landmark, Warehouse, ShoppingCart, IdCard,
-  UserCog, Utensils, Wallet, CalendarClock, ClipboardList, FileText,
+  UserCog, Utensils, Wallet, CalendarClock, ClipboardList, FileText, TrendingUp,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
@@ -55,6 +55,7 @@ const GRUPOS = [
     { to: '/cola', area: 'operacion', label: 'Cola de atención', Icono: MessagesSquare },
     { to: '/notificaciones', area: 'operacion', label: 'Chat y mensajes', Icono: MessageCircle },
     { to: '/clientes', area: 'operacion', label: 'Clientes', Icono: Users },
+    { to: '/crm', area: 'operacion', label: 'CRM · Pipeline', Icono: TrendingUp },
     { to: '/ranking', area: 'operacion', label: 'Ranking', Icono: Trophy },
     { to: '/marketing', label: 'Marketing', Icono: Tag, rolRequerido: 'gerente' },
   ]},

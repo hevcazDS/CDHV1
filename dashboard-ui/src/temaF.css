@@ -489,3 +489,8 @@ html[data-tema-ui="f"][data-tono-f="oscuro"] .mantine-Input-input {
   background: var(--panel-2); color: var(--text); border-color: var(--hair);
 }
 html[data-tema-ui="f"][data-tono-f="oscuro"] ::placeholder { color: var(--niebla); }
+
+/* CRM kanban: 5 columnas -> 2 en angosto, 1 en móvil */
+.crm-cols { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 1200px) { .crm-cols { grid-template-columns: repeat(2, 1fr) !important; } }
+@media (max-width: 700px) { .crm-cols { grid-template-columns: 1fr !important; } }

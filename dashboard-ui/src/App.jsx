@@ -17,6 +17,7 @@ const Inicio = lazy(() => import('./pages/Inicio'));
 const Pedidos = lazy(() => import('./pages/Pedidos'));
 const Devoluciones = lazy(() => import('./pages/Devoluciones'));
 const Clientes = lazy(() => import('./pages/Clientes'));
+const Crm = lazy(() => import('./pages/Crm'));
 const Guias = lazy(() => import('./pages/Guias'));
 const ColaAtencion = lazy(() => import('./pages/ColaAtencion'));
 const MarketingModulo = lazy(() => import('./pages/MarketingModulo'));
@@ -79,6 +80,7 @@ export default function App() {
         <Route path="/pedidos" element={<Pedidos />} />
         <Route path="/devoluciones" element={<Devoluciones />} />
         {permite(user.rol, 'operacion') && <Route path="/clientes" element={<Clientes />} />}
+        {permite(user.rol, 'operacion') && <Route path="/crm" element={<Crm />} />}
         <Route path="/guias" element={<Guias />} />
         <Route path="/cola" element={<ColaAtencion />} />
         {/* Ola 2: Marketing y Catálogo son módulos; las rutas viejas redirigen */}
