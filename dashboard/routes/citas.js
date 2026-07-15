@@ -149,10 +149,28 @@ function comisiones(req, res, ctx, { u }) {
     });
 }
 
+// GET/PUT /api/citas/anticipo-config — % de anticipo al agendar por el bot
+// (0 = apagado). Gerente+. El bot lo lee de configuracion.citas_anticipo_pct.
+function anticipoGet(req, res, ctx) {
+    const { db, json } = ctx;
+    const v = parseFloat(db.prepare("SELECT valor FROM configuracion WHERE clave='citas_anticipo_pct'").get()?.valor || '0') || 0;
+    return json(res, { pct: v });
+}
+function anticipoPut(req, res, ctx) {
+    const { db, json, readJson } = ctx;
+    return readJson(req, res, d => {
+        const pct = Math.min(100, Math.max(0, Number(d.pct) || 0));
+        db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('citas_anticipo_pct', ?, datetime('now','localtime'))").run(String(pct));
+        return json(res, { ok: true, pct });
+    });
+}
+
 const RUTAS = [
     { metodo: 'GET',  path: '/api/citas',            area: 'operacion', handler: listar },
     { metodo: 'GET',  path: '/api/citas/empleados',  area: 'operacion', handler: empleadosLigero },
     { metodo: 'GET',  path: '/api/citas/comisiones', roles: ['gerente'], handler: comisiones },
+    { metodo: 'GET',  path: '/api/citas/anticipo-config', roles: ['gerente'], handler: anticipoGet },
+    { metodo: 'PUT',  path: '/api/citas/anticipo-config', roles: ['gerente'], handler: anticipoPut },
     { metodo: 'POST', path: '/api/citas',            area: 'operacion', handler: crear },
     { metodo: 'PUT',  path: /^\/api\/citas\/(\d+)$/, area: 'operacion', handler: actualizar },
     { metodo: 'POST', path: /^\/api\/citas\/(\d+)\/cobrar$/, areas: ['pos', 'operacion'], handler: cobrar },

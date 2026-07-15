@@ -569,6 +569,7 @@ const ROUTE_MODULES = [
     require('./routes/instancias'),
     require('./routes/flota'),
     require('./routes/motorFlujo'),
+    require('./routes/ordenesServicio'),
 ];
 
 function handleAPI(req, res) {

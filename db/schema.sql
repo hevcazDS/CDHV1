@@ -1248,6 +1248,25 @@ CREATE TABLE IF NOT EXISTS citas (
 CREATE INDEX IF NOT EXISTS idx_citas_fecha ON citas(fecha, hora);
 CREATE INDEX IF NOT EXISTS idx_citas_tel ON citas(telefono);
 
+-- 0073: órdenes de servicio/trabajo (mantenimiento/servicios) — evidencia de qué se hizo
+CREATE TABLE IF NOT EXISTS ordenes_servicio (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    folio             TEXT,
+    id_cliente        INTEGER,
+    id_cita           INTEGER,
+    cliente_nombre    TEXT,
+    telefono          TEXT,
+    descripcion       TEXT NOT NULL,
+    trabajo_realizado TEXT,
+    estatus           TEXT NOT NULL DEFAULT 'abierta'
+                      CHECK(estatus IN ('abierta','en_curso','completada','cancelada')),
+    id_empleado       INTEGER,
+    creado_por        TEXT,
+    creado_en         TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    cerrado_en        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ordenes_servicio_estatus ON ordenes_servicio(estatus);
+
 -- 0065: motor de flujo configurable (grafo por instancia). Inerte sin grafo activo.
 CREATE TABLE IF NOT EXISTS flujo_grafo (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -285,7 +285,8 @@ function negocioGet(req, res, ctx) {
     // tema_ui: 'f' (rediseño minimalista, DEFAULT) | 'clasico' (tema anterior).
     // Reversible por instancia desde Prime → Ajustes (REDISENO_UI_F.md §5).
     const tema = db.prepare("SELECT valor FROM configuracion WHERE clave='tema_ui' LIMIT 1").get()?.valor;
-    return json(res, { nombre_negocio: r ? r.valor : 'Julio Cepeda', tema_ui: tema === 'clasico' ? 'clasico' : 'f' });
+    const giro = db.prepare("SELECT valor FROM configuracion WHERE clave='giro' LIMIT 1").get()?.valor || 'jugueteria';
+    return json(res, { nombre_negocio: r ? r.valor : 'Julio Cepeda', tema_ui: tema === 'clasico' ? 'clasico' : 'f', giro });
 }
 
 // PUT /api/prime/tema-ui { tema: 'f' | 'clasico' } — selector del rediseño (prime).

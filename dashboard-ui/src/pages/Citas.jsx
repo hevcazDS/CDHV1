@@ -27,6 +27,14 @@ export default function Citas() {
   });
 
   // Quién atiende (barbería/estética multi-staff): lista ligera id+nombre.
+  // % de anticipo al agendar (gerente): 0 = apagado. El bot manda el link al confirmar.
+  const { data: antCfg } = useQuery({ queryKey: ['citas-anticipo'], queryFn: () => api.get('/api/citas/anticipo-config').catch(() => null) });
+  const guardarAnticipo = useMutation({
+    mutationFn: (pct) => api.put('/api/citas/anticipo-config', { pct }),
+    onSuccess: () => { toastOk('Anticipo actualizado'); qc.invalidateQueries({ queryKey: ['citas-anticipo'] }); },
+    onError: handleApiError,
+  });
+
   const { data: empleados = [] } = useQuery({
     queryKey: ['citas-empleados'],
     queryFn: () => api.get('/api/citas/empleados').catch(() => []),
@@ -67,6 +75,14 @@ export default function Citas() {
     <div className="sin-scroll">
       <div className="page-title">Citas</div>
       <div className="page-sub">Agenda de la semana — el bot agenda solo cuando el módulo Citas está activo</div>
+      {antCfg && (
+        <Text size="xs" c="dimmed" mb="sm" style={{ cursor: 'pointer' }} onClick={async () => {
+          const v = await prompt({ titulo: 'Anticipo al agendar', mensaje: 'Porcentaje de anticipo que el bot cobra al confirmar una cita (0 = apagado):', valorInicial: String(antCfg.pct) });
+          if (v !== null) guardarAnticipo.mutate(Number(String(v).replace(/[^0-9.]/g, '')) || 0);
+        }}>
+          💳 Anticipo al agendar: <strong>{antCfg.pct > 0 ? antCfg.pct + '%' : 'apagado'}</strong> · cambiar
+        </Text>
+      )}
       <div className="page-scrollable">
       <div className="split-2w">
         <Card withBorder radius="md" p="lg" className="card">

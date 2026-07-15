@@ -40,6 +40,7 @@ const GRUPOS = [
     { to: '/mesas', label: 'Mesas', Icono: Utensils, area: 'pos', moduloRequerido: 'mesas_activo' },
     { to: '/cocina', label: 'Cocina', Icono: Utensils, area: 'pos', moduloRequerido: 'mesas_activo' },
     { to: '/citas', label: 'Citas', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'citas_activo' },
+    { to: '/ordenes-servicio', label: 'Órdenes de servicio', Icono: ClipboardList, area: 'operacion', moduloRequerido: 'citas_activo' },
     { to: '/suscripciones', label: 'Suscripciones', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'suscripcion_activo' },
     { to: '/documentos', label: 'Documentos', Icono: FileText, area: 'operacion', moduloRequerido: 'documentos_activo' },
     { to: '/pedidos', area: 'operacion', label: 'Pedidos', Icono: Package },
@@ -154,6 +155,7 @@ export default function Layout() {
       const tema = d?.tema_ui === 'clasico' ? 'clasico' : 'f';
       document.documentElement.setAttribute('data-tema-ui', tema);
       try { localStorage.setItem('tema-ui', tema); } catch (_) {}
+      if (d?.giro) { try { localStorage.setItem('giro', d.giro); } catch (_) {} }
     }).catch(() => {});
   }, []);
 

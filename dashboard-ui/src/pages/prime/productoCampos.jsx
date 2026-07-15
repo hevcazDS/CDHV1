@@ -121,7 +121,16 @@ export function SelectCategoria({ form, categorias, onCrearCategoria }) {
 // Bloque de Fieldsets compartido entre Alta y Edición de producto — ambos
 // tocan exactamente las mismas columnas reales de `productos` (decisión
 // explícita: exponer todas de una vez, no por etapas).
+// Campos visibles según el GIRO (auditoría r2): carnicería/abarrotes no deben
+// ver edad/género/tipo de juguete. El giro llega cacheado de /api/negocio.
+function _giro() { try { return localStorage.getItem('giro') || 'jugueteria'; } catch (_) { return 'jugueteria'; } }
+
 export function CamposProducto({ form, categorias, onCrearCategoria }) {
+  const giro = _giro();
+  const esJuguete = ['jugueteria', 'custom'].includes(giro);
+  const esRopa = giro === 'retail';
+  // dimensiones/peso: solo giros que envían paquetería con frecuencia
+  const conDimensiones = !['carniceria', 'abarrotes', 'restaurante', 'barberia', 'estetica', 'unas', 'tatuajes', 'servicios', 'mantenimiento'].includes(giro);
   return (
     <>
       <Fieldset legend="Identificación" mb="md">
@@ -165,31 +174,35 @@ export function CamposProducto({ form, categorias, onCrearCategoria }) {
       </Fieldset>
 
       <Fieldset legend="Clasificación" mb="md">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-          <Select label="Género" placeholder="Género" data={GENERO_OPTIONS} clearable {...form.getInputProps('genero')} />
-          <Select label="Tipo de juguete" placeholder="Tipo" data={TIPO_JUGUETE_OPTIONS} clearable {...form.getInputProps('tipo_juguete')} />
-          <NumberInput label="Edad mínima" min={0} max={99} clampBehavior="strict" allowDecimal={false} {...form.getInputProps('edad_min')} />
-          <NumberInput label="Edad máxima" min={0} max={99} clampBehavior="strict" allowDecimal={false} {...form.getInputProps('edad_max')} />
-        </div>
-        <TextInput label="Tags (separados por coma)" {...form.getInputProps('tags')} />
+        {(esJuguete || esRopa) && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+            <Select label="Género" placeholder="Género" data={GENERO_OPTIONS} clearable {...form.getInputProps('genero')} />
+            {esJuguete && <Select label="Tipo de juguete" placeholder="Tipo" data={TIPO_JUGUETE_OPTIONS} clearable {...form.getInputProps('tipo_juguete')} />}
+            {esJuguete && <NumberInput label="Edad mínima" min={0} max={99} clampBehavior="strict" allowDecimal={false} {...form.getInputProps('edad_min')} />}
+            {esJuguete && <NumberInput label="Edad máxima" min={0} max={99} clampBehavior="strict" allowDecimal={false} {...form.getInputProps('edad_max')} />}
+          </div>
+        )}
+        <TextInput label="Tags (separados por coma)" description="Alimentan la búsqueda del bot" {...form.getInputProps('tags')} />
       </Fieldset>
 
-      <Fieldset legend="Dimensiones y peso" mb="md">
+      {conDimensiones && <Fieldset legend="Dimensiones y peso" mb="md">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
           <NumberInput label="Peso (kg)" min={0} step={0.01} {...form.getInputProps('peso_kg')} />
           <NumberInput label="Alto (cm)" min={0} step={0.1} {...form.getInputProps('alto_cm')} />
           <NumberInput label="Ancho (cm)" min={0} step={0.1} {...form.getInputProps('ancho_cm')} />
           <NumberInput label="Largo (cm)" min={0} step={0.1} {...form.getInputProps('largo_cm')} />
         </div>
-      </Fieldset>
+      </Fieldset>}
 
       <Fieldset legend="Imagen y contenido" mb="md">
         <TextInput label="URL de imagen" {...form.getInputProps('url_imagen')} mb="sm" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-          <TextInput label="Material" {...form.getInputProps('material')} />
-          <TextInput label="Color" {...form.getInputProps('color')} />
-          <TextInput label="Público objetivo" {...form.getInputProps('target_audience')} />
-        </div>
+        {(esJuguete || esRopa) && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+            <TextInput label="Material" {...form.getInputProps('material')} />
+            <TextInput label="Color" {...form.getInputProps('color')} />
+            <TextInput label="Público objetivo" {...form.getInputProps('target_audience')} />
+          </div>
+        )}
         <Textarea label="Descripción" mb="sm" {...form.getInputProps('description')} />
         <Textarea label="Descripción SEO" {...form.getInputProps('seo_description')} />
       </Fieldset>

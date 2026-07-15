@@ -146,11 +146,29 @@ async function handle(ctx) {
         if (!slotsLibres(data.cita_fecha).includes(data.cita_hora)) {
             return '😕 Esa hora se acaba de ocupar. ' + iniciar(userId, data);
         }
-        registrarCita(data, tel);
+        const idCita = registrarCita(data, tel);
+        // Anticipo (auditoría de giros r2 #4): si citas_anticipo_pct > 0 y el
+        // servicio tiene precio, genera un PEDIDO de anticipo (maquinaria
+        // sellada de _shared: la misma ruta de dinero de todo) y manda el link.
+        // 0 o sin precio → nada (comportamiento de siempre, byte-idéntico).
+        let _msgAnticipo = '';
+        try {
+            const pct = Math.min(100, Math.max(0, parseFloat(getValor('citas_anticipo_pct', '0')) || 0));
+            const precio = Number(data.cita_servicio_precio) || 0;
+            if (pct > 0 && precio > 0) {
+                const shared = require('./_shared');
+                const anticipo = Math.round(precio * pct) / 100;
+                const saldo = Math.round((precio - anticipo) * 100) / 100;
+                const carrito = [{ id: data.cita_servicio_id || null, name: data.cita_servicio || 'Servicio', price: anticipo, cantidad: 1, tipo: 'servicio' }];
+                const r = shared.grabarPedidoAnticipoCita({ ...data, carrito, total: anticipo }, tel);
+                db.prepare('UPDATE citas SET anticipo=?, saldo_pendiente=? WHERE id=?').run(anticipo, saldo, idCita);
+                _msgAnticipo = '\n\n💳 Para apartar tu lugar, cubre el anticipo del ' + pct + '%: *$' + anticipo.toFixed(2) + '*\n' + r.linkUrl + '\n_El resto ($' + saldo.toFixed(2) + ') se paga el día de tu cita._';
+            }
+        } catch (e) { log.debug('Anticipo de cita no generado: ' + e.message); }
         sessionManager.updateSession(userId, S.MENU, {});
         const V = vocab();
         return `🎉 ¡Listo! Tu cita quedó agendada:\n\n${data.cita_servicio ? '💈 *' + data.cita_servicio + '*\n' : ''}📅 *${data.cita_label}* a las *${data.cita_hora}*\n\n` +
-            `Te mandaré un recordatorio un día antes. Si necesitas cambiarla, escribe *asesor*.\n\n_Escribe *menu* para volver al inicio._`;
+            `Te mandaré un recordatorio un día antes. Si necesitas cambiarla, escribe *asesor*.` + _msgAnticipo + `\n\n_Escribe *menu* para volver al inicio._`;
     }
 
     return null;
