@@ -162,6 +162,9 @@ function frasesGet(req, res, ctx) {
         cancelado: 'Al cancelar/regresar al menu', error_generico: 'Cuando algo falla',
         texto_libre: 'Cuando no entiende el mensaje', lista_espera_oferta: 'Oferta de lista de espera',
         gracias_cierre: 'Despedida al cerrar',
+        cotizacion_resumen: 'Cotización del carrito (módulo Cotizar) — usa {cotizacion_subtotal} {cotizacion_envio} {cotizacion_total}',
+        cotizacion_vacia: 'Cotización con el carrito vacío',
+        eta_envio: 'Tiempo de entrega estimado (módulo Tiempo de entrega) — usa {eta_fecha}',
     };
     const filas = Object.keys(conf.FRASES).map(clave => ({
         clave, descripcion: DESCRIPCION[clave] || clave,

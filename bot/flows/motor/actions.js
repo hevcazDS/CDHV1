@@ -99,6 +99,40 @@ const ACTIONS = {
         return { resultado: 'ok', data: {} };
     },
 
+    // ── COTIZACIÓN + TIEMPO DE ENTREGA — APOYO al bot, NO selladas ──────────────
+    // Contestan "¿cuánto me sale?" y "¿cuándo llega?" SIN escalar. Solo LECTURA:
+    // nunca graban pedido ni cobran (el dinero sigue por la ruta sellada
+    // marcar-pagado). Gated por su módulo (default OFF): apagado → 'inactivo', para
+    // que el autor enrute a un fallback (ej. pasar con asesor). El TEXTO que ve el
+    // cliente NO vive aquí: lo pone la frase de la pieza (t(), 4 tonos, editable)
+    // interpolando los slots que estas acciones devuelven. Regla de negocio: solo
+    // el flete puede decirse "gratis", jamás el precio del producto.
+    cotizar: (ctx) => {
+        if (!require('../_config').moduloActivo('cotizacion_activo')) return { resultado: 'inactivo', data: {} };
+        const carrito = ctx.data.carrito || [];
+        if (!carrito.length) return { resultado: 'vacio', data: {} };
+        const subtotal = shared.totalCarrito(carrito);
+        const envio    = shared.calcularFlete(subtotal);
+        const total    = subtotal + envio;
+        const n = carrito.reduce((s, i) => s + (i.cantidad || 1), 0);
+        return { resultado: 'ok', data: {
+            cotizacion_n: n,
+            cotizacion_subtotal: subtotal.toFixed(2),
+            cotizacion_envio: envio === 0 ? 'gratis' : ('$' + envio.toFixed(2)),   // "gratis" solo aquí (flete)
+            cotizacion_total: total.toFixed(2),
+        } };
+    },
+    tiempo_entrega: (ctx) => {
+        if (!require('../_config').moduloActivo('tiempo_entrega_activo')) return { resultado: 'inactivo', data: {} };
+        try {
+            const r = shared.estafeta.calcularFechaEntrega();   // respeta config estafeta_dias_entrega, no domingos
+            return { resultado: 'ok', data: {
+                eta_fecha: shared.estafeta._formatDateHuman(r.fechaEntregaObj),   // "miércoles 19 de julio"
+                eta_fecha_iso: r.fechaEntrega,
+            } };
+        } catch (_) { return { resultado: 'no', data: {} }; }
+    },
+
     // ── CITA + ANTICIPO (Fase 4) — SELLADAS. El anticipo es un pedido normal por
     //    la misma ruta de dinero (§E.1); el porcentaje viene del grafo (params),
     //    el CÓMO se cobra es intocable. barbería-sin-anticipo cae en 'sin_cobro'. ──
@@ -135,6 +169,8 @@ const CATALOGO = {
     crm_cambiar_etapa:{ nombre: 'CRM: mover etapa',       desc: 'Mueve al cliente de etapa en el pipeline (ej. a "cotizado")', salidas: ['ok', 'no'], sellada: false, params: ['etapa'] },
     crm_crear_tarea:  { nombre: 'CRM: crear tarea',       desc: 'Deja una tarea de seguimiento para el equipo', salidas: ['ok', 'no'], sellada: false, params: ['titulo', 'dias_vence'] },
     crm_agregar_nota: { nombre: 'CRM: guardar nota',      desc: 'Guarda lo que escribió el cliente como nota en su ficha', salidas: ['ok', 'no'], sellada: false, params: ['texto'] },
+    cotizar:          { nombre: 'Cotizar el carrito',     desc: 'Calcula subtotal + envío + total del carrito para que el bot lo diga (informativo, no cobra). Rellena {cotizacion_total}, {cotizacion_subtotal}, {cotizacion_envio}, {cotizacion_n}', salidas: ['ok', 'vacio', 'inactivo'], sellada: false },
+    tiempo_entrega:   { nombre: 'Tiempo de entrega',      desc: 'Calcula para cuándo llegaría el envío. Rellena {eta_fecha} (ej. "miércoles 19 de julio")', salidas: ['ok', 'no', 'inactivo'], sellada: false },
     grabar_pedido_pickup: { nombre: 'Cobrar pedido (pickup) 🔒', desc: 'Graba el pedido para recoger en tienda — misma ruta de dinero de siempre', salidas: ['ok'], sellada: true },
     grabar_pedido_envio:  { nombre: 'Cobrar pedido (envío) 🔒',  desc: 'Graba el pedido con envío a domicilio — misma ruta de dinero de siempre', salidas: ['ok'], sellada: true },
     grabar_pedido_split:  { nombre: 'Cobrar pedido (mixto) 🔒',  desc: 'Graba el pedido parte pickup / parte envío', salidas: ['ok'], sellada: true },

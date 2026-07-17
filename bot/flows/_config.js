@@ -152,6 +152,28 @@ const FRASES = {
         C: '🎉 *¡Gracias por tu compra en {negocio}!*\n\n📋 Folio: *{folio}*\n\nTe avisamos por aquí cuando confirmemos tu pago. 📲\n\n¡Hasta pronto! {emoji}',
         D: '🎉 ¡Listo! Pedido *{folio}* en marcha.\n\nTe aviso por aquí al confirmar tu pago. 📲',
     },
+    // ── Módulos de apoyo del bot (motor de flujo). Mismo patrón que el resto: 4
+    //    tonos + slots; editables por instancia con frase_<clave>. Los slots los
+    //    llena la acción del lienzo (cotizar / tiempo_entrega). Regla de negocio:
+    //    "gratis" solo puede describir el flete, nunca el precio del producto.
+    cotizacion_resumen: {
+        A: '🧾 Con gusto, aquí tiene su cotización:\n\nSubtotal: *${cotizacion_subtotal}*\nEnvío: *{cotizacion_envio}*\n*Total: ${cotizacion_total}*\n\n¿Desea proceder con la compra?',
+        B: '🧾 Va tu cotización:\n\nSubtotal: *${cotizacion_subtotal}*\nEnvío: *{cotizacion_envio}*\n*Total: ${cotizacion_total}*\n\n¿Le seguimos?',
+        C: '🧾 ¡Claro! Aquí está tu cotización:\n\n🛒 Subtotal: *${cotizacion_subtotal}*\n🚚 Envío: *{cotizacion_envio}*\n💰 *Total: ${cotizacion_total}*\n\n¿Quieres continuar con tu compra?',
+        D: '🧾 Esto es lo que llevas:\n\nSubtotal *${cotizacion_subtotal}* · Envío *{cotizacion_envio}*\n💰 *Total: ${cotizacion_total}*\n\n¿Lo cerramos? 🚀',
+    },
+    cotizacion_vacia: {
+        A: 'Aún no tiene artículos en el carrito para cotizar. ¿Le ayudo a encontrar algo?',
+        B: 'Todavía no tienes nada en el carrito. ¿Buscamos algo?',
+        C: 'Tu carrito está vacío por ahora {emoji} ¿Te ayudo a encontrar algo para cotizar?',
+        D: 'Carrito vacío 🛒 Dime qué buscas y te armo la cotización al momento.',
+    },
+    eta_envio: {
+        A: '📦 Su pedido llegaría aproximadamente el *{eta_fecha}* (días hábiles, sujeto a la paquetería).',
+        B: '📦 Te llegaría más o menos el *{eta_fecha}* (días hábiles).',
+        C: '📦 ¡Buenas noticias! Tu pedido llegaría alrededor del *{eta_fecha}* {emoji} (días hábiles, según la paquetería).',
+        D: '📦 Lo tienes para el *{eta_fecha}* aprox. (días hábiles). ¿Lo apartamos? 🚀',
+    },
 };
 
 // Variables de negocio/giro inyectadas en CADA frase, leídas de la config

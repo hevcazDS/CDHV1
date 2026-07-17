@@ -59,6 +59,12 @@ const DEFAULT_OFF = [
     // Motor de flujo configurable por grafo (Fase 2). OFF = FLOWS de código intacto,
     // Julio Cepeda byte-idéntico. Incluso ON sin grafo activo el motor no-opea.
     'motor_flujo_activo',
+    // Apoyo del bot en el lienzo: cotizar el carrito y decir el tiempo de entrega
+    // (solo lectura, informativos, no cobran). Se usan como acciones del motor de
+    // flujo; su diálogo vive en FRASES (cotizacion_resumen/eta_envio, 4 tonos,
+    // editables). Default OFF: solo aplican si el autor los pone en su grafo.
+    'cotizacion_activo',
+    'tiempo_entrega_activo',
 ];
 
 // Dependencias entre módulos (idea Odoo): activar la llave exige que sus

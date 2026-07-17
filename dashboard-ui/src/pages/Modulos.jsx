@@ -104,6 +104,8 @@ const MODULOS = [
   { key: 'emojis_dashboard_activo', titulo: 'Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
   { key: 'contabilidad_activo', titulo: 'Contabilidad (ERP)', desc: 'Asientos automáticos de cada venta/compra/pago en el libro mayor (ver ERP / Finanzas)' },
   { key: 'citas_activo', titulo: 'Citas y agenda', desc: 'El bot agenda citas por fecha/hora (giros de servicio) con recordatorio 24h antes' },
+  { key: 'cotizacion_activo', titulo: '🧾 Cotizar en el chat', desc: 'El bot arma una cotización (subtotal + envío + total) del carrito y la dice en el chat. Informativa, no cobra. Se usa como pieza en el editor de flujo del bot' },
+  { key: 'tiempo_entrega_activo', titulo: '📦 Tiempo de entrega', desc: 'El bot calcula y dice para cuándo llegaría el envío (días hábiles, sin domingos). Se usa como pieza en el editor de flujo del bot' },
   { key: 'suscripcion_activo', titulo: '🔁 Suscripciones (servicios)', desc: 'Cobro recurrente mensual con proyección de ingreso (MRR). Captura cliente + monto + día de corte; el cargo del período se cobra en Pedidos' },
   { key: 'documentos_activo', titulo: '📄 Documentos', desc: 'Cotizaciones, pagarés y contratos con plantillas estándar o propias de la sucursal; imprimibles' },
   { key: 'nomina_fiscal_activo', titulo: '🧾 Nómina fiscal (LFT)', desc: 'Nómina completa: horas extra, comisiones, aguinaldo, finiquito, vacaciones LFT. Apagado = nómina sencilla' },
