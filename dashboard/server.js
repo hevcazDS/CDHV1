@@ -383,7 +383,10 @@ const SECURITY_HEADERS = {
     'X-Content-Type-Options':    'nosniff',
     'X-XSS-Protection':          '1; mode=block',
     'Referrer-Policy':           'no-referrer',
-    'Content-Security-Policy':   "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+    // script-src SIN 'unsafe-inline': el build de Vite solo usa scripts externos
+    // (módulos con hash), no hay <script> inline → endurece XSS. style-src SÍ
+    // conserva 'unsafe-inline' porque Mantine inyecta estilos en línea.
+    'Content-Security-Policy':   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
     'Strict-Transport-Security': 'max-age=31536000',
     'Cache-Control':             'no-store, no-cache, must-revalidate',
 };

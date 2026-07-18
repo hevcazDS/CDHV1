@@ -12,6 +12,12 @@
 const { permite, rangoDe } = require('../permisos');
 const construirModulo = require('./_construirModulo');
 
+// Hash dummy para igualar el tiempo del login cuando el usuario no existe
+// (anti-enumeración). Se calcula una sola vez, en la primera petición de login
+// (hashPassword llega por ctx, no está disponible a nivel de módulo).
+const _DUMMY_SALT = 'anti_enum_salt_fijo';
+let _DUMMY_HASH = null;
+
 // (module.exports._test al final expone buscar para el contract test de roles)
 // GET /api/buscar?q= — buscador global del topbar, con ALCANCE POR ROL.
 // Principio: "buscas lo que puedes operar" (matriz aprobada por el dueño):
@@ -88,7 +94,16 @@ function login(req, res, ctx) {
                 return json(res, { ok: false, error: 'Cuenta bloqueada temporalmente por demasiados intentos fallidos. Intenta de nuevo en unos minutos.' }, 429);
             }
             const u2 = db.prepare('SELECT * FROM usuarios WHERE username=?').get(uname);
-            if (!u2 || !safeEqual(hashPassword(String(password || ''), u2.salt), u2.password_hash)) {
+            // Anti-enumeración por tiempo: si el usuario no existe, comparamos contra
+            // un hash dummy CACHEADO (calculado una sola vez) para que el login corra
+            // EXACTAMENTE un scrypt en ambos casos — sin esto, un usuario inexistente
+            // respondía más rápido y permitía adivinar qué usernames existen. La
+            // comparación siempre es timing-safe (safeEqual).
+            if (!_DUMMY_HASH) _DUMMY_HASH = hashPassword('anti_enum', _DUMMY_SALT);
+            const _hashRef = u2 ? u2.password_hash : _DUMMY_HASH;
+            const _saltRef = u2 ? u2.salt : _DUMMY_SALT;
+            const _passOk = safeEqual(hashPassword(String(password || ''), _saltRef), _hashRef);
+            if (!u2 || !_passOk) {
                 registrarIntentoFallido(uname);
                 return json(res, { ok: false, error: 'Usuario o contraseña incorrectos' }, 401);
             }
