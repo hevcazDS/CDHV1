@@ -45,6 +45,17 @@ function libroMayor(req, res, ctx) {
     return ctx.json(res, { desde, hasta, sucursal: suc || null, cuentas: conta.libroMayor(desde, hasta, suc || null) });
 }
 
+// GET /api/erp/unit-economics?desde&hasta&gasto_adquisicion — CAC/LTV/Ratio.
+// gasto_adquisicion (publicidad + ventas) es opcional: sin él usa
+// configuracion.gasto_marketing_mensual; sin ninguno → sin_datos. 0 = orgánico.
+function unitEconomics(req, res, ctx) {
+    const { desde, hasta } = _rango(req);
+    const g = new URL(req.url, 'http://x').searchParams.get('gasto_adquisicion');
+    const salud = require('../../services/saludNegocioService')
+        .calcularSaludNegocio({ desde, hasta, gastoAdquisicion: g });
+    return ctx.json(res, salud);
+}
+
 // GET /api/erp/rastro — cadena completa desde un folio
 function rastro(req, res, ctx) {
     const { db, json } = ctx;
@@ -699,6 +710,7 @@ const RUTAS = [
     { metodo: 'GET',  path: '/api/erp/productos-vendidos',        area: 'finanzas', handler: productosVendidos },
     { metodo: 'GET',  path: '/api/erp/facturacion-pendiente',     area: 'finanzas', handler: facturacionPendiente },
     { metodo: 'GET',  path: '/api/erp/tablero',                   area: 'finanzas', handler: tablero },
+    { metodo: 'GET',  path: '/api/erp/unit-economics',            area: 'finanzas', handler: unitEconomics },
     { metodo: 'GET',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierreGet },
     { metodo: 'PUT',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierrePut },
     { metodo: 'GET',  path: '/api/erp/rentabilidad-clientes',     area: 'finanzas', handler: rentabilidadClientes },
