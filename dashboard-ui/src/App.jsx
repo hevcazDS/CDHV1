@@ -19,6 +19,7 @@ const Devoluciones = lazy(() => import('./pages/Devoluciones'));
 const Clientes = lazy(() => import('./pages/Clientes'));
 const Crm = lazy(() => import('./pages/Crm'));
 const Mensajes = lazy(() => import('./pages/Mensajes'));
+const Asistencias = lazy(() => import('./pages/Asistencias'));
 const Guias = lazy(() => import('./pages/Guias'));
 const ColaAtencion = lazy(() => import('./pages/ColaAtencion'));
 const MarketingModulo = lazy(() => import('./pages/MarketingModulo'));
@@ -79,6 +80,7 @@ export default function App() {
         <Route path="/" element={<Inicio />} />
         <Route path="/tareas" element={<Tareas />} />
         <Route path="/mensajes" element={<Mensajes />} />
+        <Route path="/asistencias" element={<Asistencias />} />
         <Route path="/pedidos" element={<Pedidos />} />
         <Route path="/devoluciones" element={<Devoluciones />} />
         {permite(user.rol, 'operacion') && <Route path="/clientes" element={<Clientes />} />}

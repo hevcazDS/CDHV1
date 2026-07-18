@@ -1561,3 +1561,18 @@ INSERT OR IGNORE INTO plan_cuentas (codigo, nombre, tipo) VALUES
     ('124', 'Inmuebles', 'activo'),
     ('129', 'Depreciación acumulada', 'activo'),
     ('605', 'Gasto por depreciación', 'gasto');
+
+-- 0083: check-in / asistencia (gym) — ver migración.
+CREATE TABLE IF NOT EXISTS asistencias (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente  INTEGER,
+    telefono    TEXT,
+    nombre      TEXT,
+    fecha       TEXT NOT NULL DEFAULT (date('now','localtime')),
+    hora        TEXT NOT NULL DEFAULT (strftime('%H:%M','now','localtime')),
+    sucursal    TEXT,
+    registrado_por TEXT,
+    creado_en   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_asistencias_fecha ON asistencias(fecha);
+CREATE INDEX IF NOT EXISTS idx_asistencias_cli ON asistencias(id_cliente, fecha);

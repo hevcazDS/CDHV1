@@ -14,7 +14,10 @@ const path = require('path');
 const os = require('os');
 
 function crearFixture() {
-    const dbPath = path.join(os.tmpdir(), 'jc_fixture_' + process.pid + '_' + Date.now() + '.db');
+    // pid + timestamp + aleatorio: dos llamadas en el mismo milisegundo (dentro de
+    // un test o encadenadas) colisionaban en el mismo archivo → el 2do reabría uno
+    // ya sembrado y "UNIQUE constraint sucursales.codigo" tumbaba la corrida.
+    const dbPath = path.join(os.tmpdir(), 'jc_fixture_' + process.pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '.db');
     const db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');

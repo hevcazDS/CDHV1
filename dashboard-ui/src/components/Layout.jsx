@@ -9,7 +9,7 @@ import {
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
   LogOut, Landmark, Warehouse, ShoppingCart, IdCard,
-  UserCog, Utensils, Wallet, CalendarClock, ClipboardList, FileText, TrendingUp, Inbox,
+  UserCog, Utensils, Wallet, CalendarClock, ClipboardList, FileText, TrendingUp, Inbox, LogIn,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
@@ -41,6 +41,7 @@ const GRUPOS = [
     { to: '/mesas', label: 'Mesas', Icono: Utensils, area: 'pos', moduloRequerido: 'mesas_activo' },
     { to: '/cocina', label: 'Cocina', Icono: Utensils, area: 'pos', moduloRequerido: 'mesas_activo' },
     { to: '/citas', label: 'Citas', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'citas_activo' },
+    { to: '/asistencias', label: 'Check-in', Icono: LogIn, area: 'operacion', moduloRequerido: 'citas_activo' },
     { to: '/ordenes-servicio', label: 'Órdenes de servicio', Icono: ClipboardList, area: 'operacion', moduloRequerido: 'citas_activo' },
     { to: '/suscripciones', label: 'Suscripciones', Icono: CalendarClock, area: 'operacion', moduloRequerido: 'suscripcion_activo' },
     { to: '/documentos', label: 'Documentos', Icono: FileText, area: 'operacion', moduloRequerido: 'documentos_activo' },
