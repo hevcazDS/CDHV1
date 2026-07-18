@@ -101,6 +101,9 @@ const MODULOS_POR_GIRO = {
     tatuajes:      ['citas_activo', 'pos_activo'],
     estetica:      ['citas_activo', 'pos_activo'],
     unas:          ['citas_activo', 'pos_activo'],
+    // Gimnasio: membresía mensual (suscripción) + reserva de clases (citas) +
+    // venta de suplementos (pos). Reusa todo el motor existente, sin código nuevo.
+    gimnasio:      ['citas_activo', 'suscripcion_activo', 'pos_activo'],
     custom:        [],
 };
 

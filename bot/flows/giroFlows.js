@@ -34,6 +34,7 @@ const GIRO_FLOWS = {
     tatuajes:      _CITAS,
     estetica:      _CITAS,
     unas:          _CITAS,
+    gimnasio:      _CITAS,   // reservar clase con entrenador (cupo por horario)
 };
 
 // Devuelve los flujos extra del giro indicado (o []). Tolerante a errores de

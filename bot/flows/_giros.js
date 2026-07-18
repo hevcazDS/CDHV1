@@ -91,6 +91,11 @@ const GIROS = {
         vocab: { item: 'servicio', items: 'servicios', emoji: '💅' },
         frases: {},
     },
+    gimnasio: {
+        label: '💪 Gimnasio / Estudio fitness',
+        vocab: { item: 'clase', items: 'clases', emoji: '💪' },
+        frases: {},
+    },
     custom: {
         label: '⚙️ Personalizado (desde cero)',
         vocab: { item: 'producto', items: 'productos', emoji: '🛍️' },
@@ -129,6 +134,7 @@ const MENU_GIRO = {
     tatuajes:      _MENU_SERVICIO,
     estetica:      _MENU_SERVICIO,
     unas:          _MENU_SERVICIO,
+    gimnasio:      _MENU_SERVICIO,   // reservar clase = "cita"; membresía = suscripción
     custom:        _MENU_SIN_WIZARD,
 };
 
