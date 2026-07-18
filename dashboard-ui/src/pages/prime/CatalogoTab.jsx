@@ -6,7 +6,7 @@ import { useForm } from '@mantine/form';
 import { Card, Title, Group, ActionIcon, Table, TextInput, NumberInput, Select, Button, Fieldset, Pagination } from '@mantine/core';
 import { api } from '../../api';
 import Modal from '../../components/Modal';
-import { CamposProducto, armarDatosProducto, PRODUCTO_VACIO } from './productoCampos';
+import { CamposProducto, armarDatosProducto, PRODUCTO_VACIO, srcImagenProducto } from './productoCampos';
 import VariantesModal from './VariantesModal';
 import { Shirt, Inbox, Pencil } from 'lucide-react';
 
@@ -205,7 +205,12 @@ export default function CatalogoTab() {
                 return (
                 <tr key={p.id}>
                   <td>{p.sku || '-'}</td>
-                  <td>{p.name}</td>
+                  <td>
+                    <Group gap={6} wrap="nowrap">
+                      {srcImagenProducto(p.url_imagen) && <img src={srcImagenProducto(p.url_imagen)} alt="" width={28} height={28} style={{ objectFit: 'contain', borderRadius: 4, flexShrink: 0 }} />}
+                      <span>{p.name}</span>
+                    </Group>
+                  </td>
                   <td>{p.categoria_nombre || p.cat || '-'}</td>
                   <td>{p.brand || '-'}</td>
                   <td>${p.price}</td>

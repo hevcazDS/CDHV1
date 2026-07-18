@@ -66,6 +66,18 @@ function rutaWhatsapp(url_imagen) {
     return null;                                            // solo webp → no mandar sticker
 }
 
+// Construye el MessageMedia de whatsapp-web.js para una url_imagen (local o
+// externa), listo para client.sendMessage. Local → fromFilePath (jpg/png de
+// transporte); externa → fromUrl. null si no hay imagen enviable. Centraliza la
+// resolución que usan menuFlow/cartFlow y las cotizaciones.
+async function construirMedia(MessageMedia, url_imagen) {
+    if (!MessageMedia || !url_imagen) return null;
+    const local = rutaWhatsapp(url_imagen);
+    if (local) return MessageMedia.fromFilePath(local);
+    if (esExterna(url_imagen)) return await MessageMedia.fromUrl(url_imagen, { unsafeMime: true });
+    return null;
+}
+
 // Borra los archivos (webp + transporte) de una imagen local. No-op si es URL.
 function borrar(url_imagen) {
     if (!url_imagen || esExterna(url_imagen)) return;
@@ -75,4 +87,4 @@ function borrar(url_imagen) {
     }
 }
 
-module.exports = { DIR, guardarBase64, esExterna, rutaLocal, rutaWhatsapp, borrar, _RE_ARCHIVO };
+module.exports = { DIR, guardarBase64, esExterna, rutaLocal, rutaWhatsapp, construirMedia, borrar, _RE_ARCHIVO };

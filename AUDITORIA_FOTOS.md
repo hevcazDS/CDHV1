@@ -13,7 +13,14 @@ Fecha: 2026-07-18 · Análisis + plan.
 > - Panel: `📷 Subir foto` en `productoCampos.jsx` (junto al campo de URL) con
 >   preview; carpeta `bot/imagenes_productos/` + volumen docker + gitignore.
 > - Test `tests/test_imagen_producto.js` (6/6). golden+paridad byte-idénticas.
-> **Pendiente P1:** miniatura en POS, preview en catálogo, adjuntar en cotización.
+> **✅ P1 IMPLEMENTADO (2026-07-18):** los otros tres usos de la misma foto.
+> - Miniatura en **POS** (`pos.js` devuelve url_imagen; `Mostrador.jsx` muestra 32px).
+> - Preview en **catálogo** (`CatalogoTab.jsx`, thumbnail junto al nombre).
+> - **Adjuntar en cotización**: `cotizacionBot.enviarFotos` manda hasta 3 fotos de
+>   los ítems antes del texto al consultar "mi cotización" (`menuFlow`, fail-soft).
+> - `imagenProducto.construirMedia` centraliza la resolución local/externa a
+>   MessageMedia (usado por menuFlow/cartFlow/cotización). Test 8/8.
+> **Fotos = COMPLETO (P0 + P1).** Único opcional futuro: múltiples fotos/producto (YAGNI).
 
 Meta del dueño: fotos guardadas **en el propio sistema** (subes jpg/png → se convierte a **WebP** para pesar menos), **ambivalente** (soportar a la vez liga externa **y** archivo local), una sola fuente de verdad reutilizable en: (1) WhatsApp, (2) POS, (3) catálogo, (4) adjuntar en cotizaciones. Aditivo: las ligas actuales de Julio Cepeda deben seguir funcionando.
 

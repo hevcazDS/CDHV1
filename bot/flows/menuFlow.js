@@ -136,7 +136,10 @@ async function handle(ctx) {
         if (moduloActivo('cotizacion_activo')) {
             const cotBot = require('../../services/cotizacionBot');
             if (cotBot.esConsulta(raw)) {
-                return cotBot.mensaje(cotBot.ultimaVigente(db, tel)).replace('{item}', vocab().item);
+                const _cot = cotBot.ultimaVigente(db, tel);
+                // P1: adjunta las fotos de los productos ANTES del texto (fail-soft).
+                if (_cot && client) { try { await cotBot.enviarFotos(_cot, client, userId, db, _MessageMedia); } catch (_) {} }
+                return cotBot.mensaje(_cot).replace('{item}', vocab().item);
             }
         }
         // Detección de devolución por texto libre — todas las variantes
@@ -550,14 +553,9 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
                         `${vocab().emoji} *${prod.name}*\n` +
                         `📦 ${prod.cat}  ·  💰 *$${Number(prod.price).toFixed(2)} MXN*\n\n` +
                         (desc ? `📝 ${desc}` : '');
-                    // Ambivalente: si es archivo local (foto subida) se manda por
-                    // ruta (jpg/png de transporte — WhatsApp trata el webp como
-                    // sticker); si es URL externa (ligas de JC) sigue por fromUrl.
-                    const _rutaLocal = require('../../services/imagenProducto').rutaWhatsapp(prod.url_imagen);
-                    const media = _rutaLocal
-                        ? MessageMedia.fromFilePath(_rutaLocal)
-                        : await MessageMedia.fromUrl(prod.url_imagen, { unsafeMime:true });
-                    await client.sendMessage(userId, media, { caption });
+                    // Ambivalente: archivo local → fromFilePath; URL externa → fromUrl.
+                    const media = await require('../../services/imagenProducto').construirMedia(MessageMedia, prod.url_imagen);
+                    if (media) await client.sendMessage(userId, media, { caption });
                 } catch(e) { log.warn('Imagen no disponible', e); }
             }
 

@@ -11,7 +11,8 @@ const fs = require('fs');
 const path = require('path');
 const imgP = require('../services/imagenProducto');
 let ok = 0;
-const t = (n, fn) => { fn(); ok++; console.log('✅ ' + n); };
+const _pruebas = [];
+const t = (n, fn) => _pruebas.push([n, fn]);
 
 // PNG 1x1 válido en base64
 const PNG_1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
@@ -60,13 +61,39 @@ t('guardarBase64 rechaza vacío y basura', () => {
     assert.throws(() => imgP.guardarBase64(1, 'AA', 'image/png'));
 });
 
+t('construirMedia: local→fromFilePath, externa→fromUrl, vacío→null', async () => {
+    const MM = { fromFilePath: (p) => ({ via: 'file', p }), fromUrl: async (u) => ({ via: 'url', u }) };
+    assert.strictEqual(await imgP.construirMedia(MM, ''), null);
+    assert.strictEqual(await imgP.construirMedia(MM, null), null);
+    const ext = await imgP.construirMedia(MM, 'https://cdn.x/a.jpg');
+    assert(ext && ext.via === 'url', 'externa por fromUrl');
+    const loc = await imgP.construirMedia(MM, creados[0]);
+    assert(loc && loc.via === 'file', 'local por fromFilePath');
+});
+
+t('cotización: enviarFotos manda las fotos de los ítems (hasta 3, salta sin foto)', async () => {
+    const cotBot = require('../services/cotizacionBot');
+    const mockDb = { prepare: () => ({ get: (id) => id === 5 ? { name: 'Peluche', url_imagen: 'https://x/a.jpg' } : (id === 6 ? { name: 'Bici', url_imagen: '' } : null) }) };
+    const enviadas = [];
+    const mockClient = { sendMessage: async (u, m, o) => enviadas.push(o.caption) };
+    const MM = { fromUrl: async (u) => ({ url: u }), fromFilePath: (p) => ({ p }) };
+    const cot = { items_json: JSON.stringify([{ id: 5, name: 'Peluche' }, { id: 6 }, { id: 99 }]) };
+    const n = await cotBot.enviarFotos(cot, mockClient, 'u@c.us', mockDb, MM);
+    assert.strictEqual(n, 1, 'solo el ítem con foto');
+    assert(/Peluche/.test(enviadas[0]));
+    // sin client o sin MessageMedia → 0, no revienta
+    assert.strictEqual(await cotBot.enviarFotos(cot, null, 'u', mockDb, MM), 0);
+});
+
 t('borrar: elimina los archivos locales (no-op en externas)', () => {
     imgP.borrar('https://cdn.x/a.jpg'); // no revienta
     imgP.borrar(creados[0]);
     assert.strictEqual(imgP.rutaLocal(creados[0]), null, 'ya no existe tras borrar');
 });
 
-// limpieza
-for (const n of creados) { try { imgP.borrar(n); } catch (_) {} }
-console.log('\n' + ok + '/6 OK — fotos de producto: resolvedor ambivalente + WebP + anti-traversal + transporte WhatsApp.');
-process.exit(ok === 6 ? 0 : 1);
+(async () => {
+    for (const [n, fn] of _pruebas) { await fn(); ok++; console.log('✅ ' + n); }
+    for (const n of creados) { try { imgP.borrar(n); } catch (_) {} }   // limpieza
+    console.log('\n' + ok + '/8 OK — fotos de producto: resolvedor ambivalente + WebP + anti-traversal + transporte WhatsApp.');
+    process.exit(ok === 8 ? 0 : 1);
+})().catch(e => { console.error('❌', e); process.exit(1); });

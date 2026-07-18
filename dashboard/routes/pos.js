@@ -113,7 +113,7 @@ function productosGet(req, res, ctx, { ses }) {
     const q = (new URL(req.url, 'http://x').searchParams.get('q') || '').trim();
     const suc = _sucursalOperativa(db, ses, new URL(req.url, 'http://x').searchParams.get('sucursal'));
     const rows = db.prepare(`
-        SELECT p.id, p.name, p.price, p.sku, p.upc, p.tipo, p.unidad_medida,
+        SELECT p.id, p.name, p.price, p.sku, p.upc, p.tipo, p.unidad_medida, p.url_imagen,
                COALESCE((SELECT stock FROM inventarios WHERE id_producto=p.id AND sucursal=?), 0) AS stock
         FROM productos p
         WHERE p.activo=1 AND (? = '' OR p.name LIKE ? OR p.sku LIKE ? OR p.upc = ?)

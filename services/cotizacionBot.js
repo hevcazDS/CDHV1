@@ -65,4 +65,29 @@ function mensaje(cot) {
         `Escribe *hola* si quieres continuar tu compra.`;
 }
 
-module.exports = { guardar, ultimaVigente, marcarConvertida, esConsulta, mensaje, VALIDEZ_DIAS };
+// Adjunta al chat las fotos de los productos de una cotización (P1: "adjuntar en
+// cotizaciones"). Manda hasta MAX fotos ANTES del texto, resolviendo cada
+// url_imagen (local o liga) con el mismo helper de WhatsApp. Fail-soft: una foto
+// que no cargue no frena las demás ni el mensaje.
+const MAX_FOTOS = 3;
+async function enviarFotos(cot, client, userId, db, MessageMedia) {
+    if (!cot || !client || !MessageMedia) return 0;
+    let items = [];
+    try { items = JSON.parse(cot.items_json || '[]'); } catch (_) { return 0; }
+    const imgP = require('./imagenProducto');
+    let enviadas = 0;
+    for (const it of items) {
+        if (enviadas >= MAX_FOTOS) break;
+        try {
+            const prod = it.id ? db.prepare('SELECT name, url_imagen FROM productos WHERE id=?').get(it.id) : null;
+            if (!prod || !prod.url_imagen) continue;
+            const media = await imgP.construirMedia(MessageMedia, prod.url_imagen);
+            if (!media) continue;
+            await client.sendMessage(userId, media, { caption: '🖼️ *' + (prod.name || it.name || '') + '*' });
+            enviadas++;
+        } catch (_) { /* una foto que falle no frena la cotización */ }
+    }
+    return enviadas;
+}
+
+module.exports = { guardar, ultimaVigente, marcarConvertida, esConsulta, mensaje, enviarFotos, VALIDEZ_DIAS };

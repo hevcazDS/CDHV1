@@ -6,6 +6,7 @@ import { api } from '../api';
 import { fmt } from '../lib/format';
 import { alertar, prompt, toastErr, toastOk, confirmar } from '../lib/ui';
 import { LEYENDA_FACTURACION } from '../lib/factura';
+import { srcImagenProducto } from './prime/productoCampos';
 import { imprimirReporte } from '../lib/reporteImprimible';
 import { useTextoEmoji } from '../context/EmojiContext';
 // recharts SOLO se carga al abrir el corte — el flujo de cobro/escaneo no lo paga
@@ -190,6 +191,9 @@ export default function Mostrador() {
                 <tbody>
                   {resultados.map(p => (
                     <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => agregar(p)}>
+                      <td style={{ width: 40 }}>{srcImagenProducto(p.url_imagen)
+                        ? <img src={srcImagenProducto(p.url_imagen)} alt="" width={32} height={32} style={{ objectFit: 'contain', borderRadius: 4, verticalAlign: 'middle' }} />
+                        : null}</td>
                       <td>{p.name}</td>
                       <td style={{ textAlign: 'right' }}>${fmt(p.price)}</td>
                       <td className="text-muted" style={{ textAlign: 'right', fontSize: 11 }}>stock {p.stock}</td>
