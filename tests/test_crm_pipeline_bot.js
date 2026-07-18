@@ -97,9 +97,20 @@ T('INTEGRACIÓN: la acción cotizar del motor marca cotizado + sube score', () =
     assert(db.prepare('SELECT lead_score FROM clientes WHERE id=?').get(id).lead_score > 0);
 });
 
+T('P2 saludo: un cliente GANADO recibe el saludo frecuente; un lead, el normal', () => {
+    const shared = require('../bot/flows/_shared');
+    const telG = '5215550708', telN = '5215550709';
+    db.prepare("INSERT INTO clientes (nombre, telefono, etapa, tags, activo) VALUES ('Rosa Frecuente',?, 'ganado', 'pedido_123', 1)").run(telG);
+    db.prepare("INSERT INTO clientes (nombre, telefono, etapa, activo) VALUES ('Lalo Lead',?, 'contactado', 1)").run(telN);
+    const gan = shared.menuPrincipal(telG);
+    assert(/preferencia|confianza|gusto tenerte/i.test(gan), 'saludo frecuente esperado: ' + gan.slice(0, 60));
+    const lead = shared.menuPrincipal(telN);
+    assert(!/preferencia|confianza/i.test(lead), 'un lead no recibe saludo de frecuente');
+});
+
 (async () => {
     for (const [n, fn] of pruebas) { await fn(); ok++; console.log('✅ ' + n); }
-    console.log('\n' + ok + '/8 OK — el bot alimenta el pipeline CRM en vivo (solo datos).');
+    console.log('\n' + ok + '/9 OK — el bot alimenta el pipeline CRM en vivo (solo datos).');
     try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
     process.exit(0);
 })().catch(e => { console.error('❌', e); process.exit(1); });

@@ -86,6 +86,14 @@ const FRASES = {
         C: '{emoji} ¡Bienvenido de vuelta{nombre}! Qué gusto verte de nuevo en *{negocio}* 🎉',
         D: '{nombre}¡qué bueno verte de nuevo! {emoji} ¿Repetimos la experiencia o buscamos algo nuevo?',
     },
+    // Cliente frecuente (etapa CRM 'ganado' = ya compró). Más cálido/agradecido que
+    // el recurrente. Solo se usa con crm_pipeline_activo ON. 4 tonos + editable.
+    saludo_frecuente: {
+        A: 'Es un gusto recibirle nuevamente{nombre}. Agradecemos su preferencia en *{negocio}*.',
+        B: '¡Qué gusto verte otra vez{nombre}! Gracias por tu preferencia. ¿Qué buscas hoy?',
+        C: '{emoji} ¡Cuánto gusto tenerte de vuelta{nombre}! Gracias por tu preferencia en *{negocio}* 🎉',
+        D: '{nombre}¡de vuelta! {emoji} Gracias por la confianza — ¿qué te consigo hoy?',
+    },
     menu_opciones: {
         A: '¿En qué podemos servirle el día de hoy?\n\n1️⃣  Buscar un {item}\n2️⃣  Recibir una recomendación\n3️⃣  Rastrear su pedido\n4️⃣  Hablar con un asesor\n5️⃣  Su código de referido',
         B: '1️⃣  Buscar {item}\n2️⃣  Ayúdame a elegir\n3️⃣  Rastrear pedido\n4️⃣  Asesor\n5️⃣  Mi código de referido',

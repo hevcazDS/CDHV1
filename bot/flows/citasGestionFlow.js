@@ -29,9 +29,12 @@ function _proximaCita(tel) {
     } catch (_) { return null; }
 }
 
-// Detecta la intención "gestionar mi cita" en texto libre (entrada desde menuFlow).
+// Detecta la intención de gestionar/consultar "mi cita" en texto libre (entrada
+// desde menuFlow). Cubre cancelar/reagendar/cambiar y también consultar el estado
+// ("¿cómo va mi cita?", "cuándo es mi cita", "mi cita") — todas llevan al mismo
+// resumen con opciones, así consultar y gestionar convergen (P2).
 function esIntencionGestion(raw) {
-    return /\b(cancel|reagend|reprogram)\w*\b.*\bcita\b|\bcita\b.*\b(cancel|reagend|reprogram|cambi|mov[eé])\w*\b|\b(cambiar|mover|modificar)\b.*\bcita\b/i.test(raw || '');
+    return /\b(cancel|reagend|reprogram)\w*\b.*\bcita\b|\bcita\b.*\b(cancel|reagend|reprogram|cambi|mov[eé])\w*\b|\b(cambiar|mover|modificar)\b.*\bcita\b|\b(mi|mis)\s+citas?\b|\bcu[aá]ndo\s+(es|tengo)\s+.*cita\b|\bc[oó]mo\s+va\s+mi\s+cita\b|\bestado\s+de\s+mi\s+cita\b/i.test(raw || '');
 }
 
 // Entrada desde menuFlow: muestra la próxima cita y las opciones.

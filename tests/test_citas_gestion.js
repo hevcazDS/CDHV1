@@ -32,10 +32,13 @@ const nuevaCita = () => {
 };
 const cx = (action) => ({ userId: U, action, step: sm.getSession(U).paso_actual, data: sm.getSession(U).data || {}, tel: TEL, raw: action });
 
-T('esIntencionGestion detecta cancelar/cambiar/reagendar cita', () => {
+T('esIntencionGestion detecta cancelar/cambiar/reagendar Y consultar cita', () => {
     assert(gestion.esIntencionGestion('quiero cancelar mi cita'));
     assert(gestion.esIntencionGestion('puedo cambiar la cita?'));
     assert(gestion.esIntencionGestion('reagendar cita'));
+    assert(gestion.esIntencionGestion('cuándo es mi cita'), 'consultar');
+    assert(gestion.esIntencionGestion('cómo va mi cita'), 'consultar');
+    assert(gestion.esIntencionGestion('mi cita'), 'consultar');
     assert(!gestion.esIntencionGestion('quiero un corte'));
 });
 

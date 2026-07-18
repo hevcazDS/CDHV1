@@ -156,6 +156,7 @@ function frasesGet(req, res, ctx) {
     conf.invalidarCache();
     const DESCRIPCION = {
         saludo_nuevo: 'Saludo a cliente nuevo', saludo_recurrente: 'Saludo a cliente que regresa (usa {nombre})',
+        saludo_frecuente: 'Saludo a cliente frecuente (ya compró — etapa CRM ganado, usa {nombre})',
         menu_opciones: 'Opciones del menu principal', buscar_inicio: 'Al elegir "buscar"',
         wizard_q1: 'Primera pregunta del asistente de regalo', asesor_notificado: 'Al pasar con un asesor',
         agregado_pagar: 'Producto agregado al carrito', disponibilidad_local: 'Cuando hay stock local',

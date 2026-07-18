@@ -49,7 +49,13 @@ lo que pasa en el chat.
   en `menuFlow`, registrado en `giroFlows`. Test: `tests/test_citas_gestion.js` (6/6).
 - ✅ **P1 (parcial)** — score en caliente y motivo de no-compra al CRM entraron con
   las P0 (subirScore en cotizar; nota+perdido en abandono).
-- ⏳ Pendientes: P2 (saludo por etapa/campaña, consultar estado de cita/cotización).
+- ✅ **P2 — Saludo por etapa** — HECHO. `menuPrincipal` da un saludo de cliente
+  frecuente al `ganado` (frase `saludo_frecuente`, 4 tonos, editable), gated a
+  `crm_pipeline_activo` (JC byte-idéntico). Test en `test_crm_pipeline_bot.js`.
+- ✅ **P2 — Consultar estado de cita** — HECHO. "mi cita / ¿cómo va mi cita?"
+  entra al mismo resumen de gestión (`citasGestionFlow.esIntencionGestion`).
+- ⏳ Único pendiente menor: consultar estado de *cotización* — sin efecto hoy
+  (la cotización del chat es efímera; requeriría persistirla, out of scope).
 
 ## (b) Top brechas priorizadas
 

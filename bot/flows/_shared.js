@@ -1165,12 +1165,21 @@ function menuPrincipal(tel) {
     let saludo = t('saludo_nuevo') || '🧸 ¡Hola! Bienvenido a *Julio Cepeda Jugueterías* 🎉';
     if (tel) {
         try {
-            const cli = db.prepare('SELECT nombre, tags FROM clientes WHERE telefono=?').get(tel);
-            if (cli && (cli.tags||'').includes('pedido_')) {
+            const cli = db.prepare('SELECT nombre, tags, etapa FROM clientes WHERE telefono=?').get(tel);
+            if (cli) {
                 const nombre = (cli.nombre || '').split(' ')[0];
                 const nVar = nombre ? ', *' + nombre + '* ' : ' ';
-                saludo = t('saludo_recurrente', { nombre: nVar }) ||
-                    ('🧸 ¡Bienvenido de vuelta' + (nombre ? ', *' + nombre + '*' : '') + '! Qué gusto verte de nuevo 🎉');
+                // P2 (CRM): un cliente 'ganado' (ya compró) recibe un saludo más
+                // cálido de cliente frecuente; el resto de recurrentes (tag pedido_),
+                // el de vuelta de siempre. Gated a crm_pipeline_activo → sin el CRM
+                // el saludo es idéntico al histórico (JC byte-idéntico: no hay ganado).
+                if (moduloActivo('crm_pipeline_activo') && cli.etapa === 'ganado') {
+                    saludo = t('saludo_frecuente', { nombre: nVar }) ||
+                        ('🧸 ¡Cuánto gusto tenerte de vuelta' + (nombre ? ', *' + nombre + '*' : '') + '! Gracias por tu preferencia 🎉');
+                } else if ((cli.tags || '').includes('pedido_')) {
+                    saludo = t('saludo_recurrente', { nombre: nVar }) ||
+                        ('🧸 ¡Bienvenido de vuelta' + (nombre ? ', *' + nombre + '*' : '') + '! Qué gusto verte de nuevo 🎉');
+                }
             }
         } catch(e) { log.debug('No se pudo cargar cliente para saludo: ' + e.message); }
     }
