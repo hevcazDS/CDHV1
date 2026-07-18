@@ -65,6 +65,10 @@ const DEFAULT_OFF = [
     // editables). Default OFF: solo aplican si el autor los pone en su grafo.
     'cotizacion_activo',
     'tiempo_entrega_activo',
+    // Media avanzada del producto: liga de video y modelo/render/animación 3D.
+    // Default OFF — es infraestructura para la tienda en línea futura; al
+    // encenderlo aparecen esos campos en el alta/edición de producto.
+    'media_avanzada_activo',
 ];
 
 // Dependencias entre módulos (idea Odoo): activar la llave exige que sus

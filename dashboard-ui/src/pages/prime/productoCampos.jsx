@@ -2,6 +2,7 @@
 // compartidos entre el alta y la edición en CatalogoTab (ambos tocan
 // exactamente las mismas columnas reales de `productos`).
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Fieldset, TextInput, NumberInput, Select, Textarea, Group, Button, FileButton, Image, Text } from '@mantine/core';
 import { api } from '../../api';
 import { toastOk, toastErr } from '../../lib/ui';
@@ -36,7 +37,7 @@ export const PRODUCTO_VACIO = {
   cat: '', id_categoria: null,
   genero: '', tipo_juguete: '', edad_min: 0, edad_max: 99,
   peso_kg: '', alto_cm: '', ancho_cm: '', largo_cm: '',
-  url_imagen: '', description: '', seo_description: '', tags: '', material: '', color: '', target_audience: '',
+  url_imagen: '', video_url: '', modelo_3d_url: '', description: '', seo_description: '', tags: '', material: '', color: '', target_audience: '',
   stock_tienda: '0', stock_cedis: '0', stock_san_luis_potosi: '0',
   stock_exhibicion: '0', stock_queretaro: '0', stock_monterrey: '0', stock_cdmx_centro: '0', stock_base: '0',
 };
@@ -68,6 +69,8 @@ export function armarDatosProducto(v) {
     ancho_cm: v.ancho_cm === '' || v.ancho_cm == null ? undefined : Number(v.ancho_cm),
     largo_cm: v.largo_cm === '' || v.largo_cm == null ? undefined : Number(v.largo_cm),
     url_imagen: v.url_imagen || undefined,
+    video_url: v.video_url || undefined,
+    modelo_3d_url: v.modelo_3d_url || undefined,
     description: v.description || undefined,
     seo_description: v.seo_description || undefined,
     tags: v.tags || undefined,
@@ -137,6 +140,13 @@ function _giro() { try { return localStorage.getItem('giro') || 'jugueteria'; } 
 export function CamposProducto({ form, categorias, onCrearCategoria, idProducto }) {
   const giro = _giro();
   const [subiendo, setSubiendo] = useState(false);
+  // Media avanzada (video + 3D): solo se muestra si el módulo está encendido.
+  const { data: mediaMod } = useQuery({
+    queryKey: ['modulo', 'media_avanzada_activo'],
+    queryFn: () => api.get('/api/modulo/media_avanzada_activo'),
+    staleTime: 5 * 60 * 1000,
+  });
+  const mediaAvanzada = !!mediaMod?.activo;
 
   // Sube una foto: la lee como base64 y la manda al backend, que la convierte a
   // WebP y guarda el basename local en url_imagen (conviviendo con las ligas).
@@ -250,6 +260,14 @@ export function CamposProducto({ form, categorias, onCrearCategoria, idProducto 
         <Textarea label="Descripción" mb="sm" {...form.getInputProps('description')} />
         <Textarea label="Descripción SEO" {...form.getInputProps('seo_description')} />
       </Fieldset>
+
+      {mediaAvanzada && (
+        <Fieldset legend="🎬 Media avanzada (tienda en línea)" mb="md">
+          <Text size="xs" c="dimmed" mb="sm">Para aprovechar más adelante en la tienda en línea / visor 3D. Solo se guardan las ligas.</Text>
+          <TextInput label="Liga de video" placeholder="YouTube, Vimeo o .mp4" mb="sm" {...form.getInputProps('video_url')} />
+          <TextInput label="Liga de modelo / render / animación 3D" placeholder=".glb, .gltf o Sketchfab" {...form.getInputProps('modelo_3d_url')} />
+        </Fieldset>
+      )}
 
       <Fieldset legend="Stock fijo (columnas en productos)" mb="md">
         <p className="page-sub" style={{ margin: '0 0 12px' }}>

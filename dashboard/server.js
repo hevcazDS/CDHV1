@@ -478,7 +478,7 @@ function validar(parsed, schema, res, ruta) {
 const TABLAS_ACTUALIZABLES = {
     sucursales: ['nombre', 'codigo', 'direccion', 'codigo_postal', 'activa'],
     productos: ['name', 'cat', 'price', 'costo', 'sku', 'upc', 'brand', 'handle', 'description',
-        'url_imagen', 'tags', 'seo_description', 'material', 'color', 'target_audience',
+        'url_imagen', 'video_url', 'modelo_3d_url', 'tags', 'seo_description', 'material', 'color', 'target_audience',
         'tipo_juguete', 'edad_recomendada', 'edad_min', 'edad_max', 'genero', 'id_categoria',
         'peso_kg', 'alto_cm', 'ancho_cm', 'largo_cm', 'stock_tienda', 'stock_cedis',
         'stock_san_luis_potosi', 'stock_exhibicion', 'stock_queretaro', 'stock_monterrey',

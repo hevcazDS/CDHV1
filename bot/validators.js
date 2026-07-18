@@ -213,6 +213,11 @@ const ProductoBaseSchema = z.object({
     handle:                z.string().max(200).optional().nullable(),
     description:           z.string().max(2000).optional().nullable(),
     url_imagen:            z.string().max(500).optional().nullable(),
+    // Media avanzada (módulo media_avanzada_activo, futura tienda en línea):
+    // liga de video (YouTube/Vimeo/mp4) y liga de modelo/render/animación 3D
+    // (.glb/.gltf/Sketchfab). Solo se capturan y guardan; el consumo es futuro.
+    video_url:             z.string().max(500).optional().nullable(),
+    modelo_3d_url:         z.string().max(500).optional().nullable(),
     tags:                  z.string().max(300).optional().nullable(),
     seo_description:       z.string().max(500).optional().nullable(),
     material:              z.string().max(100).optional().nullable(),

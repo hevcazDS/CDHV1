@@ -285,6 +285,8 @@ CREATE TABLE IF NOT EXISTS productos (
     price                   REAL NOT NULL DEFAULT 0,
     costo                   REAL,                       -- migrations/0016 (costo de adquisición, para margen)
     url_imagen              TEXT,
+    video_url               TEXT,               -- 0079: media avanzada (tienda en línea futura)
+    modelo_3d_url           TEXT,               -- 0079: liga a modelo/render/animación 3D
     description             TEXT,
     seo_description         TEXT,
     tags                    TEXT,

@@ -107,6 +107,7 @@ const MODULOS = [
   { key: 'citas_activo', titulo: 'Citas y agenda', desc: 'El bot agenda citas por fecha/hora (giros de servicio) con recordatorio 24h antes' },
   { key: 'cotizacion_activo', titulo: '🧾 Cotizar en el chat', desc: 'El bot arma una cotización (subtotal + envío + total) del carrito y la dice en el chat. Informativa, no cobra. Se usa como pieza en el editor de flujo del bot' },
   { key: 'tiempo_entrega_activo', titulo: '📦 Tiempo de entrega', desc: 'El bot calcula y dice para cuándo llegaría el envío (días hábiles, sin domingos). Se usa como pieza en el editor de flujo del bot' },
+  { key: 'media_avanzada_activo', titulo: '🎬 Media avanzada (video / 3D)', desc: 'Agrega al producto una liga de video y una liga de modelo/render/animación 3D. Pensado para aprovechar la base más adelante (tienda en línea / visor 3D). Apagado por defecto: solo se capturan las ligas, aún no se muestran a clientes' },
   { key: 'suscripcion_activo', titulo: '🔁 Suscripciones (servicios)', desc: 'Cobro recurrente mensual con proyección de ingreso (MRR). Captura cliente + monto + día de corte; el cargo del período se cobra en Pedidos' },
   { key: 'documentos_activo', titulo: '📄 Documentos', desc: 'Cotizaciones, pagarés y contratos con plantillas estándar o propias de la sucursal; imprimibles' },
   { key: 'nomina_fiscal_activo', titulo: '🧾 Nómina fiscal (LFT)', desc: 'Nómina completa: horas extra, comisiones, aguinaldo, finiquito, vacaciones LFT. Apagado = nómina sencilla' },

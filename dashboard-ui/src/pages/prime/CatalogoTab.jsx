@@ -104,7 +104,7 @@ export default function CatalogoTab() {
       genero: p.genero || '', tipo_juguete: p.tipo_juguete || '',
       edad_min: p.edad_min ?? 0, edad_max: p.edad_max ?? 99,
       peso_kg: p.peso_kg ?? '', alto_cm: p.alto_cm ?? '', ancho_cm: p.ancho_cm ?? '', largo_cm: p.largo_cm ?? '',
-      url_imagen: p.url_imagen || '', description: p.description || '', seo_description: p.seo_description || '',
+      url_imagen: p.url_imagen || '', video_url: p.video_url || '', modelo_3d_url: p.modelo_3d_url || '', description: p.description || '', seo_description: p.seo_description || '',
       tags: p.tags || '', material: p.material || '', color: p.color || '', target_audience: p.target_audience || '',
       stock_tienda: String(p.stock_tienda ?? 0), stock_cedis: String(p.stock_cedis ?? 0),
       stock_san_luis_potosi: String(p.stock_san_luis_potosi ?? 0),
