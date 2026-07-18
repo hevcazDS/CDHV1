@@ -131,6 +131,14 @@ async function handle(ctx) {
                 return gestion.iniciar(userId, { carrito: data.carrito || [] }, tel);
             }
         }
+        // Consultar mi cotización por texto libre. Gated a cotizacion_activo →
+        // giros sin cotización (incl. Julio Cepeda) byte-idénticos. P2.
+        if (moduloActivo('cotizacion_activo')) {
+            const cotBot = require('../../services/cotizacionBot');
+            if (cotBot.esConsulta(raw)) {
+                return cotBot.mensaje(cotBot.ultimaVigente(db, tel)).replace('{item}', vocab().item);
+            }
+        }
         // Detección de devolución por texto libre — todas las variantes
         if (/devolver|devolv|devoluci[oó]n|devuelta|cambiar.*producto|cambio.*producto|quiero.*devolver|quiero.*cambiar|repetido|duplicado|ya.*ten[ií]a|me.*llegó.*mal|llegó.*incorrecto|no.*funciona|est[aá].*roto|est[aá].*da[nñ]ado|garantia|garant[ií]a|me.*equivoqu[eé]|pedido.*mal/i.test(raw)) {
             sessionManager.updateSession(userId, S.DEVOLUCION, { paso: 'bienvenida' });

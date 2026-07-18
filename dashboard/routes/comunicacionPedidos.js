@@ -303,6 +303,8 @@ function pagoMarcarPagado(req, res, ctx, { params, ses }) {
                 // CRM (P0): pago confirmado = trato GANADO. Es el chokepoint de
                 // dinero, el lugar correcto para 'ganado' (no al crear el pedido).
                 try { if (ped.telefono) require('../../services/crmBot').avanzarEtapa(db, ped.telefono, 'ganado'); } catch (_) {}
+                // Cotización → convertida (si el cliente tenía una vigente).
+                try { if (ped.telefono) require('../../services/cotizacionBot').marcarConvertida(db, ped.telefono); } catch (_) {}
                 try {
                     const conv = db.prepare("UPDATE carritos_abandonados SET convertido=1 WHERE telefono=? AND convertido=0").run(ped.telefono || '');
                     if (conv.changes > 0) db.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('carrito_convertido','whatsapp',?,?)").run(String(ped.total || ''), ped.telefono || null);

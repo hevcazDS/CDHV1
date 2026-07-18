@@ -54,8 +54,13 @@ lo que pasa en el chat.
   `crm_pipeline_activo` (JC byte-idéntico). Test en `test_crm_pipeline_bot.js`.
 - ✅ **P2 — Consultar estado de cita** — HECHO. "mi cita / ¿cómo va mi cita?"
   entra al mismo resumen de gestión (`citasGestionFlow.esIntencionGestion`).
-- ⏳ Único pendiente menor: consultar estado de *cotización* — sin efecto hoy
-  (la cotización del chat es efímera; requeriría persistirla, out of scope).
+- ✅ **Consultar estado de cotización** — HECHO. La cotización del chat ya se
+  PERSISTE (`services/cotizacionBot.js` + migración 0078 `cotizaciones_bot`): la
+  acción `cotizar` la guarda con folio y vigencia (7 días), el cliente la consulta
+  con "mi cotización" (`menuFlow`, gated `cotizacion_activo`), vence sola y se marca
+  'convertida' al pagar (`marcar-pagado`). Solo informativa, no crea pedidos.
+  Test: `tests/test_cotizacion_persist.js` (7/7).
+- ✅ **Auditoría bot↔CRM cerrada por completo** (P0, P1, P2).
 
 ## (b) Top brechas priorizadas
 

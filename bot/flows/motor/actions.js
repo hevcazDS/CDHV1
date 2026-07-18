@@ -117,16 +117,21 @@ const ACTIONS = {
         const n = carrito.reduce((s, i) => s + (i.cantidad || 1), 0);
         // CRM (P0/P1): cotizar es señal de compra → 'cotizado' + score en caliente.
         // Solo datos, fail-soft; no-opea sin tel o con crm_pipeline_activo off.
+        let folio = null;
         if (ctx.tel) try {
             const crmBot = require('../../../services/crmBot');
             crmBot.avanzarEtapa(shared.db, ctx.tel, 'cotizado');
             crmBot.subirScore(shared.db, ctx.tel, 10);
+            // Persistir la cotización para que el cliente pueda consultarla luego.
+            const g = require('../../../services/cotizacionBot').guardar(shared.db, ctx.tel, { subtotal, envio, total, n, items: carrito });
+            folio = g && g.folio;
         } catch (_) {}
         return { resultado: 'ok', data: {
             cotizacion_n: n,
             cotizacion_subtotal: subtotal.toFixed(2),
             cotizacion_envio: envio === 0 ? 'gratis' : ('$' + envio.toFixed(2)),   // "gratis" solo aquí (flete)
             cotizacion_total: total.toFixed(2),
+            cotizacion_folio: folio || '',
         } };
     },
     tiempo_entrega: (ctx) => {

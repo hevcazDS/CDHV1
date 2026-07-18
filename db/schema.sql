@@ -1249,6 +1249,22 @@ CREATE TABLE IF NOT EXISTS citas (
 CREATE INDEX IF NOT EXISTS idx_citas_fecha ON citas(fecha, hora);
 CREATE INDEX IF NOT EXISTS idx_citas_tel ON citas(telefono);
 
+-- 0078: cotizaciones del BOT (conversacionales, persistidas para consultarlas).
+CREATE TABLE IF NOT EXISTS cotizaciones_bot (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    telefono   TEXT NOT NULL,
+    subtotal   REAL NOT NULL DEFAULT 0,
+    envio      REAL NOT NULL DEFAULT 0,
+    total      REAL NOT NULL DEFAULT 0,
+    n_items    INTEGER NOT NULL DEFAULT 0,
+    items_json TEXT,
+    estatus    TEXT NOT NULL DEFAULT 'vigente'
+               CHECK(estatus IN ('vigente','vencida','convertida')),
+    vence_en   TEXT,
+    creado_en  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_bot_tel ON cotizaciones_bot(telefono, creado_en);
+
 -- 0073: órdenes de servicio/trabajo (mantenimiento/servicios) — evidencia de qué se hizo
 CREATE TABLE IF NOT EXISTS ordenes_servicio (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
