@@ -9,7 +9,7 @@ import {
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
   LogOut, Landmark, Warehouse, ShoppingCart, IdCard,
-  UserCog, Utensils, Wallet, CalendarClock, ClipboardList, FileText, TrendingUp,
+  UserCog, Utensils, Wallet, CalendarClock, ClipboardList, FileText, TrendingUp, Inbox,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
@@ -34,6 +34,7 @@ const GRUPOS = [
   { titulo: 'Panel', enlaces: [
     { to: '/', label: 'Inicio', Icono: Home },
     { to: '/tareas', label: 'Tareas', Icono: ClipboardList },
+    { to: '/mensajes', label: 'Mensajes', Icono: Inbox },
   ]},
   { titulo: 'Ventas', enlaces: [
     { to: '/mostrador', label: 'Mostrador', Icono: ReceiptText, moduloRequerido: 'pos_activo', area: 'pos' },
@@ -168,9 +169,15 @@ export default function Layout() {
     queryKey: ['stats'], queryFn: () => api.get('/api/stats').catch(() => null),
     refetchInterval: 45000,
   });
+  // No-leídos de la mensajería interna del equipo (insignia en el link Mensajes).
+  const { data: msgNoLeidos } = useQuery({
+    queryKey: ['mensajeria-no-leidos'], queryFn: () => api.get('/api/mensajeria/no-leidos').catch(() => null),
+    refetchInterval: 30000,
+  });
   const badgePorRuta = {
     '/cola': stats?.cola_atencion || 0,
     '/pedidos': stats?.pagos_pendientes || 0,
+    '/mensajes': msgNoLeidos?.total || 0,
   };
 
   // Sidebar colapsable a riel de CATEGORÍAS (un icono por grupo; al tocar

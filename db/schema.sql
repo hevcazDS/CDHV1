@@ -1507,3 +1507,29 @@ CREATE TABLE IF NOT EXISTS tareas (
     hecha_en TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_tareas_estatus ON tareas(estatus, fecha);
+
+-- 0080: mensajería interna del equipo (1-a-1 + grupos) — ver migración.
+CREATE TABLE IF NOT EXISTS canales_internos (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo          TEXT NOT NULL DEFAULT 'directo' CHECK(tipo IN ('directo','grupo')),
+    nombre        TEXT,
+    clave_directo TEXT,
+    creado_por    INTEGER,
+    creado_en     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_canales_directo ON canales_internos(clave_directo) WHERE clave_directo IS NOT NULL;
+CREATE TABLE IF NOT EXISTS canal_miembros (
+    id_canal     INTEGER NOT NULL REFERENCES canales_internos(id) ON DELETE CASCADE,
+    id_usuario   INTEGER NOT NULL,
+    ultimo_leido INTEGER NOT NULL DEFAULT 0,
+    agregado_en  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    PRIMARY KEY (id_canal, id_usuario)
+);
+CREATE TABLE IF NOT EXISTS mensajes_internos (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_canal     INTEGER NOT NULL REFERENCES canales_internos(id) ON DELETE CASCADE,
+    id_remitente INTEGER NOT NULL,
+    cuerpo       TEXT NOT NULL,
+    creado_en    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_mensajes_internos_canal ON mensajes_internos(id_canal, id);
