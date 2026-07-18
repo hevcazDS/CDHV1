@@ -45,6 +45,39 @@ function libroMayor(req, res, ctx) {
     return ctx.json(res, { desde, hasta, sucursal: suc || null, cuentas: conta.libroMayor(desde, hasta, suc || null) });
 }
 
+// ── Activos fijos (capitalización + depreciación lineal) ────────────────────
+function activosGet(req, res, ctx) {
+    const inc = new URL(req.url, 'http://x').searchParams.get('incluir_bajas') === '1';
+    return ctx.json(res, require('../../services/activosFijosService').listar({ incluirBajas: inc }));
+}
+function activosPost(req, res, ctx) {
+    const { json, readJson } = ctx;
+    return readJson(req, res, d => {
+        try {
+            const r = require('../../services/activosFijosService').comprarActivo({
+                nombre: d.nombre, categoria: d.categoria, costo: Number(d.costo),
+                valor_residual: Number(d.valor_residual) || 0, vida_util_meses: Number(d.vida_util_meses) || 60,
+                fecha: d.fecha || null, metodo: d.metodo === 'caja' ? 'caja' : 'bancos', sucursal: d.sucursal || null,
+            });
+            return json(res, { ok: true, ...r });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+    });
+}
+function activosBaja(req, res, ctx, { params }) {
+    const { json, readJson } = ctx;
+    return readJson(req, res, d => {
+        try { return json(res, { ok: true, ...require('../../services/activosFijosService').darDeBaja(parseInt(params[0]), d.motivo || '') }); }
+        catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+    });
+}
+function activosDepreciar(req, res, ctx) {
+    const { json, readJson } = ctx;
+    return readJson(req, res, d => {
+        const n = require('../../services/activosFijosService').depreciarMes(d.fecha || null);
+        return json(res, { ok: true, depreciados: n });
+    });
+}
+
 // GET /api/erp/unit-economics?desde&hasta&gasto_adquisicion — CAC/LTV/Ratio.
 // gasto_adquisicion (publicidad + ventas) es opcional: sin él usa
 // configuracion.gasto_marketing_mensual; sin ninguno → sin_datos. 0 = orgánico.
@@ -711,6 +744,10 @@ const RUTAS = [
     { metodo: 'GET',  path: '/api/erp/facturacion-pendiente',     area: 'finanzas', handler: facturacionPendiente },
     { metodo: 'GET',  path: '/api/erp/tablero',                   area: 'finanzas', handler: tablero },
     { metodo: 'GET',  path: '/api/erp/unit-economics',            area: 'finanzas', handler: unitEconomics },
+    { metodo: 'GET',  path: '/api/erp/activos',                   area: 'finanzas', handler: activosGet },
+    { metodo: 'POST', path: '/api/erp/activos',                   area: 'finanzas', handler: activosPost },
+    { metodo: 'POST', path: /^\/api\/erp\/activos\/(\d+)\/baja$/, area: 'finanzas', handler: activosBaja },
+    { metodo: 'POST', path: '/api/erp/activos/depreciar',         area: 'finanzas', handler: activosDepreciar },
     { metodo: 'GET',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierreGet },
     { metodo: 'PUT',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierrePut },
     { metodo: 'GET',  path: '/api/erp/rentabilidad-clientes',     area: 'finanzas', handler: rentabilidadClientes },
