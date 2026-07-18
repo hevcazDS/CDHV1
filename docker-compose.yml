@@ -28,6 +28,7 @@ services:
       - ./data:/data                                  # jugueteria.db (SQLite WAL)
       - wwebjs_auth:/app/.wwebjs_auth                  # sesión de WhatsApp
       - ./imagenes_clientes:/app/bot/imagenes_clientes # fotos de clientes
+      - ./imagenes_productos:/app/bot/imagenes_productos # fotos de producto (WebP + transporte)
       - ./logs:/app/logs                               # logs de pm2
       - ./logs-bot:/app/bot/logs                       # logs del logger del bot
     # Si el Caddy del servidor corre COMO CONTENEDOR (no en el host),

@@ -2,7 +2,16 @@
 // compartidos entre el alta y la edición en CatalogoTab (ambos tocan
 // exactamente las mismas columnas reales de `productos`).
 import { useState } from 'react';
-import { Fieldset, TextInput, NumberInput, Select, Textarea, Group, Button } from '@mantine/core';
+import { Fieldset, TextInput, NumberInput, Select, Textarea, Group, Button, FileButton, Image, Text } from '@mantine/core';
+import { api } from '../../api';
+import { toastOk, toastErr } from '../../lib/ui';
+
+// Resuelve el valor de url_imagen a un src usable por <img>: URL externa tal
+// cual, o el servidor local de fotos de producto para un archivo guardado.
+export function srcImagenProducto(url) {
+  if (!url) return null;
+  return /^https?:\/\//i.test(url) ? url : '/api/imagenes_productos/' + url;
+}
 
 export const CATEGORIA_NUEVA = '__nueva__';
 
@@ -125,8 +134,31 @@ export function SelectCategoria({ form, categorias, onCrearCategoria }) {
 // ver edad/género/tipo de juguete. El giro llega cacheado de /api/negocio.
 function _giro() { try { return localStorage.getItem('giro') || 'jugueteria'; } catch (_) { return 'jugueteria'; } }
 
-export function CamposProducto({ form, categorias, onCrearCategoria }) {
+export function CamposProducto({ form, categorias, onCrearCategoria, idProducto }) {
   const giro = _giro();
+  const [subiendo, setSubiendo] = useState(false);
+
+  // Sube una foto: la lee como base64 y la manda al backend, que la convierte a
+  // WebP y guarda el basename local en url_imagen (conviviendo con las ligas).
+  const subirFoto = async (file) => {
+    if (!file) return;
+    if (!/^image\/(png|jpe?g)$/i.test(file.type)) return toastErr('Solo JPG o PNG');
+    if (file.size > 12 * 1024 * 1024) return toastErr('La imagen no debe pasar de 12 MB');
+    setSubiendo(true);
+    try {
+      const base64 = await new Promise((ok, err) => {
+        const r = new FileReader();
+        r.onload = () => ok(String(r.result).replace(/^data:[^,]+,/, ''));
+        r.onerror = () => err(new Error('No se pudo leer el archivo'));
+        r.readAsDataURL(file);
+      });
+      const res = await api.post('/api/prime/producto-imagen', { id_producto: idProducto || 0, archivo_base64: base64, mimetype: file.type });
+      if (!res.ok) throw new Error(res.error || 'No se pudo subir');
+      form.setFieldValue('url_imagen', res.url_imagen);
+      toastOk('Foto subida y optimizada');
+    } catch (e) { toastErr(e.message); }
+    finally { setSubiendo(false); }
+  };
   const esJuguete = ['jugueteria', 'custom'].includes(giro);
   const esRopa = giro === 'retail';
   // dimensiones/peso: solo giros que envían paquetería con frecuencia
@@ -195,7 +227,19 @@ export function CamposProducto({ form, categorias, onCrearCategoria }) {
       </Fieldset>}
 
       <Fieldset legend="Imagen y contenido" mb="md">
-        <TextInput label="URL de imagen" {...form.getInputProps('url_imagen')} mb="sm" />
+        <Group align="flex-end" gap="sm" mb="sm">
+          <TextInput label="URL de imagen o foto subida" style={{ flex: 1 }} {...form.getInputProps('url_imagen')}
+            description="Pega una liga externa (http…) o sube una foto: se optimiza a WebP y se guarda en el sistema" />
+          <FileButton onChange={subirFoto} accept="image/png,image/jpeg">
+            {(props) => <Button {...props} variant="default" loading={subiendo}>📷 Subir foto</Button>}
+          </FileButton>
+        </Group>
+        {form.values.url_imagen && (
+          <Group mb="sm" gap="sm" align="center">
+            <Image src={srcImagenProducto(form.values.url_imagen)} alt="" w={64} h={64} fit="contain" radius="sm" />
+            <Text size="xs" c="dimmed">{/^https?:\/\//i.test(form.values.url_imagen) ? 'Liga externa' : 'Foto guardada en el sistema (WebP)'}</Text>
+          </Group>
+        )}
         {(esJuguete || esRopa) && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
             <TextInput label="Material" {...form.getInputProps('material')} />

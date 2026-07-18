@@ -550,7 +550,13 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
                         `${vocab().emoji} *${prod.name}*\n` +
                         `📦 ${prod.cat}  ·  💰 *$${Number(prod.price).toFixed(2)} MXN*\n\n` +
                         (desc ? `📝 ${desc}` : '');
-                    const media = await MessageMedia.fromUrl(prod.url_imagen, { unsafeMime:true });
+                    // Ambivalente: si es archivo local (foto subida) se manda por
+                    // ruta (jpg/png de transporte — WhatsApp trata el webp como
+                    // sticker); si es URL externa (ligas de JC) sigue por fromUrl.
+                    const _rutaLocal = require('../../services/imagenProducto').rutaWhatsapp(prod.url_imagen);
+                    const media = _rutaLocal
+                        ? MessageMedia.fromFilePath(_rutaLocal)
+                        : await MessageMedia.fromUrl(prod.url_imagen, { unsafeMime:true });
                     await client.sendMessage(userId, media, { caption });
                 } catch(e) { log.warn('Imagen no disponible', e); }
             }

@@ -1,6 +1,19 @@
 # Auditoría del sistema de IMÁGENES / FOTOS
 
-Fecha: 2026-07-18 · Repo en solo lectura · **No se implementó nada** (solo análisis + plan).
+Fecha: 2026-07-18 · Análisis + plan.
+
+> **✅ P0 IMPLEMENTADO (2026-07-18):** foto de producto local + WebP + envío por
+> WhatsApp, ambivalente con las ligas externas (Julio Cepeda byte-idéntico).
+> - `services/imagenProducto.js`: resolvedor único (http→externa, si no→archivo
+>   local), `guardarBase64` (WebP con cwebp + copia jpg/png de transporte),
+>   `rutaWhatsapp` (nunca manda el webp como sticker), `borrar`, anti-traversal.
+> - `POST /api/prime/producto-imagen` (gerente+, exento del cap de body) +
+>   `GET /api/imagenes_productos/:archivo` (servido autenticado).
+> - `menuFlow`/`cartFlow`: local → `fromFilePath`, externa → `fromUrl` (sin cambio JC).
+> - Panel: `📷 Subir foto` en `productoCampos.jsx` (junto al campo de URL) con
+>   preview; carpeta `bot/imagenes_productos/` + volumen docker + gitignore.
+> - Test `tests/test_imagen_producto.js` (6/6). golden+paridad byte-idénticas.
+> **Pendiente P1:** miniatura en POS, preview en catálogo, adjuntar en cotización.
 
 Meta del dueño: fotos guardadas **en el propio sistema** (subes jpg/png → se convierte a **WebP** para pesar menos), **ambivalente** (soportar a la vez liga externa **y** archivo local), una sola fuente de verdad reutilizable en: (1) WhatsApp, (2) POS, (3) catálogo, (4) adjuntar en cotizaciones. Aditivo: las ligas actuales de Julio Cepeda deben seguir funcionando.
 

@@ -44,6 +44,7 @@ logs/
 
 # Fotos de clientes (datos personales — nunca al repo)
 bot/imagenes_clientes/
+bot/imagenes_productos/
 
 # Referencias visuales locales (imágenes de diseño)
 Referencias/

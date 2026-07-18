@@ -241,7 +241,7 @@ export default function CatalogoTab() {
             <Button onClick={guardarEdicionProducto}>Guardar</Button>
           </>}>
           {msgEditarProducto && <div className="login-error" style={{ marginBottom: 12 }}>{msgEditarProducto}</div>}
-          <CamposProducto form={editarForm} categorias={categorias} onCrearCategoria={crearCategoriaYAsignar} />
+          <CamposProducto form={editarForm} categorias={categorias} onCrearCategoria={crearCategoriaYAsignar} idProducto={productoEditando?.id} />
         </Modal>
       )}
 

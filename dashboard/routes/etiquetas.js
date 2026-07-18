@@ -90,6 +90,20 @@ function servirImagen(req, res, ctx, { params }) {
     return res.end(fs.readFileSync(filePath));
 }
 
+// GET /api/imagenes_productos/:archivo — sirve la foto de producto (local WebP o
+// jpg/png) para el panel/POS/catálogo. Mismo anti-traversal y MIME que las de
+// cliente, apuntando a bot/imagenes_productos/. Detrás del gate global de /api/*.
+function servirImagenProducto(req, res, ctx, { params }) {
+    const { json, SECURITY_HEADERS } = ctx;
+    const imgP = require('../../services/imagenProducto');
+    const archivo = decodeURIComponent(params[0]);
+    const filePath = imgP.rutaLocal(archivo);
+    if (!filePath) return json(res, { error: 'No encontrada' }, 404);
+    const ext = archivo.split('.').pop().toLowerCase();
+    res.writeHead(200, { 'Content-Type': _MIME[ext] || 'application/octet-stream', ...SECURITY_HEADERS });
+    return res.end(fs.readFileSync(filePath));
+}
+
 // GET /api/logs_error?limite=50 — diagnóstico (ver Beta.jsx)
 function logsError(req, res, ctx, { u }) {
     const { db, json } = ctx;
@@ -103,6 +117,7 @@ const RUTAS = [
     { metodo: 'GET', path: '/api/etiquetas/pendientes-count',    handler: pendientesCount },
     { metodo: 'PUT', path: /^\/api\/etiquetas\/(\d+)$/,          area: 'operacion', handler: actualizar },
     { metodo: 'GET', path: /^\/api\/imagenes_clientes\/(.+)$/,   handler: servirImagen },
+    { metodo: 'GET', path: /^\/api\/imagenes_productos\/(.+)$/,  handler: servirImagenProducto },
     { metodo: 'GET', path: '/api/logs_error',                    handler: logsError },
 ];
 

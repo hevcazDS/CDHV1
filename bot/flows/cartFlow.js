@@ -259,7 +259,10 @@ async function handle(ctx) {
                             '~~$' + Number(_prod.price).toFixed(2) + '~~ → *$' + Number(_o.precio_oferta).toFixed(2) + ' MXN* (-' + _o.valor + '%)' +
                             (_o.fecha_fin ? '\n⏰ Oferta válida hasta ' + _o.fecha_fin : '') +
                             (desc ? '\n\n📝 ' + desc : '');
-                        const media = await MessageMedia.fromUrl(_prod.url_imagen, { unsafeMime: true });
+                        const _rutaLocal = require('../../services/imagenProducto').rutaWhatsapp(_prod.url_imagen);
+                        const media = _rutaLocal
+                            ? MessageMedia.fromFilePath(_rutaLocal)
+                            : await MessageMedia.fromUrl(_prod.url_imagen, { unsafeMime: true });
                         await client.sendMessage(userId, media, { caption });
                     } catch(e) { log.warn('Imagen de oferta no disponible', e); }
                 }

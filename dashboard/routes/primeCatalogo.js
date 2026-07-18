@@ -418,7 +418,35 @@ function recetaPut(req, res, ctx, { params }) {
     });
 }
 
+// POST /api/prime/producto-imagen { id_producto, archivo_base64, mimetype } —
+// sube una foto de producto (jpg/png), la convierte a WebP y guarda el basename
+// local en productos.url_imagen. Ambivalente: el campo URL externo sigue igual
+// (ambos escriben la misma columna). Exento del cap de body (server.js) por el
+// tamaño en base64. gerente+.
+function productoImagen(req, res, ctx) {
+    const { db, json, readBody } = ctx;
+    return readBody(req, body => {
+        try {
+            const d = JSON.parse(body || '{}');
+            const id = parseInt(d.id_producto) || 0;
+            const prod = id ? db.prepare('SELECT id, url_imagen FROM productos WHERE id=?').get(id) : null;
+            if (id && !prod) return json(res, { ok: false, error: 'Producto no encontrado' }, 404);
+            const imgP = require('../../services/imagenProducto');
+            const basename = imgP.guardarBase64(id, d.archivo_base64, d.mimetype);
+            // En edición: actualiza ya y borra la imagen local anterior. En alta
+            // (sin id): solo guarda el archivo y devuelve el basename — la UI lo
+            // pone en url_imagen y se persiste al crear el producto.
+            if (prod) {
+                if (prod.url_imagen && !imgP.esExterna(prod.url_imagen)) { try { imgP.borrar(prod.url_imagen); } catch (_) {} }
+                db.prepare('UPDATE productos SET url_imagen=? WHERE id=?').run(basename, id);
+            }
+            return json(res, { ok: true, url_imagen: basename });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+    });
+}
+
 const RUTAS = [
+    { metodo: 'POST',   path: '/api/prime/producto-imagen',                roles: ['gerente'], handler: productoImagen },
     { metodo: 'POST',   path: '/api/prime/palabras-filtro',                roles: ['gerente'], handler: palabrasFiltroPost },
     { metodo: 'PUT',    path: /^\/api\/prime\/palabras-filtro\/(\d+)$/,    roles: ['gerente'], handler: palabrasFiltroPut },
     { metodo: 'DELETE', path: /^\/api\/prime\/palabras-filtro\/(\d+)$/,    roles: ['gerente'], handler: palabrasFiltroDelete },
