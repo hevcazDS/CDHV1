@@ -681,7 +681,16 @@ function _resolveChromePath() {
 
 const _cierreNavegadoresPrevios = intentarCerrarProcesosBrowser();
 
-const client = new Client({
+// Seguro contra el bug clásico de "no descarga medios": whatsapp-web.js carga
+// por defecto la ÚLTIMA versión de WhatsApp Web, y cuando WhatsApp publica un
+// cambio de su front, versiones viejas de la librería dejan de poder descargar
+// imágenes/audio/etc. Aquí ya estamos en whatsapp-web.js 1.34.x (que resolvió
+// ese bug), PERO además se puede FIJAR la versión del front con WWEB_WEB_VERSION
+// (ej. "2.3000.1234567890"): así un cambio sorpresa de WhatsApp no rompe el bot.
+// Vacío/"auto" = comportamiento actual (la última, que hoy funciona). Cambiar la
+// versión pineada NO requiere tocar código, solo el .env.
+const _wwebVersion = (process.env.WWEB_WEB_VERSION || '').trim();
+const _clientOpts = {
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: WHATSAPP_HEADLESS,
@@ -689,7 +698,15 @@ const client = new Client({
         args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage',
                '--no-first-run','--no-zygote','--disable-extensions'],
     },
-});
+};
+if (_wwebVersion && _wwebVersion.toLowerCase() !== 'auto') {
+    _clientOpts.webVersionCache = {
+        type: 'remote',
+        remotePath: `https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/${_wwebVersion}.html`,
+    };
+    log.info('WhatsApp Web fijado a la versión ' + _wwebVersion + ' (WWEB_WEB_VERSION)');
+}
+const client = new Client(_clientOpts);
 
 abrirDashboard();
 
