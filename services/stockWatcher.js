@@ -878,6 +878,11 @@ async function runAll() {
         _runCheck(checkCampanasCRM, 'checkCampanasCRM');
         _runCheck(checkBackupReciente, 'checkBackupReciente');
         _runCheck(checkCacIneficiente, 'checkCacIneficiente');
+        // Depreciación mensual automática de activos fijos: idempotente por mes
+        // (ultima_depreciacion), así corre una sola vez al entrar el mes y no-opea
+        // el resto. Sin activos registrados no hace nada. Evita que alguien olvide
+        // correrla a mano cada mes.
+        _runCheck(() => { try { require('./activosFijosService').depreciarMes(); } catch (_) {} }, 'depreciarActivos');
         _runCheck(checkRelojSistema, 'checkRelojSistema');
         _runCheck(purgarImagenesAntiguas, 'purgarImagenesAntiguas');
         _runCheck(actualizarLeadScores, 'actualizarLeadScores');
