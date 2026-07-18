@@ -45,6 +45,33 @@ function libroMayor(req, res, ctx) {
     return ctx.json(res, { desde, hasta, sucursal: suc || null, cuentas: conta.libroMayor(desde, hasta, suc || null) });
 }
 
+// POST /api/erp/gasto-marketing { monto, fecha, concepto, metodo } — registra un
+// gasto de PUBLICIDAD en la subcuenta 602 (finanzas P1) → alimenta el CAC solo.
+function gastoMarketingPost(req, res, ctx) {
+    const { json, readJson } = ctx;
+    return readJson(req, res, d => {
+        const monto = Number(d.monto);
+        if (!(monto > 0)) return json(res, { ok: false, error: 'El monto debe ser mayor a 0' }, 400);
+        if (!conta.activo()) return json(res, { ok: false, error: 'Enciende Contabilidad para registrar el gasto' }, 400);
+        try {
+            conta.asientoGasto(String(d.concepto || 'Publicidad').slice(0, 120), monto, d.metodo === 'caja' ? 'caja' : 'bancos', !!d.con_iva,
+                { cuentaCargo: '602', fecha: d.fecha || null });
+            return json(res, { ok: true });
+        } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+    });
+}
+// GET /api/erp/gasto-marketing?desde&hasta — total de publicidad (602) del período.
+function gastoMarketingGet(req, res, ctx) {
+    const { db, json } = ctx;
+    const { desde, hasta } = _rango(req);
+    let total = 0;
+    try {
+        const r = db.prepare(`SELECT COALESCE(SUM(dd.debe - dd.haber),0) g FROM asientos a JOIN asientos_detalle dd ON dd.id_asiento=a.id WHERE dd.cuenta='602' AND a.fecha BETWEEN ? AND ?`).get(desde, hasta);
+        total = Math.round((r.g || 0) * 100) / 100;
+    } catch (_) {}
+    return json(res, { desde, hasta, gasto_marketing: total });
+}
+
 // ── Activos fijos (capitalización + depreciación lineal) ────────────────────
 function activosGet(req, res, ctx) {
     const inc = new URL(req.url, 'http://x').searchParams.get('incluir_bajas') === '1';
@@ -744,6 +771,8 @@ const RUTAS = [
     { metodo: 'GET',  path: '/api/erp/facturacion-pendiente',     area: 'finanzas', handler: facturacionPendiente },
     { metodo: 'GET',  path: '/api/erp/tablero',                   area: 'finanzas', handler: tablero },
     { metodo: 'GET',  path: '/api/erp/unit-economics',            area: 'finanzas', handler: unitEconomics },
+    { metodo: 'GET',  path: '/api/erp/gasto-marketing',           area: 'finanzas', handler: gastoMarketingGet },
+    { metodo: 'POST', path: '/api/erp/gasto-marketing',           area: 'finanzas', handler: gastoMarketingPost },
     { metodo: 'GET',  path: '/api/erp/activos',                   area: 'finanzas', handler: activosGet },
     { metodo: 'POST', path: '/api/erp/activos',                   area: 'finanzas', handler: activosPost },
     { metodo: 'POST', path: /^\/api\/erp\/activos\/(\d+)\/baja$/, area: 'finanzas', handler: activosBaja },

@@ -109,11 +109,19 @@ t('lee configuracion.gasto_marketing_mensual si no se pasa el parámetro', () =>
     db.prepare("DELETE FROM configuracion WHERE clave='gasto_marketing_mensual'").run();
 });
 
+t('P1: gasto de publicidad en 602 → CAC AUTOMÁTICO del libro mayor (no manual)', () => {
+    asiento('602', 5000, 0);   // publicidad del período (50 clientes ya sembrados)
+    const r = salud.calcularSaludNegocio({ desde, hasta });   // sin pasar gasto → debe salir de 602
+    assert.strictEqual(r.insumos.gasto_adquisicion, 5000, 'del libro mayor 602');
+    assert.strictEqual(r.insumos.gasto_adquisicion_es_input_manual, false, 'automático, no manual');
+    assert.strictEqual(r.metricas.cac, 100);   // 5000/50
+});
+
 t('sin clientes nuevos → sin_datos', () => {
     db.prepare("DELETE FROM clientes").run();
     const r = salud.calcularSaludNegocio({ desde, hasta, gastoAdquisicion: 5000 });
     assert.strictEqual(r.status, 'sin_datos');
 });
 
-console.log('\n' + ok + '/8 OK — salud del negocio: CAC/LTV/ratio, umbrales, orgánico y sin_datos.');
-process.exit(ok === 8 ? 0 : 1);
+console.log('\n' + ok + '/9 OK — salud del negocio: CAC/LTV/ratio, umbrales, orgánico, sin_datos y CAC-auto-602.');
+process.exit(ok === 9 ? 0 : 1);

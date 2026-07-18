@@ -635,6 +635,38 @@ const BACKUP_MAX_EDAD_MS   = 36 * 3_600_000; // 36h — el backup de DB corre a 
 // El backup de DB (scripts/backup.js) es la única copia fuera del servidor.
 // Antes de hoy, si el proceso que lo hospeda no llegaba a las 11:00 (caída,
 // reinicio) nadie se enteraba — esto lo detecta y avisa por correo.
+// Alerta de eficiencia de adquisición (finanzas P1): si el CAC de los últimos 7
+// días sube >20% vs la media de 30 días, avisa al operador — la pauta pierde
+// eficiencia antes de que sea pérdida. Requiere gasto de publicidad fechado en
+// la cuenta 602 (si no hay, calla). Dedup diario. Ver AUDITORIA_SALUD_NEGOCIO.md §5.
+function checkCacIneficiente() {
+    const asesorTel = _valorConfig('operador_telefono', process.env.ASESOR_WHATSAPP);
+    if (!asesorTel) return 0;
+    const mkt = (dias) => {
+        try { return db.prepare(`SELECT COALESCE(SUM(dd.debe - dd.haber),0) g FROM asientos a JOIN asientos_detalle dd ON dd.id_asiento=a.id WHERE dd.cuenta='602' AND a.fecha > date('now','localtime','-${dias} days')`).get().g || 0; }
+        catch (_) { return 0; }
+    };
+    const nuevos = (dias) => {
+        try { return db.prepare(`SELECT COUNT(*) n FROM clientes WHERE date(creado_en) > date('now','localtime','-${dias} days')`).get().n || 0; }
+        catch (_) { return 0; }
+    };
+    const g7 = mkt(7), n7 = nuevos(7), g30 = mkt(30), n30 = nuevos(30);
+    if (!(n7 > 0) || !(g7 > 0) || !(n30 > 0) || !(g30 > 0)) return 0;   // sin datos → callar
+    const cac7 = g7 / n7, cac30 = g30 / n30;
+    if (cac7 <= cac30 * 1.20) return 0;
+    try {
+        const ya = db.prepare("SELECT id FROM cola_notificaciones WHERE asunto='Alerta CAC' AND datetime(creada_en) > datetime('now','-23 hours','localtime') LIMIT 1").get();
+        if (ya) return 0;
+    } catch (_) {}
+    const subio = Math.round((cac7 / cac30 - 1) * 100);
+    try {
+        _insertCola(asesorTel, 'Alerta CAC',
+            `⚠️ El costo de adquirir clientes subió ${subio}% esta semana ($${cac7.toFixed(0)} vs $${cac30.toFixed(0)} promedio del mes). Revisa tu pauta/campaña antes de que sea pérdida.`,
+            'alerta_cac');
+        return 1;
+    } catch (e) { log.debug('No se pudo encolar alerta CAC: ' + e.message); return 0; }
+}
+
 function checkBackupReciente() {
     let registro;
     try {
@@ -845,6 +877,7 @@ async function runAll() {
         _runCheck(checkSuscripcionesVencidas, 'checkSuscripcionesVencidas');
         _runCheck(checkCampanasCRM, 'checkCampanasCRM');
         _runCheck(checkBackupReciente, 'checkBackupReciente');
+        _runCheck(checkCacIneficiente, 'checkCacIneficiente');
         _runCheck(checkRelojSistema, 'checkRelojSistema');
         _runCheck(purgarImagenesAntiguas, 'purgarImagenesAntiguas');
         _runCheck(actualizarLeadScores, 'actualizarLeadScores');

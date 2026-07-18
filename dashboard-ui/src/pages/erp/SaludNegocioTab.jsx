@@ -1,8 +1,10 @@
 import { useState, lazy, Suspense } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Stack, Text, Title, NumberInput, Button, RingProgress, Badge, Table, TextInput, Skeleton } from '@mantine/core';
 import { api } from '../../api';
 import { money } from '../../lib/format';
+import { handleApiError } from '../../lib/apiError';
+import { toastOk } from '../../lib/ui';
 
 // Salud del negocio (unit economics): CAC / LTV / Ratio LTV:CAC. El gasto de
 // adquisición (publicidad + ventas) es OPCIONAL — muchos negocios no pautan: si
@@ -15,10 +17,18 @@ const _hoy = () => new Date().toISOString().slice(0, 10);
 const _iniMes = () => _hoy().slice(0, 8) + '01';
 
 export default function SaludNegocioTab() {
+  const qc = useQueryClient();
   const [desde, setDesde] = useState(_iniMes());
   const [hasta, setHasta] = useState(_hoy());
-  const [gasto, setGasto] = useState('');            // '' = usa configuracion o sin_datos
+  const [gasto, setGasto] = useState('');            // '' = usa 602/config o sin_datos
   const [gastoAplicado, setGastoAplicado] = useState('');
+  const [pub, setPub] = useState('');                // registrar publicidad (602)
+
+  const registrarPub = useMutation({
+    mutationFn: () => api.post('/api/erp/gasto-marketing', { monto: Number(pub), concepto: 'Publicidad', fecha: hasta, metodo: 'bancos' }),
+    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); setPub(''); toastOk('Publicidad registrada — el CAC ya la considera'); qc.invalidateQueries({ queryKey: ['unit-economics'] }); },
+    onError: handleApiError,
+  });
 
   const { data, isFetching } = useQuery({
     queryKey: ['unit-economics', desde, hasta, gastoAplicado],
@@ -45,6 +55,14 @@ export default function SaludNegocioTab() {
           <Button variant="default" loading={isFetching} onClick={() => setGastoAplicado(gasto === '' ? '' : Number(gasto))}>Calcular</Button>
         </Group>
       </Group>
+
+      <Card withBorder radius="md" p="sm" className="card">
+        <Group align="flex-end" gap="sm">
+          <Text size="sm" c="dimmed" style={{ flex: 1 }}>💡 Registra lo que gastaste en publicidad y el CAC se calcula solo (cuenta 602). Si no dejas el campo de arriba, se usa esto.</Text>
+          <NumberInput label="Registrar publicidad" prefix="$ " thousandSeparator="," min={0} value={pub} onChange={setPub} w={170} />
+          <Button variant="light" loading={registrarPub.isPending} disabled={!(Number(pub) > 0)} onClick={() => registrarPub.mutate()}>Registrar gasto</Button>
+        </Group>
+      </Card>
 
       {!data ? <Skeleton height={220} radius="md" /> : status === 'sin_datos' ? (
         <Card withBorder radius="md" p="lg" className="card">

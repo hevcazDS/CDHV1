@@ -1088,6 +1088,8 @@ INSERT OR IGNORE INTO plan_cuentas (codigo, nombre, tipo) VALUES
     ('401', 'Ventas', 'ingreso'),
     ('501', 'Costo de ventas', 'costo'),
     ('601', 'Gastos generales', 'gasto');
+-- 0082: subcuenta de publicidad (CAC)
+INSERT OR IGNORE INTO plan_cuentas (codigo, nombre, tipo) VALUES ('602', 'Publicidad y marketing', 'gasto');
 
 CREATE TABLE IF NOT EXISTS asientos (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,

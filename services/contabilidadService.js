@@ -157,7 +157,9 @@ function asientoGasto(concepto, total, metodo, conIva, opts = {}) {
     if (!activo() || !(total > 0)) return null;
     const iva = conIva ? (parseFloat(getValor('iva_pct', '0')) || 0) : 0;
     const base = iva > 0 ? _r2(total / (1 + iva / 100)) : _r2(total);
-    const partidas = [{ cuenta: '601', debe: base }];
+    // cuentaCargo permite clasificar el gasto en una subcuenta (ej. 602 Publicidad
+    // para el CAC); default 601 Gastos generales (comportamiento de siempre).
+    const partidas = [{ cuenta: opts.cuentaCargo || '601', debe: base }];
     if (total - base > 0.005) partidas.push({ cuenta: '119', debe: _r2(total - base) });
     partidas.push({ cuenta: metodo === 'bancos' ? '102' : '101', haber: total });
     return registrarAsiento({ concepto: 'Gasto: ' + concepto, referencia_tipo: 'gasto', referencia_id: null, partidas, fecha: opts.fecha || null, override: !!opts.override, sucursal: opts.sucursal || null });

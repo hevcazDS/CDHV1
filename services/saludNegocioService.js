@@ -21,18 +21,29 @@ function _diasEntre(desde, hasta) {
     return Math.max(1, Math.round((b - a) / 86400000) + 1);
 }
 
-// Lee el gasto de adquisición: el explícito (param), o configuracion.gasto_marketing_mensual,
-// o null si no hay ninguno. Distingue "0 capturado" de "nunca capturado" (null).
-function _gastoAdquisicion(gastoParam) {
+// Gasto de publicidad (602) del período — sale SOLO del libro mayor (finanzas P1).
+function _gastoMarketingLibro(desde, hasta) {
+    try {
+        const r = db.prepare("SELECT COALESCE(SUM(dd.debe - dd.haber),0) g FROM asientos a JOIN asientos_detalle dd ON dd.id_asiento=a.id WHERE dd.cuenta='602' AND a.fecha BETWEEN ? AND ?").get(desde, hasta);
+        return Math.round((r.g || 0) * 100) / 100;
+    } catch (_) { return 0; }
+}
+
+// Lee el gasto de adquisición. Prioridad: (1) parámetro explícito; (2) publicidad
+// registrada en 602 del período (automático, del libro mayor); (3)
+// configuracion.gasto_marketing_mensual; si nada → null. Devuelve { valor, auto }.
+function _gastoAdquisicion(gastoParam, desde, hasta) {
     if (gastoParam !== null && gastoParam !== undefined && gastoParam !== '') {
         const n = Number(gastoParam);
-        return Number.isFinite(n) && n >= 0 ? n : null;
+        return { valor: Number.isFinite(n) && n >= 0 ? n : null, auto: false };
     }
+    const m602 = _gastoMarketingLibro(desde, hasta);
+    if (m602 > 0) return { valor: m602, auto: true };   // publicidad contable → CAC solo
     try {
         const r = db.prepare("SELECT valor FROM configuracion WHERE clave='gasto_marketing_mensual'").get();
-        if (r && r.valor !== '' && r.valor != null) { const n = Number(r.valor); if (Number.isFinite(n) && n >= 0) return n; }
+        if (r && r.valor !== '' && r.valor != null) { const n = Number(r.valor); if (Number.isFinite(n) && n >= 0) return { valor: n, auto: false }; }
     } catch (_) {}
-    return null;
+    return { valor: null, auto: false };
 }
 
 function calcularSaludNegocio({ desde, hasta, gastoAdquisicion = null } = {}) {
@@ -70,11 +81,12 @@ function calcularSaludNegocio({ desde, hasta, gastoAdquisicion = null } = {}) {
     const frecuencia = clientesActivos > 0 ? r2((numPedidos / clientesActivos) * factorAnual) : 0;
     const ltv = r2(ticket * frecuencia * margenNeto);
 
-    const gastoAdq = _gastoAdquisicion(gastoAdquisicion);
+    const ga = _gastoAdquisicion(gastoAdquisicion, desde, hasta);
+    const gastoAdq = ga.valor;
     const insumos = {
         clientes_nuevos: clientesNuevos, num_pedidos: numPedidos, clientes_activos: clientesActivos,
         ingresos, cogs, gastos_op: gastosOp, margen_neto: margenNeto,
-        gasto_adquisicion: gastoAdq, gasto_adquisicion_es_input_manual: true,
+        gasto_adquisicion: gastoAdq, gasto_adquisicion_es_input_manual: !ga.auto,
     };
 
     // Sin base para el ratio → sin_datos (honesto, nunca NaN/Infinity).
