@@ -123,6 +123,14 @@ async function handle(ctx) {
             && /\bmesa\b|comer aqu[ií]|estoy en el restaurante/i.test(raw)) {
             return require('./mesaFlow').iniciar(userId, { carrito: data.carrito || [] });
         }
+        // Gestión de cita (reagendar/cancelar) por texto libre. Gated a citas_activo
+        // → giros sin citas (incl. Julio Cepeda) byte-idénticos. P0-b.
+        if (moduloActivo('citas_activo')) {
+            const gestion = require('./citasGestionFlow');
+            if (gestion.esIntencionGestion(raw)) {
+                return gestion.iniciar(userId, { carrito: data.carrito || [] }, tel);
+            }
+        }
         // Detección de devolución por texto libre — todas las variantes
         if (/devolver|devolv|devoluci[oó]n|devuelta|cambiar.*producto|cambio.*producto|quiero.*devolver|quiero.*cambiar|repetido|duplicado|ya.*ten[ií]a|me.*llegó.*mal|llegó.*incorrecto|no.*funciona|est[aá].*roto|est[aá].*da[nñ]ado|garantia|garant[ií]a|me.*equivoqu[eé]|pedido.*mal/i.test(raw)) {
             sessionManager.updateSession(userId, S.DEVOLUCION, { paso: 'bienvenida' });

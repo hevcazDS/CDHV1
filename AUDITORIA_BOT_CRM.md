@@ -37,9 +37,23 @@ lo que pasa en el chat.
 | Saludo diferenciado por etapa/valor | Parcial (crudo) | `menuPrincipal` distingue recurrente por `tags LIKE '%pedido_%'` (`_shared.js:1166`), **no** por etapa ni `lead_score` |
 | Timeline del cliente (citas/notas/etapa) | N/A (lo lee el panel) | `crm.js:76-91` — el bot no necesita leerlo |
 
+## Estado (2026-07-17)
+- ✅ **P0 — El bot alimenta el pipeline en vivo** — HECHO. `services/crmBot.js` +
+  cableado: primer mensaje→`contactado` (`actionHandler.js`), pago→`ganado`
+  (`marcar-pagado`), abandono con motivo→nota+`perdido` (`abandonoHandler.js`),
+  cotizar→`cotizado`+score (`actions.js`). Gated por `crm_pipeline_activo`
+  (default ON). Solo datos, fail-soft, no retrocede ni degrada un ganado.
+  Test: `tests/test_crm_pipeline_bot.js` (8/8).
+- ✅ **P0 — Reagendar/cancelar cita** — HECHO. `bot/flows/citasGestionFlow.js`
+  (estados `CITA_GESTION`/`CITA_REAG_FECHA`/`CITA_REAG_HORA`), entrada por keyword
+  en `menuFlow`, registrado en `giroFlows`. Test: `tests/test_citas_gestion.js` (6/6).
+- ✅ **P1 (parcial)** — score en caliente y motivo de no-compra al CRM entraron con
+  las P0 (subirScore en cotizar; nota+perdido en abandono).
+- ⏳ Pendientes: P2 (saludo por etapa/campaña, consultar estado de cita/cotización).
+
 ## (b) Top brechas priorizadas
 
-### P0 — El bot no alimenta el pipeline en vivo (etapa cotizado/contactado/perdido)
+### P0 — El bot no alimenta el pipeline en vivo (etapa cotizado/contactado/perdido)  ✅ HECHO
 - **Qué falta**: al confirmar pedido → `ganado`; al recibir el primer msg de un lead
   → `contactado`; al abandonar carrito con motivo → `perdido` + nota. Hoy nada de
   esto ocurre sin el motor (OFF).

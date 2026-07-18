@@ -24,7 +24,7 @@
 // Mapa giro → [módulos de flujo]. Vacío por defecto: ningún giro agrega flujos
 // todavía, así que el comportamiento es idéntico al actual. Es el punto de
 // extensión documentado, no una feature a medias.
-const _CITAS = [require('./citasFlow')];
+const _CITAS = [require('./citasFlow'), require('./citasGestionFlow')];
 const GIRO_FLOWS = {
     restaurante:   [require('./mesaFlow')],   // consumo en mesa por WhatsApp (F6)
     servicios:     _CITAS,

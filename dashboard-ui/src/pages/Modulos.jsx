@@ -103,6 +103,7 @@ const MODULOS = [
   { key: 'baul_contable_activo', titulo: '🗄️ Baúl contable', desc: 'Archiva los CFDI que devuelve el PAC en carpetas locales por mes y permite exportarlos por lote (.zip) para el contador' },
   { key: 'emojis_dashboard_activo', titulo: 'Emojis en el dashboard', desc: 'Muestra u oculta los emojis en el panel (no afecta los mensajes del bot)' },
   { key: 'contabilidad_activo', titulo: 'Contabilidad (ERP)', desc: 'Asientos automáticos de cada venta/compra/pago en el libro mayor (ver ERP / Finanzas)' },
+  { key: 'crm_pipeline_activo', titulo: '🧲 CRM: el bot alimenta el pipeline', desc: 'El bot mueve la etapa del cliente durante la charla (contactado al escribir, cotizado al cotizar, ganado al pagar, perdido al abandonar con motivo) y deja notas. Solo datos internos, no manda mensajes. Encendido por defecto' },
   { key: 'citas_activo', titulo: 'Citas y agenda', desc: 'El bot agenda citas por fecha/hora (giros de servicio) con recordatorio 24h antes' },
   { key: 'cotizacion_activo', titulo: '🧾 Cotizar en el chat', desc: 'El bot arma una cotización (subtotal + envío + total) del carrito y la dice en el chat. Informativa, no cobra. Se usa como pieza en el editor de flujo del bot' },
   { key: 'tiempo_entrega_activo', titulo: '📦 Tiempo de entrega', desc: 'El bot calcula y dice para cuándo llegaría el envío (días hábiles, sin domingos). Se usa como pieza en el editor de flujo del bot' },

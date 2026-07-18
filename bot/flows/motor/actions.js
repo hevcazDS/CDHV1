@@ -115,6 +115,13 @@ const ACTIONS = {
         const envio    = shared.calcularFlete(subtotal);
         const total    = subtotal + envio;
         const n = carrito.reduce((s, i) => s + (i.cantidad || 1), 0);
+        // CRM (P0/P1): cotizar es señal de compra → 'cotizado' + score en caliente.
+        // Solo datos, fail-soft; no-opea sin tel o con crm_pipeline_activo off.
+        if (ctx.tel) try {
+            const crmBot = require('../../../services/crmBot');
+            crmBot.avanzarEtapa(shared.db, ctx.tel, 'cotizado');
+            crmBot.subirScore(shared.db, ctx.tel, 10);
+        } catch (_) {}
         return { resultado: 'ok', data: {
             cotizacion_n: n,
             cotizacion_subtotal: subtotal.toFixed(2),

@@ -168,7 +168,7 @@ async function handle(ctx) {
         sessionManager.updateSession(userId, S.MENU, {});
         const V = vocab();
         return `🎉 ¡Listo! Tu cita quedó agendada:\n\n${data.cita_servicio ? '💈 *' + data.cita_servicio + '*\n' : ''}📅 *${data.cita_label}* a las *${data.cita_hora}*\n\n` +
-            `Te mandaré un recordatorio un día antes. Si necesitas cambiarla, escribe *asesor*.` + _msgAnticipo + `\n\n_Escribe *menu* para volver al inicio._`;
+            `Te mandaré un recordatorio un día antes. Si necesitas *cambiar* o *cancelar* tu cita, escríbeme *cambiar cita*.` + _msgAnticipo + `\n\n_Escribe *menu* para volver al inicio._`;
     }
 
     return null;

@@ -31,6 +31,11 @@ async function handleAction(userId, session, message, client) {
     let data     = session.data || {};
     const tel    = userId.replace(/@.*$/, '').slice(0, 20);
 
+    // CRM (P0): el cliente está conversando → mueve 'lead'/nulo a 'contactado'.
+    // Solo datos, idempotente y fail-soft (no retrocede, no toca 'ganado'); si el
+    // módulo crm_pipeline_activo está off, no-opea. Ver services/crmBot.js.
+    try { require('../services/crmBot').avanzarEtapa(db, tel, 'contactado'); } catch (_) {}
+
     // Venta previa pendiente (POS): a SHOW_CART para seguir el flujo normal
     try {
         const _ventaPrevia = ventaPreviaService.obtenerPendiente(db, tel);

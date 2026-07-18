@@ -30,6 +30,14 @@ function handle(raw, tel) {
         if (!pendiente) return null;
 
         db.prepare('UPDATE carritos_abandonados SET motivo=? WHERE id=?').run(match.motivo, pendiente.id);
+        // CRM (P0/P1-b): el "por qué se perdió" es el dato más valioso del pipeline
+        // y ya se está capturando — llevarlo a la ficha (nota + etapa 'perdido', que
+        // nunca degrada un 'ganado'). Solo datos, fail-soft.
+        try {
+            const crmBot = require('../../services/crmBot');
+            crmBot.agregarNota(db, tel, 'Abandonó el carrito — motivo: ' + match.motivo);
+            crmBot.avanzarEtapa(db, tel, 'perdido', { permitirPerdido: true });
+        } catch (_) {}
         return '¡Gracias por contarnos! 🙏 Lo tomamos en cuenta.\n\nEscribe *hola* para ver el menú.';
     } catch (_) {
         // Columna `motivo` todavía no existe en producción, o cualquier otro
