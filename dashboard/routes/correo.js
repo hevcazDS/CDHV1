@@ -5,8 +5,8 @@
 //   · imagen de un producto (por id → archivo local/liga)
 //   · un PDF generado al vuelo desde HTML (cotización/factura/reporte que la UI
 //     ya sabe imprimir) — vía Chrome (services/pdfService), sin dependencia nueva.
-// Gate gerente+ (el buzón del negocio es sensible). La bandeja de ENTRANTES (IMAP)
-// es Fase B (requiere imapflow) — ver INFORME_CORREO.md.
+// Gate gerente+ (el buzón del negocio es sensible). La bandeja de ENTRANTES la
+// baja services/correoInbox.js por IMAP (imapflow) a la tabla `correos`.
 const construirModulo = require('./_construirModulo');
 const emailSvc = require('../../services/emailService');
 
@@ -20,7 +20,11 @@ function activo(db) {
 // GET /api/correo/config — ¿módulo on? ¿SMTP configurado (clave de app)?
 function configGet(req, res, ctx) {
     const { db, json } = ctx;
-    return json(res, { activo: activo(db), configurado: emailSvc.isConfigured() });
+    return json(res, { activo: activo(db), configurado: emailSvc.isConfigured(), sin_leer: _sinLeer(db) });
+}
+function _sinLeer(db) {
+    try { return db.prepare("SELECT COUNT(*) n FROM correos WHERE direccion='entrante' AND leido=0").get().n; }
+    catch (_) { return 0; }
 }
 
 // GET /api/correo/enviados — registro de salientes.
@@ -30,6 +34,29 @@ function enviadosGet(req, res, ctx) {
     return json(res, rows.map(r => ({ ...r, adjuntos: _safe(r.adjuntos_json) })));
 }
 function _safe(j) { try { return JSON.parse(j || '[]'); } catch (_) { return []; } }
+
+// GET /api/correo/bandeja — correos ENTRANTES (los que bajó el IMAP).
+function bandejaGet(req, res, ctx) {
+    const { db, json } = ctx;
+    const rows = db.prepare("SELECT id, de, asunto, cuerpo, fecha, adjuntos_json, leido FROM correos WHERE direccion='entrante' ORDER BY fecha DESC, id DESC LIMIT 100").all();
+    return json(res, rows.map(r => ({ ...r, adjuntos: _safe(r.adjuntos_json) })));
+}
+
+// POST /api/correo/sincronizar — baja lo nuevo del buzón por IMAP.
+function sincronizarPost(req, res, ctx) {
+    const { db, json } = ctx;
+    if (!activo(db)) return json(res, { ok: false, error: 'El módulo de correo está apagado' }, 403);
+    return require('../../services/correoInbox').sincronizar(db)
+        .then(r => json(res, r, r.ok ? 200 : 400))
+        .catch(e => json(res, { ok: false, error: e.message }, 400));
+}
+
+// POST /api/correo/:id/leido — marca un entrante como leído.
+function leidoPost(req, res, ctx, { params }) {
+    const { db, json } = ctx;
+    db.prepare("UPDATE correos SET leido=1 WHERE id=? AND direccion='entrante'").run(Number(params[0]));
+    return json(res, { ok: true });
+}
 
 // POST /api/correo/enviar — { to, asunto, cuerpo(html/texto), adjuntos_manuales:
 //   [{nombre,tipo,base64}], imagen_producto: id?, pdf: {html, nombre}? }
@@ -90,10 +117,13 @@ function enviarPost(req, res, ctx, { ses }) {
 }
 
 const RUTAS = [
-    { metodo: 'GET',  path: '/api/correo/config',    roles: ['gerente'], handler: configGet },
-    { metodo: 'GET',  path: '/api/correo/enviados',  roles: ['gerente'], handler: enviadosGet },
-    { metodo: 'POST', path: '/api/correo/enviar',    roles: ['gerente'], handler: enviarPost },
+    { metodo: 'GET',  path: '/api/correo/config',        roles: ['gerente'], handler: configGet },
+    { metodo: 'GET',  path: '/api/correo/enviados',      roles: ['gerente'], handler: enviadosGet },
+    { metodo: 'GET',  path: '/api/correo/bandeja',       roles: ['gerente'], handler: bandejaGet },
+    { metodo: 'POST', path: '/api/correo/sincronizar',   roles: ['gerente'], handler: sincronizarPost },
+    { metodo: 'POST', path: /^\/api\/correo\/(\d+)\/leido$/, roles: ['gerente'], handler: leidoPost },
+    { metodo: 'POST', path: '/api/correo/enviar',        roles: ['gerente'], handler: enviarPost },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/correo' });
-module.exports._test = { enviarPost, configGet, enviadosGet, activo };
+module.exports._test = { enviarPost, configGet, enviadosGet, bandejaGet, sincronizarPost, leidoPost, activo };

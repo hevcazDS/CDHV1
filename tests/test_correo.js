@@ -70,9 +70,28 @@ t('ruta: módulo ON + envío OK (stub) → registra en enviados con meta de adju
     } finally { email.enviarCorreo = _envReal; email.isConfigured = _cfgReal; }
 });
 
+t('ruta: sincronizar con módulo apagado → 403', () => {
+    db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES ('correo_activo','0')").run();
+    const { sincronizarPost } = require('../dashboard/routes/correo')._test;
+    const out = {};
+    const ctx = { db, json: (r, d, c) => { out.d = d; out.code = c || 200; } };
+    sincronizarPost({}, null, ctx, {});
+    assert.strictEqual(out.code, 403);
+});
+
+t('bandeja: lista entrantes y config cuenta los no leídos', () => {
+    db.prepare("INSERT INTO correos (direccion, uid, de, asunto, cuerpo, adjuntos_json, leido, fecha) VALUES ('entrante', 7, 'x@y', 'Hola', '<p>hi</p>', '[]', 0, datetime('now'))").run();
+    const { bandejaGet, configGet } = require('../dashboard/routes/correo')._test;
+    let bandeja, cfg;
+    bandejaGet(null, null, { db, json: (r, d) => { bandeja = d; } });
+    configGet(null, null, { db, json: (r, d) => { cfg = d; } });
+    assert(bandeja.length >= 1 && bandeja[0].asunto === 'Hola');
+    assert(cfg.sin_leer >= 1, 'config reporta no leídos');
+});
+
 (async () => {
     for (const [n, fn] of pruebas) { await fn(); ok++; console.log('✅ ' + n); }
-    console.log('\n' + ok + '/5 OK — correo: MIME con/sin adjuntos + anti-inyección + gate del módulo.');
+    console.log('\n' + ok + '/7 OK — correo: MIME con/sin adjuntos + anti-inyección + gate + bandeja/sincronizar.');
     try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
-    process.exit(ok === 5 ? 0 : 1);
+    process.exit(ok === 7 ? 0 : 1);
 })().catch(e => { console.error('❌', e); process.exit(1); });

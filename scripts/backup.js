@@ -35,10 +35,10 @@ const IMG_DIR   = path.join(__dirname, 'imagenes_clientes');
 const SMTP_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
 const SMTP_PORT = parseInt(process.env.EMAIL_PORT || '587');
 
-// bot_email_usuario/password y el correo destino de backups se leen de la
-// tabla `configuracion` (prime los puede cambiar desde el dashboard, Prime >
-// General) en cada corrida -- no una sola vez al cargar el script. Si nunca
-// se han escrito esas claves cae a las env vars de siempre.
+// Los RESPALDOS usan SIEMPRE la cuenta de correo del .env (EMAIL_USER/PASS) --
+// es la cuenta de operaciones/proveedor, independiente del correo que cada
+// tienda configura para sí en la BD (bot_email_*, Prime > General). Así el
+// respaldo no depende de que la tienda haya configurado su buzón.
 function _cfg(clave, fallback) {
     try {
         const db = require('../bot/db_connection');
@@ -47,10 +47,10 @@ function _cfg(clave, fallback) {
     } catch (_) { return fallback; }
 }
 
-const SMTP_USER = _cfg('bot_email_usuario', process.env.EMAIL_USER || '');
-const SMTP_PASS = _cfg('bot_email_password', process.env.EMAIL_PASS || '');
+const SMTP_USER = process.env.EMAIL_USER || '';
+const SMTP_PASS = process.env.EMAIL_PASS || '';
 
-// DESTINO: por default el mismo correo del bot (SMTP_USER). Sobreescribible
+// DESTINO: por default la misma cuenta de respaldos (SMTP_USER). Sobreescribible
 // desde Prime > General (email_backup_destino, admite varios separados por
 // coma) o, si nunca se configuró ahí, con BACKUP_DEST en .env.
 const DEST_MAIL = _cfg('email_backup_destino', process.env.BACKUP_DEST || SMTP_USER || '');
@@ -167,7 +167,7 @@ async function comprimirImagenesNuevas() {
 // ── Enviar email con adjuntos via SMTP STARTTLS ────────────────────
 function enviarBackup(adjuntos, asunto) {
     if (!SMTP_USER || !SMTP_PASS) {
-        console.error('[backup] Sin credenciales SMTP — configura bot_email_usuario/password en Prime > General o EMAIL_USER/EMAIL_PASS en .env');
+        console.error('[backup] Sin credenciales SMTP — configura EMAIL_USER/EMAIL_PASS en .env (cuenta de respaldos, independiente del correo de la tienda)');
         return Promise.resolve(false);
     }
     if (!DEST_MAIL) {
