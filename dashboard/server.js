@@ -154,6 +154,28 @@ setInterval(() => {
     }
 }, 5 * 60_000).unref();
 
+// ── Tope de flood de login POR IP ───────────────────────────────────────────
+// El candado de arriba es por-username (frena fuerza bruta contra UNA cuenta),
+// pero no evita que un solo IP INUNDE /api/login rociando muchos usernames
+// distintos (credential stuffing) ni el DoS de CPU: cada intento corre un scrypt
+// (caro a propósito). Este límite es por IP, independiente del username. 20/min.
+const LOGIN_IP_MAX = 20;
+const _loginIpMap = new Map(); // ip -> { count, reset }
+function loginFloodPorIp(req) {
+    const ip = (process.env.TRUST_PROXY === '1' && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim())
+        || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const d = _loginIpMap.get(ip) || { count: 0, reset: now + 60_000 };
+    if (now > d.reset) { d.count = 0; d.reset = now + 60_000; }
+    d.count++;
+    _loginIpMap.set(ip, d);
+    return d.count > LOGIN_IP_MAX;
+}
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, d] of _loginIpMap) if (d.reset < now) _loginIpMap.delete(ip);
+}, 5 * 60_000).unref();
+
 const db = require('../bot/db_connection');
 const mensajeService = require('../services/mensajeService');
 const ventaPreviaService = require('../services/ventaPreviaService');
@@ -651,8 +673,17 @@ function handleRequest(req, res) {
     // Rate limit solo para /api/* (los estáticos del bundle no cuentan — la
     // SPA carga decenas de chunks y agotaba el contador de la API, dejando
     // el panel en blanco). GET amplio: la SPA pollea QR/status/campana por
-    // diseño. /api/login tiene su propio candado por username (5/15min).
+    // diseño.
     const esLogin = u.pathname === '/api/login' && req.method === 'POST';
+    // Login: además del candado por-username (5/15min), un tope POR IP dedicado.
+    // Sin él, un solo origen podía INUNDAR el login: como scrypt es caro en CPU,
+    // eso es un vector de DoS, y permite rociar muchos usernames (credential
+    // stuffing) sin que ninguno llegue a bloquearse. 20 intentos/min/IP.
+    if (esLogin && loginFloodPorIp(req)) {
+        res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8', 'Retry-After': '60' });
+        res.end(JSON.stringify({ ok: false, error: 'Demasiados intentos de inicio de sesión. Espera un minuto e intenta de nuevo.' }));
+        return;
+    }
     if (u.pathname.startsWith('/api/') && !esLogin && !rateLimit(req, res, req.method === 'POST' ? 80 : 600)) return;
 
     // /health no requiere auth — para monitoreo externo
