@@ -1576,3 +1576,20 @@ CREATE TABLE IF NOT EXISTS asistencias (
 );
 CREATE INDEX IF NOT EXISTS idx_asistencias_fecha ON asistencias(fecha);
 CREATE INDEX IF NOT EXISTS idx_asistencias_cli ON asistencias(id_cliente, fecha);
+
+-- 0084: módulo de correo (enviados + bandeja IMAP futura) — ver migración.
+CREATE TABLE IF NOT EXISTS correos (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    direccion     TEXT NOT NULL DEFAULT 'saliente' CHECK(direccion IN ('entrante','saliente')),
+    uid           TEXT,
+    de            TEXT,
+    para          TEXT,
+    asunto        TEXT,
+    cuerpo        TEXT,
+    adjuntos_json TEXT,
+    leido         INTEGER NOT NULL DEFAULT 1,
+    fecha         TEXT,
+    creado_en     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_correos_dir ON correos(direccion, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_correos_uid ON correos(uid) WHERE uid IS NOT NULL;

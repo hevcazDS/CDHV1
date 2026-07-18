@@ -64,40 +64,53 @@ function isConfigured() {
 }
 
 // ── SMTP client básico (STARTTLS) ─────────────────────────────────────────
+// Construye el MIME (headers + cuerpo). Sin adjuntos = multipart/alternative
+// (idéntico al de siempre); con adjuntos = multipart/mixed{ alternative, adjuntos }.
+// Puro y testeable (no envía). Devuelve { body, msgId, toList }.
+function _construirMime({ from, to, subject, html, adjuntos = [] }) {
+    const boundary = `----=_Part_${crypto.randomBytes(8).toString('hex')}`;
+    const toList   = Array.isArray(to) ? to : [to];
+    const toHeader = toList.join(', ');
+    const msgId    = `<${Date.now()}.${crypto.randomBytes(4).toString('hex')}@juliocepeda.bot>`;
+    const date     = new Date().toUTCString();
+    const altB = adjuntos.length ? `----=_Alt_${crypto.randomBytes(8).toString('hex')}` : boundary;
+    const alt = [
+        `--${altB}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '',
+        Buffer.from(_htmlToText(html)).toString('base64'), '',
+        `--${altB}`, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '',
+        Buffer.from(html).toString('base64'), '',
+        `--${altB}--`,
+    ];
+    const cabecera = [
+        `From: ${from}`, `To: ${toHeader}`,
+        `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+        `Date: ${date}`, `Message-ID: ${msgId}`, `MIME-Version: 1.0`,
+    ];
+    let body;
+    if (!adjuntos.length) {
+        body = [...cabecera, `Content-Type: multipart/alternative; boundary="${boundary}"`, '', ...alt].join('\r\n');
+    } else {
+        const partes = [...cabecera, `Content-Type: multipart/mixed; boundary="${boundary}"`, '',
+            `--${boundary}`, `Content-Type: multipart/alternative; boundary="${altB}"`, '', ...alt];
+        for (const a of adjuntos) {
+            const b64 = Buffer.isBuffer(a.data) ? a.data.toString('base64') : String(a.data || '');
+            const chunked = (b64.match(/.{1,76}/g) || []).join('\r\n');
+            const nombre = String(a.nombre || 'adjunto').replace(/[\r\n"]/g, '');
+            partes.push('', `--${boundary}`,
+                `Content-Type: ${a.tipo || 'application/octet-stream'}; name="${nombre}"`,
+                'Content-Transfer-Encoding: base64',
+                `Content-Disposition: attachment; filename="${nombre}"`, '', chunked);
+        }
+        partes.push('', `--${boundary}--`);
+        body = partes.join('\r\n');
+    }
+    return { body, msgId, toList };
+}
+
 function _smtpSend(opts) {
     return new Promise((resolve, reject) => {
-        const { host, port, user, pass, from, to, subject, html } = opts;
-        const boundary = `----=_Part_${crypto.randomBytes(8).toString('hex')}`;
-
-        const toList = Array.isArray(to) ? to : [to];
-        const toHeader = toList.join(', ');
-        const msgId    = `<${Date.now()}.${crypto.randomBytes(4).toString('hex')}@juliocepeda.bot>`;
-        const date     = new Date().toUTCString();
-
-        // Construir MIME multipart
-        const body = [
-            `From: ${from}`,
-            `To: ${toHeader}`,
-            `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
-            `Date: ${date}`,
-            `Message-ID: ${msgId}`,
-            `MIME-Version: 1.0`,
-            `Content-Type: multipart/alternative; boundary="${boundary}"`,
-            '',
-            `--${boundary}`,
-            'Content-Type: text/plain; charset=UTF-8',
-            'Content-Transfer-Encoding: base64',
-            '',
-            Buffer.from(_htmlToText(html)).toString('base64'),
-            '',
-            `--${boundary}`,
-            'Content-Type: text/html; charset=UTF-8',
-            'Content-Transfer-Encoding: base64',
-            '',
-            Buffer.from(html).toString('base64'),
-            '',
-            `--${boundary}--`,
-        ].join('\r\n');
+        const { host, port, user, pass } = opts;
+        const { body, msgId, toList } = _construirMime(opts);
 
         let socket = net.createConnection(port, host);
         let state  = 'greeting';
@@ -403,4 +416,16 @@ async function reintentarPendientes() {
 // Reintento automático cada 5 minutos (el backoff decide si actúa)
 setInterval(reintentarPendientes, 5 * 60_000).unref();
 
-module.exports = { notificarPedido, reintentarPendientes, isConfigured, _templatePedido };
+// Envío genérico con adjuntos (módulo de correo). adjuntos: [{nombre, tipo, data:Buffer}].
+// Usa la misma credencial/SMTP (clave de aplicación) que las notificaciones.
+async function enviarCorreo({ to, subject, html, adjuntos = [] }) {
+    if (!isConfigured()) throw new Error('Correo no configurado (falta usuario/clave de aplicación)');
+    const destinos = (Array.isArray(to) ? to : String(to || '').split(/[,;]/)).map(s => String(s).trim()).filter(Boolean);
+    if (!destinos.length) throw new Error('Falta el destinatario');
+    return _smtpSend({
+        host: SMTP_HOST, port: SMTP_PORT, user: _smtpUser(), pass: _smtpPass(), from: _fromAddr(),
+        to: destinos, subject: String(subject || '(sin asunto)').slice(0, 200), html: String(html || ''), adjuntos,
+    });
+}
+
+module.exports = { notificarPedido, reintentarPendientes, isConfigured, enviarCorreo, esc, _templatePedido, _construirMime };

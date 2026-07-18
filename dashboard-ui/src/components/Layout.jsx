@@ -9,7 +9,7 @@ import {
   Truck, Send, BellRing, CalendarDays, Users, Trophy, Tag, Ticket,
   RefreshCw, Search, BarChart3, Tags, Settings, Star, FlaskConical,
   LogOut, Landmark, Warehouse, ShoppingCart, IdCard,
-  UserCog, Utensils, Wallet, CalendarClock, ClipboardList, FileText, TrendingUp, Inbox, LogIn,
+  UserCog, Utensils, Wallet, CalendarClock, ClipboardList, FileText, TrendingUp, Inbox, LogIn, Mail,
 } from 'lucide-react';
 import { api } from '../api';
 import BotStatusWidget from './BotStatusWidget';
@@ -60,6 +60,7 @@ const GRUPOS = [
     { to: '/crm', area: 'operacion', label: 'CRM · Pipeline', Icono: TrendingUp },
     { to: '/ranking', area: 'operacion', label: 'Ranking', Icono: Trophy },
     { to: '/marketing', label: 'Marketing', Icono: Tag, rolRequerido: 'gerente' },
+    { to: '/correo', label: 'Correo', Icono: Mail, rolRequerido: 'gerente', moduloRequerido: 'correo_activo' },
   ]},
   { titulo: 'Catálogo', enlaces: [
     { to: '/catalogo', label: 'Productos', Icono: Tags, rolRequerido: 'gerente' },
@@ -113,7 +114,7 @@ export default function Layout() {
   // respondían → el sidebar "brincaba" al cargar). El último snapshot vive en
   // localStorage como initialData: en recargas el menú sale completo al instante
   // y solo se corrige si algo cambió de verdad.
-  const CLAVES_SIDEBAR = 'pos_activo,rrhh_activo,mesas_activo,citas_activo,suscripcion_activo,documentos_activo,ventas_credito_activo,entrega_paqueteria_activo';
+  const CLAVES_SIDEBAR = 'pos_activo,rrhh_activo,mesas_activo,citas_activo,suscripcion_activo,documentos_activo,ventas_credito_activo,entrega_paqueteria_activo,correo_activo';
   const { data: modulosActivos = {} } = useQuery({
     queryKey: ['modulos-sidebar'],
     queryFn: () => api.get('/api/modulos?claves=' + CLAVES_SIDEBAR).then(m => {

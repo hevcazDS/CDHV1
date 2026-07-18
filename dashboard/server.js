@@ -598,6 +598,7 @@ const ROUTE_MODULES = [
     require('./routes/crm'),
     require('./routes/mensajeria'),
     require('./routes/asistencias'),
+    require('./routes/correo'),
 ];
 
 function handleAPI(req, res) {
@@ -723,7 +724,7 @@ function handleRequest(req, res) {
         if (rejectCrossSiteForm(req, res)) return;
         // Restaurar BD y subir foto de producto suben binarios (base64) > 1MB —
         // usan su propio tope interno, no el cap general.
-        if (u.pathname !== '/api/prime/restaurar-bd' && u.pathname !== '/api/prime/producto-imagen') capBodySize(req, res);
+        if (u.pathname !== '/api/prime/restaurar-bd' && u.pathname !== '/api/prime/producto-imagen' && u.pathname !== '/api/correo/enviar') capBodySize(req, res);
     }
 
     if (esRutaApi) return handleAPI(req, res);

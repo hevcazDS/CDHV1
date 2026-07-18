@@ -65,6 +65,9 @@ const DEFAULT_OFF = [
     // editables). Default OFF: solo aplican si el autor los pone en su grafo.
     'cotizacion_activo',
     'tiempo_entrega_activo',
+    // Módulo de correo (redacción + envío con adjuntos; bandeja IMAP en Fase B).
+    // Usa la clave de aplicación de Gmail. Default OFF. Ver INFORME_CORREO.md.
+    'correo_activo',
     // Media avanzada del producto: liga de video y modelo/render/animación 3D.
     // Default OFF — es infraestructura para la tienda en línea futura; al
     // encenderlo aparecen esos campos en el alta/edición de producto.
