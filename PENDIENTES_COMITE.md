@@ -93,10 +93,17 @@ H5 devolución a costo congelado (netea contra el COGS de la venta), H6 barrido
 también repara venta_credito faltante, H7 primera sync IMAP por secuencia (no
 UID), H8 cierre anual atómico, H9 gates en ticket/devoluciones/etiquetas/
 imagenes_clientes/logs_error, H10 PDF sin SSRF (bloqueo de subrecursos de red).
-- [ ] Pendientes de la re-auditoría (menores): reembolso ignora descuentos de
-      carrito (usa precio_unitario); nodos terminales legítimos del motor se
-      pintan ámbar (ruido); token de flota por query param (deprecar, ya hay
-      header); converger secretos.js con pac/gatewayService cuando se toquen.
+- [x] Pendientes menores de la re-auditoría (TODOS cerrados 2026-07-19):
+      reembolso proporcional a lo cobrado (neto de línea × factor de cupón);
+      nodos terminales del motor con flag `params.terminal` (sin ámbar falso);
+      token de flota solo por header; secretos.js convergido (pac/gateway
+      delegan, round-trip intercambiable verificado).
+- [x] Motor de flujo (para subir de 7.4): undo/redo (Ctrl+Z/Y, 50 pasos,
+      coalescencia), simulador "▶ Probar" desde el lienzo (con aviso de cambios
+      sin guardar), condiciones tipadas en cables (Select con las `salidas`
+      reales de la acción origen + aviso si el resultado no existe), piezas
+      finales legítimas sin ruido. test_motor_editor 6/6, lienzo 14/14,
+      golden+paridad byte-idéntico.
 
 ## Nota para el equipo
 Los 4 agentes coincidieron: `CLAUDE.md` está ~65 migraciones desactualizado.

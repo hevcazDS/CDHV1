@@ -80,6 +80,9 @@ function validar(grafo) {
     for (const n of Object.values(grafo.nodos)) {
         const delegado = n.params && n.params.delegar;
         if (n.tipo === 'sistema' || delegado) continue;
+        // pieza final legítima (despedida): params.terminal la exime del aviso.
+        // Tolerante: un grafo viejo sin el flag se comporta exactamente igual.
+        if (n.params && n.params.terminal) continue;
         if (!((grafo.aristas || {})[n.paso] || []).length) {
             warns.push(`la pieza ${n.paso} no tiene ningún camino de salida — el cliente quedará atorado ahí (3 intentos y pasa a asesor)`);
         }
