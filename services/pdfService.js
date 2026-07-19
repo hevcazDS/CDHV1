@@ -20,6 +20,15 @@ async function htmlAPdf(html, { formato = 'A4', margen = '12mm' } = {}) {
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--no-zygote'],
         });
         const page = await browser.newPage();
+        // Re-auditoría H10: el HTML viene del body del request — sin esto, un
+        // <img src="http://interno/..."> renderizaría servicios internos de la
+        // red al PDF (SSRF). Solo se permiten recursos embebidos (data:/blob:).
+        await page.setRequestInterception(true);
+        page.on('request', req => {
+            const u = req.url();
+            if (u.startsWith('data:') || u.startsWith('blob:') || u.startsWith('about:')) return req.continue();
+            return req.abort();
+        });
         await page.setContent(String(html || ''), { waitUntil: 'networkidle0', timeout: 20000 });
         const pdf = await page.pdf({ format: formato, printBackground: true, margin: { top: margen, bottom: margen, left: margen, right: margen } });
         return Buffer.isBuffer(pdf) ? pdf : Buffer.from(pdf);

@@ -46,16 +46,18 @@ async function sincronizar(db, { limite = 40 } = {}) {
         try {
             const ultimo = db.prepare("SELECT MAX(uid) u FROM correos WHERE direccion='entrante'").get();
             const desde = ultimo && ultimo.u ? Number(ultimo.u) + 1 : null;
-            // primera vez: solo los últimos `limite`; después: lo nuevo por uid
-            let rango;
-            if (desde) rango = `${desde}:*`;
-            else { const total = cli.mailbox.exists || 0; rango = `${Math.max(1, total - limite + 1)}:*`; }
+            // primera vez: los últimos `limite` por NÚMERO DE SECUENCIA (no UID:
+            // en un buzón con huecos de UID, total-39:* en espacio UID bajaría
+            // cientos — re-auditoría H7); después: lo nuevo por UID.
+            let rango, porUid;
+            if (desde) { rango = `${desde}:*`; porUid = true; }
+            else { const total = cli.mailbox.exists || 0; rango = `${Math.max(1, total - limite + 1)}:*`; porUid = false; }
 
             const ins = db.prepare(`INSERT OR IGNORE INTO correos
                 (direccion, uid, de, para, asunto, cuerpo, adjuntos_json, leido, fecha)
                 VALUES ('entrante', ?,?,?,?,?,?, 0, ?)`);
 
-            for await (const msg of cli.fetch(rango, { uid: true, source: true }, { uid: true })) {
+            for await (const msg of cli.fetch(rango, { uid: true, source: true }, porUid ? { uid: true } : undefined)) {
                 if (desde && Number(msg.uid) < desde) continue;
                 let p;
                 try { p = await simpleParser(msg.source); } catch (_) { continue; }

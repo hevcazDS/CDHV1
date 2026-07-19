@@ -103,6 +103,7 @@ t('cierre anual: traspasa resultados a capital, cuentas en cero, idempotente', (
     assert.strictEqual(saldoAnio('302'), -700, 'utilidad 700 a capital (haber)');
     assert(cuadraGlobal(), 'el mayor cuadra tras el cierre');
     assert.strictEqual(conta.cierreAnual(2025).ok, false, 'no re-cierra el mismo ejercicio');
+    assert.strictEqual(conta.cierreAnual(new Date().getFullYear()).ok, false, 'no cierra el año en curso (H2)');
 });
 
 (async () => {

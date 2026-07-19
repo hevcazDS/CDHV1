@@ -384,6 +384,12 @@ function devolucionesPut(req, res, ctx, { params, ses: _sesDev }) {
         try {
             const { estatus, notas, pin, reembolso, metodo_reembolso } = JSON.parse(body);
             if (!['solicitada', 'aprobada', 'rechazada', 'resuelta'].includes(estatus)) return json(res, { ok: false, error: 'Estatus inválido' }, 400);
+            // IDEMPOTENCIA (re-auditoría H1): un doble clic / retry con el mismo
+            // estatus NO debe re-ejecutar inventario+asientos. Se lee el estatus
+            // previo y el bloque de resolución solo corre en la TRANSICIÓN.
+            const estatusPrevio = db.prepare('SELECT estatus FROM devoluciones WHERE id=?').get(id)?.estatus;
+            if (!estatusPrevio) return json(res, { ok: false, error: 'Devolución no encontrada' }, 404);
+            if (estatusPrevio === estatus) return json(res, { ok: false, error: 'La devolución ya está en "' + estatus + '"', estatus }, 409);
             if (estatus !== 'solicitada') {
                 const errPin = autorizacion.exigirAutorizacion(db, _sesDev, pin, rangoDe);
                 if (errPin) return json(res, { ok: false, error: errPin, pin_requerido: true }, 403);
@@ -396,7 +402,7 @@ function devolucionesPut(req, res, ctx, { params, ses: _sesDev }) {
                 SELECT d.*, p.folio, p.cliente, c.telefono FROM devoluciones d
                 LEFT JOIN pedidos p ON p.id_pedido = d.id_pedido
                 LEFT JOIN clientes c ON c.id = p.id_cliente OR c.nombre = p.cliente WHERE d.id = ? LIMIT 1`).get(id);
-            if (estatus === 'resuelta' && dev?.id_producto && dev?.cantidad) {
+            if (estatus === 'resuelta' && estatusPrevio !== 'resuelta' && dev?.id_producto && dev?.cantidad) {
                 const det = db.prepare('SELECT sucursal_origen, precio_unitario FROM pedido_detalle WHERE id_pedido=? AND id_producto=? LIMIT 1').get(dev.id_pedido, dev.id_producto);
                 if (det) {
                     const vendida = db.prepare('SELECT COALESCE(SUM(cantidad),0) c FROM pedido_detalle WHERE id_pedido=? AND id_producto=?').get(dev.id_pedido, dev.id_producto).c;
@@ -471,10 +477,12 @@ const RUTAS = [
     { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/marcar-pagado$/,        areas: ['pos', 'operacion', 'finanzas'], handler: pagoMarcarPagado },
     { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/cancelar$/,             areas: ['pos', 'operacion', 'finanzas'], handler: pagoCancelar },
     { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/regenerar$/,            areas: ['pos', 'operacion'], handler: pagoRegenerar },
-    { metodo: 'GET',  path: /^\/api\/pedidos\/(\d+)\/ticket$/,             handler: pedidoTicket },
-    { metodo: 'GET',  path: '/api/devoluciones',                           handler: devolucionesGet },
+    // Re-auditoría H9: gates alineados con las páginas que los usan (ticket lo
+    // imprime Pedidos/POS; devoluciones es de operación como su PUT).
+    { metodo: 'GET',  path: /^\/api\/pedidos\/(\d+)\/ticket$/,             areas: ['pos', 'operacion'], handler: pedidoTicket },
+    { metodo: 'GET',  path: '/api/devoluciones',                           area: 'operacion', handler: devolucionesGet },
     { metodo: 'PUT',  path: /^\/api\/devoluciones\/(\d+)$/,                area: 'operacion', handler: devolucionesPut },
-    { metodo: 'GET',  path: /^\/api\/pedidos\/(\d+)\/historial$/,          handler: pedidoHistorial },
+    { metodo: 'GET',  path: /^\/api\/pedidos\/(\d+)\/historial$/,          areas: ['pos', 'operacion'], handler: pedidoHistorial },
 ];
 
 module.exports = construirModulo(RUTAS);

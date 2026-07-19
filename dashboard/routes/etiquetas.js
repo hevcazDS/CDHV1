@@ -112,13 +112,17 @@ function logsError(req, res, ctx, { u }) {
     return json(res, rows);
 }
 
+// Re-auditoría H9: gates alineados con quién los consume — etiquetas y fotos de
+// clientes (PII) son de operación (como su PUT); logs_error solo lo lee Beta
+// (prime). pendientes-count queda global (solo un número, lo pollea la campana)
+// e imagenes_productos también (fotos de catálogo, las usa el POS).
 const RUTAS = [
-    { metodo: 'GET', path: '/api/etiquetas',                     handler: listar },
+    { metodo: 'GET', path: '/api/etiquetas',                     area: 'operacion', handler: listar },
     { metodo: 'GET', path: '/api/etiquetas/pendientes-count',    handler: pendientesCount },
     { metodo: 'PUT', path: /^\/api\/etiquetas\/(\d+)$/,          area: 'operacion', handler: actualizar },
-    { metodo: 'GET', path: /^\/api\/imagenes_clientes\/(.+)$/,   handler: servirImagen },
+    { metodo: 'GET', path: /^\/api\/imagenes_clientes\/(.+)$/,   area: 'operacion', handler: servirImagen },
     { metodo: 'GET', path: /^\/api\/imagenes_productos\/(.+)$/,  handler: servirImagenProducto },
-    { metodo: 'GET', path: '/api/logs_error',                    handler: logsError },
+    { metodo: 'GET', path: '/api/logs_error',                    roles: ['prime'], handler: logsError },
 ];
 
 module.exports = construirModulo(RUTAS);

@@ -179,8 +179,20 @@ function asientoReembolso(idDevolucion, idPedido, monto, metodoPago) {
     const iva = parseFloat(getValor('iva_pct', '0')) || 0;
     const base = iva > 0 ? _r2(monto / (1 + iva / 100)) : _r2(monto);
     const partidas = [{ cuenta: '401', debe: base }];
-    if (iva > 0) partidas.push({ cuenta: '209', debe: _r2(monto - base) });
-    partidas.push({ cuenta: _cuentaCobro(metodoPago), haber: monto });
+    // Re-auditoría H4: un FIADO devuelto que NUNCA se cobró no puede sacar dinero
+    // de caja (nunca entró) — se cancela la cuenta por cobrar (105) y el IVA que
+    // quedó en 208 (no cobrado). Solo si ya se cobró (o fue contado) sale de
+    // caja/bancos con IVA en 209.
+    const ref = String(idPedido);
+    const fueCredito = !!db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='venta_credito' AND referencia_id=? LIMIT 1").get(ref);
+    const fueCobrado = !fueCredito || !!db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='cobro_credito' AND referencia_id=? LIMIT 1").get(ref);
+    if (fueCredito && !fueCobrado) {
+        if (iva > 0) partidas.push({ cuenta: '208', debe: _r2(monto - base) });
+        partidas.push({ cuenta: '105', haber: monto });   // el cliente ya no debe
+    } else {
+        if (iva > 0) partidas.push({ cuenta: '209', debe: _r2(monto - base) });
+        partidas.push({ cuenta: _cuentaCobro(metodoPago), haber: monto });
+    }
     return registrarAsiento({
         concepto: 'Reembolso devolución ' + idDevolucion + ' (pedido ' + idPedido + ')',
         referencia_tipo: 'reembolso', referencia_id: idDevolucion, partidas, sucursal: _sucursalDePedido(idPedido),
@@ -192,7 +204,16 @@ function asientoReembolso(idDevolucion, idPedido, monto, metodoPago) {
 // hay, lo asienta asientoReembolso aparte (un cambio de mercancía no mueve caja).
 function asientoDevolucion(idPedido, idProducto, cantidad) {
     if (!activo() || !(cantidad > 0)) return null;
-    const costo = _r2((db.prepare('SELECT COALESCE(costo,0) c FROM productos WHERE id=?').get(idProducto)?.c || 0) * cantidad);
+    // Re-auditoría H5: usar el costo CONGELADO al pedido (d.costo_unitario, mig
+    // 0061) — el MISMO que usó asientoCostoVenta — para que la devolución netee
+    // exacto contra el COGS de la venta aunque el costo del producto haya cambiado.
+    const unit = db.prepare(`
+        SELECT COALESCE(d.costo_unitario, p.costo, 0) c
+        FROM pedido_detalle d JOIN productos p ON p.id = d.id_producto
+        WHERE d.id_pedido = ? AND d.id_producto = ? LIMIT 1
+    `).get(idPedido, idProducto)?.c
+        ?? (db.prepare('SELECT COALESCE(costo,0) c FROM productos WHERE id=?').get(idProducto)?.c || 0);
+    const costo = _r2(unit * cantidad);
     if (!(costo > 0)) return null;
     return registrarAsiento({
         concepto: 'Devolución pedido ' + idPedido, referencia_tipo: 'devolucion', referencia_id: idPedido,
@@ -297,7 +318,24 @@ function barrerAsientosHuerfanos({ dias = 3, limite = 100 } = {}) {
             }
         } catch (_) { /* un pedido malo no detiene el barrido */ }
     }
-    return { revisados: orphans.length, reparados };
+    // Re-auditoría H6: fiados RECIENTES sin su asiento de devengado (crash al
+    // crear el fiado, antes del pago). Mismo criterio de ventana/idempotencia.
+    let fiados = [];
+    try {
+        fiados = db.prepare(`
+            SELECT p.id_pedido, lp.monto
+            FROM pedidos p JOIN links_pago lp ON lp.id_pedido = p.id_pedido
+            WHERE p.a_credito = 1 AND p.creado_en >= datetime('now', ?, 'localtime')
+              AND NOT EXISTS (SELECT 1 FROM asientos a WHERE a.referencia_tipo='venta_credito' AND a.referencia_id=CAST(p.id_pedido AS TEXT))
+            GROUP BY p.id_pedido LIMIT ?
+        `).all('-' + Number(dias) + ' days', Number(limite));
+    } catch (_) {}
+    for (const f of fiados) {
+        try {
+            if (asientoVentaCredito(f.id_pedido, Number(f.monto || 0))) { asientoCostoVenta(f.id_pedido); reparados++; }
+        } catch (_) {}
+    }
+    return { revisados: orphans.length + fiados.length, reparados };
 }
 
 // CIERRE CONTABLE ANUAL (comité S8): traspasa el saldo de las cuentas de
@@ -310,6 +348,12 @@ function cierreAnual(anio, { override = true } = {}) {
     if (!activo()) return { ok: false, error: 'La contabilidad está apagada' };
     anio = parseInt(anio, 10);
     if (!(anio > 2000 && anio < 2100)) return { ok: false, error: 'Año inválido' };
+    // Re-auditoría H2: solo ejercicios CONCLUIDOS. Cerrar el año en curso
+    // traspasaría resultados a medias y bloquearía todos los asientos del resto
+    // del año (los de marcar-pagado fallan en silencio y el barrido no puede
+    // repararlos porque registrarAsiento sigue rechazando).
+    const anioActual = new Date().getFullYear();
+    if (anio >= anioActual) return { ok: false, error: 'Solo se puede cerrar un ejercicio concluido (' + anio + ' aún no termina)' };
     const ref = String(anio);
     if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='cierre_anual' AND referencia_id=? LIMIT 1").get(ref)) {
         return { ok: false, error: 'El ejercicio ' + anio + ' ya fue cerrado' };
@@ -330,16 +374,24 @@ function cierreAnual(anio, { override = true } = {}) {
     for (const p of partidas) { debe += p.debe || 0; haber += p.haber || 0; }
     const utilidad = _r2(debe - haber);   // >0 = utilidad; <0 = pérdida
     if (Math.abs(utilidad) > 0.005) partidas.push(utilidad > 0 ? { cuenta: UTILIDAD_ACUM, haber: utilidad } : { cuenta: UTILIDAD_ACUM, debe: -utilidad });
-    const id = registrarAsiento({
-        concepto: 'Cierre anual ' + anio + ' — traspaso de resultados a capital',
-        referencia_tipo: 'cierre_anual', referencia_id: ref, partidas, fecha: hasta, override,
-    });
-    // Bloquea el ejercicio (mes 12 → todos los meses del año quedan cerrados).
-    try {
+    // Re-auditoría H8: re-check de idempotencia + asiento + candado en UNA
+    // transacción (better-sqlite3 anida con savepoints), para que dos procesos
+    // no puedan cerrar el mismo año y el candado no quede fuera si algo falla.
+    let id;
+    const tx = db.transaction(() => {
+        if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='cierre_anual' AND referencia_id=? LIMIT 1").get(ref)) {
+            throw new Error('El ejercicio ' + anio + ' ya fue cerrado');
+        }
+        id = registrarAsiento({
+            concepto: 'Cierre anual ' + anio + ' — traspaso de resultados a capital',
+            referencia_tipo: 'cierre_anual', referencia_id: ref, partidas, fecha: hasta, override,
+        });
+        // Bloquea el ejercicio (mes 12 → todos los meses del año quedan cerrados).
         const actual = db.prepare("SELECT valor FROM configuracion WHERE clave='periodo_cerrado'").get()?.valor || '';
         const nuevo = anio + '-12';
         if (nuevo > actual) db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('periodo_cerrado', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(nuevo);
-    } catch (_) {}
+    });
+    try { tx(); } catch (e) { return { ok: false, error: e.message }; }
     return { ok: true, id, anio, utilidad, cuentas_cerradas: filas.length };
 }
 

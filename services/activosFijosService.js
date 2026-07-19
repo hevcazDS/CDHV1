@@ -58,14 +58,17 @@ function depreciarMes(fecha = null) {
         if (!(cuota > 0)) continue;
         const tx = db.transaction(() => {
             db.prepare("UPDATE activos_fijos SET depreciacion_acumulada = ROUND(depreciacion_acumulada + ?, 2), ultima_depreciacion=? WHERE id=?").run(cuota, mes, a.id);
-            try {
-                if (conta.activo()) conta.registrarAsiento({
-                    concepto: 'Depreciación ' + mes + ': ' + a.nombre, referencia_tipo: 'depreciacion', referencia_id: a.id,
-                    partidas: [{ cuenta: GASTO_DEP, debe: cuota }, { cuenta: DEP_ACUM, haber: cuota }], fecha: finMes, sucursal: a.sucursal,
-                });
-            } catch (_) {}
+            // Re-auditoría H3: con contabilidad ACTIVA, el asiento debe entrar o
+            // la transacción entera se revierte (antes el catch tragaba el error
+            // de mes cerrado y el subledger avanzaba SIN asiento — divergencia
+            // permanente). Con contabilidad apagada, subledger-solo es a propósito.
+            if (conta.activo()) conta.registrarAsiento({
+                concepto: 'Depreciación ' + mes + ': ' + a.nombre, referencia_tipo: 'depreciacion', referencia_id: a.id,
+                partidas: [{ cuenta: GASTO_DEP, debe: cuota }, { cuenta: DEP_ACUM, haber: cuota }], fecha: finMes, sucursal: a.sucursal,
+            });
         });
-        tx(); n++;
+        try { tx(); n++; }
+        catch (_) { /* p.ej. mes cerrado: este activo se salta esta ronda, sin avanzar subledger */ }
     }
     return n;
 }
