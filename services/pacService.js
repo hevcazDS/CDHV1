@@ -1,34 +1,13 @@
 'use strict';
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
-const cb = require('./cryptoBackup');
-
 // ── Cifrado at-rest de los secretos del PAC (TOGGLEABLE) ────────────────────
 // pac_cifrado_activo (default ON) cifra password/.cer/.key/csd_pass con una
 // clave derivada del secreto de instancia (transparente, sin maestra) —
 // equivalente al modo 'bajo' de los respaldos. Cliente que NO quiera tanta
 // seguridad lo apaga y se guardan en claro. Lectura tolerante: detecta el
 // prefijo 'enc:' por valor, así conviven claros y cifrados (y cambiar el
-// toggle no rompe lo ya guardado).
-function _instSecret() {
-    const p = path.join(__dirname, '..', 'dashboard', '.instancia_secret');
-    try { return fs.readFileSync(p, 'utf8').trim(); }
-    catch (_) {
-        try { const s = crypto.randomBytes(32).toString('hex'); fs.writeFileSync(p, s, { mode: 0o600 }); return s; }
-        catch (_) { return null; }
-    }
-}
-function _key() { const s = _instSecret(); return s ? crypto.createHash('sha256').update(s).digest() : null; }
-function cifrarSecreto(texto) {
-    const k = _key(); if (!k || texto == null || texto === '') return String(texto ?? '');
-    try { return 'enc:' + cb.cifrar(Buffer.from(String(texto), 'utf8'), k).toString('base64'); } catch (_) { return String(texto); }
-}
-function descifrarSecreto(v) {
-    if (typeof v !== 'string' || !v.startsWith('enc:')) return v; // claro / legacy
-    const k = _key(); if (!k) return '';
-    try { return cb.descifrar(Buffer.from(v.slice(4), 'base64'), k).toString('utf8'); } catch (_) { return ''; }
-}
+// toggle no rompe lo ya guardado). La implementación vive en services/
+// secretos.js (hogar canónico — antes estaba triplicada aquí y en gateway).
+const { cifrarSecreto, descifrarSecreto } = require('./secretos');
 
 // ── PUNTO ÚNICO de integración con el PAC (timbrado CFDI 4.0) ───────────────
 // IMPLEMENTADO (key-only, Facturapi): timbrar()/timbrarNomina()/timbrarREP()

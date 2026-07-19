@@ -22,7 +22,9 @@ function status(req, res, ctx) {
     const { db, json } = ctx;
     const tokenCfg = _token(db);
     if (!tokenCfg) return json(res, { ok: false, error: 'no disponible' }, 404); // apagado
-    const enviado = req.headers['x-flota-token'] || (new URL(req.url, 'http://x')).searchParams.get('token') || '';
+    // Solo por HEADER (re-auditoría): un token en query param queda en access
+    // logs de proxies/CDN. Nada nuestro usaba ?token=.
+    const enviado = req.headers['x-flota-token'] || '';
     // Comparación en tiempo constante
     const a = Buffer.from(String(enviado)); const b = Buffer.from(String(tokenCfg));
     const ok = a.length === b.length && require('crypto').timingSafeEqual(a, b);

@@ -292,7 +292,9 @@ function pagoMarcarPagado(req, res, ctx, { params, ses }) {
                     _conta.asientoVenta(lp.id_pedido, Number(lp.monto || 0), ped?.metodo_pago);
                     _conta.asientoCostoVenta(lp.id_pedido);
                 }
-            } catch (e) { log.debug('Asientos de venta no registrados: ' + e.message); }
+            // warn, no debug: es dinero — el operador/monitoreo debe verlo en logs.
+            // El barrido de huérfanos (stockWatcher) lo repara en la siguiente ronda.
+            } catch (e) { log.warn('Asientos de venta no registrados (pedido ' + lp.id_pedido + '): ' + e.message + ' — el barrido lo reparará'); }
             if (ped && /pendiente/i.test(ped.estatus || '')) {
                 db.prepare("UPDATE pedidos SET estatus='confirmado', actualizado_en=datetime('now','localtime') WHERE id_pedido=?").run(ped.id_pedido);
                 if (ped.telefono) {
@@ -417,8 +419,16 @@ function devolucionesPut(req, res, ctx, { params, ses: _sesDev }) {
                             // Reembolso de DINERO solo si el operador lo marca (una
                             // devolución puede ser cambio de mercancía, sin flujo).
                             if (reembolso) {
-                                const _metodo = metodo_reembolso || db.prepare('SELECT metodo_pago FROM pedidos WHERE id_pedido=?').get(dev.id_pedido)?.metodo_pago;
-                                const _monto = Math.round((det.precio_unitario || 0) * cantReponer * 100) / 100;
+                                const ped = db.prepare('SELECT metodo_pago, subtotal, descuento FROM pedidos WHERE id_pedido=?').get(dev.id_pedido) || {};
+                                const _metodo = metodo_reembolso || ped.metodo_pago;
+                                // Lo COBRADO, no el precio de lista (re-auditoría):
+                                // neto de la línea (subtotal_linea − descuento_linea)
+                                // × el factor del descuento de carrito (cupón).
+                                const lin = db.prepare('SELECT cantidad, precio_unitario, subtotal_linea, descuento_linea FROM pedido_detalle WHERE id_pedido=? AND id_producto=? LIMIT 1').get(dev.id_pedido, dev.id_producto) || det;
+                                const brutoLinea = (lin.subtotal_linea != null ? lin.subtotal_linea : (lin.precio_unitario || 0) * (lin.cantidad || 1));
+                                const netoUnit = ((brutoLinea - (lin.descuento_linea || 0)) / (lin.cantidad || 1)) || (det.precio_unitario || 0);
+                                const factor = (ped.descuento > 0 && ped.subtotal > 0) ? Math.max(0, (ped.subtotal - ped.descuento) / ped.subtotal) : 1;
+                                const _monto = Math.round(netoUnit * cantReponer * factor * 100) / 100;
                                 _conta.asientoReembolso(id, dev.id_pedido, _monto, _metodo);
                             }
                         } catch (e) { log.debug('Asiento de devolución no registrado: ' + e.message); }
