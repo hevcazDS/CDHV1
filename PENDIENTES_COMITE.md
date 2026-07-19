@@ -22,7 +22,9 @@ dinero**, no rediseñar.
       barrido + reembolso), cableado en `npm test`. (Arq R8)
 
 ## P1 — Completitud y experiencia
-- [ ] 6. Unificar la ficha de cliente (Clientes + CRM en un drawer con tabs).
+- [x] 6. Ficha de cliente unificada: `components/FichaCliente.jsx` (drawer con
+      tabs Resumen + Seguimiento), usado por Clientes.jsx y Crm.jsx. Elimina la
+      doble ficha; ambas páginas reusan el mismo componente.
 - [x] 7. "Fiados vencidos" en el Inicio del dueño (VistaAdminF, tarjeta en
       "Requiere tu mano" → /fiados) + preview del último mensaje del cliente en
       la fila de la cola de atención (ColaAtencion + subconsulta en el endpoint).

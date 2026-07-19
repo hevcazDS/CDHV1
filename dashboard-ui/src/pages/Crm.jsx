@@ -1,84 +1,16 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Text, Skeleton, Drawer, Textarea, Button, Group, Tabs, TextInput, Select, NumberInput, SegmentedControl } from '@mantine/core';
+import { Card, Text, Skeleton, Textarea, Button, Group, Tabs, TextInput, Select, NumberInput, SegmentedControl } from '@mantine/core';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 import { toastOk, confirmar } from '../lib/ui';
 import EstatusMenu from '../components/EstatusMenu';
-import { fdate, soloTelefono } from '../lib/format';
+import { soloTelefono } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { esAdminOMas } from '../lib/permisos';
+import FichaCliente from '../components/FichaCliente';
 
 const ETAPA_LABEL = { lead: 'Lead', contactado: 'Contactado', cotizado: 'Cotizado', ganado: 'Ganado', perdido: 'Perdido' };
-const TIPO_PUNTO = { pedido: 'var(--green)', nota: 'var(--info)', etapa: 'var(--yellow)', cita: 'var(--text-mute)', tarea: 'var(--red)' };
-
-// ── Ficha del cliente (Drawer): notas + nueva tarea + timeline ───────────────
-function FichaCliente({ sel, onClose }) {
-  const qc = useQueryClient();
-  const [nota, setNota] = useState('');
-  const [tarea, setTarea] = useState({ titulo: '', vence_en: '', tipo: 'seguimiento' });
-
-  const { data: timeline = [] } = useQuery({
-    queryKey: ['crm-timeline', sel?.id], enabled: !!sel,
-    queryFn: () => api.get(`/api/crm/clientes/${sel.id}/timeline`),
-  });
-  const invalidar = () => { qc.invalidateQueries({ queryKey: ['crm-timeline', sel.id] }); qc.invalidateQueries({ queryKey: ['crm-tareas'] }); };
-
-  const agregarNota = useMutation({
-    mutationFn: () => api.post(`/api/crm/clientes/${sel.id}/notas`, { contenido: nota }),
-    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); setNota(''); toastOk('Nota guardada'); invalidar(); },
-    onError: handleApiError,
-  });
-  const agregarTarea = useMutation({
-    mutationFn: () => api.post(`/api/crm/clientes/${sel.id}/tareas`, tarea),
-    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); setTarea({ titulo: '', vence_en: '', tipo: 'seguimiento' }); toastOk('Tarea creada'); invalidar(); },
-    onError: handleApiError,
-  });
-
-  return (
-    <Drawer opened={!!sel} onClose={onClose} position="right" size="md"
-      title={<strong>{sel?.nombre || soloTelefono(sel?.telefono || '')}</strong>}>
-      {sel && (
-        <div>
-          <Text size="xs" c="dimmed" mb="md">{soloTelefono(sel.telefono)} · score {sel.lead_score || 0} · cliente desde {fdate(sel.creado_en)}</Text>
-
-          <div className="f-h4"><span>Nueva nota</span></div>
-          <Textarea autosize minRows={2} placeholder="Ej: pidió cotización de 20 piezas, quedamos de hablar el viernes…"
-            value={nota} onChange={e => setNota(e.target.value)} mb="xs" />
-          <Group justify="flex-end" mb="lg">
-            <Button size="xs" disabled={!nota.trim() || agregarNota.isPending} onClick={() => agregarNota.mutate()}>Guardar nota</Button>
-          </Group>
-
-          <div className="f-h4"><span>Nueva tarea de seguimiento</span></div>
-          <TextInput size="xs" placeholder="Ej: llamarle para cerrar la cotización" mb="xs"
-            value={tarea.titulo} onChange={e => setTarea({ ...tarea, titulo: e.target.value })} />
-          <Group grow mb="xs">
-            <Select size="xs" data={['llamada', 'whatsapp', 'visita', 'seguimiento', 'otro']} value={tarea.tipo}
-              onChange={v => setTarea({ ...tarea, tipo: v || 'seguimiento' })} allowDeselect={false} />
-            <TextInput size="xs" type="date" value={tarea.vence_en} onChange={e => setTarea({ ...tarea, vence_en: e.target.value })} />
-          </Group>
-          <Group justify="flex-end" mb="lg">
-            <Button size="xs" variant="default" disabled={!tarea.titulo.trim() || agregarTarea.isPending} onClick={() => agregarTarea.mutate()}>Crear tarea</Button>
-          </Group>
-
-          <div className="f-h4"><span>Historial</span><span className="der">{timeline.length} eventos</span></div>
-          <div className="f-stagger">
-            {timeline.length === 0 && <Text size="sm" c="dimmed">Sin actividad registrada todavía.</Text>}
-            {timeline.map((ev, i) => (
-              <div key={i} className="f-row" style={{ alignItems: 'flex-start' }}>
-                <span className="who" style={{ fontWeight: 400, fontSize: 12.5 }}>
-                  <span style={{ color: TIPO_PUNTO[ev.tipo] || 'var(--text-mute)', fontSize: 7, verticalAlign: 2, marginRight: 7 }}>●</span>
-                  {ev.texto}
-                </span>
-                <span className="t" style={{ flex: 'none' }}>{fdate(ev.fecha)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </Drawer>
-  );
-}
 
 // ── Tab Pipeline ──────────────────────────────────────────────────────────────
 function PipelineTab({ onAbrir }) {
@@ -338,7 +270,7 @@ export default function Crm() {
         {tab === 'segmentos' && esGerente && <SegmentosTab />}
         {tab === 'campanas' && esGerente && <CampanasTab />}
       </div>
-      <FichaCliente sel={sel} onClose={() => setSel(null)} />
+      <FichaCliente cliente={sel} onClose={() => setSel(null)} />
     </div>
   );
 }
