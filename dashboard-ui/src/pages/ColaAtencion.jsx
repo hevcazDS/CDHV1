@@ -61,7 +61,13 @@ export default function ColaAtencion() {
                 <tr key={r.id}>
                   <td><strong>{r.cliente || '-'}</strong></td>
                   <td><code style={{ fontSize: 11 }}>{soloTelefono(r.telefono)}</code></td>
-                  <td style={{ fontSize: 12 }}>{r.motivo_escalada || '-'}</td>
+                  <td style={{ fontSize: 12, maxWidth: 320 }}>
+                    {r.motivo_escalada || '-'}
+                    {r.ultimo_mensaje && (
+                      <div className="text-muted" style={{ fontSize: 11, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                           title={r.ultimo_mensaje}>💬 {r.ultimo_mensaje}</div>
+                    )}
+                  </td>
                   <td>{r.prioridad || 0}</td>
                   <td><Badge value={r.estatus} map="cola" /></td>
                   <td className="text-muted" style={{ fontSize: 11 }}>{fdate(r.creada_en)}</td>

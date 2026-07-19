@@ -23,8 +23,9 @@ dinero**, no rediseñar.
 
 ## P1 — Completitud y experiencia
 - [ ] 6. Unificar la ficha de cliente (Clientes + CRM en un drawer con tabs).
-- [ ] 7. "Fiados vencidos" en el Inicio del dueño + preview del último mensaje
-      en la cola de atención.
+- [x] 7. "Fiados vencidos" en el Inicio del dueño (VistaAdminF, tarjeta en
+      "Requiere tu mano" → /fiados) + preview del último mensaje del cliente en
+      la fila de la cola de atención (ColaAtencion + subconsulta en el endpoint).
 - [ ] 8. Cron de depreciación/impuestos en `stockWatcher`.
 - [ ] 9. Validación visual en vivo en el motor de flujo (importar el linter
       existente al `MotorCanvas` y pintar nodos en rojo).

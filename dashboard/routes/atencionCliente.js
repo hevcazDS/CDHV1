@@ -12,7 +12,10 @@ function colaAtencionGet(req, res, ctx) {
     const { db, json } = ctx;
     const estatusF = (new URL('http://x' + req.url).searchParams.get('estatus') || 'en_espera').trim();
     const rows = db.prepare(`
-        SELECT ca.*, c.nombre AS cliente, c.telefono
+        SELECT ca.*, c.nombre AS cliente, c.telefono,
+               (SELECT m.contenido FROM mensajes m JOIN conversaciones cv ON cv.id = m.id_conversacion
+                WHERE cv.id_cliente = ca.id_cliente AND m.rol = 'cliente'
+                ORDER BY m.enviado_en DESC LIMIT 1) AS ultimo_mensaje
         FROM cola_atencion ca LEFT JOIN clientes c ON c.id = ca.id_cliente
         WHERE ca.estatus = ? ORDER BY ca.prioridad ASC, ca.creada_en ASC LIMIT 200`).all(estatusF);
     return json(res, rows);
