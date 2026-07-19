@@ -577,8 +577,10 @@ const RUTAS = [
     { metodo: 'PUT',  path: '/api/prime/pago-url',                          roles: ['prime'], handler: pagoUrlPut },
     { metodo: 'GET',  path: '/api/prime/config-contacto',                   roles: ['prime'], handler: contactoGet },
     { metodo: 'PUT',  path: '/api/prime/config-contacto',                   roles: ['prime'], handler: contactoPut },
-    { metodo: 'GET',  path: '/api/prime/config-email-bot',                  roles: ['prime'], handler: emailBotGet },
-    { metodo: 'PUT',  path: '/api/prime/config-email-bot',                  roles: ['prime'], handler: emailBotPut },
+    // Correo de la tienda: administrativos (gerente+prime), NO cajero — cada
+    // gerente configura/usa su correo desde el propio módulo Correo.
+    { metodo: 'GET',  path: '/api/prime/config-email-bot',                  roles: ['gerente'], handler: emailBotGet },
+    { metodo: 'PUT',  path: '/api/prime/config-email-bot',                  roles: ['gerente'], handler: emailBotPut },
     { metodo: 'GET',  path: '/api/prime/palabras-filtro',                   roles: ['prime'], handler: palabrasFiltroGet },
 ];
 

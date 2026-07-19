@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Group, Stack, Text, Title, TextInput, Textarea, Button, FileButton, Badge, Table, Skeleton, Checkbox, ActionIcon, SegmentedControl, Modal } from '@mantine/core';
-import { Send, Paperclip, X, RefreshCw, Inbox, Mail } from 'lucide-react';
+import { Card, Group, Stack, Text, Title, TextInput, Textarea, Button, FileButton, Badge, Table, Skeleton, Checkbox, ActionIcon, SegmentedControl, Modal, PasswordInput } from '@mantine/core';
+import { Send, Paperclip, X, RefreshCw, Inbox, Mail, Settings } from 'lucide-react';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 import { toastOk, toastErr } from '../lib/ui';
@@ -17,10 +17,10 @@ export default function Correo() {
 
   if (isLoading) return <Skeleton height={300} radius="md" />;
   if (!cfg?.configurado) return (
-    <Card withBorder radius="md" p="lg" className="card">
-      <Title order={4} mb="xs">Correo</Title>
-      <Text size="sm" c="dimmed">Primero configura el correo de la tienda (usuario + clave de aplicación de Gmail) en Prime → Configuración. Luego enciende el módulo en Módulos.</Text>
-    </Card>
+    <div className="sin-scroll">
+      <Title order={3} mb="md">Correo</Title>
+      <Configuracion primeraVez />
+    </div>
   );
 
   return (
@@ -33,10 +33,12 @@ export default function Correo() {
             { value: 'bandeja', label: <Group gap={6} wrap="nowrap"><Inbox size={14} /> Bandeja{cfg.sin_leer ? <Badge size="xs" circle>{cfg.sin_leer}</Badge> : null}</Group> },
             { value: 'enviados', label: <Group gap={6} wrap="nowrap"><Mail size={14} /> Enviados</Group> },
             { value: 'redactar', label: <Group gap={6} wrap="nowrap"><Send size={14} /> Redactar</Group> },
+            { value: 'config', label: <Group gap={6} wrap="nowrap"><Settings size={14} /> Cuenta</Group> },
           ]}
         />
       </Group>
 
+      {vista === 'config' && <Configuracion />}
       {vista === 'bandeja' && <Bandeja onAbrir={setAbierto} />}
       {vista === 'enviados' && <Enviados />}
       {vista === 'redactar' && <Redactar onEnviado={() => setVista('enviados')} />}
@@ -115,6 +117,46 @@ function Enviados() {
             ))}
           </tbody>
         </Table>
+      )}
+    </Card>
+  );
+}
+
+// Cuenta de correo de la tienda (guardada en la BD, no en el .env). Accesible a
+// gerente y prime — los respaldos usan una cuenta aparte, la del .env.
+function Configuracion({ primeraVez }) {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['correo-cuenta'], queryFn: () => api.get('/api/prime/config-email-bot') });
+  const [usuario, setUsuario] = useState('');
+  const [password, setPassword] = useState('');
+  const yaConfig = !!data?.bot_email_password_configurada;
+  useEffect(() => { if (data?.bot_email_usuario) setUsuario(data.bot_email_usuario); }, [data?.bot_email_usuario]);
+
+  const guardar = useMutation({
+    mutationFn: () => api.put('/api/prime/config-email-bot', { bot_email_usuario: usuario.trim(), ...(password ? { bot_email_password: password } : {}) }),
+    onSuccess: (r) => { if (r && r.ok === false) return handleApiError(new Error(r.error)); toastOk('Cuenta guardada'); setPassword(''); qc.invalidateQueries({ queryKey: ['correo-cuenta'] }); qc.invalidateQueries({ queryKey: ['correo-config'] }); },
+    onError: handleApiError,
+  });
+
+  return (
+    <Card withBorder radius="md" p="md" className="card" style={{ maxWidth: 560 }}>
+      <Text size="sm" fw={600} mb={4}>Cuenta de correo de la tienda</Text>
+      <Text size="xs" c="dimmed" mb="sm">
+        {primeraVez ? 'Configura el correo para poder enviar y recibir. ' : ''}
+        Correo Gmail + contraseña de aplicación (no la contraseña normal). Se guarda por instancia
+        en la base de datos; los respaldos usan otra cuenta, la del servidor.
+      </Text>
+      {isLoading ? <Skeleton height={120} /> : (
+        <Stack gap="sm">
+          <TextInput label="Correo" placeholder="tienda@gmail.com" value={usuario} onChange={e => setUsuario(e.target.value)} />
+          <PasswordInput
+            label={'Contraseña de aplicación' + (yaConfig ? ' (ya configurada — deja vacío para no cambiarla)' : '')}
+            placeholder="xxxx xxxx xxxx xxxx" value={password} onChange={e => setPassword(e.target.value)}
+          />
+          <Group justify="flex-end">
+            <Button loading={guardar.isPending} disabled={!usuario.trim() || (!yaConfig && !password)} onClick={() => guardar.mutate()}>Guardar</Button>
+          </Group>
+        </Stack>
       )}
     </Card>
   );
