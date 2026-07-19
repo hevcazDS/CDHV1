@@ -33,11 +33,11 @@ dinero**, no rediseñar.
       deprecian** (categoría nueva, cuenta 125) y **revaluación al alza** de
       inmuebles/terrenos (`revaluarActivo` → superávit por revaluación 330,
       capital). Migración 0085 + `POST /api/erp/activos/:id/revaluar`.
-      test_activos_fijos 8/8. Pendiente menor: UI para revaluar (hoy solo API).
+      test_activos_fijos 8/8. UI: botón Revaluar + categoría Terrenos en ActivosFijosTab.
 - [ ] 9. Validación visual en vivo en el motor de flujo (importar el linter
       existente al `MotorCanvas` y pintar nodos en rojo).
-- [ ] 10. Actualizar `CLAUDE.md` (los 4 agentes lo pidieron; doc obsoleta).
-      → cubierto en parte por el agente de documentación en curso.
+- [x] 10. `CLAUDE.md` actualizado: banner "Estado actual (2026-07)" arriba con
+      las 5 discrepancias corregidas + puntero a `docs/` como fuente fiel.
 
 ## P2 — Estructural (cuando el volumen lo justifique)
 - [ ] 11. Reconciliar `db/schema.sql` con la BD real.
