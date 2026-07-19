@@ -14,10 +14,10 @@ db.exec(`
   CREATE TABLE configuracion (clave TEXT PRIMARY KEY, valor TEXT);
   CREATE TABLE activos_fijos (
     id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, categoria TEXT, costo REAL, valor_residual REAL DEFAULT 0,
-    vida_util_meses INT DEFAULT 60, depreciacion_acumulada REAL DEFAULT 0, fecha_compra TEXT,
-    ultima_depreciacion TEXT, estatus TEXT DEFAULT 'activo', sucursal TEXT, creado_en TEXT);
+    vida_util_meses INT DEFAULT 60, depreciacion_acumulada REAL DEFAULT 0, revaluacion_acumulada REAL DEFAULT 0,
+    fecha_compra TEXT, ultima_depreciacion TEXT, estatus TEXT DEFAULT 'activo', sucursal TEXT, creado_en TEXT);
 `);
-for (const [c, n, t] of [['101','Caja','activo'],['102','Bancos','activo'],['120','Equipo','activo'],['129','Dep acum','activo'],['601','Gastos','gasto'],['605','Dep','gasto']])
+for (const [c, n, t] of [['101','Caja','activo'],['102','Bancos','activo'],['120','Equipo','activo'],['124','Inmuebles','activo'],['125','Terrenos','activo'],['129','Dep acum','activo'],['301','Capital','capital'],['330','Superávit reval','capital'],['601','Gastos','gasto'],['605','Dep','gasto']])
     db.prepare('INSERT INTO plan_cuentas VALUES (?,?,?)').run(c, n, t);
 
 const conta = require('../services/contabilidadService');
@@ -84,5 +84,23 @@ t('baja: write-off saca el activo de libros (cargo 129, abono 120)', () => {
     assert(antes120 > 0);   // se había capitalizado en 121 (cómputo)
 });
 
-console.log('\n' + ok + '/6 OK — activos fijos: capitalización + depreciación lineal idempotente + baja.');
-process.exit(ok === 6 ? 0 : 1);
+t('terreno NO se deprecia (bien inmueble que no pierde valor)', () => {
+    const ter = AF.comprarActivo({ nombre: 'Terreno local', categoria: 'terrenos', costo: 500000, fecha: '2026-01-05', metodo: 'bancos' });
+    assert.strictEqual(ter.cuenta, '125', 'capitaliza en 125 Terrenos');
+    AF.depreciarMes('2026-06-15');   // corre depreciación del mes
+    const row = db.prepare('SELECT depreciacion_acumulada FROM activos_fijos WHERE id=?').get(ter.id);
+    assert.strictEqual(row.depreciacion_acumulada, 0, 'el terreno nunca acumula depreciación');
+    assert.strictEqual(AF.listar().find(a => a.id === ter.id).valor_en_libros, 500000, 'conserva su valor');
+});
+
+t('revaluación al alza sube el valor en libros y cuadra (activo 12x vs superávit 330)', () => {
+    const inm = AF.comprarActivo({ nombre: 'Local comercial', categoria: 'inmuebles', costo: 1000000, vida_util_meses: 240, fecha: '2026-01-10', metodo: 'bancos' });
+    const r = AF.revaluarActivo({ id: inm.id, nuevo_valor: 1200000, fecha: '2026-06-30' });
+    assert.strictEqual(r.incremento, 200000, 'plusvalía reconocida');
+    assert.strictEqual(AF.listar().find(a => a.id === inm.id).valor_en_libros, 1200000, 'sube a 1.2M');
+    assert.strictEqual(saldo('330'), -200000, 'abono al superávit por revaluación (capital)');
+    assert.throws(() => AF.revaluarActivo({ id: inm.id, nuevo_valor: 900000 }), /solo al alza/, 'no permite revaluar a la baja');
+});
+
+console.log('\n' + ok + '/8 OK — activos fijos: capitalización + depreciación idempotente + baja + terrenos + revaluación.');
+process.exit(ok === 8 ? 0 : 1);

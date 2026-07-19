@@ -28,7 +28,12 @@ dinero**, no rediseñar.
 - [x] 7. "Fiados vencidos" en el Inicio del dueño (VistaAdminF, tarjeta en
       "Requiere tu mano" → /fiados) + preview del último mensaje del cliente en
       la fila de la cola de atención (ColaAtencion + subconsulta en el endpoint).
-- [ ] 8. Cron de depreciación/impuestos en `stockWatcher`.
+- [x] 8. Cron de depreciación en `stockWatcher` (`checkDepreciacion`, mensual,
+      idempotente, fail-closed). Además (nota del dueño): **terrenos no se
+      deprecian** (categoría nueva, cuenta 125) y **revaluación al alza** de
+      inmuebles/terrenos (`revaluarActivo` → superávit por revaluación 330,
+      capital). Migración 0085 + `POST /api/erp/activos/:id/revaluar`.
+      test_activos_fijos 8/8. Pendiente menor: UI para revaluar (hoy solo API).
 - [ ] 9. Validación visual en vivo en el motor de flujo (importar el linter
       existente al `MotorCanvas` y pintar nodos en rojo).
 - [ ] 10. Actualizar `CLAUDE.md` (los 4 agentes lo pidieron; doc obsoleta).

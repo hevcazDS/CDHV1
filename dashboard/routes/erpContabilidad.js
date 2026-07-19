@@ -115,6 +115,14 @@ function activosDepreciar(req, res, ctx) {
         return json(res, { ok: true, depreciados: n });
     });
 }
+// POST /api/erp/activos/:id/revaluar — { nuevo_valor } reconoce plusvalía al alza.
+function activosRevaluar(req, res, ctx, { params }) {
+    const { json, readJson } = ctx;
+    return readJson(req, res, d => {
+        try { return json(res, { ok: true, ...require('../../services/activosFijosService').revaluarActivo({ id: parseInt(params[0]), nuevo_valor: d.nuevo_valor, fecha: d.fecha || null }) }); }
+        catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+    });
+}
 
 // GET /api/erp/unit-economics?desde&hasta&gasto_adquisicion — CAC/LTV/Ratio.
 // gasto_adquisicion (publicidad + ventas) es opcional: sin él usa
@@ -789,6 +797,7 @@ const RUTAS = [
     { metodo: 'POST', path: '/api/erp/activos',                   area: 'finanzas', handler: activosPost },
     { metodo: 'POST', path: /^\/api\/erp\/activos\/(\d+)\/baja$/, area: 'finanzas', handler: activosBaja },
     { metodo: 'POST', path: '/api/erp/activos/depreciar',         area: 'finanzas', handler: activosDepreciar },
+    { metodo: 'POST', path: /^\/api\/erp\/activos\/(\d+)\/revaluar$/, area: 'finanzas', handler: activosRevaluar },
     { metodo: 'GET',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierreGet },
     { metodo: 'PUT',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierrePut },
     { metodo: 'GET',  path: '/api/erp/rentabilidad-clientes',     area: 'finanzas', handler: rentabilidadClientes },

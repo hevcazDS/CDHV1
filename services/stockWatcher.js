@@ -929,6 +929,11 @@ async function runAll() {
         // (crash entre el cobro atómico y el asiento best-effort). Idempotente y
         // fail-closed: no hace nada si contabilidad está apagada. Comité 2026-07.
         try { checkAsientosHuerfanos(); } catch(e) { log.debug('barrido asientos: ' + e.message); }
+
+        // Depreciación del mes en curso: antes dependía de un clic manual (meses
+        // sin correr → activos sobrevaluados). Idempotente por mes; los terrenos
+        // no entran (no se deprecian). Solo con contabilidad encendida.
+        try { checkDepreciacion(); } catch(e) { log.debug('depreciación: ' + e.message); }
     } catch (err) {
         log.error('Error en runAll', err);
     }
@@ -939,4 +944,10 @@ function checkAsientosHuerfanos() {
     if (r.reparados) log.warn('Contabilidad: ' + r.reparados + ' asiento(s) de venta re-generados (pago sin asiento)');
 }
 
-module.exports = { runAll, checkListaEspera, checkAlertas, checkCSAT, checkCarritosAbandonados, checkOfertasPorVencer, checkCarritosAbandonados24h, checkStockMinimo, checkSeguimiento48h, checkQuejasSinRespuesta, checkClientesDormidos, checkAsientosHuerfanos, actualizarLeadScores, actualizarComprasDesdeEventos };
+function checkDepreciacion() {
+    if (!require('./contabilidadService').activo()) return;   // fail-closed
+    const n = require('./activosFijosService').depreciarMes();  // mes en curso, idempotente
+    if (n) log.info('Contabilidad: depreciación del mes aplicada a ' + n + ' activo(s)');
+}
+
+module.exports = { runAll, checkListaEspera, checkAlertas, checkCSAT, checkCarritosAbandonados, checkOfertasPorVencer, checkCarritosAbandonados24h, checkStockMinimo, checkSeguimiento48h, checkQuejasSinRespuesta, checkClientesDormidos, checkAsientosHuerfanos, checkDepreciacion, actualizarLeadScores, actualizarComprasDesdeEventos };

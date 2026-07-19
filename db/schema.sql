@@ -1541,11 +1541,12 @@ CREATE TABLE IF NOT EXISTS activos_fijos (
     id                     INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre                 TEXT NOT NULL,
     categoria              TEXT NOT NULL DEFAULT 'equipo'
-                           CHECK(categoria IN ('equipo','computo','vehiculos','maquinaria','inmuebles')),
+                           CHECK(categoria IN ('equipo','computo','vehiculos','maquinaria','inmuebles','terrenos')),
     costo                  REAL NOT NULL DEFAULT 0,
     valor_residual         REAL NOT NULL DEFAULT 0,
     vida_util_meses        INTEGER NOT NULL DEFAULT 60,
     depreciacion_acumulada REAL NOT NULL DEFAULT 0,
+    revaluacion_acumulada  REAL NOT NULL DEFAULT 0,   -- 0085: plusvalía reconocida (revaluación al alza)
     fecha_compra           TEXT NOT NULL DEFAULT (date('now','localtime')),
     ultima_depreciacion    TEXT,
     estatus                TEXT NOT NULL DEFAULT 'activo' CHECK(estatus IN ('activo','baja')),
@@ -1559,7 +1560,9 @@ INSERT OR IGNORE INTO plan_cuentas (codigo, nombre, tipo) VALUES
     ('122', 'Vehículos', 'activo'),
     ('123', 'Maquinaria', 'activo'),
     ('124', 'Inmuebles', 'activo'),
+    ('125', 'Terrenos', 'activo'),
     ('129', 'Depreciación acumulada', 'activo'),
+    ('330', 'Superávit por revaluación', 'capital'),
     ('605', 'Gasto por depreciación', 'gasto');
 
 -- 0083: check-in / asistencia (gym) — ver migración.
