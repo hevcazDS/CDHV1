@@ -749,6 +749,13 @@ server.listen(PORT, process.env.DASHBOARD_HOST || '127.0.0.1', () => {
     log.info('Abre esa URL en el navegador del servidor.');
 });
 
+// Bandeja de correo: sincroniza cada 5 min también desde el dashboard, para que
+// la bandeja se actualice aunque el bot (que también lo corre) no esté arriba.
+// Doble-gate + fail-closed dentro de syncSiActivo; INSERT OR IGNORE deduplica.
+const _correoInbox = require('../services/correoInbox');
+setInterval(() => _correoInbox.syncSiActivo(db, log), 5 * 60_000);
+setTimeout(() => _correoInbox.syncSiActivo(db, log), 15_000);
+
 // ── Regla anti-zombie (HS-502): el dash SIEMPRE arranca primero; si la BD
 // dice que el bot debía estar activo pero pm2 lo reporta caído/ausente
 // (típico tras reload del contenedor), se reinicia el bridge UNA sola vez.

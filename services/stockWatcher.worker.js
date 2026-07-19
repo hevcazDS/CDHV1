@@ -17,22 +17,13 @@ setInterval(() => {
     stockWatcher.runAll();
 }, 60 * 60_000);
 
-// Bandeja de correo: bajar lo nuevo cada 5 min si el módulo está ON y hay cuenta
-// configurada. Doble-gate + fail-closed: sin módulo/credenciales no hace nada.
+// Bandeja de correo: bajar lo nuevo cada 5 min (doble-gate + fail-closed dentro
+// de syncSiActivo). El mismo sync corre en el dashboard, por si el bot no está.
 // ponytail: poll cada 5 min; IMAP IDLE (push) solo si hace falta tiempo real.
 const _dbCorreo = require('../bot/db_connection');
 const _correoInbox = require('./correoInbox');
-async function _syncCorreo() {
-    try {
-        const on = _dbCorreo.prepare("SELECT valor FROM configuracion WHERE clave='correo_activo'").get()?.valor === '1';
-        if (!on || !_correoInbox.configurado(_dbCorreo)) return;
-        const r = await _correoInbox.sincronizar(_dbCorreo);
-        if (r.ok && r.nuevos) log.info('correo: ' + r.nuevos + ' nuevo(s) en la bandeja');
-        else if (!r.ok) log.debug('correo sync: ' + r.error);
-    } catch (e) { log.debug('correo sync: ' + e.message); }
-}
-setInterval(_syncCorreo, 5 * 60_000);
-_syncCorreo();
+setInterval(() => _correoInbox.syncSiActivo(_dbCorreo, log), 5 * 60_000);
+_correoInbox.syncSiActivo(_dbCorreo, log);
 
 // Comunicación con proceso padre
 process.on('message', (msg) => {

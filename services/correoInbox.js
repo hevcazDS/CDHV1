@@ -106,4 +106,17 @@ async function descargarAdjunto(db, uid, idx) {
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-module.exports = { sincronizar, configurado, credenciales, descargarAdjunto };
+// Sync con doble-gate (módulo ON + cuenta configurada) y fail-closed. Lo llaman
+// el worker del bot y el proceso del dashboard; corren ambos si ambos están
+// arriba (sin problema: INSERT OR IGNORE por uid deduplica). `log` es opcional.
+async function syncSiActivo(db, log) {
+    try {
+        const on = db.prepare("SELECT valor FROM configuracion WHERE clave='correo_activo'").get()?.valor === '1';
+        if (!on || !configurado(db)) return;
+        const r = await sincronizar(db);
+        if (r.ok && r.nuevos) log && log.info('correo: ' + r.nuevos + ' nuevo(s) en la bandeja');
+        else if (!r.ok) log && log.debug('correo sync: ' + r.error);
+    } catch (e) { log && log.debug('correo sync: ' + e.message); }
+}
+
+module.exports = { sincronizar, configurado, credenciales, descargarAdjunto, syncSiActivo };
