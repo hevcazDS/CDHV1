@@ -382,7 +382,7 @@ function devolucionesPut(req, res, ctx, { params, ses: _sesDev }) {
     const id = parseInt(params[0]);
     return readBody(req, body => {
         try {
-            const { estatus, notas, pin } = JSON.parse(body);
+            const { estatus, notas, pin, reembolso, metodo_reembolso } = JSON.parse(body);
             if (!['solicitada', 'aprobada', 'rechazada', 'resuelta'].includes(estatus)) return json(res, { ok: false, error: 'Estatus inválido' }, 400);
             if (estatus !== 'solicitada') {
                 const errPin = autorizacion.exigirAutorizacion(db, _sesDev, pin, rangoDe);
@@ -397,7 +397,7 @@ function devolucionesPut(req, res, ctx, { params, ses: _sesDev }) {
                 LEFT JOIN pedidos p ON p.id_pedido = d.id_pedido
                 LEFT JOIN clientes c ON c.id = p.id_cliente OR c.nombre = p.cliente WHERE d.id = ? LIMIT 1`).get(id);
             if (estatus === 'resuelta' && dev?.id_producto && dev?.cantidad) {
-                const det = db.prepare('SELECT sucursal_origen FROM pedido_detalle WHERE id_pedido=? AND id_producto=? LIMIT 1').get(dev.id_pedido, dev.id_producto);
+                const det = db.prepare('SELECT sucursal_origen, precio_unitario FROM pedido_detalle WHERE id_pedido=? AND id_producto=? LIMIT 1').get(dev.id_pedido, dev.id_producto);
                 if (det) {
                     const vendida = db.prepare('SELECT COALESCE(SUM(cantidad),0) c FROM pedido_detalle WHERE id_pedido=? AND id_producto=?').get(dev.id_pedido, dev.id_producto).c;
                     const yaDevuelta = db.prepare("SELECT COALESCE(SUM(cantidad),0) c FROM devoluciones WHERE id_pedido=? AND id_producto=? AND estatus='resuelta' AND id!=?").get(dev.id_pedido, dev.id_producto, id).c;
@@ -405,8 +405,17 @@ function devolucionesPut(req, res, ctx, { params, ses: _sesDev }) {
                     if (cantReponer < dev.cantidad) log.warn('Devolución ' + id + ': cantidad ' + dev.cantidad + ' excede lo devolvible (' + Math.max(0, vendida - yaDevuelta) + '); se repone ' + cantReponer);
                     if (cantReponer > 0) {
                         kardexService.movimiento({ id_producto: dev.id_producto, sucursal: det.sucursal_origen, tipo: 'devolucion', delta: cantReponer, motivo: 'Devolución pedido ' + (dev.folio || dev.id_pedido), usuario: _sesDev.username });
-                        try { require('../../services/contabilidadService').asientoDevolucion(dev.id_pedido, dev.id_producto, cantReponer); }
-                        catch (e) { log.debug('Asiento de devolución no registrado: ' + e.message); }
+                        try {
+                            const _conta = require('../../services/contabilidadService');
+                            _conta.asientoDevolucion(dev.id_pedido, dev.id_producto, cantReponer);
+                            // Reembolso de DINERO solo si el operador lo marca (una
+                            // devolución puede ser cambio de mercancía, sin flujo).
+                            if (reembolso) {
+                                const _metodo = metodo_reembolso || db.prepare('SELECT metodo_pago FROM pedidos WHERE id_pedido=?').get(dev.id_pedido)?.metodo_pago;
+                                const _monto = Math.round((det.precio_unitario || 0) * cantReponer * 100) / 100;
+                                _conta.asientoReembolso(id, dev.id_pedido, _monto, _metodo);
+                            }
+                        } catch (e) { log.debug('Asiento de devolución no registrado: ' + e.message); }
                     }
                 }
             }

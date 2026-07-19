@@ -118,6 +118,9 @@ function asientoCobroCredito(idPedido, monto, metodoPago, fecha = null) {
 // Costo de lo vendido: cargo Costo de ventas, abono Inventario (costo promedio)
 function asientoCostoVenta(idPedido, fecha = null) {
     if (!activo()) return null;
+    // Idempotente por sí mismo (igual que asientoVenta): sin esto, dependía de
+    // que nadie lo llamara dos veces; el barrido de huérfanos ahora lo re-invoca.
+    if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='costo_venta' AND referencia_id=? LIMIT 1").get(String(idPedido))) return null;
     // Usa el costo CONGELADO al pedido (d.costo_unitario, migración 0061); si es
     // NULL (fila vieja) cae al costo actual del producto — comportamiento previo.
     const row = db.prepare(`
@@ -165,10 +168,28 @@ function asientoGasto(concepto, total, metodo, conIva, opts = {}) {
     return registrarAsiento({ concepto: 'Gasto: ' + concepto, referencia_tipo: 'gasto', referencia_id: null, partidas, fecha: opts.fecha || null, override: !!opts.override, sucursal: opts.sucursal || null });
 }
 
+// Reembolso de dinero al cliente por una devolución (solo si hubo reembolso, no
+// en un cambio de mercancía). Reversa el ingreso: cargo 401 Ventas (menos IVA
+// trasladado en 209) y sale el dinero por Caja/Bancos. Idempotente POR
+// DEVOLUCIÓN (una misma devolución no reembolsa dos veces; devoluciones
+// parciales distintas del mismo pedido sí generan su propio asiento). Comité S2.
+function asientoReembolso(idDevolucion, idPedido, monto, metodoPago) {
+    if (!activo() || !(monto > 0)) return null;
+    if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='reembolso' AND referencia_id=? LIMIT 1").get(String(idDevolucion))) return null;
+    const iva = parseFloat(getValor('iva_pct', '0')) || 0;
+    const base = iva > 0 ? _r2(monto / (1 + iva / 100)) : _r2(monto);
+    const partidas = [{ cuenta: '401', debe: base }];
+    if (iva > 0) partidas.push({ cuenta: '209', debe: _r2(monto - base) });
+    partidas.push({ cuenta: _cuentaCobro(metodoPago), haber: monto });
+    return registrarAsiento({
+        concepto: 'Reembolso devolución ' + idDevolucion + ' (pedido ' + idPedido + ')',
+        referencia_tipo: 'reembolso', referencia_id: idDevolucion, partidas, sucursal: _sucursalDePedido(idPedido),
+    });
+}
+
 // Devolución de mercancía: la pieza vuelve al inventario a su costo promedio
-// (cargo Inventario, abono Costo de ventas). El reembolso de dinero al
-// cliente no está modelado como flujo todavía → se registra con asiento
-// manual si aplica.
+// (cargo Inventario, abono Costo de ventas). El reembolso de DINERO, cuando lo
+// hay, lo asienta asientoReembolso aparte (un cambio de mercancía no mueve caja).
 function asientoDevolucion(idPedido, idProducto, cantidad) {
     if (!activo() || !(cantidad > 0)) return null;
     const costo = _r2((db.prepare('SELECT COALESCE(costo,0) c FROM productos WHERE id=?').get(idProducto)?.c || 0) * cantidad);
@@ -238,7 +259,71 @@ function libroMayor(desde, hasta, sucursal = null) {
     `).all(desde, hasta, sucursal || '', sucursal || '');
 }
 
+// BARRIDO DE ASIENTOS HUÉRFANOS (comité: Finanzas S1/S3 + Arquitectura R2).
+// Los asientos de marcar-pagado corren FUERA de la transacción de cobro; si el
+// proceso muere entre el commit del pago y el asiento, queda venta cobrada sin
+// asiento y la idempotencia 409 impide reintentar el chokepoint. Este barrido
+// idempotente detecta pagos RECIENTES sin su asiento y lo re-genera con la misma
+// lógica (a_credito → cobro_credito; contado → venta+costo). Ventana corta a
+// propósito: repara la ventana de crash, NO rellena historia previa a que se
+// encendiera contabilidad. Lo corre stockWatcher periódicamente.
+function barrerAsientosHuerfanos({ dias = 3, limite = 100 } = {}) {
+    if (!activo()) return { revisados: 0, reparados: 0 };
+    let orphans = [];
+    try {
+        orphans = db.prepare(`
+            SELECT lp.id_pedido AS id_pedido, lp.monto AS monto,
+                   COALESCE(p.a_credito,0) AS a_credito, p.metodo_pago AS metodo_pago
+            FROM links_pago lp
+            JOIN pedidos p ON p.id_pedido = lp.id_pedido
+            WHERE lp.estatus='pagado'
+              AND lp.pagado_en >= datetime('now', ?, 'localtime')
+              AND (
+                (COALESCE(p.a_credito,0)=0 AND NOT EXISTS (SELECT 1 FROM asientos a WHERE a.referencia_tipo='venta'         AND a.referencia_id=CAST(lp.id_pedido AS TEXT)))
+                OR (p.a_credito=1        AND NOT EXISTS (SELECT 1 FROM asientos a WHERE a.referencia_tipo='cobro_credito' AND a.referencia_id=CAST(lp.id_pedido AS TEXT)))
+              )
+            ORDER BY lp.pagado_en DESC LIMIT ?
+        `).all('-' + Number(dias) + ' days', Number(limite));
+    } catch (_) { return { revisados: 0, reparados: 0 }; }
+    let reparados = 0;
+    for (const o of orphans) {
+        try {
+            if (o.a_credito == 1) {
+                if (asientoCobroCredito(o.id_pedido, Number(o.monto || 0), o.metodo_pago)) reparados++;
+            } else {
+                const v = asientoVenta(o.id_pedido, Number(o.monto || 0), o.metodo_pago);
+                asientoCostoVenta(o.id_pedido);   // idempotente; null si sin costo o ya asentado
+                if (v) reparados++;
+            }
+        } catch (_) { /* un pedido malo no detiene el barrido */ }
+    }
+    return { revisados: orphans.length, reparados };
+}
+
+// Diagnóstico: ventas pagadas SIN asiento de venta, y ventas con 401 pero sin
+// 501 (producto sin costo capturado → P&L infla la utilidad al 100% de margen).
+// Solo lectura, para un tablero de integridad. `dias` acota la ventana.
+function ventasSinAsiento({ dias = 90 } = {}) {
+    const desde = '-' + Number(dias) + ' days';
+    const sinVenta = db.prepare(`
+        SELECT lp.id_pedido, lp.monto, lp.pagado_en, COALESCE(p.a_credito,0) a_credito
+        FROM links_pago lp JOIN pedidos p ON p.id_pedido = lp.id_pedido
+        WHERE lp.estatus='pagado' AND lp.pagado_en >= datetime('now', ?, 'localtime')
+          AND ((COALESCE(p.a_credito,0)=0 AND NOT EXISTS (SELECT 1 FROM asientos a WHERE a.referencia_tipo='venta'         AND a.referencia_id=CAST(lp.id_pedido AS TEXT)))
+            OR (p.a_credito=1        AND NOT EXISTS (SELECT 1 FROM asientos a WHERE a.referencia_tipo='cobro_credito' AND a.referencia_id=CAST(lp.id_pedido AS TEXT))))
+        ORDER BY lp.pagado_en DESC LIMIT 200
+    `).all(desde);
+    const sinCosto = db.prepare(`
+        SELECT a.referencia_id AS id_pedido
+        FROM asientos a
+        WHERE a.referencia_tipo='venta' AND a.fecha >= date('now', ?, 'localtime')
+          AND NOT EXISTS (SELECT 1 FROM asientos c WHERE c.referencia_tipo='costo_venta' AND c.referencia_id=a.referencia_id)
+        ORDER BY a.fecha DESC LIMIT 200
+    `).all(desde);
+    return { sin_venta: sinVenta, sin_costo: sinCosto };
+}
+
 function _setDb(x) { db = x; }            // solo tests
 function _setActivo(f) { _activoFn = f; } // solo tests
 
-module.exports = { activo, mesCerradoDe, registrarAsiento, asientoVenta, asientoVentaCredito, asientoCobroCredito, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoEntradaContado, asientoReversa, libroMayor, _setDb, _setActivo };
+module.exports = { activo, mesCerradoDe, registrarAsiento, asientoVenta, asientoVentaCredito, asientoCobroCredito, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoReembolso, asientoEntradaContado, asientoReversa, libroMayor, barrerAsientosHuerfanos, ventasSinAsiento, _setDb, _setActivo };

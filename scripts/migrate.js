@@ -96,21 +96,38 @@ function migrarBase(dbPath, soloStatus) {
         const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, archivo), 'utf8');
         const statements = splitStatements(sql);
         console.log(`[migrate] aplicando ${archivo} (${statements.length} statement(s))...`);
-        for (const stmt of statements) {
-            try {
-                db.exec(stmt);
-            } catch (e) {
-                if (esErrorTolerado(e)) {
-                    console.log(`[migrate]   (tolerado) ${e.message}`);
-                } else {
-                    console.error(`[migrate] ERROR aplicando ${archivo}: ${e.message}`);
-                    console.error(`[migrate]   statement: ${stmt.slice(0, 200)}`);
-                    db.close();
-                    process.exit(1);
+
+        // Aplica los statements de UN archivo (errores tolerados se saltan; el
+        // resto se lanza para abortar). El INSERT en schema_migrations va junto,
+        // para que "migración aplicada" sea atómico con sus cambios.
+        const aplicarArchivo = () => {
+            for (const stmt of statements) {
+                try {
+                    db.exec(stmt);
+                } catch (e) {
+                    if (esErrorTolerado(e)) { console.log(`[migrate]   (tolerado) ${e.message}`); }
+                    else { e._stmt = stmt; throw e; }
                 }
             }
+            db.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(archivo);
+        };
+
+        // Por defecto se envuelve en transacción: si un statement no tolerado
+        // falla, se revierte TODO el archivo (sin estado parcial). Excepción:
+        // `PRAGMA foreign_keys` es no-op dentro de una transacción, así que las
+        // migraciones que reconstruyen tablas con FK apagadas se corren sin
+        // envolver (mismo comportamiento de antes) para no cambiar su semántica.
+        const tienePragma = /^\s*PRAGMA\b/im.test(sql);
+        const ejecutar = tienePragma ? aplicarArchivo : db.transaction(aplicarArchivo);
+        try {
+            ejecutar();
+        } catch (e) {
+            console.error(`[migrate] ERROR aplicando ${archivo}: ${e.message}`);
+            if (e._stmt) console.error(`[migrate]   statement: ${e._stmt.slice(0, 200)}`);
+            if (!tienePragma) console.error('[migrate]   (revertido — sin estado parcial)');
+            db.close();
+            process.exit(1);
         }
-        db.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(archivo);
         console.log(`[migrate] OK: ${archivo}`);
     }
 

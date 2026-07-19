@@ -7,7 +7,7 @@ let db = require('../bot/db_connection');
 const _r2 = (n) => Math.round(Number(n) * 100) / 100;
 
 function registrarEntrada(idProducto, cantidad, costoUnitario, origen) {
-    cantidad = parseInt(cantidad, 10);
+    cantidad = parseFloat(cantidad);   // granel: 2.5 kg NO se trunca a 2 (promedio correcto)
     costoUnitario = Number(costoUnitario);
     if (!(cantidad > 0) || !Number.isFinite(costoUnitario) || costoUnitario < 0) {
         throw new Error('Entrada de costo inválida (cantidad/costo)');

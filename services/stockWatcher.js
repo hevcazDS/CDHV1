@@ -924,9 +924,19 @@ async function runAll() {
                 }
             }
         } catch(e) { log.debug('No se pudo procesar reporte automático diario: ' + e.message); }
+
+        // Integridad contable: repara pagos recientes que quedaron sin asiento
+        // (crash entre el cobro atómico y el asiento best-effort). Idempotente y
+        // fail-closed: no hace nada si contabilidad está apagada. Comité 2026-07.
+        try { checkAsientosHuerfanos(); } catch(e) { log.debug('barrido asientos: ' + e.message); }
     } catch (err) {
         log.error('Error en runAll', err);
     }
 }
 
-module.exports = { runAll, checkListaEspera, checkAlertas, checkCSAT, checkCarritosAbandonados, checkOfertasPorVencer, checkCarritosAbandonados24h, checkStockMinimo, checkSeguimiento48h, checkQuejasSinRespuesta, checkClientesDormidos, actualizarLeadScores, actualizarComprasDesdeEventos };
+function checkAsientosHuerfanos() {
+    const r = require('./contabilidadService').barrerAsientosHuerfanos();
+    if (r.reparados) log.warn('Contabilidad: ' + r.reparados + ' asiento(s) de venta re-generados (pago sin asiento)');
+}
+
+module.exports = { runAll, checkListaEspera, checkAlertas, checkCSAT, checkCarritosAbandonados, checkOfertasPorVencer, checkCarritosAbandonados24h, checkStockMinimo, checkSeguimiento48h, checkQuejasSinRespuesta, checkClientesDormidos, checkAsientosHuerfanos, actualizarLeadScores, actualizarComprasDesdeEventos };

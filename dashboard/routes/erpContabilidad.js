@@ -24,6 +24,17 @@ function planCuentas(req, res, ctx) {
     return ctx.json(res, ctx.db.prepare('SELECT * FROM plan_cuentas ORDER BY codigo').all());
 }
 
+// Integridad contable: pagos sin asiento (ventana de crash) y ventas sin costo
+// (producto sin costo → utilidad inflada). Solo lectura; el barrido automático
+// (stockWatcher) repara los primeros. ?dias= acota (default 90).
+function integridad(req, res, ctx) {
+    const { json } = ctx;
+    if (!conta.activo()) return json(res, { conta_activa: false });
+    const dias = Math.max(1, parseInt(new URL(req.url, 'http://x').searchParams.get('dias') || '90', 10));
+    const r = conta.ventasSinAsiento({ dias });
+    return json(res, { conta_activa: true, dias, ...r, total_sin_venta: r.sin_venta.length, total_sin_costo: r.sin_costo.length });
+}
+
 // multitienda 0051: ?sucursal= validada contra el catálogo ('' = todo el negocio)
 function _sucursalParam(req, db) {
     const s = ((new URL(req.url, 'http://x')).searchParams.get('sucursal') || '').trim();
@@ -763,6 +774,7 @@ function conciliacionConciliar(req, res, ctx, { params }) {
 
 const RUTAS = [
     { metodo: 'GET',  path: '/api/erp/plan-cuentas',              area: 'finanzas', handler: planCuentas },
+    { metodo: 'GET',  path: '/api/erp/integridad',                area: 'finanzas', handler: integridad },
     { metodo: 'GET',  path: '/api/erp/asientos',                  area: 'finanzas', handler: asientosGet },
     { metodo: 'POST', path: '/api/erp/asientos',                  area: 'finanzas', handler: asientosPost },
     { metodo: 'GET',  path: '/api/erp/libro-mayor',               area: 'finanzas', handler: libroMayor },
