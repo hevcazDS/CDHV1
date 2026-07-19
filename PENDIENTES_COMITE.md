@@ -42,7 +42,12 @@ dinero**, no rediseñar.
       las 5 discrepancias corregidas + puntero a `docs/` como fuente fiel.
 
 ## P2 — Estructural (cuando el volumen lo justifique)
-- [ ] 11. Reconciliar `db/schema.sql` con la BD real.
+- [x] 11. `db/schema.sql` reconciliado con producción (fuente de verdad = BD ya
+      migrada 0001-0085): +26 tablas y +97 columnas que solo vivían en migraciones.
+      Era un BUG real: el instalador usa schema.sql como estado final (sella
+      migraciones sin correrlas), así que un cliente nuevo nacía sin RBAC/facturación/
+      caja/etc. Verificado end-to-end: instancia nueva = 126 tablas = producción,
+      DRIFT CERO. Guard de schema + suite exit 0.
 - [ ] 12. Backup incremental + verificación de restauración (obligación SAT 5 años).
 - [ ] 13. Cierre contable anual formal (traspaso de resultados a capital).
 - [ ] 14. Plano contable consolidado en Postgres para flota (rompe el techo de

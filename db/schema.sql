@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
     rol           TEXT NOT NULL CHECK(rol IN ('cajero','operador','almacen','compras','rh','contabilidad','auditor','usuario','gerente','admin','prime')),  -- migrations/0017 y 0023
     sucursal      TEXT,     -- migrations/0049: tienda del usuario (nombre en `sucursales`); NULL = sucursal default
     creado_en     TEXT DEFAULT (datetime('now','localtime'))
+    , activo INTEGER DEFAULT (1)
+    , ultimo_acceso TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sesiones_dashboard (
@@ -103,6 +105,7 @@ CREATE TABLE IF NOT EXISTS sesiones_bot (
     paso_actual TEXT NOT NULL DEFAULT 'MENU',
     data_json   TEXT NOT NULL DEFAULT '{}',
     version     INTEGER NOT NULL DEFAULT 0
+    , ultimo_mensaje_at DATETIME DEFAULT (CURRENT_TIMESTAMP)
 );
 
 -- Lista negra de contenido + frases de queja editables desde el dashboard
@@ -158,6 +161,7 @@ CREATE TABLE IF NOT EXISTS series_folios (
     prefijo     TEXT,
     ultimo_folio INTEGER NOT NULL DEFAULT 0,
     longitud    INTEGER NOT NULL DEFAULT 6
+    , id INTEGER
 );
 
 -- Semilla de series (espejo de los valores reales de producción): sin estas
@@ -223,6 +227,10 @@ CREATE TABLE IF NOT EXISTS puntos_entrega (
     nombre    TEXT,   -- migrations/0052: producción ya los tenía (orderFlow los renderiza)
     direccion TEXT,
     maps_url  TEXT
+    , tipo TEXT DEFAULT ('sucursal')
+    , cp TEXT
+    , latitud REAL
+    , longitud REAL
 );
 
 -- ──────────────────────────────────────────────────────────────────────────
@@ -257,6 +265,8 @@ CREATE TABLE IF NOT EXISTS clientes (
     -- promociones; los mensajes transaccionales no se ven afectados.
     marketing_opt_out INTEGER NOT NULL DEFAULT 0,
     limite_credito    REAL DEFAULT 0               -- migrations/0039 (tope de fiado; 0 = sin límite)
+    , ciudad_default TEXT
+    , notas_internas TEXT DEFAULT ('')
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_codigo_referido ON clientes(codigo_referido);
@@ -331,6 +341,8 @@ CREATE TABLE IF NOT EXISTS productos_similares (
     id_producto  INTEGER NOT NULL REFERENCES productos(id),
     id_sustituto INTEGER NOT NULL REFERENCES productos(id),
     activa       INTEGER NOT NULL DEFAULT 1
+    , tipo_relacion TEXT DEFAULT ('similar')
+    , score INTEGER DEFAULT (5)
 );
 
 -- Stock por producto y sucursal "legacy" (texto libre en `sucursal`, p.ej.
@@ -346,6 +358,9 @@ CREATE TABLE IF NOT EXISTS inventarios (
     -- tenía hoy mientras la columna no existía, pero sin tronar la consulta
     -- SQL). Sin UI en el dashboard todavía para editarlo — Fase JIUA 2.
     stock_minimo  INTEGER NOT NULL DEFAULT 0
+    , id_inventory INTEGER
+    , stock_maximo INTEGER DEFAULT (500)
+    , ubicacion TEXT
 );
 
 -- Ledger de auditoría de catálogo/inventario (inspirado en StockItemTracking
@@ -405,6 +420,10 @@ CREATE TABLE IF NOT EXISTS pedidos (
     rep_uuid        TEXT,                          -- migrations/0055 (complemento de pago REP)
     creado_en       TEXT DEFAULT (datetime('now','localtime')),
     actualizado_en  TEXT
+    , tipo_entrega TEXT DEFAULT ('envio')
+    , canal TEXT DEFAULT ('whatsapp')
+    , cancelado_por TEXT
+    , cancelado_en TEXT
 );
 
 -- Repartidores frecuentes para reusar al asignar (no son cuentas de acceso).
@@ -442,6 +461,7 @@ CREATE TABLE IF NOT EXISTS pedido_detalle (
     variante        TEXT,
     sucursal_origen TEXT,
     costo_unitario  REAL   -- 0061: costo congelado al pedido (NULL = usar costo actual en COGS)
+    , descuento_linea REAL DEFAULT (0)
 );
 
 CREATE TABLE IF NOT EXISTS direcciones_envio (
@@ -455,6 +475,7 @@ CREATE TABLE IF NOT EXISTS direcciones_envio (
     cp          TEXT,
     referencia  TEXT,
     es_default  INTEGER DEFAULT 0
+    , creada_en TEXT DEFAULT (datetime('now','localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS reservas_pickup (
@@ -464,6 +485,7 @@ CREATE TABLE IF NOT EXISTS reservas_pickup (
     estatus       TEXT NOT NULL DEFAULT 'apartado',
     fecha_limite  TEXT,
     codigo_retiro TEXT
+    , fecha_entrega TEXT
 );
 
 CREATE TABLE IF NOT EXISTS envios (
@@ -476,6 +498,12 @@ CREATE TABLE IF NOT EXISTS envios (
     fecha_envio             TEXT,
     fecha_entrega_estimada  TEXT,
     estatus                 TEXT NOT NULL DEFAULT 'guia_generada'
+    , peso_kg REAL DEFAULT (0)
+    , alto_cm REAL DEFAULT (0)
+    , ancho_cm REAL DEFAULT (0)
+    , largo_cm REAL DEFAULT (0)
+    , fecha_entrega_real TEXT
+    , creado_en TEXT DEFAULT (datetime('now','localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS estatus_envio_log (
@@ -513,6 +541,11 @@ CREATE TABLE IF NOT EXISTS guias_estafeta (
     estatus_entrega     TEXT,
     es_simulada         INTEGER NOT NULL DEFAULT 1,
     creada_en           TEXT DEFAULT (datetime('now','localtime'))
+    , remitente_nombre TEXT DEFAULT ('Julio Cepeda Jugueterias')
+    , remitente_cp TEXT DEFAULT ('78000')
+    , fecha_creacion TEXT DEFAULT (datetime('now','localtime'))
+    , xml_respuesta TEXT
+    , pdf_etiqueta_b64 TEXT
 );
 
 -- Catálogo de métodos de pago (migrations/0014). Existía en producción pero
@@ -640,6 +673,7 @@ CREATE TABLE IF NOT EXISTS links_pago (
     referencia_pago  TEXT,                          -- migraciones_pendientes/0012
     pagado_en        TEXT,
     creado_en        TEXT DEFAULT (datetime('now','localtime'))
+    , fue_abierto INTEGER DEFAULT (0)
 );
 
 -- ──────────────────────────────────────────────────────────────────────────
@@ -660,6 +694,9 @@ CREATE TABLE IF NOT EXISTS lista_espera (
     folio_lista_espera  TEXT,
     creada_en           TEXT DEFAULT (datetime('now','localtime')),
     notificado_en       TEXT
+    , expira_notif_en TEXT
+    , convertido_en TEXT
+    , id_pedido_generado INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS preventas (
@@ -672,6 +709,10 @@ CREATE TABLE IF NOT EXISTS preventas (
     stock_comprometido  INTEGER DEFAULT 0,
     activa              INTEGER NOT NULL DEFAULT 1,
     creada_en           TEXT DEFAULT (datetime('now','localtime'))
+    , stock_maximo INTEGER DEFAULT (50)
+    , precio_preventa REAL DEFAULT (0)
+    , porcentaje_anticipo INTEGER DEFAULT (50)
+    , notas TEXT
 );
 
 CREATE TABLE IF NOT EXISTS preventa_clientes (
@@ -682,6 +723,16 @@ CREATE TABLE IF NOT EXISTS preventa_clientes (
     cantidad            INTEGER DEFAULT 1,
     notificado_llegada  INTEGER DEFAULT 0,
     creada_en           TEXT DEFAULT (datetime('now','localtime'))
+    , nombre_cliente TEXT
+    , precio_total REAL DEFAULT (0)
+    , anticipo_pagado REAL DEFAULT (0)
+    , saldo_pendiente REAL DEFAULT (0)
+    , folio TEXT
+    , estatus TEXT DEFAULT ('apartado')
+    , link_pago_anticipo TEXT
+    , link_pago_saldo TEXT
+    , creado_en TEXT DEFAULT (datetime('now','localtime'))
+    , id_pedido_final INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS alertas_reabasto (
@@ -691,6 +742,11 @@ CREATE TABLE IF NOT EXISTS alertas_reabasto (
     telefono    TEXT,
     estatus     TEXT NOT NULL DEFAULT 'activa',
     creada_en   TEXT DEFAULT (datetime('now','localtime'))
+    , nombre_cliente TEXT
+    , umbral_stock INTEGER DEFAULT (1)
+    , tipo_alerta TEXT DEFAULT ('reabasto')
+    , precio_objetivo REAL
+    , disparada_en TEXT
 );
 
 -- chats iniciados por día (migración 0021): un cliente que escribió ese día
@@ -713,6 +769,8 @@ CREATE TABLE IF NOT EXISTS carritos_abandonados (
     notificado_en TEXT,
     convertido   INTEGER DEFAULT 0,
     creada_en    TEXT DEFAULT (datetime('now','localtime'))
+    , abandonado_en TEXT DEFAULT (datetime('now','localtime'))
+    , convertido_en TEXT
 );
 
 -- ──────────────────────────────────────────────────────────────────────────
@@ -729,6 +787,8 @@ CREATE TABLE IF NOT EXISTS conversaciones (
     ultimo_paso  TEXT,                               -- migraciones_pendientes/0008
     outcome      TEXT,                                -- 'venta'|'escalacion'|'queja'|'abandono' (services/mensajeService.js)
     iniciada_en  TEXT DEFAULT (datetime('now','localtime'))
+    , cerrada_en TEXT
+    , duracion_seg INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS mensajes (
@@ -739,6 +799,7 @@ CREATE TABLE IF NOT EXISTS mensajes (
     paso_actual     TEXT,                          -- migrations/0019 (contexto de flujo)
     intencion       TEXT,                          -- migrations/0019 (clasificada por el LLM)
     enviado_en      TEXT DEFAULT (datetime('now','localtime'))
+    , confianza REAL
 );
 
 -- ──────────────────────────────────────────────────────────────────────────
@@ -758,6 +819,7 @@ CREATE TABLE IF NOT EXISTS cola_notificaciones (
     campana             TEXT,                          -- migraciones_pendientes/0020
     creada_en           TEXT DEFAULT (datetime('now','localtime')),
     enviado_en          TEXT
+    , id_plantilla INTEGER
 );
 
 -- migrations/0002_indices_estabilidad.sql
@@ -776,6 +838,8 @@ CREATE TABLE IF NOT EXISTS cola_emails (
     creada_en       TEXT DEFAULT (datetime('now','localtime')),
     actualizado_en  TEXT,
     enviado_en      TEXT
+    , html_body TEXT
+    , creado_en TEXT DEFAULT (datetime('now','localtime'))
 );
 
 -- migrations/0002_indices_estabilidad.sql
@@ -795,6 +859,9 @@ CREATE TABLE IF NOT EXISTS cola_atencion (
     atendida_en     TEXT,
     resuelta_en     TEXT,
     reescalada_en   TEXT  -- timeout sin respuesta del asesor (services/stockWatcher.js checkQuejasSinRespuesta) ya re-notificó; evita re-notificar más de una vez por caso
+    , id_asesor INTEGER
+    , turno INTEGER
+    , horario_asignado TEXT
 );
 
 CREATE TABLE IF NOT EXISTS devoluciones (
@@ -808,6 +875,10 @@ CREATE TABLE IF NOT EXISTS devoluciones (
     notas           TEXT,
     creada_en       TEXT DEFAULT (datetime('now','localtime')),
     actualizado_en  TEXT
+    , id_cliente INTEGER
+    , evidencia_url TEXT
+    , id_usuario_autoriza INTEGER
+    , resuelta_en TEXT
 );
 
 CREATE TABLE IF NOT EXISTS valoraciones (
@@ -834,6 +905,10 @@ CREATE TABLE IF NOT EXISTS log_eventos (
     compro        INTEGER DEFAULT 0,                       -- migraciones_pendientes/0022
     tono_bot      TEXT,                                     -- migrations/0001_agregar_tono_bot.sql
     registrado_en TEXT DEFAULT (datetime('now','localtime'))
+    , id_cliente INTEGER
+    , id_producto INTEGER
+    , id_conversacion INTEGER
+    , ip TEXT
 );
 
 -- Auto-rellena tono_bot desde la configuración activa al momento del INSERT
@@ -868,6 +943,13 @@ CREATE TABLE IF NOT EXISTS metricas_bot (
     metrica       TEXT NOT NULL,
     valor         REAL,
     registrado_en TEXT DEFAULT (datetime('now','localtime'))
+    , mensajes_total INTEGER DEFAULT (0)
+    , conversiones INTEGER DEFAULT (0)
+    , escaladas INTEGER DEFAULT (0)
+    , busquedas INTEGER DEFAULT (0)
+    , sin_resultado INTEGER DEFAULT (0)
+    , tiempo_prom_ms INTEGER DEFAULT (0)
+    , revenue_dia REAL DEFAULT (0)
 );
 
 -- ──────────────────────────────────────────────────────────────────────────
@@ -914,6 +996,15 @@ CREATE TABLE IF NOT EXISTS tickets_venta (
     expira_reclamo_en    TEXT,
     reclamado_en         TEXT,
     creado_en            TEXT DEFAULT (datetime('now','localtime'))
+    , folio_ticket TEXT
+    , id_turno INTEGER
+    , id_cliente INTEGER
+    , id_pedido INTEGER
+    , subtotal REAL DEFAULT (0)
+    , descuento REAL DEFAULT (0)
+    , id_metodo_pago INTEGER
+    , id_promocion INTEGER
+    , estatus TEXT DEFAULT ('pagado')
 );
 
 CREATE TABLE IF NOT EXISTS puntos_cliente (
@@ -923,6 +1014,8 @@ CREATE TABLE IF NOT EXISTS puntos_cliente (
     puntos_ganados    INTEGER NOT NULL DEFAULT 0,
     puntos_canjeados  INTEGER NOT NULL DEFAULT 0,
     ultimo_movimiento TEXT
+    , puntos_vencidos INTEGER DEFAULT (0)
+    , creado_en TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_puntos_cliente_telefono ON puntos_cliente(telefono);
 
@@ -935,6 +1028,7 @@ CREATE TABLE IF NOT EXISTS movimientos_puntos (
     concepto    TEXT,
     id_ticket   INTEGER REFERENCES tickets_venta(id),
     creado_en   TEXT DEFAULT (datetime('now','localtime'))
+    , id_pedido INTEGER
 );
 
 -- Programa de referidos: registra cada vez que un código de referido
@@ -960,6 +1054,9 @@ CREATE TABLE IF NOT EXISTS regalos_lealtad (
     expira_en    TEXT,
     estatus      TEXT NOT NULL DEFAULT 'activo',
     creada_en    TEXT DEFAULT (datetime('now','localtime'))
+    , canjeado_en TEXT
+    , id_ticket_canje INTEGER
+    , creado_en TEXT DEFAULT (datetime('now','localtime'))
 );
 
 -- ──────────────────────────────────────────────────────────────────────────
@@ -1596,3 +1693,299 @@ CREATE TABLE IF NOT EXISTS correos (
 );
 CREATE INDEX IF NOT EXISTS idx_correos_dir ON correos(direccion, id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_correos_uid ON correos(uid) WHERE uid IS NOT NULL;
+
+-- ─────────────────────────────────────────────────────────────────────
+-- DRIFT RECONCILIADO (2026-07): 26 tablas que vivían solo en migraciones y
+-- faltaban aquí. El instalador usa schema.sql como estado final, así que sin
+-- estas líneas una instancia NUEVA nacía incompleta. Extraídas de producción.
+-- ─────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS asesores (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_usuario  INTEGER NOT NULL REFERENCES usuarios(id),
+        horario_inicio TEXT  DEFAULT '09:00',
+        horario_fin    TEXT  DEFAULT '18:00',
+        dias_atencion  TEXT  DEFAULT 'Lun-Vie',
+        max_chats   INTEGER DEFAULT 3,
+        activo      INTEGER NOT NULL DEFAULT 1
+    );
+
+CREATE TABLE IF NOT EXISTS cajas (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre      TEXT    NOT NULL,
+        sucursal    TEXT    NOT NULL,
+        activa      INTEGER NOT NULL DEFAULT 1
+    );
+
+CREATE TABLE IF NOT EXISTS calculo_impuestos (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_periodo      INTEGER NOT NULL REFERENCES periodos_fiscales(id),
+        total_ingresos  REAL    NOT NULL DEFAULT 0,
+        total_egresos   REAL    NOT NULL DEFAULT 0,
+        base_iva        REAL    NOT NULL DEFAULT 0,
+        iva_trasladado  REAL    NOT NULL DEFAULT 0,   -- 16%
+        iva_acreditable REAL    NOT NULL DEFAULT 0,
+        iva_a_pagar     REAL    NOT NULL DEFAULT 0,
+        ieps_total      REAL    NOT NULL DEFAULT 0,
+        isr_estimado    REAL    NOT NULL DEFAULT 0,
+        calculado_en    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+CREATE TABLE IF NOT EXISTS cobertura_pickup (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_punto        INTEGER NOT NULL REFERENCES puntos_entrega(id),
+        ciudad          TEXT,
+        cp              TEXT,
+        activa          INTEGER NOT NULL DEFAULT 1
+    );
+
+CREATE TABLE IF NOT EXISTS conceptos_contables (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        clave       TEXT    NOT NULL UNIQUE,
+        nombre      TEXT    NOT NULL,
+        tipo        TEXT    NOT NULL,
+        -- 'ingreso' | 'egreso' | 'devolucion' | 'descuento' | 'impuesto'
+        cuenta_sat  TEXT    -- clave SAT para CFDI
+    );
+
+CREATE TABLE IF NOT EXISTS configuracion_log (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    clave          TEXT NOT NULL,
+    valor_anterior TEXT,
+    valor_nuevo    TEXT,
+    usuario        TEXT,
+    creado_en      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_conflog_clave ON configuracion_log(clave, creado_en);
+
+CREATE TABLE IF NOT EXISTS "cortes_caja_legacy" (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_turno        INTEGER NOT NULL REFERENCES turnos_caja(id),
+        efectivo_contado REAL   NOT NULL DEFAULT 0,
+        efectivo_sistema REAL   NOT NULL DEFAULT 0,
+        diferencia      REAL    NOT NULL DEFAULT 0,
+        id_usuario      INTEGER REFERENCES usuarios(id),
+        observaciones   TEXT,
+        creado_en       TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+CREATE TABLE IF NOT EXISTS devolucion_detalle (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_devolucion   INTEGER NOT NULL REFERENCES devoluciones(id),
+        id_producto     INTEGER NOT NULL REFERENCES productos(id),
+        cantidad        INTEGER NOT NULL DEFAULT 1,
+        precio_unitario REAL    NOT NULL DEFAULT 0,
+        regresa_a_stock INTEGER NOT NULL DEFAULT 1  -- 1=sí 0=dañado no regresa
+    );
+
+CREATE TABLE IF NOT EXISTS estatus_pedido_log (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_pedido        INTEGER NOT NULL,
+    estatus_anterior TEXT,
+    estatus_nuevo    TEXT    NOT NULL,
+    id_usuario       INTEGER REFERENCES usuarios(id),
+    notas            TEXT,
+    registrado_en    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_epl_pedido ON estatus_pedido_log(id_pedido);
+
+CREATE TABLE IF NOT EXISTS facturas (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    folio        TEXT,
+    id_pedido    INTEGER,
+    id_cliente   INTEGER REFERENCES clientes(id),
+    rfc_receptor TEXT,
+    razon_social TEXT,
+    uso_cfdi     TEXT    DEFAULT 'G01',
+    subtotal     REAL    NOT NULL DEFAULT 0,
+    iva          REAL    NOT NULL DEFAULT 0,
+    total        REAL    NOT NULL DEFAULT 0,
+    uuid_sat     TEXT,
+    xml_url      TEXT,
+    pdf_url      TEXT,
+    estatus      TEXT    NOT NULL DEFAULT 'borrador',
+    creada_en    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_fac_pedido  ON facturas(id_pedido);
+CREATE INDEX IF NOT EXISTS idx_fac_cliente ON facturas(id_cliente);
+
+CREATE TABLE IF NOT EXISTS intentos_entrega (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_envio    INTEGER NOT NULL REFERENCES envios(id),
+        intento_num INTEGER NOT NULL DEFAULT 1,
+        resultado   TEXT    NOT NULL DEFAULT 'fallido',
+        -- 'fallido' | 'reagendado' | 'devuelto_origen'
+        motivo      TEXT,
+        fecha       TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+        nuevo_intento_fecha TEXT
+    );
+
+CREATE TABLE IF NOT EXISTS intentos_pago (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_pedido      INTEGER NOT NULL,
+    id_metodo      INTEGER REFERENCES metodos_pago(id),
+    monto          REAL    NOT NULL DEFAULT 0,
+    estatus        TEXT    NOT NULL DEFAULT 'fallido',
+    error_codigo   TEXT,
+    error_detalle  TEXT,
+    registrado_en  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_ip_pedido ON intentos_pago(id_pedido);
+
+CREATE TABLE IF NOT EXISTS movimientos_contables (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_periodo      INTEGER NOT NULL REFERENCES periodos_fiscales(id),
+        id_concepto     INTEGER NOT NULL REFERENCES conceptos_contables(id),
+        tipo_origen     TEXT    NOT NULL,
+        -- 'pedido' | 'devolucion' | 'pago' | 'reembolso' | 'ajuste'
+        id_origen       INTEGER NOT NULL,  -- FK dinámica al id según tipo_origen
+        monto_bruto     REAL    NOT NULL DEFAULT 0,
+        iva             REAL    NOT NULL DEFAULT 0,
+        ieps            REAL    NOT NULL DEFAULT 0,
+        retencion       REAL    NOT NULL DEFAULT 0,
+        monto_neto      REAL    NOT NULL DEFAULT 0,
+        registrado_en   TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+CREATE INDEX IF NOT EXISTS idx_mov_periodo   ON movimientos_contables(id_periodo);
+
+CREATE TABLE IF NOT EXISTS notificaciones_enviadas (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_cola     INTEGER REFERENCES cola_notificaciones(id),
+        destinatario TEXT   NOT NULL,
+        tipo        TEXT    NOT NULL,
+        asunto      TEXT,
+        estatus_smtp TEXT,
+        respuesta_servidor TEXT,
+        enviado_en  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+
+CREATE TABLE IF NOT EXISTS pagos (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_pedido     INTEGER NOT NULL,
+    id_metodo     INTEGER REFERENCES metodos_pago(id),
+    monto         REAL    NOT NULL DEFAULT 0,
+    referencia    TEXT,
+    estatus       TEXT    NOT NULL DEFAULT 'Pendiente',
+    respuesta_api TEXT,
+    fecha_pago    TEXT    DEFAULT (datetime('now','localtime')),
+    notas         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pagos_pedido ON pagos(id_pedido);
+
+CREATE TABLE IF NOT EXISTS paqueterias (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre      TEXT    NOT NULL UNIQUE,
+        -- 'Fedex' | 'DHL' | 'Estafeta' | 'J&T' | '99minutos'
+        activa      INTEGER NOT NULL DEFAULT 1,
+        url_rastreo TEXT,   -- URL base para rastreo público
+        notas       TEXT
+    );
+
+CREATE TABLE IF NOT EXISTS periodos_fiscales (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        anio        INTEGER NOT NULL,
+        mes         INTEGER NOT NULL,
+        estatus     TEXT    NOT NULL DEFAULT 'abierto',
+        -- 'abierto' | 'cerrado'
+        cerrado_por INTEGER REFERENCES usuarios(id),
+        cerrado_en  TEXT,
+        UNIQUE(anio, mes)
+    );
+
+CREATE TABLE IF NOT EXISTS permisos (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_rol      INTEGER NOT NULL REFERENCES roles(id),
+        modulo      TEXT    NOT NULL,
+        -- 'inventario' | 'pedidos' | 'clientes' | 'contabilidad' |
+        -- 'chatbot' | 'ecommerce' | 'reportes' | 'configuracion'
+        puede_ver   INTEGER NOT NULL DEFAULT 1,
+        puede_editar INTEGER NOT NULL DEFAULT 0,
+        puede_borrar INTEGER NOT NULL DEFAULT 0
+    );
+
+CREATE TABLE IF NOT EXISTS plantillas_email (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        tipo        TEXT    NOT NULL UNIQUE,
+        -- 'confirmacion_pedido' | 'guia_generada' | 'pedido_surtido' |
+        -- 'listo_pickup' | 'devolucion_aprobada' | 'orden_almacen'
+        asunto      TEXT    NOT NULL,
+        cuerpo_html TEXT    NOT NULL,
+        activa      INTEGER NOT NULL DEFAULT 1,
+        actualizada_en TEXT  DEFAULT (datetime('now','localtime'))
+    );
+
+CREATE TABLE IF NOT EXISTS reembolsos (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_devolucion   INTEGER NOT NULL REFERENCES devoluciones(id),
+        id_pago_original INTEGER REFERENCES pagos(id),
+        id_metodo       INTEGER REFERENCES metodos_pago(id),
+        monto           REAL    NOT NULL DEFAULT 0,
+        referencia      TEXT,
+        estatus         TEXT    NOT NULL DEFAULT 'Pendiente',
+        fecha_reembolso TEXT    DEFAULT (datetime('now','localtime')),
+        notas           TEXT
+    );
+
+CREATE TABLE IF NOT EXISTS roles (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre      TEXT    NOT NULL UNIQUE,
+        descripcion TEXT
+        -- admin | almacenista | asesor | cajero | solo_lectura
+    );
+
+CREATE TABLE IF NOT EXISTS sesiones_usuario (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_usuario  INTEGER NOT NULL REFERENCES usuarios(id),
+        token       TEXT    NOT NULL UNIQUE,
+        ip          TEXT,
+        dispositivo TEXT,
+        iniciada_en TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+        expira_en   TEXT,
+        activa      INTEGER NOT NULL DEFAULT 1
+    );
+
+CREATE TABLE IF NOT EXISTS transferencia_detalle (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_transferencia INTEGER NOT NULL REFERENCES transferencias(id),
+        id_producto     INTEGER NOT NULL REFERENCES productos(id),
+        cantidad_solicitada INTEGER NOT NULL DEFAULT 0,
+        cantidad_enviada    INTEGER DEFAULT 0,
+        cantidad_recibida   INTEGER DEFAULT 0
+    );
+
+CREATE TABLE IF NOT EXISTS transferencias (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        folio           TEXT    UNIQUE,
+        sucursal_origen TEXT    NOT NULL,
+        sucursal_destino TEXT   NOT NULL,
+        estatus         TEXT    NOT NULL DEFAULT 'solicitada',
+        -- 'solicitada' | 'aprobada' | 'en_transito' | 'recibida' | 'cancelada'
+        id_usuario_solicita INTEGER REFERENCES usuarios(id),
+        id_usuario_aprueba  INTEGER REFERENCES usuarios(id),
+        notas           TEXT,
+        creada_en       TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+        completada_en   TEXT
+    , id_pedido  INTEGER REFERENCES pedidos(id_pedido), id_cliente INTEGER REFERENCES clientes(id), tipo       TEXT    DEFAULT 'reabasto');
+
+CREATE TABLE IF NOT EXISTS turnos_caja (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_caja         INTEGER NOT NULL REFERENCES cajas(id),
+        id_usuario      INTEGER NOT NULL REFERENCES usuarios(id),
+        fondo_inicial   REAL    NOT NULL DEFAULT 0,
+        total_efectivo  REAL    NOT NULL DEFAULT 0,
+        total_tarjeta   REAL    NOT NULL DEFAULT 0,
+        total_transferencia REAL NOT NULL DEFAULT 0,
+        total_ventas    REAL    NOT NULL DEFAULT 0,
+        total_devoluciones REAL NOT NULL DEFAULT 0,
+        estatus         TEXT    NOT NULL DEFAULT 'abierto',
+        abierto_en      TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+        cerrado_en      TEXT,
+        notas           TEXT
+    );
+
+CREATE TABLE IF NOT EXISTS zonas_cobertura (
+    cp        TEXT PRIMARY KEY,
+    colonia   TEXT,
+    activa    INTEGER NOT NULL DEFAULT 1,
+    creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
