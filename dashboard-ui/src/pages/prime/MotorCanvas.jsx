@@ -30,18 +30,22 @@ export function humanizar(input) {
 // ── Nodo custom (tarjeta oscura, badges, candado) ────────────────────────────
 function PasoNode({ data, selected }) {
   const sellado = data.sellado;
+  // validación en vivo: rojo = huérfano (inalcanzable), ámbar = sin salida
+  const prob = data._problema;
+  const colorProb = prob === 'huérfano' ? 'var(--red)' : prob ? 'var(--yellow)' : null;
   return (
     <div style={{
       background: sellado ? '#2b2d31' : '#1f2937',
-      border: `1.5px solid ${selected ? '#7c6cf0' : sellado ? '#4b4d52' : '#374151'}`,
+      border: `1.5px solid ${colorProb || (selected ? '#7c6cf0' : sellado ? '#4b4d52' : '#374151')}`,
       borderRadius: 10, padding: '10px 12px', minWidth: 170, color: '#e5e7eb',
-      fontSize: 12, boxShadow: selected ? '0 0 0 2px rgba(124,108,240,.25)' : 'none',
+      fontSize: 12, boxShadow: colorProb ? `0 0 0 2px ${colorProb}` : selected ? '0 0 0 2px rgba(124,108,240,.25)' : 'none',
     }}>
       <Handle type="target" position={Position.Left} style={{ background: '#7c6cf0', width: 10, height: 10 }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
         <strong style={{ fontFamily: 'monospace', fontSize: 12 }}>{data.paso}</strong>
         {data.es_inicial ? <span title="aquí empieza la conversación">⭐</span> : null}
         {sellado && <Lock size={11} color="#9ca3af" title="parte del flujo base — no se puede borrar" />}
+        {prob && <span title={prob === 'huérfano' ? 'Ninguna pieza lleva aquí — el cliente nunca la verá' : 'No tiene ningún camino de salida — el cliente queda atorado'} style={{ marginLeft: 'auto', color: colorProb, fontSize: 11 }}>⚠</span>}
       </div>
       {data.descripcion && <div className="motor-nodo-desc">{data.descripcion}</div>}
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -248,6 +252,31 @@ export default function MotorCanvas({ data }) {
   const nodoSel = nodes.find(n => n.id === sel);
   const [verJson, setVerJson] = useState(false);
 
+  // Validación EN VIVO (subconjunto del linter del servidor, sobre el lienzo):
+  // huérfano = inalcanzable por BFS desde el inicial; sin salida = pieza propia
+  // sin cable de salida. El servidor RE-VALIDA todo al guardar; esto solo adelanta
+  // el aviso pintando la pieza (las selladas/delegadas enrutan por código, se eximen).
+  const problemas = useMemo(() => {
+    const ids = new Set(nodes.map(n => n.id));
+    const inicialId = nodes.find(n => n.data?.es_inicial)?.id;
+    const salientes = new Map();
+    for (const e of edges) { if (!salientes.has(e.source)) salientes.set(e.source, []); salientes.get(e.source).push(e.target); }
+    const alcanzables = new Set(inicialId ? [inicialId] : []);
+    const cola = inicialId ? [inicialId] : [];
+    while (cola.length) { const p = cola.shift(); for (const t of (salientes.get(p) || [])) if (ids.has(t) && !alcanzables.has(t)) { alcanzables.add(t); cola.push(t); } }
+    const map = new Map();
+    for (const n of nodes) {
+      if (n.data?.sellado) continue;   // el flujo base enruta por código, no por topología
+      if (inicialId && !alcanzables.has(n.id)) map.set(n.id, 'huérfano');
+      else if (!(salientes.get(n.id) || []).length) map.set(n.id, 'sin salida');
+    }
+    return { map, sinInicial: !inicialId };
+  }, [nodes, edges]);
+  const nodesRender = useMemo(
+    () => nodes.map(n => problemas.map.has(n.id) ? { ...n, data: { ...n.data, _problema: problemas.map.get(n.id) } } : n),
+    [nodes, problemas]
+  );
+
   return (
     <div>
       <Group justify="space-between" mb="xs">
@@ -255,14 +284,18 @@ export default function MotorCanvas({ data }) {
           <Button size="xs" variant="default" leftSection={<Plus size={14} />} onClick={() => setModalNodo(true)}>Agregar paso</Button>
           <Text size="xs" c="dimmed">Arrastra de un punto verde a uno morado para conectar · doble clic en un cable cambia su condición</Text>
         </Group>
-        <Button size="xs" leftSection={<Save size={14} />} disabled={!dirty} loading={guardar.isPending}
-          onClick={() => guardar.mutate()}>Guardar flujo</Button>
+        <Group gap="xs">
+          {problemas.sinInicial && <Text size="xs" c="red">⚠ Falta marcar la pieza inicial</Text>}
+          {problemas.map.size > 0 && <Text size="xs" c="orange">⚠ {problemas.map.size} pieza(s) con aviso</Text>}
+          <Button size="xs" leftSection={<Save size={14} />} disabled={!dirty} loading={guardar.isPending}
+            onClick={() => guardar.mutate()}>Guardar flujo</Button>
+        </Group>
       </Group>
 
       <div style={{ display: 'grid', gridTemplateColumns: nodoSel ? '1fr 260px' : '1fr', gap: 12 }}>
         <div style={{ height: 560, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', background: '#111318' }}>
           <ReactFlow
-            nodes={nodes} edges={edges} nodeTypes={nodeTypes}
+            nodes={nodesRender} edges={edges} nodeTypes={nodeTypes}
             onNodesChange={marcar(onNodesChange)} onEdgesChange={marcar(onEdgesChange)}
             onConnect={onConnect} onEdgeDoubleClick={onEdgeDoubleClick}
             onBeforeDelete={onBeforeDelete}

@@ -34,8 +34,10 @@ dinero**, no rediseñar.
       inmuebles/terrenos (`revaluarActivo` → superávit por revaluación 330,
       capital). Migración 0085 + `POST /api/erp/activos/:id/revaluar`.
       test_activos_fijos 8/8. UI: botón Revaluar + categoría Terrenos en ActivosFijosTab.
-- [ ] 9. Validación visual en vivo en el motor de flujo (importar el linter
-      existente al `MotorCanvas` y pintar nodos en rojo).
+- [x] 9. Validación visual en vivo en `MotorCanvas`: subconjunto del linter sobre
+      el lienzo (huérfano vía BFS desde el inicial = rojo; sin salida = ámbar),
+      con ⚠ por nodo + resumen en la barra. El servidor sigue re-validando al
+      guardar; esto solo adelanta el aviso. Usa tokens var(--red)/var(--yellow).
 - [x] 10. `CLAUDE.md` actualizado: banner "Estado actual (2026-07)" arriba con
       las 5 discrepancias corregidas + puntero a `docs/` como fuente fiel.
 
