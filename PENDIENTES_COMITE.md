@@ -56,9 +56,9 @@ dinero**, no rediseñar.
 - [x] **P0-visibilidad** (HECHO): gate `roles:['gerente']` en `/api/guias`,
       `/api/metricas`, `/api/conversion` (fuga hermana) y `/api/busquedas`.
       Verificado: solo Guias/Metricas/Busquedas.jsx (todas gerente) los consumen.
-- [ ] **P1-visibilidad**: rutas sin guarda en `App.jsx` que montan la carcasa al
-      teclear la URL (`/modulos`, `/correo`, `/metricas`, `/busquedas`, `/cola-envios`).
-      Envolver con el patrón `tieneRango` ya usado en `/prime`/`/marketing`/`/catalogo`.
+- [x] **P1-visibilidad** (HECHO): guardas `tieneRango(gerente)` en `App.jsx` para
+      `/correo`, `/guias`, `/modulos`, `/busquedas`, `/cola-envios`, `/metricas`.
+      Al teclear la URL sin rango, el catch-all `*` redirige a `/`.
 - [ ] **P2-visibilidad**: reflejar `DEPENDE_DE` (facturación→contabilidad) en
       `Modulos.jsx` (deshabilitar toggle hasta activar el padre); desambiguar la
       doble "Tareas" (Panel vs CRM); unificar ficha de cliente (ya en P1-6).

@@ -82,12 +82,12 @@ export default function App() {
         <Route path="/tareas" element={<Tareas />} />
         <Route path="/mensajes" element={<Mensajes />} />
         <Route path="/asistencias" element={<Asistencias />} />
-        <Route path="/correo" element={<Correo />} />
+        {tieneRango(user.rol, 'gerente') && <Route path="/correo" element={<Correo />} />}
         <Route path="/pedidos" element={<Pedidos />} />
         <Route path="/devoluciones" element={<Devoluciones />} />
         {permite(user.rol, 'operacion') && <Route path="/clientes" element={<Clientes />} />}
         {permite(user.rol, 'operacion') && <Route path="/crm" element={<Crm />} />}
-        <Route path="/guias" element={<Guias />} />
+        {tieneRango(user.rol, 'gerente') && <Route path="/guias" element={<Guias />} />}
         <Route path="/cola" element={<ColaAtencion />} />
         {/* Ola 2: Marketing y Catálogo son módulos; las rutas viejas redirigen */}
         {tieneRango(user.rol, 'gerente') && <Route path="/marketing" element={<MarketingModulo />} />}
@@ -98,11 +98,11 @@ export default function App() {
         <Route path="/cupones" element={<Navigate to="/marketing?tab=cupones" replace />} />
         <Route path="/sustitutos" element={<Navigate to="/catalogo?tab=relacionados" replace />} />
         <Route path="/ranking" element={<Ranking />} />
-        <Route path="/modulos" element={<Modulos />} />
-        <Route path="/busquedas" element={<Busquedas />} />
-        <Route path="/cola-envios" element={<ColaEnvios />} />
+        {tieneRango(user.rol, 'gerente') && <Route path="/modulos" element={<Modulos />} />}
+        {tieneRango(user.rol, 'gerente') && <Route path="/busquedas" element={<Busquedas />} />}
+        {tieneRango(user.rol, 'gerente') && <Route path="/cola-envios" element={<ColaEnvios />} />}
         {tieneRango(user.rol, 'prime') && <Route path="/beta" element={<Beta />} />}
-        <Route path="/metricas" element={<Metricas />} />
+        {tieneRango(user.rol, 'gerente') && <Route path="/metricas" element={<Metricas />} />}
         {permite(user.rol, 'operacion') && <Route path="/notificaciones" element={<Notificaciones />} />}
         <Route path="/etiquetas" element={<Navigate to="/catalogo?tab=etiquetas" replace />} />
         {permite(user.rol, 'pos') && <Route path="/mostrador" element={<Mostrador />} />}
