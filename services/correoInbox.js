@@ -19,9 +19,11 @@ function _cfg(db, clave) {
 }
 
 function credenciales(db) {
+    const { descifrarSecreto } = require('./secretos');
     return {
         user: _cfg(db, 'bot_email_usuario') || process.env.EMAIL_USER || '',
-        pass: _cfg(db, 'bot_email_password') || process.env.EMAIL_PASS || '',
+        // la clave se guarda cifrada; descifrarSecreto deja pasar lo que sea claro/legacy
+        pass: descifrarSecreto(_cfg(db, 'bot_email_password') || process.env.EMAIL_PASS || ''),
     };
 }
 function configurado(db) { const c = credenciales(db); return !!(c.user && c.pass); }
@@ -75,6 +77,33 @@ async function sincronizar(db, { limite = 40 } = {}) {
     }
 }
 
+// Descarga UN adjunto ON-DEMAND (no lo guardamos nunca en el servidor): re-baja
+// el mensaje por uid, lo parsea y devuelve el buffer del adjunto `idx`. El caller
+// lo entrega al operador forzado como descarga (tipo neutro) — ver ruta.
+async function descargarAdjunto(db, uid, idx) {
+    const { user, pass } = credenciales(db);
+    if (!user || !pass) return { ok: false, error: 'Sin credenciales de correo' };
+    let ImapFlow;
+    try { ({ ImapFlow } = require('imapflow')); }
+    catch (_) { return { ok: false, error: 'Falta la dependencia imapflow' }; }
+    const cli = new ImapFlow({ host: IMAP_HOST, port: IMAP_PORT, secure: true, auth: { user, pass }, logger: false });
+    try {
+        await cli.connect();
+        const lock = await cli.getMailboxLock('INBOX');
+        try {
+            const msg = await cli.fetchOne(String(uid), { uid: true, source: true }, { uid: true });
+            if (!msg || !msg.source) return { ok: false, error: 'Correo no encontrado en el buzón' };
+            const p = await simpleParser(msg.source);
+            const a = (p.attachments || [])[Number(idx)];
+            if (!a || !a.content) return { ok: false, error: 'Adjunto no encontrado' };
+            const nombre = String(a.filename || 'adjunto').replace(/[\r\n"\\/]/g, '_').slice(0, 120);
+            return { ok: true, nombre, contenido: Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content) };
+        } finally { lock.release(); }
+    } catch (e) {
+        return { ok: false, error: e.message || String(e) };
+    } finally { try { await cli.logout(); } catch (_) {} }
+}
+
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-module.exports = { sincronizar, configurado, credenciales };
+module.exports = { sincronizar, configurado, credenciales, descargarAdjunto };

@@ -58,6 +58,30 @@ function leidoPost(req, res, ctx, { params }) {
     return json(res, { ok: true });
 }
 
+// GET /api/correo/:id/adjunto/:idx — descarga un adjunto de un entrante.
+// SEGURIDAD: no guardamos el archivo en el servidor; lo re-bajamos de Gmail al
+// vuelo y lo entregamos FORZADO como descarga con tipo neutro + nosniff, para
+// que el navegador nunca lo abra/ejecute (neutraliza HTML/SVG/script adjuntos).
+// El servidor jamás ejecuta los bytes (mailparser solo parsea la estructura MIME).
+function adjuntoGet(req, res, ctx, { params }) {
+    const { db, json } = ctx;
+    if (!activo(db)) return json(res, { ok: false, error: 'El módulo de correo está apagado' }, 403);
+    const fila = db.prepare("SELECT uid FROM correos WHERE id=? AND direccion='entrante'").get(Number(params[0]));
+    if (!fila || fila.uid == null) return json(res, { ok: false, error: 'Correo no encontrado' }, 404);
+    return require('../../services/correoInbox').descargarAdjunto(db, fila.uid, Number(params[1]))
+        .then(r => {
+            if (!r.ok) return json(res, r, 400);
+            res.writeHead(200, {
+                'Content-Type': 'application/octet-stream',
+                'Content-Disposition': `attachment; filename="${r.nombre}"`,
+                'X-Content-Type-Options': 'nosniff',
+                'Content-Length': r.contenido.length,
+            });
+            res.end(r.contenido);
+        })
+        .catch(e => json(res, { ok: false, error: e.message }, 400));
+}
+
 // POST /api/correo/enviar — { to, asunto, cuerpo(html/texto), adjuntos_manuales:
 //   [{nombre,tipo,base64}], imagen_producto: id?, pdf: {html, nombre}? }
 function enviarPost(req, res, ctx, { ses }) {
@@ -122,8 +146,9 @@ const RUTAS = [
     { metodo: 'GET',  path: '/api/correo/bandeja',       roles: ['gerente'], handler: bandejaGet },
     { metodo: 'POST', path: '/api/correo/sincronizar',   roles: ['gerente'], handler: sincronizarPost },
     { metodo: 'POST', path: /^\/api\/correo\/(\d+)\/leido$/, roles: ['gerente'], handler: leidoPost },
+    { metodo: 'GET',  path: /^\/api\/correo\/(\d+)\/adjunto\/(\d+)$/, roles: ['gerente'], handler: adjuntoGet },
     { metodo: 'POST', path: '/api/correo/enviar',        roles: ['gerente'], handler: enviarPost },
 ];
 
 module.exports = construirModulo(RUTAS, { prefijo: '/api/correo' });
-module.exports._test = { enviarPost, configGet, enviadosGet, bandejaGet, sincronizarPost, leidoPost, activo };
+module.exports._test = { enviarPost, configGet, enviadosGet, bandejaGet, sincronizarPost, leidoPost, adjuntoGet, activo };

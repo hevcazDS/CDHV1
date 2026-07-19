@@ -9,9 +9,15 @@ import { fdate } from '../lib/format';
 
 // Módulo de correo: bandeja de entrada (IMAP), enviados y redacción con adjuntos
 // (archivos + el cuerpo como PDF). Una sola pantalla con tres vistas segmentadas.
+// extrae la dirección de un "Nombre <correo@x>" para poder responder
+function soloCorreo(de) { const m = /<([^>]+)>/.exec(de || ''); return (m ? m[1] : (de || '')).trim(); }
+
 export default function Correo() {
   const [vista, setVista] = useState('bandeja');
   const [abierto, setAbierto] = useState(null);  // correo entrante en lectura
+  const [prefill, setPrefill] = useState(null);   // { to, asunto } al responder
+
+  const responder = (c) => { setPrefill({ to: soloCorreo(c.de), asunto: /^re:/i.test(c.asunto || '') ? c.asunto : `Re: ${c.asunto || ''}` }); setAbierto(null); setVista('redactar'); };
 
   const { data: cfg, isLoading } = useQuery({ queryKey: ['correo-config'], queryFn: () => api.get('/api/correo/config') });
 
@@ -41,14 +47,20 @@ export default function Correo() {
       {vista === 'config' && <Configuracion />}
       {vista === 'bandeja' && <Bandeja onAbrir={setAbierto} />}
       {vista === 'enviados' && <Enviados />}
-      {vista === 'redactar' && <Redactar onEnviado={() => setVista('enviados')} />}
+      {vista === 'redactar' && <Redactar prefill={prefill} onEnviado={() => setVista('enviados')} />}
 
       <Modal opened={!!abierto} onClose={() => setAbierto(null)} title={abierto?.asunto || '(sin asunto)'} size="lg">
         {abierto && (
           <Stack gap="xs">
-            <Text size="xs" c="dimmed">{abierto.de} · {fdate(abierto.fecha)}</Text>
+            <Group justify="space-between" wrap="nowrap">
+              <Text size="xs" c="dimmed">{abierto.de} · {fdate(abierto.fecha)}</Text>
+              <Button size="xs" variant="light" leftSection={<Send size={13} />} onClick={() => responder(abierto)}>Responder</Button>
+            </Group>
             {(abierto.adjuntos || []).length > 0 && (
-              <Group gap={6}>{abierto.adjuntos.map((a, i) => <Badge key={i} variant="light" leftSection={<Paperclip size={11} />}>{a.nombre}</Badge>)}</Group>
+              // descarga forzada por el servidor (tipo neutro): el navegador nunca lo abre
+              <Group gap={6}>{abierto.adjuntos.map((a, i) => (
+                <Badge key={i} component="a" href={`/api/correo/${abierto.id}/adjunto/${i}`} style={{ cursor: 'pointer' }} variant="light" leftSection={<Paperclip size={11} />}>{a.nombre}</Badge>
+              ))}</Group>
             )}
             {/* HTML de remitentes arbitrarios: iframe sandbox SIN allow-scripts
                 neutraliza JS/onerror sin dependencia de sanitización. */}
@@ -162,13 +174,15 @@ function Configuracion({ primeraVez }) {
   );
 }
 
-function Redactar({ onEnviado }) {
+function Redactar({ onEnviado, prefill }) {
   const qc = useQueryClient();
   const [to, setTo] = useState('');
   const [asunto, setAsunto] = useState('');
   const [cuerpo, setCuerpo] = useState('');
   const [comoPdf, setComoPdf] = useState(false);
   const [archivos, setArchivos] = useState([]);
+  // al pulsar "Responder" en la bandeja: prellena destinatario y asunto
+  useEffect(() => { if (prefill) { setTo(prefill.to || ''); setAsunto(prefill.asunto || ''); } }, [prefill]);
 
   const agregarArchivos = async (files) => {
     for (const file of files) {

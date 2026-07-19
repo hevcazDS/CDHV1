@@ -48,7 +48,9 @@ function _cfg(clave, fallback) {
 }
 
 function _smtpUser() { return _cfg('bot_email_usuario', process.env.EMAIL_USER || ''); }
-function _smtpPass() { return _cfg('bot_email_password', process.env.EMAIL_PASS || ''); }
+// La clave se guarda cifrada en la BD (secretos.js). descifrarSecreto deja pasar
+// tal cual lo que no tenga prefijo 'enc:' (claro/legacy o el EMAIL_PASS del .env).
+function _smtpPass() { return require('./secretos').descifrarSecreto(_cfg('bot_email_password', process.env.EMAIL_PASS || '')); }
 function _fromAddr() {
     const user = _smtpUser();
     return process.env.EMAIL_FROM || `Julio Cepeda Jugueterías <${user}>`;
