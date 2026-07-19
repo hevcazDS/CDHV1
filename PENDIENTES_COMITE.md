@@ -49,7 +49,12 @@ dinero**, no rediseñar.
       caja/etc. Verificado end-to-end: instancia nueva = 126 tablas = producción,
       DRIFT CERO. Guard de schema + suite exit 0.
 - [ ] 12. Backup incremental + verificación de restauración (obligación SAT 5 años).
-- [ ] 13. Cierre contable anual formal (traspaso de resultados a capital).
+- [x] 13. Cierre contable anual: `contabilidadService.cierreAnual(anio)` traspasa
+      el saldo de resultados (ingreso/costo/gasto) del ejercicio a "Utilidad
+      acumulada" (302, capital), deja las cuentas en cero y bloquea el año
+      (periodo_cerrado=AAAA-12). Idempotente por año. Migración 0086 (cuenta 302,
+      aplicada a producción+instancias), `POST /api/erp/cierre-anual`, botón
+      "Cerrar ejercicio" en ContabilidadTab, contract test. Suite exit 0.
 - [ ] 14. Plano contable consolidado en Postgres para flota (rompe el techo de
       escalabilidad; deja SQLite por instancia para el bot).
 

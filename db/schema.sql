@@ -1182,6 +1182,7 @@ INSERT OR IGNORE INTO plan_cuentas (codigo, nombre, tipo) VALUES
     ('211', 'Retenciones por pagar (ISR/IMSS)', 'pasivo'),
     ('209', 'IVA trasladado', 'pasivo'),
     ('301', 'Capital', 'capital'),
+    ('302', 'Utilidad acumulada', 'capital'),   -- 0086: destino del cierre anual
     ('401', 'Ventas', 'ingreso'),
     ('501', 'Costo de ventas', 'costo'),
     ('601', 'Gastos generales', 'gasto');

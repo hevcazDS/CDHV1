@@ -24,8 +24,12 @@ db.exec(`
   CREATE TABLE pedido_detalle (id INTEGER PRIMARY KEY AUTOINCREMENT, id_pedido INTEGER, id_producto INTEGER, cantidad REAL, precio_unitario REAL, costo_unitario REAL, sucursal_origen TEXT);
   CREATE TABLE productos (id INTEGER PRIMARY KEY, costo REAL);
   CREATE TABLE links_pago (id INTEGER PRIMARY KEY AUTOINCREMENT, id_pedido INTEGER, monto REAL, estatus TEXT DEFAULT 'generado', pagado_en TEXT);
+  CREATE TABLE plan_cuentas (codigo TEXT PRIMARY KEY, nombre TEXT, tipo TEXT);
 `);
 db.prepare("INSERT INTO configuracion (clave,valor) VALUES ('iva_pct','16')").run();
+// tipos de cuenta (el cierre anual filtra por tipo ingreso/costo/gasto)
+for (const [c, t] of [['101', 'activo'], ['209', 'pasivo'], ['302', 'capital'], ['401', 'ingreso'], ['501', 'costo'], ['601', 'gasto']])
+    db.prepare('INSERT INTO plan_cuentas VALUES (?,?,?)').run(c, c, t);
 
 const conta = require('../services/contabilidadService');
 conta._setActivo(() => true);   // módulo contabilidad ON para el test
@@ -86,9 +90,24 @@ t('reembolso: reversa ingreso + sale caja, cuadra e idempotente por devolución'
     assert.strictEqual(conta.asientoReembolso(55, 1, 58, 'efectivo'), null, 'no reembolsa dos veces la misma devolución');
 });
 
+t('cierre anual: traspasa resultados a capital, cuentas en cero, idempotente', () => {
+    // ejercicio 2025: ingreso 1000, gasto 300 → utilidad 700
+    conta.registrarAsiento({ concepto: 'venta 2025', referencia_tipo: 'manual', partidas: [{ cuenta: '101', debe: 1000 }, { cuenta: '401', haber: 1000 }], fecha: '2025-06-01' });
+    conta.registrarAsiento({ concepto: 'gasto 2025', referencia_tipo: 'manual', partidas: [{ cuenta: '601', debe: 300 }, { cuenta: '101', haber: 300 }], fecha: '2025-06-02' });
+    const r = conta.cierreAnual(2025);
+    assert(r.ok && Math.abs(r.utilidad - 700) < 0.01, JSON.stringify(r));
+    // saldo del AÑO 2025 de cada cuenta de resultados = 0 tras el cierre
+    const saldoAnio = (c) => db.prepare("SELECT ROUND(COALESCE(SUM(d.debe)-SUM(d.haber),0),2) s FROM asientos_detalle d JOIN asientos a ON a.id=d.id_asiento WHERE d.cuenta=? AND a.fecha>='2025-01-01' AND a.fecha<='2025-12-31'").get(c).s;
+    assert.strictEqual(saldoAnio('401'), 0, '401 cerrada');
+    assert.strictEqual(saldoAnio('601'), 0, '601 cerrada');
+    assert.strictEqual(saldoAnio('302'), -700, 'utilidad 700 a capital (haber)');
+    assert(cuadraGlobal(), 'el mayor cuadra tras el cierre');
+    assert.strictEqual(conta.cierreAnual(2025).ok, false, 'no re-cierra el mismo ejercicio');
+});
+
 (async () => {
     for (const [n, fn] of pruebas) { await fn(); ok++; console.log('✅ ' + n); }
-    console.log('\n' + ok + '/' + pruebas.length + ' OK — contabilidad: cuadre + idempotencia + reversa + barrido + reembolso.');
+    console.log('\n' + ok + '/' + pruebas.length + ' OK — contabilidad: cuadre + idempotencia + reversa + barrido + reembolso + cierre anual.');
     try { db.close(); } catch (_) {}
     for (const s of ['', '-wal', '-shm']) { try { fs.rmSync(DB + s, { force: true }); } catch (_) {} }
     process.exit(ok === pruebas.length ? 0 : 1);

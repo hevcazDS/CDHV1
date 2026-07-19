@@ -300,6 +300,49 @@ function barrerAsientosHuerfanos({ dias = 3, limite = 100 } = {}) {
     return { revisados: orphans.length, reparados };
 }
 
+// CIERRE CONTABLE ANUAL (comité S8): traspasa el saldo de las cuentas de
+// resultados (ingreso/costo/gasto) del ejercicio a "Utilidad acumulada" (302,
+// capital), dejándolas en CERO, y bloquea el año (periodo_cerrado = AAAA-12).
+// Idempotente por año. La utilidad = ingresos − (costos+gastos). override=true:
+// el asiento de cierre se fecha 31-dic y debe entrar aunque el mes esté cerrado.
+const UTILIDAD_ACUM = '302';
+function cierreAnual(anio, { override = true } = {}) {
+    if (!activo()) return { ok: false, error: 'La contabilidad está apagada' };
+    anio = parseInt(anio, 10);
+    if (!(anio > 2000 && anio < 2100)) return { ok: false, error: 'Año inválido' };
+    const ref = String(anio);
+    if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='cierre_anual' AND referencia_id=? LIMIT 1").get(ref)) {
+        return { ok: false, error: 'El ejercicio ' + anio + ' ya fue cerrado' };
+    }
+    const desde = anio + '-01-01', hasta = anio + '-12-31';
+    const filas = db.prepare(`
+        SELECT d.cuenta, ROUND(SUM(d.debe) - SUM(d.haber), 2) saldo
+        FROM asientos_detalle d
+        JOIN asientos a ON a.id = d.id_asiento
+        JOIN plan_cuentas pc ON pc.codigo = d.cuenta
+        WHERE a.fecha >= ? AND a.fecha <= ? AND pc.tipo IN ('ingreso','costo','gasto')
+        GROUP BY d.cuenta HAVING ABS(ROUND(SUM(d.debe) - SUM(d.haber), 2)) > 0.005
+    `).all(desde, hasta);
+    if (!filas.length) return { ok: false, error: 'No hay movimientos de resultados en ' + anio };
+    // Contrapartida inversa para dejar cada cuenta de resultados en cero.
+    const partidas = filas.map(f => f.saldo > 0 ? { cuenta: f.cuenta, haber: f.saldo } : { cuenta: f.cuenta, debe: -f.saldo });
+    let debe = 0, haber = 0;
+    for (const p of partidas) { debe += p.debe || 0; haber += p.haber || 0; }
+    const utilidad = _r2(debe - haber);   // >0 = utilidad; <0 = pérdida
+    if (Math.abs(utilidad) > 0.005) partidas.push(utilidad > 0 ? { cuenta: UTILIDAD_ACUM, haber: utilidad } : { cuenta: UTILIDAD_ACUM, debe: -utilidad });
+    const id = registrarAsiento({
+        concepto: 'Cierre anual ' + anio + ' — traspaso de resultados a capital',
+        referencia_tipo: 'cierre_anual', referencia_id: ref, partidas, fecha: hasta, override,
+    });
+    // Bloquea el ejercicio (mes 12 → todos los meses del año quedan cerrados).
+    try {
+        const actual = db.prepare("SELECT valor FROM configuracion WHERE clave='periodo_cerrado'").get()?.valor || '';
+        const nuevo = anio + '-12';
+        if (nuevo > actual) db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('periodo_cerrado', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(nuevo);
+    } catch (_) {}
+    return { ok: true, id, anio, utilidad, cuentas_cerradas: filas.length };
+}
+
 // Diagnóstico: ventas pagadas SIN asiento de venta, y ventas con 401 pero sin
 // 501 (producto sin costo capturado → P&L infla la utilidad al 100% de margen).
 // Solo lectura, para un tablero de integridad. `dias` acota la ventana.
@@ -326,4 +369,4 @@ function ventasSinAsiento({ dias = 90 } = {}) {
 function _setDb(x) { db = x; }            // solo tests
 function _setActivo(f) { _activoFn = f; } // solo tests
 
-module.exports = { activo, mesCerradoDe, registrarAsiento, asientoVenta, asientoVentaCredito, asientoCobroCredito, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoReembolso, asientoEntradaContado, asientoReversa, libroMayor, barrerAsientosHuerfanos, ventasSinAsiento, _setDb, _setActivo };
+module.exports = { activo, mesCerradoDe, registrarAsiento, asientoVenta, asientoVentaCredito, asientoCobroCredito, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoReembolso, asientoEntradaContado, asientoReversa, libroMayor, barrerAsientosHuerfanos, ventasSinAsiento, cierreAnual, _setDb, _setActivo };

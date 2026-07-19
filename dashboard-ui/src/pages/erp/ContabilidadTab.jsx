@@ -48,6 +48,7 @@ export default function ContabilidadTab() {
           totales: [{ label: 'Total debe / haber', valor: `$${totalDebe.toFixed(2)} / $${totalHaber.toFixed(2)}`, num: true }],
         })}>Imprimir libro</Button>
         <PeriodoCierre />
+        <CierreAnual />
         <Button variant="default" size="xs" onClick={() => exportarCSV(`diario_${desde}_${hasta}`,
           ['fecha', 'concepto', 'cuenta', 'debe', 'haber'],
           asientos.flatMap(a => (a.partidas || []).map(pa => [a.fecha, a.concepto, pa.cuenta + ' ' + (pa.nombre || ''), pa.debe.toFixed(2), pa.haber.toFixed(2)])))}>
@@ -196,6 +197,29 @@ function PolizaManual() {
         </Modal>
       )}
     </>
+  );
+}
+
+// Cierre CONTABLE ANUAL: traspasa resultados del ejercicio a Utilidad acumulada
+// (capital) y bloquea el año. Cierra el año anterior (el completo).
+function CierreAnual() {
+  const qc = useQueryClient();
+  const anio = new Date().getFullYear() - 1;
+  const mut = useMutation({
+    mutationFn: () => api.post('/api/erp/cierre-anual', { anio }),
+    onSuccess: (r) => {
+      if (r.ok === false) return toastErr(r.error);
+      const u = Math.abs(r.utilidad || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+      toastOk(`Ejercicio ${r.anio} cerrado — ${r.utilidad >= 0 ? 'utilidad' : 'pérdida'} ${u}`);
+      qc.invalidateQueries({ queryKey: ['periodo-cierre'] });
+    },
+    onError: (e) => toastErr(e.message),
+  });
+  return (
+    <Button size="xs" variant="default" loading={mut.isPending}
+      onClick={async () => { if (await confirmar({ titulo: 'Cerrar ejercicio', mensaje: `¿Cerrar contablemente el ejercicio ${anio}? Ventas, costos y gastos del año se traspasan a Utilidad acumulada y el ejercicio queda bloqueado.`, textoOk: `Cerrar ${anio}` })) mut.mutate(); }}>
+      Cerrar ejercicio {anio}
+    </Button>
   );
 }
 

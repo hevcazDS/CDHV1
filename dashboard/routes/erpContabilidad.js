@@ -115,6 +115,14 @@ function activosDepreciar(req, res, ctx) {
         return json(res, { ok: true, depreciados: n });
     });
 }
+// POST /api/erp/cierre-anual — { anio } cierra el ejercicio (resultados → capital).
+function cierreAnualPost(req, res, ctx) {
+    const { json, readJson } = ctx;
+    return readJson(req, res, d => {
+        try { const r = conta.cierreAnual(d.anio); return json(res, r, r && r.ok === false ? 400 : 200); }
+        catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+    });
+}
 // POST /api/erp/activos/:id/revaluar — { nuevo_valor } reconoce plusvalía al alza.
 function activosRevaluar(req, res, ctx, { params }) {
     const { json, readJson } = ctx;
@@ -800,6 +808,7 @@ const RUTAS = [
     { metodo: 'POST', path: /^\/api\/erp\/activos\/(\d+)\/revaluar$/, area: 'finanzas', handler: activosRevaluar },
     { metodo: 'GET',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierreGet },
     { metodo: 'PUT',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierrePut },
+    { metodo: 'POST', path: '/api/erp/cierre-anual',              area: 'finanzas', handler: cierreAnualPost },
     { metodo: 'GET',  path: '/api/erp/rentabilidad-clientes',     area: 'finanzas', handler: rentabilidadClientes },
     { metodo: 'GET',  path: '/api/erp/rentabilidad-vendedores',   area: 'finanzas', handler: rentabilidadVendedores },
     { metodo: 'POST', path: /^\/api\/erp\/timbrar\/(\d+)$/,       area: 'finanzas', handler: timbrar },
