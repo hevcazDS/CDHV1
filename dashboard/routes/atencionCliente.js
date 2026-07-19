@@ -326,7 +326,7 @@ const RUTAS = [
     { metodo: 'PUT',  path: /^\/api\/clientes\/(\d+)\/reanudar-bot$/,   area: 'operacion', handler: reanudarBot },
     { metodo: 'POST', path: '/api/actualizar_guia',                     area: 'operacion', handler: actualizarGuia },
     { metodo: 'GET',  path: '/api/lista-espera',                        handler: listaEspera },
-    { metodo: 'GET',  path: '/api/busquedas',                           handler: busquedas },
+    { metodo: 'GET',  path: '/api/busquedas',                           roles: ['gerente'], handler: busquedas },
     { metodo: 'GET',  path: '/api/metricas/campanas',                   roles: ['gerente'], handler: metricasCampanas },
     { metodo: 'GET',  path: '/api/metricas/canales',                    roles: ['gerente'], handler: metricasCanales },
     { metodo: 'GET',  path: '/api/metricas/operacion',                  roles: ['gerente'], handler: metricasOperacion },

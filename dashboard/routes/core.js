@@ -321,7 +321,7 @@ const RUTAS = [
     { metodo: 'GET',  path: '/api/me',                     handler: me },
     { metodo: 'GET',  path: '/api/pedidos',                handler: pedidos },
     { metodo: 'GET',  path: '/api/clientes',               area: 'operacion', handler: clientes },
-    { metodo: 'GET',  path: '/api/guias',                  handler: guias },
+    { metodo: 'GET',  path: '/api/guias',                  roles: ['gerente'], handler: guias },
     { metodo: 'GET',  path: '/api/stats',                  handler: stats },
     { metodo: 'GET',  path: '/api/bot/status',             area: 'operacion', handler: botStatus },
     { metodo: 'GET',  path: '/api/bot/status-history',     area: 'operacion', handler: botStatusHistory },

@@ -45,10 +45,9 @@ dinero**, no rediseñar.
 - [x] Revisión de visibilidad por rol. Hallazgos accionables abajo.
 
 ## Hallazgos del agente de visibilidad por rol (pendientes)
-- [ ] **P0-visibilidad**: 3 GET sin gate de backend que el sidebar SÍ restringe a
-      gerente → fuga de LECTURA a cualquier logueado: `/api/guias` (`core.js:324`),
-      `/api/metricas` (`marketing.js:307`), `/api/busquedas` (`atencionCliente.js:329`).
-      Añadir `roles:['gerente']`. Riesgo bajo (solo restringe).
+- [x] **P0-visibilidad** (HECHO): gate `roles:['gerente']` en `/api/guias`,
+      `/api/metricas`, `/api/conversion` (fuga hermana) y `/api/busquedas`.
+      Verificado: solo Guias/Metricas/Busquedas.jsx (todas gerente) los consumen.
 - [ ] **P1-visibilidad**: rutas sin guarda en `App.jsx` que montan la carcasa al
       teclear la URL (`/modulos`, `/correo`, `/metricas`, `/busquedas`, `/cola-envios`).
       Envolver con el patrón `tieneRango` ya usado en `/prime`/`/marketing`/`/catalogo`.
