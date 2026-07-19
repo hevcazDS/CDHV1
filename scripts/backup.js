@@ -126,6 +126,24 @@ function comprimirArchivo(srcPath) {
     });
 }
 
+// ── Snapshot CONSISTENTE de una BD en WAL + gzip (comité #12) ──────
+// readFileSync sobre una BD viva en WAL puede capturar el archivo principal sin
+// las transacciones que aún viven en el -wal → respaldo potencialmente corrupto
+// o incompleto. La API .backup() de SQLite produce un snapshot transaccional.
+async function comprimirDbConsistente(ruta) {
+    const Database = require('better-sqlite3');
+    const tmp = path.join(require('os').tmpdir(), 'bk_' + process.pid + '_' + Date.now() + '.db');
+    const db = new Database(ruta, { readonly: true });
+    try {
+        await db.backup(tmp);
+    } finally { try { db.close(); } catch (_) {} }
+    try {
+        return await comprimirArchivo(tmp);
+    } finally {
+        for (const s of ['', '-wal', '-shm']) { try { fs.rmSync(tmp + s, { force: true }); } catch (_) {} }
+    }
+}
+
 // ── Comprimir solo imagenes NUEVAS ────────────────────────────────
 async function comprimirImagenesNuevas() {
     if (!fs.existsSync(IMG_DIR)) return null;
@@ -283,7 +301,20 @@ async function runBackupDB() {
     try {
         const adjuntos = [];
         for (const [ruta, etiqueta] of bases) {
-            const _gz = await comprimirArchivo(ruta);
+            const _gz = await comprimirDbConsistente(ruta);
+            // VERIFICACIÓN DE RESTAURACIÓN (comité #12): probar que el artefacto
+            // que vamos a enviar realmente restaura (integrity + tablas críticas
+            // + mayor cuadra) ANTES de darlo por bueno. Un respaldo no verificado
+            // no es un respaldo.
+            const verif = require('./verificarRespaldo').verificarBufferGz(_gz);
+            if (!verif.ok) {
+                console.error('[backup] ' + etiqueta + ': respaldo NO restaurable — ' + verif.error);
+                const registro = cargarRegistro();
+                registro.ultimo_backup_db = new Date().toISOString();
+                registro.ultimo_backup_db_ok = false;
+                guardarRegistro(registro);
+                return false;   // checkBackupReciente alertará; mejor no enviar basura
+            }
             const cif = cifrarSiAplica(_gz);
             if (cif.omitir) {
                 // Fail-closed: no mandamos NINGUNA BD en claro. Registramos el fallo

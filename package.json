@@ -45,6 +45,7 @@
     "test:crmbot": "node tests/test_crm_pipeline_bot.js",
     "test:correo": "node tests/test_correo.js",
     "test:contabilidad": "node tests/test_contabilidad.js",
+    "backup:verificar": "node scripts/verificarRespaldo.js",
     "test:asistencias": "node tests/test_asistencias.js",
     "test:activos": "node tests/test_activos_fijos.js",
     "test:gym": "node tests/test_gimnasio.js",

@@ -48,7 +48,13 @@ dinero**, no rediseñar.
       migraciones sin correrlas), así que un cliente nuevo nacía sin RBAC/facturación/
       caja/etc. Verificado end-to-end: instancia nueva = 126 tablas = producción,
       DRIFT CERO. Guard de schema + suite exit 0.
-- [ ] 12. Backup incremental + verificación de restauración (obligación SAT 5 años).
+- [x] 12. Verificación de restauración de respaldos: `scripts/verificarRespaldo.js`
+      (CLI `npm run backup:verificar <archivo>` para .db/.gz/.gz.enc) + integrado
+      en `backup.js`: snapshot CONSISTENTE vía API .backup() (antes readFileSync
+      sobre WAL vivo = riesgo de artefacto corrupto) y verificación del artefacto
+      (integrity + tablas críticas + mayor cuadra) ANTES de enviar; si no
+      restaura, no se envía y checkBackupReciente alerta. Probado contra el
+      respaldo real de producción + caso corrupto rechazado.
 - [x] 13. Cierre contable anual: `contabilidadService.cierreAnual(anio)` traspasa
       el saldo de resultados (ingreso/costo/gasto) del ejercicio a "Utilidad
       acumulada" (302, capital), deja las cuentas en cero y bloquea el año
