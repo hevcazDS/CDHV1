@@ -259,7 +259,7 @@ export default function Crm() {
       <Tabs value={tab} onChange={setTab} mb="md">
         <Tabs.List>
           <Tabs.Tab value="pipeline">Pipeline</Tabs.Tab>
-          <Tabs.Tab value="tareas">Tareas</Tabs.Tab>
+          <Tabs.Tab value="tareas">Seguimientos</Tabs.Tab>
           {esGerente && <Tabs.Tab value="segmentos">Segmentos</Tabs.Tab>}
           {esGerente && <Tabs.Tab value="campanas">Campañas</Tabs.Tab>}
         </Tabs.List>

@@ -59,9 +59,11 @@ dinero**, no rediseñar.
 - [x] **P1-visibilidad** (HECHO): guardas `tieneRango(gerente)` en `App.jsx` para
       `/correo`, `/guias`, `/modulos`, `/busquedas`, `/cola-envios`, `/metricas`.
       Al teclear la URL sin rango, el catch-all `*` redirige a `/`.
-- [ ] **P2-visibilidad**: reflejar `DEPENDE_DE` (facturación→contabilidad) en
-      `Modulos.jsx` (deshabilitar toggle hasta activar el padre); desambiguar la
-      doble "Tareas" (Panel vs CRM); unificar ficha de cliente (ya en P1-6).
+- [x] **P2-visibilidad** (HECHO): `Modulos.jsx` refleja `DEPENDE_DE` — el toggle
+      de Facturación queda deshabilitado (con razón visible) hasta activar
+      Contabilidad, y Contabilidad no se puede apagar con Facturación activa. La
+      pestaña CRM "Tareas" se renombró a "Seguimientos" (vs las Tareas del Panel).
+      Ficha unificada ya cubierta en P1-6.
 
 ## Nota para el equipo
 Los 4 agentes coincidieron: `CLAUDE.md` está ~65 migraciones desactualizado.
