@@ -226,7 +226,13 @@ function botStatus(req, res, ctx) {
     pm2(['jlist'], (err, stdout) => {
         if (err) return json(res, { ok: false, error: 'pm2 no disponible: ' + err.message }, 500);
         try {
-            const lista = JSON.parse(stdout);
+            // pm2 a veces antepone banners al JSON ("In-memory PM2 is out-of-date",
+            // avisos de update): recortar desde el primer '[' — mismo blindaje que
+            // el anti-zombie de server.js. Sin esto, el widget veía 500 espurios.
+            const s = String(stdout);
+            const i = s.indexOf('[');
+            if (i < 0) return json(res, { ok: false, error: 'pm2 no devolvió JSON' }, 500);
+            const lista = JSON.parse(s.slice(i));
             const proc = lista.find(p2 => p2.name === 'bot-whatsapp');
             if (!proc) {
                 registrarCambioEstatusBot('no_iniciado', null);

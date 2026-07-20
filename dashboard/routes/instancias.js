@@ -28,7 +28,8 @@ function _reiniciarBotSiCorre(log) {
     cmd(['jlist'], (err, stdout) => {
         if (err) return log.warn('[instancia] No pude consultar pm2 (jlist): ' + err.message);
         let online = false;
-        try { online = JSON.parse(stdout).some(p => p.name === 'bot-whatsapp' && p.pm2_env?.status === 'online'); } catch (_) {}
+        // recortar desde el primer '[' (pm2 antepone banners al JSON a veces)
+        try { const s = String(stdout); online = JSON.parse(s.slice(s.indexOf('['))).some(p => p.name === 'bot-whatsapp' && p.pm2_env?.status === 'online'); } catch (_) {}
         if (!online) return;
         log.info('[instancia] Bot en línea → reiniciándolo para que abra la misma tienda');
         cmd(['restart', 'bot-whatsapp'], (e2) => { if (e2) log.warn('[instancia] restart del bot falló: ' + e2.message); });

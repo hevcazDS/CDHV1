@@ -117,9 +117,13 @@ huecos reales se cerraron el mismo día:
 - [x] P2 Comisiones de citas por empleado (sección gerente en Citas.jsx).
 - [x] P2 Banner de integridad contable en ContabilidadTab (pagos sin asiento /
       ventas sin COGS, solo si hay algo).
-- [ ] Menor: borrar `POST /api/cupon/redimir` (deprecado, flujo de ticket
-      físico ya retirado) + su schema en validators; evaluar
-      `GET /api/pedidos/:id/mensajes` (redundante con /api/clientes/:id/mensajes).
+- [x] Menores (HECHO): borrado `POST /api/cupon/redimir` + CuponRedimirSchema
+      (el POS redime inline en /api/pos/venta; test_dashboard_api retargeteado a
+      /api/cupon/validar) y `GET /api/pedidos/:id/mensajes` (redundante, sin
+      consumidores). Robustez bot start/stop: jlist ahora recorta banners de pm2
+      antes de JSON.parse (core.js + instancias.js — el widget veía 500 espurios
+      cuando pm2 imprimía su aviso de update). .env.example documenta
+      IMAP_HOST/PORT, BACKUP_DEST, BACKUP_KEY_HEX y FLOTA_TOKEN.
 
 ## Nota para el equipo
 Los 4 agentes coincidieron: `CLAUDE.md` está ~65 migraciones desactualizado.
