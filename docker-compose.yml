@@ -11,6 +11,8 @@ services:
       CHROME_PATH: /usr/bin/chromium
       DASHBOARD_HOST: 0.0.0.0            # dentro del contenedor; expuesto solo a 127.0.0.1 del host
       DASHBOARD_COOKIE_SECURE: "true"    # el dashboard va detrás de un proxy con TLS
+      TRUST_PROXY: "1"                   # detrás de Caddy: la IP real viene en X-Forwarded-For
+                                         # (sin proxy delante, pon 0 o el rate-limit es engañable)
       # SQLite usa datetime('now','localtime') en cortes/reportes/campañas:
       # sin TZ el contenedor corre en UTC y las fechas se recorren
       TZ: America/Monterrey
@@ -21,6 +23,12 @@ services:
       # Registro de respaldos (imágenes ya enviadas + fecha del último backup
       # OK que vigila la alerta de 36h) — mismo motivo.
       BACKUP_REGISTRO_PATH: /data/.backup_registro.json
+      # El .env que migras de Windows trae rutas C:\ en estas — aquí se
+      # neutralizan (Vision degrada apagado, no truena). Para activar Vision en
+      # el servidor: copia el JSON a ./data/ y apunta la ruta del contenedor:
+      GOOGLE_APPLICATION_CREDENTIALS: ""
+      # GOOGLE_APPLICATION_CREDENTIALS: /data/google-vision.json
+      LOG_FILE: ""                       # default del contenedor: bot/logs/bot.log (volumen)
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
