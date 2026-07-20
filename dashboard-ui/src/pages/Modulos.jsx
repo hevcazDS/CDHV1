@@ -113,6 +113,7 @@ const MODULOS = [
   { key: 'documentos_activo', titulo: '📄 Documentos', desc: 'Cotizaciones, pagarés y contratos con plantillas estándar o propias de la sucursal; imprimibles' },
   { key: 'nomina_fiscal_activo', titulo: '🧾 Nómina fiscal (LFT)', desc: 'Nómina completa: horas extra, comisiones, aguinaldo, finiquito, vacaciones LFT. Apagado = nómina sencilla' },
   { key: 'rrhh_activo', titulo: 'Recursos Humanos', desc: 'Empleados, horarios por Excel y nómina MX (con/sin impuestos)' },
+  { key: 'motor_flujo_activo', titulo: '🧩 Motor de flujo del bot', desc: 'El bot conversa siguiendo el flujo visual del editor (Configuración → Motor de flujo) en vez de solo el flujo base. Apagado, el editor guarda pero el bot sigue igual' },
 ];
 
 // Dependencias entre módulos (espejo de bot/flows/modulosDefaults.js DEPENDE_DE):

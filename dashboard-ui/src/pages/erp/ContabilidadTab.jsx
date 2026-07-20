@@ -31,8 +31,27 @@ export default function ContabilidadTab() {
   const totalDebe = cuentas.reduce((s, c) => s + c.debe, 0);
   const totalHaber = cuentas.reduce((s, c) => s + c.haber, 0);
 
+  // Integridad: pagos sin asiento (ventana de crash — el barrido los repara) y
+  // ventas sin COGS (producto sin costo → utilidad inflada). Solo se muestra
+  // cuando hay algo (auditoría de cobertura: el endpoint existía sin front).
+  const { data: integridad } = useQuery({
+    queryKey: ['erp-integridad'],
+    queryFn: () => api.get('/api/erp/integridad').catch(() => null),
+  });
+  const intSinVenta = integridad?.total_sin_venta || 0;
+  const intSinCosto = integridad?.total_sin_costo || 0;
+
   return (
     <div>
+      {(intSinVenta > 0 || intSinCosto > 0) && (
+        <Card withBorder radius="md" p="sm" mb="md" style={{ borderColor: 'var(--yellow)' }}>
+          <Text size="sm" fw={600}>⚠ Integridad contable (últimos {integridad.dias} días)</Text>
+          <Text size="xs" c="dimmed">
+            {intSinVenta > 0 && `${intSinVenta} pago(s) sin asiento de venta — el barrido automático los repara en la siguiente ronda. `}
+            {intSinCosto > 0 && `${intSinCosto} venta(s) sin costo (COGS): captura el costo de esos productos o la utilidad sale inflada.`}
+          </Text>
+        </Card>
+      )}
       <Group mb="md" gap="sm" align="end">
         <TextInput type="date" label="Desde" value={desde} onChange={e => setDesde(e.target.value)} />
         <TextInput type="date" label="Hasta" value={hasta} onChange={e => setHasta(e.target.value)} />

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, TextInput, Group, Text, Select, SegmentedControl } from '@mantine/core';
+import { Card, Button, TextInput, Group, Text, Select, SegmentedControl, Table } from '@mantine/core';
 import { CalendarDays } from 'lucide-react';
 import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
@@ -70,6 +70,11 @@ export default function Citas() {
   });
 
   const porDia = citas.reduce((m, c) => ((m[c.fecha] = m[c.fecha] || []).push(c), m), {});
+
+  // Comisiones por empleado sobre citas COBRADAS (mes en curso). Solo gerente:
+  // el endpoint es gerente-gated y el .catch(null) oculta la sección al resto.
+  // (Auditoría de cobertura: el endpoint existía sin front.)
+  const { data: comis } = useQuery({ queryKey: ['citas-comisiones'], queryFn: () => api.get('/api/citas/comisiones').catch(() => null) });
 
   return (
     <div className="sin-scroll">
@@ -160,6 +165,28 @@ export default function Citas() {
           ))}
         </Card>
       </div>
+
+      {comis && (comis.filas || []).length > 0 && (
+        <Card withBorder radius="md" p="lg" className="card" mt="md">
+          <div className="card-header"><h3>💇 Comisiones por empleado (mes en curso, citas cobradas)</h3></div>
+          <div className="table-wrap">
+            <Table verticalSpacing="xs">
+              <thead><tr><th>Empleado</th><th>Servicios</th><th>Cobrado</th><th>%</th><th>Comisión</th></tr></thead>
+              <tbody>
+                {comis.filas.map(f => (
+                  <tr key={f.id}>
+                    <td>{f.nombre}</td><td>{f.servicios}</td>
+                    <td>${(f.cobrado || 0).toFixed(2)}</td>
+                    <td>{f.pct}%</td>
+                    <td><strong>${(f.comision || 0).toFixed(2)}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+          <Text size="xs" c="dimmed" mt="xs">El % es el del empleado o, si no tiene, el global (comision_pct). Solo cuenta citas con pago registrado.</Text>
+        </Card>
+      )}
       </div>
     </div>
   );

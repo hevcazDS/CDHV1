@@ -105,6 +105,22 @@ imagenes_clientes/logs_error, H10 PDF sin SSRF (bloqueo de subrecursos de red).
       finales legítimas sin ruido. test_motor_editor 6/6, lienzo 14/14,
       golden+paridad byte-idéntico.
 
+## Auditoría de cobertura API↔UI 2026-07-19
+328/339 rutas con front o consumidor legítimo; 0 llamadas UI rotas. Los 6
+huecos reales se cerraron el mismo día:
+- [x] P0 Editor de recetas/BOM (RecetaModal en CatalogoTab, 🍽️ por producto) —
+      el POS ya descontaba insumos pero nadie podía definirlos desde el panel.
+- [x] P1 Toggle `motor_flujo_activo` en Modulos.jsx — la UI apuntaba a un
+      switch que no existía (solo curl/SQL).
+- [x] P1 Reportes de mermas (costo por tipo) y caducidades próximas en
+      Almacén → Reportes.
+- [x] P2 Comisiones de citas por empleado (sección gerente en Citas.jsx).
+- [x] P2 Banner de integridad contable en ContabilidadTab (pagos sin asiento /
+      ventas sin COGS, solo si hay algo).
+- [ ] Menor: borrar `POST /api/cupon/redimir` (deprecado, flujo de ticket
+      físico ya retirado) + su schema en validators; evaluar
+      `GET /api/pedidos/:id/mensajes` (redundante con /api/clientes/:id/mensajes).
+
 ## Nota para el equipo
 Los 4 agentes coincidieron: `CLAUDE.md` está ~65 migraciones desactualizado.
 La documentación nueva en `docs/` es ahora la fuente fiel; actualizar CLAUDE.md

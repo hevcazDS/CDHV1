@@ -1,20 +1,96 @@
 // CatalogoTab.jsx — Tab "Catálogo" de Prime: alta de producto, lista/búsqueda
-// de productos existentes, edición y entrada de mercancía (recibir stock).
-import { useState } from 'react';
+// de productos existentes, edición, entrada de mercancía (recibir stock) y
+// receta/insumos (BOM) por producto.
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from '@mantine/form';
-import { Card, Title, Group, ActionIcon, Table, TextInput, NumberInput, Select, Button, Fieldset, Pagination } from '@mantine/core';
+import { Card, Title, Group, ActionIcon, Table, TextInput, NumberInput, Select, Button, Fieldset, Pagination, Text, Skeleton } from '@mantine/core';
 import { api } from '../../api';
 import Modal from '../../components/Modal';
 import { CamposProducto, armarDatosProducto, PRODUCTO_VACIO, srcImagenProducto } from './productoCampos';
 import VariantesModal from './VariantesModal';
-import { Shirt, Inbox, Pencil } from 'lucide-react';
+import { Shirt, Inbox, Pencil, ChefHat, X } from 'lucide-react';
+
+// ── Receta / insumos (BOM) de un producto ────────────────────────────────────
+// El POS ya DESCUENTA insumos al cobrar (recetasService); esto es la captura que
+// faltaba (auditoría de cobertura: el endpoint existía sin front). Un platillo
+// con receta descuenta sus insumos en vez de su propio stock.
+function RecetaModal({ producto, onClose }) {
+  const qc = useQueryClient();
+  const [lineas, setLineas] = useState(null);   // [{id_insumo, cantidad, name}]
+  const [busca, setBusca] = useState('');
+  const [selInsumo, setSelInsumo] = useState(null);
+  const [cantidad, setCantidad] = useState(1);
+  const [msg, setMsg] = useState('');
+
+  const { data: receta } = useQuery({
+    queryKey: ['prime-receta', producto.id],
+    queryFn: () => api.get(`/api/prime/productos/${producto.id}/receta`),
+  });
+  useEffect(() => { if (receta && lineas === null) setLineas(receta.insumos || []); }, [receta, lineas]);
+
+  const { data: candidatos } = useQuery({
+    queryKey: ['prime-receta-busca', busca],
+    enabled: busca.trim().length >= 2,
+    queryFn: () => api.get('/api/prime/productos?q=' + encodeURIComponent(busca.trim())),
+  });
+  const opciones = (candidatos?.items || [])
+    .filter(p => p.id !== producto.id && !(lineas || []).some(l => l.id_insumo === p.id))
+    .map(p => ({ value: String(p.id), label: p.name }));
+
+  const guardar = useMutation({
+    mutationFn: () => api.put(`/api/prime/productos/${producto.id}/receta`, {
+      insumos: (lineas || []).map(l => ({ id_insumo: l.id_insumo, cantidad: l.cantidad })),
+    }),
+    onSuccess: (r) => { if (!r.ok) return setMsg(r.error || 'No se pudo guardar'); qc.invalidateQueries({ queryKey: ['prime-receta', producto.id] }); onClose(); },
+    onError: (e) => setMsg(e.message),
+  });
+
+  const agregar = () => {
+    if (!selInsumo || !(Number(cantidad) > 0)) return setMsg('Elige el insumo y una cantidad mayor a 0.');
+    const cand = (candidatos?.items || []).find(p => String(p.id) === selInsumo);
+    setLineas(ls => [...(ls || []), { id_insumo: Number(selInsumo), cantidad: Number(cantidad), name: cand?.name || selInsumo }]);
+    setSelInsumo(null); setCantidad(1); setBusca(''); setMsg('');
+  };
+
+  return (
+    <Modal title={`Receta / insumos — ${producto.name}`} onClose={onClose}
+      actions={<>
+        <Button variant="default" onClick={onClose}>Cancelar</Button>
+        <Button onClick={() => guardar.mutate()} loading={guardar.isPending} disabled={lineas === null}>Guardar receta</Button>
+      </>}>
+      {msg && <div className="login-error" style={{ marginBottom: 12 }}>{msg}</div>}
+      <Text size="xs" c="dimmed" mb="sm">Al cobrar este producto, el inventario descuenta sus insumos (no el producto en sí). Sin insumos = descuento normal de su propio stock.</Text>
+      {lineas === null ? <Skeleton height={80} /> : (
+        <>
+          {(lineas || []).length === 0 && <Text size="sm" c="dimmed" mb="sm">Sin insumos todavía — agrega el primero abajo.</Text>}
+          {(lineas || []).map((l, i) => (
+            <Group key={i} justify="space-between" mb={6}>
+              <Text size="sm">{l.name || ('#' + l.id_insumo)} <Text span size="xs" c="dimmed">× {l.cantidad}</Text></Text>
+              <ActionIcon size="sm" variant="subtle" color="red" title="Quitar insumo"
+                onClick={() => setLineas(ls => ls.filter((_, j) => j !== i))}><X size={14} /></ActionIcon>
+            </Group>
+          ))}
+          <Group align="flex-end" gap="xs" mt="sm">
+            <Select style={{ flex: 1 }} label="Agregar insumo" placeholder="Escribe 2+ letras para buscar…"
+              searchable searchValue={busca} onSearchChange={setBusca}
+              data={opciones} value={selInsumo} onChange={setSelInsumo}
+              nothingFoundMessage={busca.trim().length >= 2 ? 'Sin resultados' : 'Escribe para buscar'} />
+            <NumberInput label="Cantidad" min={0.001} step={0.5} w={110} value={cantidad} onChange={setCantidad} />
+            <Button variant="default" onClick={agregar}>Agregar</Button>
+          </Group>
+        </>
+      )}
+    </Modal>
+  );
+}
 
 export default function CatalogoTab() {
   const queryClient = useQueryClient();
 
   const productoForm = useForm({ initialValues: PRODUCTO_VACIO });
   const [variantesDe, setVariantesDe] = useState(null);
+  const [recetaDe, setRecetaDe] = useState(null);
   const [msgProducto, setMsgProducto] = useState('');
   const [stockInicial, setStockInicial] = useState('0');
 
@@ -224,6 +300,7 @@ export default function CatalogoTab() {
                     <Group gap={4} wrap="nowrap">
                       <ActionIcon variant="light" color="teal" title="Recibir mercancía (entrada de stock)" onClick={() => abrirEntrada(p)}><Inbox size={16} strokeWidth={1.75} /></ActionIcon>
                       <ActionIcon variant="light" color="grape" title="Tallas y colores (variantes por sucursal)" onClick={() => setVariantesDe(p)}><Shirt size={16} strokeWidth={1.75} /></ActionIcon>
+                      <ActionIcon variant="light" color="orange" title="Receta / insumos (se descuentan al cobrar)" onClick={() => setRecetaDe(p)}><ChefHat size={16} strokeWidth={1.75} /></ActionIcon>
                       <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionProducto(p)}><Pencil size={16} strokeWidth={1.75} /></ActionIcon>
                     </Group>
                   </td>
@@ -268,6 +345,7 @@ export default function CatalogoTab() {
         </Modal>
       )}
       {variantesDe && <VariantesModal producto={variantesDe} onClose={() => setVariantesDe(null)} />}
+      {recetaDe && <RecetaModal producto={recetaDe} onClose={() => setRecetaDe(null)} />}
     </div>
   );
 }

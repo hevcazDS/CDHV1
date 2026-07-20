@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Title, Text } from '@mantine/core';
+import { Card, Title, Text, Table } from '@mantine/core';
 import { api } from '../../api';
 import { fmt, money } from '../../lib/format';
 import { prompt as pedir, toastOk } from '../../lib/ui';
@@ -32,6 +32,18 @@ export default function ReportesTab() {
   const stockBajo = data?.stock_bajo || [];
   const margen = data?.margen || [];
   const muertos = data?.muertos || [];
+
+  // Auditoría de cobertura: los endpoints existían sin front — la merma se
+  // registraba (salida) pero nadie podía ver su costo; las caducidades se
+  // capturaban en la entrada y no se consultaban en ningún lado.
+  const { data: mermas } = useQuery({
+    queryKey: ['almacen-mermas'],
+    queryFn: () => api.get('/api/almacen/mermas').catch(() => null),
+  });
+  const { data: caducidades } = useQuery({
+    queryKey: ['almacen-caducidades'],
+    queryFn: () => api.get('/api/almacen/caducidades?dias=30').catch(() => null),
+  });
 
   return (
     <div style={{ display: 'grid', gap: 18 }}>
@@ -97,6 +109,54 @@ export default function ReportesTab() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </Card>
+
+      <Card withBorder radius="md" p="lg">
+        <Title order={5} mb="xs">{txt('🗑️ Mermas del mes (con costo)')}</Title>
+        <Text size="xs" c="dimmed" mb="sm">Lo que se perdió por caducidad, daño, robo o ajuste — y cuánto costó.</Text>
+        {(mermas?.filas || []).length === 0 ? <Text size="sm" c="dimmed">{txt('Sin mermas registradas este mes. 👍')}</Text> : (
+          <>
+            <Text size="sm" mb="xs">Costo total: <strong style={{ color: 'var(--red)' }}>{money(mermas.costo_total)}</strong>
+              {(mermas.resumen || []).map(r => <Text key={r.tipo} span size="xs" c="dimmed"> · {r.tipo}: {money(r.costo)} ({r.eventos})</Text>)}
+            </Text>
+            <div className="table-wrap" style={{ maxHeight: 280, overflow: 'auto' }}>
+              <Table verticalSpacing="xs">
+                <thead><tr><th>Producto</th><th>Sucursal</th><th>Motivo</th><th>Cantidad</th><th>Costo</th><th>Fecha</th></tr></thead>
+                <tbody>
+                  {mermas.filas.map((f, i) => (
+                    <tr key={i}>
+                      <td>{f.name}</td><td>{f.sucursal}</td><td style={{ fontSize: 12 }}>{f.motivo}</td>
+                      <td><strong>{f.cantidad}</strong></td><td style={{ color: 'var(--red)' }}>{money(f.costo)}</td>
+                      <td style={{ fontSize: 11, color: 'var(--text-mute)' }}>{(f.creado_en || '').slice(0, 10)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          </>
+        )}
+      </Card>
+
+      <Card withBorder radius="md" p="lg">
+        <Title order={5} mb="xs">{txt('⏳ Caducidades próximas (30 días)')}</Title>
+        <Text size="xs" c="dimmed" mb="sm">Entradas con caducidad registrada que vencen pronto y aún tienen stock — promociónalo antes de que se vuelva merma.</Text>
+        {(caducidades?.filas || []).length === 0 ? <Text size="sm" c="dimmed">{txt('Nada por caducar en 30 días. 👍')}</Text> : (
+          <div className="table-wrap" style={{ maxHeight: 280, overflow: 'auto' }}>
+            <Table verticalSpacing="xs">
+              <thead><tr><th>Producto</th><th>Sucursal</th><th>Lote</th><th>Caduca</th><th>Días</th><th>Stock actual</th></tr></thead>
+              <tbody>
+                {caducidades.filas.map((f, i) => (
+                  <tr key={i}>
+                    <td>{f.name}</td><td>{f.sucursal}</td><td style={{ fontSize: 12 }}>{f.lote || '—'}</td>
+                    <td>{f.caducidad}</td>
+                    <td style={{ fontWeight: 700, color: f.dias_restantes <= 7 ? 'var(--red)' : 'var(--yellow)' }}>{f.dias_restantes}</td>
+                    <td>{f.stock_actual}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
           </div>
         )}
       </Card>
