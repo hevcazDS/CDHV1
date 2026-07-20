@@ -307,7 +307,9 @@ const _sesiones = new Map(); // token -> { username, rol, expira }
 // migrada de otra instancia o inyectada directo en sqlite no valida. Si el
 // archivo no existe (proyecto recién levantado) se genera uno nuevo y todas
 // las sesiones anteriores mueren — el token no se migra, se ejecuta nuevo.
-const _SECRET_PATH = path.join(__dirname, '.instancia_secret');
+// INSTANCIA_SECRET_PATH (Docker): la llave debe vivir en el VOLUMEN (/data) —
+// dentro de la imagen se pierde en cada redeploy y con ella los secretos enc:.
+const _SECRET_PATH = process.env.INSTANCIA_SECRET_PATH || path.join(__dirname, '.instancia_secret');
 const _INSTANCIA_SECRET = (() => {
     try {
         const v = fs.readFileSync(_SECRET_PATH, 'utf8').trim();

@@ -38,6 +38,8 @@ ENV NODE_ENV=production \
     DB_PATH=/data/jugueteria.db
 
 EXPOSE 3001
-# Migraciones idempotentes antes de arrancar: un deploy nuevo nunca corre
-# contra una BD sin migrar
-CMD ["sh", "-c", "node scripts/migrate.js && exec pm2-runtime ecosystem.config.js"]
+# Migraciones idempotentes antes de arrancar (--all: principal + instancias/*.db)
+# — un deploy nuevo nunca corre contra una BD sin migrar. ecosystem.docker =
+# bot + dashboard + daemon de respaldos (dentro del contenedor no hay cron;
+# sin él jamás se respaldaría).
+CMD ["sh", "-c", "node scripts/migrate.js --all && exec pm2-runtime ecosystem.docker.config.js"]

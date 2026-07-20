@@ -29,7 +29,7 @@ const TABLAS_RESET = [
 
 // Secreto de instancia (para envolver la clave del modo 'bajo').
 const _leerSecreto = () => {
-    try { return require('fs').readFileSync(require('path').join(__dirname, '..', '.instancia_secret'), 'utf8').trim(); }
+    try { return require('fs').readFileSync(process.env.INSTANCIA_SECRET_PATH || require('path').join(__dirname, '..', '.instancia_secret'), 'utf8').trim(); }
     catch (_) { return 'sin-secreto'; }
 };
 

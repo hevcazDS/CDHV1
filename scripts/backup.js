@@ -58,7 +58,10 @@ const FROM_MAIL = 'Backup Julio Cepeda <' + SMTP_USER + '>';
 const MAX_IMG_BYTES = 15 * 1024 * 1024; // 15MB maximo por correo de imagenes
 
 // ── Registro de imagenes ya enviadas ──────────────────────────────
-const REGISTRO_PATH = path.join(__dirname, '.backup_registro.json');
+// BACKUP_REGISTRO_PATH (Docker): al volumen /data — dentro de la imagen se
+// pierde en cada redeploy (re-enviaría todas las imágenes y perdería la fecha
+// del último backup que vigila checkBackupReciente).
+const REGISTRO_PATH = process.env.BACKUP_REGISTRO_PATH || path.join(__dirname, '.backup_registro.json');
 
 function cargarRegistro() {
     try {
@@ -85,7 +88,7 @@ function cifrarSiAplica(buf) {
         let key = null;
         if (modo === 'bajo') {
             const wrapped = db.prepare("SELECT valor FROM configuracion WHERE clave='backup_key_wrapped'").get()?.valor;
-            const secreto = fs.readFileSync(path.join(__dirname, '..', 'dashboard', '.instancia_secret'), 'utf8').trim();
+            const secreto = fs.readFileSync(process.env.INSTANCIA_SECRET_PATH || path.join(__dirname, '..', 'dashboard', '.instancia_secret'), 'utf8').trim();
             if (wrapped) key = cb.desenvolverConSecreto(wrapped, secreto);
         } else if (modo === 'alto') {
             if (process.env.BACKUP_KEY_HEX) key = Buffer.from(process.env.BACKUP_KEY_HEX, 'hex');

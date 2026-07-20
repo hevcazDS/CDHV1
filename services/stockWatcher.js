@@ -629,7 +629,7 @@ function _runCheck(fn, nombre) {
     try { fn(); } catch (e) { log.warn(`Check ${nombre} falló: ` + e.message); }
 }
 
-const BACKUP_REGISTRO_PATH = path.join(__dirname, '..', 'scripts', '.backup_registro.json');
+const BACKUP_REGISTRO_PATH = process.env.BACKUP_REGISTRO_PATH || path.join(__dirname, '..', 'scripts', '.backup_registro.json');
 const BACKUP_MAX_EDAD_MS   = 36 * 3_600_000; // 36h — el backup de DB corre a las 11:00 todos los días
 
 // El backup de DB (scripts/backup.js) es la única copia fuera del servidor.

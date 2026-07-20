@@ -13,7 +13,7 @@ const path = require('path');
 const cb = require('./cryptoBackup');
 
 function _instSecret() {
-    const p = path.join(__dirname, '..', 'dashboard', '.instancia_secret');
+    const p = process.env.INSTANCIA_SECRET_PATH || path.join(__dirname, '..', 'dashboard', '.instancia_secret');
     try { return fs.readFileSync(p, 'utf8').trim(); }
     catch (_) {
         try { const s = crypto.randomBytes(32).toString('hex'); fs.writeFileSync(p, s, { mode: 0o600 }); return s; }

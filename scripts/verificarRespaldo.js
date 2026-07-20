@@ -57,7 +57,7 @@ function _claveDescifrado() {
         const db = require('../bot/db_connection');
         const wrapped = db.prepare("SELECT valor FROM configuracion WHERE clave='backup_key_wrapped'").get()?.valor;
         if (!wrapped) return null;
-        const secreto = fs.readFileSync(path.join(__dirname, '..', 'dashboard', '.instancia_secret'), 'utf8').trim();
+        const secreto = fs.readFileSync(process.env.INSTANCIA_SECRET_PATH || path.join(__dirname, '..', 'dashboard', '.instancia_secret'), 'utf8').trim();
         return require('../services/cryptoBackup').desenvolverConSecreto(wrapped, secreto);
     } catch (_) { return null; }
 }
