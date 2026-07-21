@@ -47,6 +47,12 @@ const existentes = new Set(
 const resumen = {};
 
 db.transaction(() => {
+    // trg_asientos_no_delete / trg_kardex_no_delete se saltan cuando
+    // mantenimiento_bd='1'. Se restaura a '0' al final del bloque.
+    if (existentes.has('configuracion')) {
+        db.prepare("INSERT INTO configuracion (clave,valor) VALUES ('mantenimiento_bd','1') ON CONFLICT(clave) DO UPDATE SET valor='1'").run();
+    }
+
     for (const t of TABLAS_LIMPIAR) {
         if (!existentes.has(t)) { resumen[t] = '(no existe)'; continue; }
         const { changes } = db.prepare(`DELETE FROM ${t}`).run();
@@ -59,9 +65,10 @@ db.transaction(() => {
 
     if (existentes.has('configuracion')) {
         db.prepare("UPDATE configuracion SET valor='' WHERE clave='whatsapp_qr'").run();
-        // Sin esto, el watcher dispararía mensajes de "cliente dormido" a todos los clientes recién importados
+        db.prepare("UPDATE configuracion SET valor='0' WHERE clave='mantenimiento_bd'").run();
         const hoy = new Date().toISOString().slice(0, 10);
-        db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('dormidos_ultimo_dia', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(hoy);
+        // Sin esto el watcher dispararía reactivación masiva en el primer arranque
+        db.prepare("INSERT INTO configuracion (clave,valor) VALUES ('dormidos_ultimo_dia',?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(hoy);
     }
 })();
 
