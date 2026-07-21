@@ -110,16 +110,6 @@ const CostoEnvioSchema = z.object({
     costo_envio: z.number().finite('costo_envio inválido').nonnegative('costo_envio inválido'),
 });
 
-// POST /api/cupon/redimir — antes no validaba el tipo de idTicket; un valor
-// no numérico no tronaba (better-sqlite3 simplemente no matcheaba ninguna
-// fila), pero dejaba el ticket sin ligar a la promoción de forma silenciosa.
-const CuponRedimirSchema = z.object({
-    codigo: z.string().min(1, 'Falta código'),
-    // nullish (no solo optional): el caller puede mandar null explícito para
-    // decir "sin ticket", igual que antes con el chequeo `if (idTicket)`.
-    idTicket: z.coerce.number().int().positive().nullish(),
-});
-
 // Carrito armado a mano por un asesor (POS) para un cliente — ids de
 // producto reales, validados/cargados desde la tabla productos en el
 // endpoint, no se confía en nombre/precio que venga del cliente HTTP.
@@ -304,7 +294,6 @@ module.exports = {
     PrimeConfigSchema:  { safeParse: (d) => safe(PrimeConfigSchema, d) },
     PagoConfirmadoSchema: { safeParse: (d) => safe(PagoConfirmadoSchema, d) },
     CostoEnvioSchema:     { safeParse: (d) => safe(CostoEnvioSchema, d) },
-    CuponRedimirSchema:   { safeParse: (d) => safe(CuponRedimirSchema, d) },
     VentaPreviaSchema:  { safeParse: (d) => safe(VentaPreviaSchema, d) },
     NegocioSchema:      { safeParse: (d) => safe(NegocioSchema, d) },
     ConfigContactoSchema: { safeParse: (d) => safe(ConfigContactoSchema, d) },

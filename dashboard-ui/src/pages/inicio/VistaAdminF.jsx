@@ -26,6 +26,7 @@ export default function VistaAdminF() {
   const { data: met } = useQuery({ queryKey: ['metricas'], queryFn: () => api.get('/api/metricas') });
   const { data: cxp = [] } = useQuery({ queryKey: ['erp-cxp'], queryFn: () => api.get('/api/erp/cxp').catch(() => []) });
   const { data: solicitudes = [] } = useQuery({ queryKey: ['compras-sol'], queryFn: () => api.get('/api/compras/solicitudes').catch(() => []) });
+  const { data: fiados } = useQuery({ queryKey: ['pos-fiados'], queryFn: () => api.get('/api/pos/fiados').catch(() => ({ fiados: [] })) });
 
   const ventasHoy = stats?.ventas_hoy || 0;
   const pedidosHoy = met?.pedidos?.hoy?.n ?? stats?.pedidos_hoy ?? 0;
@@ -35,6 +36,9 @@ export default function VistaAdminF() {
   const mkt = stats?.marketing;
   const cxpVencidas = cxp.filter(c => c.estatus !== 'pagada' && c.dias_para_vencer != null && c.dias_para_vencer < 0).length;
   const solPendientes = solicitudes.filter(s => s.estatus === 'pendiente').length;
+  // Fiados VENCIDOS (cobranza al cliente): cuentas por cobrar, no por pagar.
+  const fiadosVenc = (fiados?.fiados || []).filter(f => f.dias_vencido_max != null && f.dias_vencido_max > 0);
+  const fiadosVencMonto = fiadosVenc.reduce((s, f) => s + (f.adeudo || 0), 0);
 
   const dias = diasSemana(met?.por_dia);
   const totalSemana = dias.reduce((s, d) => s + d.n, 0);
@@ -52,6 +56,7 @@ export default function VistaAdminF() {
   const mano = [
     colaAtencion > 0 && { k: 'cola', txt: `${colaAtencion} cliente${colaAtencion > 1 ? 's' : ''} esperando atención`, go: 'responder', to: '/cola', urg: true },
     (mkt?.abandonados_n || 0) > 0 && { k: 'carr', txt: `${mkt.abandonados_n} carritos abandonados`, det: fmtMoneda(mkt.abandonados_monto || 0), go: 'recuperar', to: '/notificaciones' },
+    fiadosVenc.length > 0 && { k: 'fiado', txt: `${fiadosVenc.length} fiado${fiadosVenc.length > 1 ? 's' : ''} vencido${fiadosVenc.length > 1 ? 's' : ''} por cobrar`, det: fmtMoneda(fiadosVencMonto), go: 'cobrar', to: '/fiados', urg: true },
     cxpVencidas > 0 && { k: 'cxp', txt: `${cxpVencidas} factura${cxpVencidas > 1 ? 's' : ''} por pagar vencida${cxpVencidas > 1 ? 's' : ''}`, go: 'revisar', to: '/erp?tab=gastos' },
     solPendientes > 0 && { k: 'sol', txt: `${solPendientes} solicitud${solPendientes > 1 ? 'es' : ''} de compra`, go: 'aprobar', to: '/compras' },
   ].filter(Boolean);

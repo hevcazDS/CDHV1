@@ -13,7 +13,7 @@ const path  = require('path');
 const fs    = require('fs');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
-const { NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, ConfigContactoSchema, ConfigEmailBotSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema, safeEqual } = require('../bot/validators');
+const { NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, VentaPreviaSchema, NegocioSchema, ConfigContactoSchema, ConfigEmailBotSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema, safeEqual } = require('../bot/validators');
 require('dotenv').config({ quiet: true });
 const log = require('../bot/logger')('dashboard');
 const { registrarErrorDB } = require('../bot/dbErrorLog');
@@ -307,7 +307,9 @@ const _sesiones = new Map(); // token -> { username, rol, expira }
 // migrada de otra instancia o inyectada directo en sqlite no valida. Si el
 // archivo no existe (proyecto recién levantado) se genera uno nuevo y todas
 // las sesiones anteriores mueren — el token no se migra, se ejecuta nuevo.
-const _SECRET_PATH = path.join(__dirname, '.instancia_secret');
+// INSTANCIA_SECRET_PATH (Docker): la llave debe vivir en el VOLUMEN (/data) —
+// dentro de la imagen se pierde en cada redeploy y con ella los secretos enc:.
+const _SECRET_PATH = process.env.INSTANCIA_SECRET_PATH || path.join(__dirname, '.instancia_secret');
 const _INSTANCIA_SECRET = (() => {
     try {
         const v = fs.readFileSync(_SECRET_PATH, 'utf8').trim();
@@ -564,7 +566,7 @@ function construirAudienciaMasivo({ soloConPedido, excluirTags, soloTags, sinAct
 // el mismo fallthrough secuencial del  original — ningún módulo sabe si
 // "matcheó" salvo por no llamar a next().
 const ctx = {
-    db, json, readBody, readJson, validar, requireSession, log, pm2, APP_VERSION, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, iniciarCapturaDireccion, SESION_S, sessionManagerBot, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, registrarErrorDB, SECURITY_HEADERS, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, CuponRedimirSchema, VentaPreviaSchema, NegocioSchema, ConfigContactoSchema, ConfigEmailBotSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema,
+    db, json, readBody, readJson, validar, requireSession, log, pm2, APP_VERSION, cerrarElectronSiAbierto, registrarCambioEstatusBot, crearSesion, obtenerSesion, eliminarSesion, hashPassword, safeEqual, loginBloqueado, registrarIntentoFallido, limpiarIntentosLogin, COOKIE_SECURE_FLAG, SESSION_TTL_MS, SESSION_TTL_MS_RECORDAR, PORT, ECOSYSTEM_PATH, crypto, mensajeService, ventaPreviaService, reporteService, searchProducts, agregarAlCarrito, mostrarCarrito, generarFolio, iniciarCapturaDireccion, SESION_S, sessionManagerBot, filtroPalabras, TABLAS_ACTUALIZABLES, actualizarCampos, construirAudienciaMasivo, registrarErrorDB, SECURITY_HEADERS, NotificarSchema, MasivoSchema, GuiaSchema, PreventaSchema, ModuloConfigSchema, PrimeConfigSchema, PagoConfirmadoSchema, CostoEnvioSchema, VentaPreviaSchema, NegocioSchema, ConfigContactoSchema, ConfigEmailBotSchema, PalabraFiltroSchema, InventarioMinimoSchema, SucursalSchema, SucursalUpdateSchema, ProductoSchema, ProductoUpdateSchema, CategoriaSchema, UsuarioSchema, UsuarioUpdateSchema,
     permisos, permite, autorizacion: require('./autorizacion'),
 };
 
@@ -748,6 +750,13 @@ server.listen(PORT, process.env.DASHBOARD_HOST || '127.0.0.1', () => {
     log.info(`🧸 Dashboard corriendo en http://localhost:${PORT}`);
     log.info('Abre esa URL en el navegador del servidor.');
 });
+
+// Bandeja de correo: sincroniza cada 5 min también desde el dashboard, para que
+// la bandeja se actualice aunque el bot (que también lo corre) no esté arriba.
+// Doble-gate + fail-closed dentro de syncSiActivo; INSERT OR IGNORE deduplica.
+const _correoInbox = require('../services/correoInbox');
+setInterval(() => _correoInbox.syncSiActivo(db, log), 5 * 60_000);
+setTimeout(() => _correoInbox.syncSiActivo(db, log), 15_000);
 
 // ── Regla anti-zombie (HS-502): el dash SIEMPRE arranca primero; si la BD
 // dice que el bot debía estar activo pero pm2 lo reporta caído/ausente

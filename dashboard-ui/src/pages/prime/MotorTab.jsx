@@ -1,77 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Text, Group, Badge, Button, Select, Modal, Menu, Drawer, TextInput, ActionIcon } from '@mantine/core';
-import { History, MessageCircle, RotateCcw, Send } from 'lucide-react';
+import { Card, Text, Group, Badge, Button, Select, Modal, Menu } from '@mantine/core';
+import { History, MessageCircle } from 'lucide-react';
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
 import { toastOk } from '../../lib/ui';
 import { fdate } from '../../lib/format';
-import MotorCanvas from './MotorCanvas';
-
-// Simulador de conversación (menor #2): chat de prueba contra el grafo activo,
-// SIN WhatsApp y SIN efectos (el backend nunca ejecuta acciones ni código base
-// — solo reporta qué haría). El estado paso/data vive aquí, no en sesiones.
-function SimuladorChat({ abierto, onClose }) {
-  const [msgs, setMsgs] = useState([]);        // { de: 'bot'|'yo'|'nota', texto }
-  const [texto, setTexto] = useState('');
-  const [paso, setPaso] = useState(null);
-  const finRef = useRef(null);
-
-  const empujar = (r) => {
-    setPaso(r.paso);
-    setMsgs(m => [
-      ...m,
-      ...(r.respuesta ? [{ de: 'bot', texto: r.respuesta }] : []),
-      ...(r.nota ? [{ de: 'nota', texto: r.nota }] : []),
-    ]);
-  };
-  const iniciar = async () => {
-    setMsgs([]); setPaso(null);
-    const r = await api.post('/api/prime/motor/simular', { inicio: true });
-    if (!r.ok) return handleApiError(new Error(r.error));
-    empujar(r);
-  };
-  useEffect(() => { if (abierto) iniciar(); }, [abierto]);           // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { finRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
-
-  const enviar = async () => {
-    const t = texto.trim();
-    if (!t || !paso) return;
-    setTexto('');
-    setMsgs(m => [...m, { de: 'yo', texto: t }]);
-    const r = await api.post('/api/prime/motor/simular', { paso, texto: t });
-    if (!r.ok) return handleApiError(new Error(r.error));
-    empujar(r);
-  };
-
-  return (
-    <Drawer opened={abierto} onClose={onClose} position="right" size="sm"
-      title={<Group gap={6}><MessageCircle size={16} /><Text fw={600} size="sm">Probar el flujo</Text>{paso && <Badge size="xs" variant="light">{paso}</Badge>}</Group>}>
-      <Text size="xs" c="dimmed" mb="sm">
-        Prueba tus piezas y cables sin WhatsApp. Nada se ejecuta de verdad: las piezas del
-        flujo base y las acciones solo se anuncian.
-      </Text>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 220, maxHeight: '55vh', overflowY: 'auto', marginBottom: 12 }}>
-        {msgs.map((m, i) => m.de === 'nota'
-          ? <Text key={i} size="xs" c="dimmed" fs="italic">ℹ {m.texto}</Text>
-          : (
-            <Card key={i} withBorder radius="md" p="xs" className="card"
-              style={{ alignSelf: m.de === 'yo' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{m.texto}</Text>
-            </Card>
-          ))}
-        <div ref={finRef} />
-      </div>
-      <Group gap="xs">
-        <TextInput style={{ flex: 1 }} size="xs" placeholder="Escribe como el cliente…"
-          value={texto} onChange={e => setTexto(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && enviar()} data-autofocus />
-        <ActionIcon variant="filled" onClick={enviar} title="Enviar"><Send size={14} /></ActionIcon>
-        <ActionIcon variant="default" onClick={iniciar} title="Reiniciar la conversación"><RotateCcw size={14} /></ActionIcon>
-      </Group>
-    </Drawer>
-  );
-}
+import MotorCanvas, { SimuladorChat } from './MotorCanvas';
 
 // Editor del motor de flujo (prime). Lienzo visual (MotorCanvas, React Flow) del
 // grafo ACTIVO + selector para SUSTITUIRLO por una plantilla congelada (con

@@ -523,7 +523,8 @@ function emailBotPut(req, res, ctx) {
             const datos = validar(JSON.parse(body || '{}'), ConfigEmailBotSchema, res, '/api/prime/config-email-bot');
             if (!datos) return;
             if (datos.bot_email_usuario !== undefined) db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('bot_email_usuario', ?, datetime('now','localtime'))").run(datos.bot_email_usuario || '');
-            if (datos.bot_email_password) db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('bot_email_password', ?, datetime('now','localtime'))").run(datos.bot_email_password);
+            // la clave de aplicación se cifra en reposo (entra a los respaldos)
+            if (datos.bot_email_password) db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, actualizado_en) VALUES ('bot_email_password', ?, datetime('now','localtime'))").run(require('../../services/secretos').cifrarSecreto(datos.bot_email_password));
             log.info('[prime] config-email-bot actualizada');
             return json(res, { ok: true });
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
@@ -577,8 +578,10 @@ const RUTAS = [
     { metodo: 'PUT',  path: '/api/prime/pago-url',                          roles: ['prime'], handler: pagoUrlPut },
     { metodo: 'GET',  path: '/api/prime/config-contacto',                   roles: ['prime'], handler: contactoGet },
     { metodo: 'PUT',  path: '/api/prime/config-contacto',                   roles: ['prime'], handler: contactoPut },
-    { metodo: 'GET',  path: '/api/prime/config-email-bot',                  roles: ['prime'], handler: emailBotGet },
-    { metodo: 'PUT',  path: '/api/prime/config-email-bot',                  roles: ['prime'], handler: emailBotPut },
+    // Correo de la tienda: administrativos (gerente+prime), NO cajero — cada
+    // gerente configura/usa su correo desde el propio módulo Correo.
+    { metodo: 'GET',  path: '/api/prime/config-email-bot',                  roles: ['gerente'], handler: emailBotGet },
+    { metodo: 'PUT',  path: '/api/prime/config-email-bot',                  roles: ['gerente'], handler: emailBotPut },
     { metodo: 'GET',  path: '/api/prime/palabras-filtro',                   roles: ['prime'], handler: palabrasFiltroGet },
 ];
 

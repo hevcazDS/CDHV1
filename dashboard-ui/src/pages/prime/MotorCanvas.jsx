@@ -4,15 +4,15 @@
 // escribe la palabra cita", "con cualquier respuesta") y se guardan internamente
 // como matchers (input '2' | 'kw:cita' | '*' | 'resultado:x'). Los nodos
 // BLOQUEADOS (flujo base) llevan candado; el servidor re-valida todo al guardar.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ReactFlow, Background, Controls, MiniMap, Handle, Position,
   useNodesState, useEdgesState, addEdge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Button, Group, Badge, TextInput, Text, Card, Modal, SegmentedControl, NumberInput, Collapse, Textarea, Anchor, Select } from '@mantine/core';
-import { Lock, Plus, Save } from 'lucide-react';
+import { Button, Group, Badge, TextInput, Text, Card, Modal, SegmentedControl, NumberInput, Collapse, Textarea, Anchor, Select, Checkbox, Drawer, ActionIcon } from '@mantine/core';
+import { Lock, Plus, Save, Undo2, Redo2, MessageCircle, RotateCcw, Send } from 'lucide-react';
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
 import { toastOk, toastErr } from '../../lib/ui';
@@ -30,18 +30,22 @@ export function humanizar(input) {
 // ── Nodo custom (tarjeta oscura, badges, candado) ────────────────────────────
 function PasoNode({ data, selected }) {
   const sellado = data.sellado;
+  // validación en vivo: rojo = huérfano (inalcanzable), ámbar = sin salida
+  const prob = data._problema;
+  const colorProb = prob === 'huérfano' ? 'var(--red)' : prob ? 'var(--yellow)' : null;
   return (
     <div style={{
       background: sellado ? '#2b2d31' : '#1f2937',
-      border: `1.5px solid ${selected ? '#7c6cf0' : sellado ? '#4b4d52' : '#374151'}`,
+      border: `1.5px solid ${colorProb || (selected ? '#7c6cf0' : sellado ? '#4b4d52' : '#374151')}`,
       borderRadius: 10, padding: '10px 12px', minWidth: 170, color: '#e5e7eb',
-      fontSize: 12, boxShadow: selected ? '0 0 0 2px rgba(124,108,240,.25)' : 'none',
+      fontSize: 12, boxShadow: colorProb ? `0 0 0 2px ${colorProb}` : selected ? '0 0 0 2px rgba(124,108,240,.25)' : 'none',
     }}>
       <Handle type="target" position={Position.Left} style={{ background: '#7c6cf0', width: 10, height: 10 }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
         <strong style={{ fontFamily: 'monospace', fontSize: 12 }}>{data.paso}</strong>
         {data.es_inicial ? <span title="aquí empieza la conversación">⭐</span> : null}
         {sellado && <Lock size={11} color="#9ca3af" title="parte del flujo base — no se puede borrar" />}
+        {prob && <span title={prob === 'huérfano' ? 'Ninguna pieza lleva aquí — el cliente nunca la verá' : 'No tiene ningún camino de salida — el cliente queda atorado'} style={{ marginLeft: 'auto', color: colorProb, fontSize: 11 }}>⚠</span>}
       </div>
       {data.descripcion && <div className="motor-nodo-desc">{data.descripcion}</div>}
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -57,6 +61,79 @@ function PasoNode({ data, selected }) {
 }
 const nodeTypes = { paso: PasoNode };
 
+// ── Simulador de conversación (menor #2): chat de prueba contra el grafo activo,
+// SIN WhatsApp y SIN efectos (el backend nunca ejecuta acciones ni código base
+// — solo reporta qué haría). El estado paso/data vive aquí, no en sesiones.
+// Vive en este archivo (y no en MotorTab) para poder abrirlo también desde la
+// barra del lienzo sin crear un ciclo de imports. `sinGuardar` avisa que el
+// simulador corre contra la última versión GUARDADA, no contra el lienzo.
+export function SimuladorChat({ abierto, onClose, sinGuardar }) {
+  const [msgs, setMsgs] = useState([]);        // { de: 'bot'|'yo'|'nota', texto }
+  const [texto, setTexto] = useState('');
+  const [paso, setPaso] = useState(null);
+  const finRef = useRef(null);
+
+  const empujar = (r) => {
+    setPaso(r.paso);
+    setMsgs(m => [
+      ...m,
+      ...(r.respuesta ? [{ de: 'bot', texto: r.respuesta }] : []),
+      ...(r.nota ? [{ de: 'nota', texto: r.nota }] : []),
+    ]);
+  };
+  const iniciar = async () => {
+    setMsgs([]); setPaso(null);
+    const r = await api.post('/api/prime/motor/simular', { inicio: true });
+    if (!r.ok) return handleApiError(new Error(r.error));
+    empujar(r);
+  };
+  useEffect(() => { if (abierto) iniciar(); }, [abierto]);           // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { finRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
+
+  const enviar = async () => {
+    const t = texto.trim();
+    if (!t || !paso) return;
+    setTexto('');
+    setMsgs(m => [...m, { de: 'yo', texto: t }]);
+    const r = await api.post('/api/prime/motor/simular', { paso, texto: t });
+    if (!r.ok) return handleApiError(new Error(r.error));
+    empujar(r);
+  };
+
+  return (
+    <Drawer opened={abierto} onClose={onClose} position="right" size="sm"
+      title={<Group gap={6}><MessageCircle size={16} /><Text fw={600} size="sm">Probar el flujo</Text>{paso && <Badge size="xs" variant="light">{paso}</Badge>}</Group>}>
+      {sinGuardar && (
+        <Text size="xs" c="orange" mb="xs">
+          ⚠ Tienes cambios sin guardar en el lienzo — el simulador prueba la última versión GUARDADA del flujo.
+        </Text>
+      )}
+      <Text size="xs" c="dimmed" mb="sm">
+        Prueba tus piezas y cables sin WhatsApp. Nada se ejecuta de verdad: las piezas del
+        flujo base y las acciones solo se anuncian.
+      </Text>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 220, maxHeight: '55vh', overflowY: 'auto', marginBottom: 12 }}>
+        {msgs.map((m, i) => m.de === 'nota'
+          ? <Text key={i} size="xs" c="dimmed" fs="italic">ℹ {m.texto}</Text>
+          : (
+            <Card key={i} withBorder radius="md" p="xs" className="card"
+              style={{ alignSelf: m.de === 'yo' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{m.texto}</Text>
+            </Card>
+          ))}
+        <div ref={finRef} />
+      </div>
+      <Group gap="xs">
+        <TextInput style={{ flex: 1 }} size="xs" placeholder="Escribe como el cliente…"
+          value={texto} onChange={e => setTexto(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && enviar()} data-autofocus />
+        <ActionIcon variant="filled" onClick={enviar} title="Enviar"><Send size={14} /></ActionIcon>
+        <ActionIcon variant="default" onClick={iniciar} title="Reiniciar la conversación"><RotateCcw size={14} /></ActionIcon>
+      </Group>
+    </Drawer>
+  );
+}
+
 // ponytail: rejilla fija de acomodo inicial; un layout por capas si algún grafo lo pide.
 const autoPos = (i) => ({ x: 60 + (i % 4) * 240, y: 60 + Math.floor(i / 4) * 150 });
 
@@ -64,12 +141,16 @@ const ESTILO_CABLE = { stroke: '#8b8f98', strokeWidth: 2 };
 const ESTILO_LABEL = { fontSize: 10, fill: '#c9cdd4' };
 
 // ── Modal "¿cuándo se toma este camino?" (crear/editar conexión) ─────────────
-function ModalCondicion({ abierto, inicial, accionInicial, acciones, onOk, onCancel }) {
+function ModalCondicion({ abierto, inicial, accionInicial, acciones, origen, onOk, onCancel }) {
   const [tipo, setTipo] = useState('opcion');
   const [valor, setValor] = useState('1');
   const [avanzado, setAvanzado] = useState('');
   const [verAvanzado, setVerAvanzado] = useState(false);
   const [accion, setAccion] = useState(null);
+
+  // salidas tipadas: si la pieza de ORIGEN ejecuta una acción con `salidas` en el
+  // catálogo, el modal las ofrece como opciones ("si el resultado es X").
+  const salidas = origen?.salidas || [];
 
   // sincronizar cuando se abre con un valor existente
   useEffect(() => {
@@ -77,18 +158,26 @@ function ModalCondicion({ abierto, inicial, accionInicial, acciones, onOk, onCan
     if (inp === '*') { setTipo('siempre'); setValor(''); }
     else if (/^\d+$/.test(inp)) { setTipo('opcion'); setValor(inp); }
     else if (inp.startsWith('kw:')) { setTipo('palabra'); setValor(inp.slice(3)); }
+    else if (inp.startsWith('resultado:') && (origen?.salidas || []).includes(inp.slice(10))) { setTipo('resultado'); setValor(inp.slice(10)); }
     else { setTipo('avanzado'); setAvanzado(inp); setVerAvanzado(true); }
     setAccion(accionInicial || null);
-  }, [abierto, inicial, accionInicial]);
+  }, [abierto, inicial, accionInicial]);           // eslint-disable-line react-hooks/exhaustive-deps
 
   const confirmar = () => {
     let input;
     if (tipo === 'siempre') input = '*';
     else if (tipo === 'opcion') { if (!/^\d+$/.test(String(valor))) return toastErr('Escribe el número de la opción (ej: 2)'); input = String(valor); }
     else if (tipo === 'palabra') { const v = String(valor).trim().toLowerCase(); if (!v) return toastErr('Escribe la palabra'); input = 'kw:' + v; }
+    else if (tipo === 'resultado') { if (!valor) return toastErr('Elige el resultado'); input = 'resultado:' + valor; }
     else { const v = String(avanzado).trim(); if (!v) return toastErr('Escribe la condición avanzada'); input = v; }
     onOk(input, accion);
   };
+
+  // aviso (no bloquea — el servidor decide): un resultado: escrito a mano que la
+  // acción de origen no produce nunca va a coincidir en vivo.
+  const avz = String(avanzado).trim();
+  const resultadoDesconocido = tipo === 'avanzado' && avz.startsWith('resultado:')
+    && salidas.length > 0 && !salidas.includes(avz.slice(10));
 
   return (
     <Modal opened={abierto} onClose={onCancel} title="¿Cuándo sigue la conversación por este camino?" size="md" centered>
@@ -96,6 +185,7 @@ function ModalCondicion({ abierto, inicial, accionInicial, acciones, onOk, onCan
         { value: 'opcion', label: 'Elige una opción' },
         { value: 'palabra', label: 'Escribe una palabra' },
         { value: 'siempre', label: 'Siempre' },
+        ...(salidas.length ? [{ value: 'resultado', label: 'Según el resultado' }] : []),
       ]} />
       {tipo === 'opcion' && (
         <NumberInput label="¿Qué número de opción?" description='Cuando el cliente responde con este número (ej: el "2" del menú)' min={0} max={99}
@@ -107,6 +197,13 @@ function ModalCondicion({ abierto, inicial, accionInicial, acciones, onOk, onCan
       )}
       {tipo === 'siempre' && (
         <Text size="sm" c="dimmed">Con cualquier respuesta del cliente se sigue por este camino. Útil como camino "por defecto".</Text>
+      )}
+      {tipo === 'resultado' && (
+        <Select label="¿Con qué resultado de la acción?"
+          description={`La pieza de origen ejecuta "${origen?.accion}" — este camino se toma según cómo salió`}
+          value={salidas.includes(valor) ? valor : null} onChange={v => setValor(v || '')}
+          placeholder="Elige el resultado"
+          data={salidas.map(s => ({ value: s, label: 'si el resultado es "' + s + '"' }))} />
       )}
       {!!(acciones || []).length && (
         <Select mt="md" size="xs" label="¿Y hacer algo en el camino? (opcional)" clearable searchable
@@ -121,6 +218,11 @@ function ModalCondicion({ abierto, inicial, accionInicial, acciones, onOk, onCan
       <Collapse in={verAvanzado}>
         <TextInput size="xs" mt={6} label="Condición técnica (opcional)" description="Para usuarios avanzados: regex:…, resultado:…"
           value={tipo === 'avanzado' ? avanzado : ''} onChange={e => { setTipo('avanzado'); setAvanzado(e.target.value); }} placeholder="regex:^\d{5}$" />
+        {resultadoDesconocido && (
+          <Text size="xs" c="orange" mt={4}>
+            ⚠ La acción "{origen?.accion}" no produce el resultado "{avz.slice(10)}" (produce: {salidas.join(', ')}). Este camino nunca coincidiría.
+          </Text>
+        )}
       </Collapse>
       <Group justify="flex-end" mt="lg">
         <Button variant="default" onClick={onCancel}>Cancelar</Button>
@@ -163,14 +265,88 @@ export default function MotorCanvas({ data }) {
   const [modal, setModal] = useState(null);        // { modo:'conectar', con } | { modo:'editar', edgeId, input }
   const [modalNodo, setModalNodo] = useState(false);
   const [nombreNodo, setNombreNodo] = useState('');
+  const [probar, setProbar] = useState(false);     // simulador de chat desde el lienzo
 
-  const marcar = (fn) => (...args) => { setDirty(true); return fn(...args); };
+  // ── Undo/Redo: snapshots JSON de nodes+edges en cada cambio ESTRUCTURAL
+  // (agregar/borrar pieza, conectar/editar/borrar cable, mover al soltar) —
+  // no en cada pixel de arrastre. Límite 50; refs para no cerrar sobre estado viejo.
+  const nodesRef = useRef(nodes); nodesRef.current = nodes;
+  const edgesRef = useRef(edges); edgesRef.current = edges;
+  const hist = useRef({ past: [], future: [], t: 0 });
+  const [histLen, setHistLen] = useState({ p: 0, f: 0 });   // solo para habilitar los botones
+  const snapshot = useCallback(() => {
+    const h = hist.current;
+    // borrar una pieza dispara remove de nodo Y de sus cables en el mismo evento:
+    // coalescer para que un Ctrl+Z restaure todo de golpe
+    const now = Date.now();
+    if (now - h.t < 150) return;
+    h.t = now;
+    h.past.push(JSON.stringify({ nodes: nodesRef.current, edges: edgesRef.current }));
+    if (h.past.length > 50) h.past.shift();
+    h.future = [];
+    setHistLen({ p: h.past.length, f: 0 });
+  }, []);
+  const undo = useCallback(() => {
+    const h = hist.current;
+    if (!h.past.length) return;
+    h.future.push(JSON.stringify({ nodes: nodesRef.current, edges: edgesRef.current }));
+    const s = JSON.parse(h.past.pop());
+    setNodes(s.nodes); setEdges(s.edges); setDirty(true); setSel(null);
+    h.t = 0;
+    setHistLen({ p: h.past.length, f: h.future.length });
+  }, [setNodes, setEdges]);
+  const redo = useCallback(() => {
+    const h = hist.current;
+    if (!h.future.length) return;
+    h.past.push(JSON.stringify({ nodes: nodesRef.current, edges: edgesRef.current }));
+    const s = JSON.parse(h.future.pop());
+    setNodes(s.nodes); setEdges(s.edges); setDirty(true); setSel(null);
+    h.t = 0;
+    setHistLen({ p: h.past.length, f: h.future.length });
+  }, [setNodes, setEdges]);
+  // Atajos Ctrl+Z / Ctrl+Y (y Ctrl+Shift+Z) — ignorados al escribir en un campo.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo, redo]);
+
+  // Cambios de React Flow: marcan dirty siempre; snapshotean solo los 'remove'
+  // (el movimiento se snapshotea en onNodeDragStart = estado ANTES de mover).
+  const onNodesChangeH = useCallback((changes) => {
+    if (changes.some(c => c.type === 'remove')) snapshot();
+    setDirty(true);
+    onNodesChange(changes);
+  }, [onNodesChange, snapshot]);
+  const onEdgesChangeH = useCallback((changes) => {
+    if (changes.some(c => c.type === 'remove')) snapshot();
+    setDirty(true);
+    onEdgesChange(changes);
+  }, [onEdgesChange, snapshot]);
 
   // Conectar: guardar la conexión pendiente y abrir el modal en lenguaje llano.
   const onConnect = useCallback((con) => setModal({ modo: 'conectar', con, input: '*' }), []);
   const onEdgeDoubleClick = useCallback((_, edge) => setModal({ modo: 'editar', edgeId: edge.id, input: edge.data?.input || '*', accion: edge.data?.accion || null }), []);
 
+  // Salidas tipadas: qué acción ejecuta la pieza de ORIGEN del cable del modal
+  // (para ofrecer sus `salidas` del catálogo como condiciones "resultado:x").
+  const origenModal = useMemo(() => {
+    if (!modal) return null;
+    const srcId = modal.modo === 'conectar' ? modal.con?.source : edges.find(e => e.id === modal.edgeId)?.source;
+    const idAccion = nodes.find(n => n.id === srcId)?.data?.accion_entrada;
+    const meta = idAccion ? acciones.find(a => a.id === idAccion) : null;
+    return (meta && (meta.salidas || []).length) ? { accion: idAccion, salidas: meta.salidas } : null;
+  }, [modal, nodes, edges, acciones]);
+
   const confirmarCondicion = (input, accion) => {
+    snapshot();
     setDirty(true);
     const etiqueta = humanizar(input) + (accion ? ' ⚙' : '');
     if (modal.modo === 'conectar') {
@@ -194,6 +370,7 @@ export default function MotorCanvas({ data }) {
     const limpio = nombreNodo.trim().toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
     if (!limpio) return toastErr('Escribe un nombre para el paso');
     if (nodes.some(n => n.id === limpio)) return toastErr('Ya existe un paso con ese nombre');
+    snapshot();
     setDirty(true);
     setNodes(ns => [...ns, {
       id: limpio, type: 'paso', position: { x: 120, y: 120 }, deletable: true,
@@ -248,22 +425,59 @@ export default function MotorCanvas({ data }) {
   const nodoSel = nodes.find(n => n.id === sel);
   const [verJson, setVerJson] = useState(false);
 
+  // Validación EN VIVO (subconjunto del linter del servidor, sobre el lienzo):
+  // huérfano = inalcanzable por BFS desde el inicial; sin salida = pieza propia
+  // sin cable de salida. El servidor RE-VALIDA todo al guardar; esto solo adelanta
+  // el aviso pintando la pieza (las selladas/delegadas enrutan por código, se eximen).
+  const problemas = useMemo(() => {
+    const ids = new Set(nodes.map(n => n.id));
+    const inicialId = nodes.find(n => n.data?.es_inicial)?.id;
+    const salientes = new Map();
+    for (const e of edges) { if (!salientes.has(e.source)) salientes.set(e.source, []); salientes.get(e.source).push(e.target); }
+    const alcanzables = new Set(inicialId ? [inicialId] : []);
+    const cola = inicialId ? [inicialId] : [];
+    while (cola.length) { const p = cola.shift(); for (const t of (salientes.get(p) || [])) if (ids.has(t) && !alcanzables.has(t)) { alcanzables.add(t); cola.push(t); } }
+    const map = new Map();
+    for (const n of nodes) {
+      if (n.data?.sellado) continue;   // el flujo base enruta por código, no por topología
+      if (inicialId && !alcanzables.has(n.id)) map.set(n.id, 'huérfano');
+      // pieza final legítima (despedida): params.terminal exime el aviso "sin salida"
+      else if (!(salientes.get(n.id) || []).length && !n.data?.params?.terminal) map.set(n.id, 'sin salida');
+    }
+    return { map, sinInicial: !inicialId };
+  }, [nodes, edges]);
+  const nodesRender = useMemo(
+    () => nodes.map(n => problemas.map.has(n.id) ? { ...n, data: { ...n.data, _problema: problemas.map.get(n.id) } } : n),
+    [nodes, problemas]
+  );
+
   return (
     <div>
       <Group justify="space-between" mb="xs">
         <Group gap="xs">
           <Button size="xs" variant="default" leftSection={<Plus size={14} />} onClick={() => setModalNodo(true)}>Agregar paso</Button>
+          <ActionIcon variant="default" size="input-xs" disabled={!histLen.p} onClick={undo} title="Deshacer (Ctrl+Z)"><Undo2 size={14} /></ActionIcon>
+          <ActionIcon variant="default" size="input-xs" disabled={!histLen.f} onClick={redo} title="Rehacer (Ctrl+Y)"><Redo2 size={14} /></ActionIcon>
           <Text size="xs" c="dimmed">Arrastra de un punto verde a uno morado para conectar · doble clic en un cable cambia su condición</Text>
         </Group>
-        <Button size="xs" leftSection={<Save size={14} />} disabled={!dirty} loading={guardar.isPending}
-          onClick={() => guardar.mutate()}>Guardar flujo</Button>
+        <Group gap="xs">
+          {problemas.sinInicial && <Text size="xs" c="red">⚠ Falta marcar la pieza inicial</Text>}
+          {problemas.map.size > 0 && <Text size="xs" c="orange">⚠ {problemas.map.size} pieza(s) con aviso</Text>}
+          <Button size="xs" variant="default" leftSection={<MessageCircle size={14} />} onClick={() => setProbar(true)}
+            title={dirty ? 'Hay cambios sin guardar — el simulador usa la última versión guardada' : 'Probar el flujo en un chat simulado'}>
+            ▶ Probar
+          </Button>
+          <Button size="xs" leftSection={<Save size={14} />} disabled={!dirty} loading={guardar.isPending}
+            onClick={() => guardar.mutate()}>Guardar flujo</Button>
+        </Group>
       </Group>
 
       <div style={{ display: 'grid', gridTemplateColumns: nodoSel ? '1fr 260px' : '1fr', gap: 12 }}>
         <div style={{ height: 560, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', background: '#111318' }}>
           <ReactFlow
-            nodes={nodes} edges={edges} nodeTypes={nodeTypes}
-            onNodesChange={marcar(onNodesChange)} onEdgesChange={marcar(onEdgesChange)}
+            nodes={nodesRender} edges={edges} nodeTypes={nodeTypes}
+            onNodesChange={onNodesChangeH} onEdgesChange={onEdgesChangeH}
+            onNodeDragStart={snapshot}
             onConnect={onConnect} onEdgeDoubleClick={onEdgeDoubleClick}
             onBeforeDelete={onBeforeDelete}
             onSelectionChange={({ nodes: sn }) => setSel(sn?.[0]?.id || null)}
@@ -301,6 +515,13 @@ export default function MotorCanvas({ data }) {
             )}
 
             {!nodoSel.data.sellado && (
+              <Checkbox size="xs" mb="xs" label="Es una pieza final (la conversación termina aquí)"
+                description="No se marca con aviso por no tener cables de salida (ej. una despedida)"
+                checked={!!nodoSel.data.params?.terminal}
+                onChange={e => actualizarSel('params', { ...(nodoSel.data.params || {}), terminal: e.currentTarget.checked || undefined })} />
+            )}
+
+            {!nodoSel.data.sellado && (
               <Select label="Al llegar aquí, hacer…" size="xs" mb="xs" clearable searchable
                 description="Acción que el bot ejecuta cuando el cliente entra a esta pieza (opcional)"
                 placeholder="Nada — solo mostrar el texto"
@@ -335,7 +556,9 @@ export default function MotorCanvas({ data }) {
         )}
       </div>
 
-      <ModalCondicion abierto={!!modal} inicial={modal?.input} accionInicial={modal?.accion} acciones={acciones} onOk={confirmarCondicion} onCancel={() => setModal(null)} />
+      <ModalCondicion abierto={!!modal} inicial={modal?.input} accionInicial={modal?.accion} acciones={acciones} origen={origenModal} onOk={confirmarCondicion} onCancel={() => setModal(null)} />
+
+      <SimuladorChat abierto={probar} onClose={() => setProbar(false)} sinGuardar={dirty} />
 
       <Modal opened={modalNodo} onClose={() => setModalNodo(false)} title="Agregar un paso al flujo" centered size="sm">
         <TextInput label="Nombre del paso" description="Un nombre corto que lo identifique (ej: PROMOCION, AVISO_ENVIO)"

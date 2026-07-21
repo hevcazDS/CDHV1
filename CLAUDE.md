@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> ## ⚠️ Estado actual (2026-07) — este doc está parcialmente desactualizado
+>
+> Un comité de auditoría (4 agentes) confirmó que el resto de este archivo describe un estado ~65 migraciones atrás. **La documentación fiel y al día vive en `docs/`** (`docs/README.md` es el índice: ARQUITECTURA, MODULOS, CONTABILIDAD, BASE_DE_DATOS, API, BOT, FRONTEND, OPERACION, DESPLIEGUE). Ante cualquier duda, el **código y las migraciones mandan**, no este archivo. Correcciones clave a lo que se lee abajo:
+>
+> 1. **Roles: son ~9, no 3.** Además de `usuario`/`gerente`/`prime` (rango jerárquico) hay especialistas de área: `cajero`(pos), `almacen`, `compras`, `rh`(rrhh), `contabilidad`(finanzas), `auditor`(solo-lectura global). El gate es por **rango Y por área** (`permite(rol, area)` en `dashboard/permisos.js`), no solo rango.
+> 2. **Ya hay un ERP contable real** (no existía cuando se escribió "Bloque 2B"): motor de **partida doble** con libros inmutables por trigger (`services/contabilidadService.js`), **CFDI 4.0 timbrado real** vía PAC (Facturapi, `services/pacProviders.js` — ya no "andamiaje inerte"), **DIOT**, **contabilidad electrónica SAT**, **nómina LFT**, conciliación bancaria, costeo promedio, activos fijos (con terrenos no-depreciables y revaluación). `contabilidad_activo` arranca **ON**.
+> 3. **Ruteo: ~336 rutas en ~30 módulos** vía el tronco declarativo `dashboard/routes/_construirModulo.js` (gate explícito por ruta: `roles`/`area`/`pin`), **no** los "40+ `if (p===...)`" de un solo `handleAPI`. El índice canónico se auto-genera (`scripts/rutas/`).
+> 4. **Dominios/módulos nuevos** no descritos abajo: **motor de flujo visual** (React Flow, `bot/flows/motor/`, tablas `flujo_*`), **CRM** con pipeline/segmentos/campañas, **almacén** con kardex, **mesas/cocina**, **citas**, **fiados** (CxC), **suscripciones**, **correo** (SMTP+IMAP), **RRHH/nómina**.
+> 5. **Esquema: 85 migraciones** (`0001`–`0085`), ~70+ tablas; la UI usa **Mantine** + React/Vite con ~40 páginas (no las "20 secciones" del `dashboard.html` legado, ya borrado).
+>
+> Todo lo demás abajo sigue siendo útil como historia y para los principios (chokepoint de dinero, golden/paridad byte-idéntico de JC, migraciones versionadas + espejo en `db/schema.sql`, módulos toggleables).
+
 ## Project
 
 WhatsApp bot + admin dashboard. Originally built for **Julio Cepeda Jugueterías** (Mexican toys), now a **business-agnostic white-label base** (Bloque 1): any vertical (retail, restaurante, abarrotes, carnicería, ferretería, servicios, barbería, etc.) is configured via an onboarding wizard + giro presets — see "Multi-negocio" below. Julio Cepeda is just **instance #1**; new clients are separate cloned instances (own folder, own SQLite, own WhatsApp number). The provider/integrator is **Hevcaz Solutions** (surfaced as the in-dashboard support widget, not the client business name). The bot and the dashboard *backend* are plain Node.js, no web framework — `whatsapp-web.js` for the bot, native `http` for the dashboard API, `better-sqlite3` for storage. The dashboard *frontend* is a separate React + Vite SPA (`dashboard-ui/`), built to a static bundle and served by that same native `http` server — there is still no Express/Next/etc. on the backend, the framework is scoped to the UI layer only.

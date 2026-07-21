@@ -15,6 +15,7 @@ const CATEGORIAS = [
   { value: 'vehiculos', label: '🚚 Vehículos' },
   { value: 'maquinaria', label: '⚙️ Maquinaria' },
   { value: 'inmuebles', label: '🏢 Inmuebles' },
+  { value: 'terrenos', label: '🏞️ Terrenos (no se deprecian)' },
 ];
 const CAT_LABEL = Object.fromEntries(CATEGORIAS.map(c => [c.value, c.label]));
 
@@ -42,6 +43,19 @@ export default function ActivosFijosTab() {
     if (!(await confirmar(`¿Dar de baja "${a.nombre}"? Se sacará de libros (valor en libros ${money(a.valor_en_libros)}).`))) return;
     const motivo = await prompt('Motivo de la baja (opcional):', '');
     baja.mutate({ id: a.id, motivo: motivo || '' });
+  };
+  const revaluar = useMutation({
+    mutationFn: ({ id, nuevo_valor }) => api.post(`/api/erp/activos/${id}/revaluar`, { nuevo_valor }),
+    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); qc.invalidateQueries({ queryKey: ['activos-fijos'] }); },
+    onError: handleApiError,
+  });
+  const hacerRevaluar = async (a) => {
+    // Revaluación SOLO al alza (plusvalía de inmuebles/terrenos). El backend
+    // valida que el nuevo valor supere el valor en libros.
+    const val = await prompt(`Nuevo valor de "${a.nombre}" (valor en libros actual: ${money(a.valor_en_libros)}). Solo al alza:`, String(a.valor_en_libros || ''));
+    const n = Number(val);
+    if (!(n > 0)) return;
+    revaluar.mutate({ id: a.id, nuevo_valor: n });
   };
 
   return (
@@ -78,14 +92,20 @@ export default function ActivosFijosTab() {
                   <td><Badge variant="light" size="sm">{CAT_LABEL[a.categoria] || a.categoria}</Badge></td>
                   <td style={{ textAlign: 'right' }}>{money(a.costo)}</td>
                   <td style={{ textAlign: 'right' }}>{money(a.depreciacion_acumulada)}</td>
-                  <td style={{ textAlign: 'right' }}><b>{money(a.valor_en_libros)}</b></td>
-                  <td style={{ textAlign: 'right' }}><Button size="compact-xs" variant="subtle" color="red" onClick={() => darBaja(a)}>Baja</Button></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <b>{money(a.valor_en_libros)}</b>
+                    {a.revaluacion_acumulada > 0 && <Text span size="xs" c="dimmed"> (revaluado +{money(a.revaluacion_acumulada)})</Text>}
+                  </td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <Button size="compact-xs" variant="subtle" onClick={() => hacerRevaluar(a)}>Revaluar</Button>
+                    <Button size="compact-xs" variant="subtle" color="red" onClick={() => darBaja(a)}>Baja</Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </Table>
         )}
-        <Text size="xs" c="dimmed" mt="xs">La depreciación mensual es lineal: (costo − valor residual) ÷ vida útil. Corre "Depreciar este mes" una vez por mes (es idempotente).</Text>
+        <Text size="xs" c="dimmed" mt="xs">La depreciación mensual es lineal: (costo − valor residual) ÷ vida útil, y ya corre sola cada mes (idempotente). Los <b>terrenos no se deprecian</b>. Usa <b>Revaluar</b> para reconocer plusvalía al alza de inmuebles/terrenos (superávit por revaluación, no afecta resultados).</Text>
       </Card>
     </Stack>
   );

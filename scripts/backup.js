@@ -35,10 +35,10 @@ const IMG_DIR   = path.join(__dirname, 'imagenes_clientes');
 const SMTP_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
 const SMTP_PORT = parseInt(process.env.EMAIL_PORT || '587');
 
-// bot_email_usuario/password y el correo destino de backups se leen de la
-// tabla `configuracion` (prime los puede cambiar desde el dashboard, Prime >
-// General) en cada corrida -- no una sola vez al cargar el script. Si nunca
-// se han escrito esas claves cae a las env vars de siempre.
+// Los RESPALDOS usan SIEMPRE la cuenta de correo del .env (EMAIL_USER/PASS) --
+// es la cuenta de operaciones/proveedor, independiente del correo que cada
+// tienda configura para sí en la BD (bot_email_*, Prime > General). Así el
+// respaldo no depende de que la tienda haya configurado su buzón.
 function _cfg(clave, fallback) {
     try {
         const db = require('../bot/db_connection');
@@ -47,10 +47,10 @@ function _cfg(clave, fallback) {
     } catch (_) { return fallback; }
 }
 
-const SMTP_USER = _cfg('bot_email_usuario', process.env.EMAIL_USER || '');
-const SMTP_PASS = _cfg('bot_email_password', process.env.EMAIL_PASS || '');
+const SMTP_USER = process.env.EMAIL_USER || '';
+const SMTP_PASS = process.env.EMAIL_PASS || '';
 
-// DESTINO: por default el mismo correo del bot (SMTP_USER). Sobreescribible
+// DESTINO: por default la misma cuenta de respaldos (SMTP_USER). Sobreescribible
 // desde Prime > General (email_backup_destino, admite varios separados por
 // coma) o, si nunca se configuró ahí, con BACKUP_DEST en .env.
 const DEST_MAIL = _cfg('email_backup_destino', process.env.BACKUP_DEST || SMTP_USER || '');
@@ -58,7 +58,10 @@ const FROM_MAIL = 'Backup Julio Cepeda <' + SMTP_USER + '>';
 const MAX_IMG_BYTES = 15 * 1024 * 1024; // 15MB maximo por correo de imagenes
 
 // ── Registro de imagenes ya enviadas ──────────────────────────────
-const REGISTRO_PATH = path.join(__dirname, '.backup_registro.json');
+// BACKUP_REGISTRO_PATH (Docker): al volumen /data — dentro de la imagen se
+// pierde en cada redeploy (re-enviaría todas las imágenes y perdería la fecha
+// del último backup que vigila checkBackupReciente).
+const REGISTRO_PATH = process.env.BACKUP_REGISTRO_PATH || path.join(__dirname, '.backup_registro.json');
 
 function cargarRegistro() {
     try {
@@ -85,7 +88,7 @@ function cifrarSiAplica(buf) {
         let key = null;
         if (modo === 'bajo') {
             const wrapped = db.prepare("SELECT valor FROM configuracion WHERE clave='backup_key_wrapped'").get()?.valor;
-            const secreto = fs.readFileSync(path.join(__dirname, '..', 'dashboard', '.instancia_secret'), 'utf8').trim();
+            const secreto = fs.readFileSync(process.env.INSTANCIA_SECRET_PATH || path.join(__dirname, '..', 'dashboard', '.instancia_secret'), 'utf8').trim();
             if (wrapped) key = cb.desenvolverConSecreto(wrapped, secreto);
         } else if (modo === 'alto') {
             if (process.env.BACKUP_KEY_HEX) key = Buffer.from(process.env.BACKUP_KEY_HEX, 'hex');
@@ -124,6 +127,24 @@ function comprimirArchivo(srcPath) {
     return new Promise((resolve, reject) => {
         zlib.gzip(fs.readFileSync(srcPath), (err, buf) => err ? reject(err) : resolve(buf));
     });
+}
+
+// ── Snapshot CONSISTENTE de una BD en WAL + gzip (comité #12) ──────
+// readFileSync sobre una BD viva en WAL puede capturar el archivo principal sin
+// las transacciones que aún viven en el -wal → respaldo potencialmente corrupto
+// o incompleto. La API .backup() de SQLite produce un snapshot transaccional.
+async function comprimirDbConsistente(ruta) {
+    const Database = require('better-sqlite3');
+    const tmp = path.join(require('os').tmpdir(), 'bk_' + process.pid + '_' + Date.now() + '.db');
+    const db = new Database(ruta, { readonly: true });
+    try {
+        await db.backup(tmp);
+    } finally { try { db.close(); } catch (_) {} }
+    try {
+        return await comprimirArchivo(tmp);
+    } finally {
+        for (const s of ['', '-wal', '-shm']) { try { fs.rmSync(tmp + s, { force: true }); } catch (_) {} }
+    }
 }
 
 // ── Comprimir solo imagenes NUEVAS ────────────────────────────────
@@ -167,7 +188,7 @@ async function comprimirImagenesNuevas() {
 // ── Enviar email con adjuntos via SMTP STARTTLS ────────────────────
 function enviarBackup(adjuntos, asunto) {
     if (!SMTP_USER || !SMTP_PASS) {
-        console.error('[backup] Sin credenciales SMTP — configura bot_email_usuario/password en Prime > General o EMAIL_USER/EMAIL_PASS en .env');
+        console.error('[backup] Sin credenciales SMTP — configura EMAIL_USER/EMAIL_PASS en .env (cuenta de respaldos, independiente del correo de la tienda)');
         return Promise.resolve(false);
     }
     if (!DEST_MAIL) {
@@ -283,7 +304,20 @@ async function runBackupDB() {
     try {
         const adjuntos = [];
         for (const [ruta, etiqueta] of bases) {
-            const _gz = await comprimirArchivo(ruta);
+            const _gz = await comprimirDbConsistente(ruta);
+            // VERIFICACIÓN DE RESTAURACIÓN (comité #12): probar que el artefacto
+            // que vamos a enviar realmente restaura (integrity + tablas críticas
+            // + mayor cuadra) ANTES de darlo por bueno. Un respaldo no verificado
+            // no es un respaldo.
+            const verif = require('./verificarRespaldo').verificarBufferGz(_gz);
+            if (!verif.ok) {
+                console.error('[backup] ' + etiqueta + ': respaldo NO restaurable — ' + verif.error);
+                const registro = cargarRegistro();
+                registro.ultimo_backup_db = new Date().toISOString();
+                registro.ultimo_backup_db_ok = false;
+                guardarRegistro(registro);
+                return false;   // checkBackupReciente alertará; mejor no enviar basura
+            }
             const cif = cifrarSiAplica(_gz);
             if (cif.omitir) {
                 // Fail-closed: no mandamos NINGUNA BD en claro. Registramos el fallo

@@ -81,5 +81,19 @@ t('agregar un nodo de conversación nuevo con arista válida → OK', () => {
     assert.strictEqual(g.aristas.MENU[0].destino, 'PROMO_X');
 });
 
-console.log('\n' + ok + '/5 OK — editor visual: guardado versionado + candados §D.');
+t('pieza final (params.terminal): sin salida NO avisa; sin el flag SÍ avisa', () => {
+    const conFin = [...nodosBase,
+        { paso: 'DESPEDIDA', tipo: 'conversacion', frase_clave: 'motor_despedida', params: { terminal: true }, es_inicial: false, pos_x: 1, pos_y: 1 },
+        { paso: 'ATORADA', tipo: 'conversacion', frase_clave: 'motor_atorada', params: {}, es_inicial: false, pos_x: 1, pos_y: 1 }];
+    const r = llamar({ nodos: conFin, aristas: [
+        { paso: 'MENU', input: 'kw:adios', destino: 'DESPEDIDA' },
+        { paso: 'MENU', input: 'kw:otra', destino: 'ATORADA' },
+    ] });
+    assert.strictEqual(r.out.ok, true, JSON.stringify(r.out));
+    const warns = r.out.warns || [];
+    assert(!warns.some(w => /DESPEDIDA/.test(w)), 'la pieza terminal no debe generar aviso de sin-salida');
+    assert(warns.some(w => /ATORADA/.test(w)), 'la pieza sin flag sí debe generar el aviso');
+});
+
+console.log('\n' + ok + '/6 OK — editor visual: guardado versionado + candados §D + pieza final.');
 try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}

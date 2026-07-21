@@ -118,6 +118,9 @@ function asientoCobroCredito(idPedido, monto, metodoPago, fecha = null) {
 // Costo de lo vendido: cargo Costo de ventas, abono Inventario (costo promedio)
 function asientoCostoVenta(idPedido, fecha = null) {
     if (!activo()) return null;
+    // Idempotente por sí mismo (igual que asientoVenta): sin esto, dependía de
+    // que nadie lo llamara dos veces; el barrido de huérfanos ahora lo re-invoca.
+    if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='costo_venta' AND referencia_id=? LIMIT 1").get(String(idPedido))) return null;
     // Usa el costo CONGELADO al pedido (d.costo_unitario, migración 0061); si es
     // NULL (fila vieja) cae al costo actual del producto — comportamiento previo.
     const row = db.prepare(`
@@ -165,13 +168,52 @@ function asientoGasto(concepto, total, metodo, conIva, opts = {}) {
     return registrarAsiento({ concepto: 'Gasto: ' + concepto, referencia_tipo: 'gasto', referencia_id: null, partidas, fecha: opts.fecha || null, override: !!opts.override, sucursal: opts.sucursal || null });
 }
 
+// Reembolso de dinero al cliente por una devolución (solo si hubo reembolso, no
+// en un cambio de mercancía). Reversa el ingreso: cargo 401 Ventas (menos IVA
+// trasladado en 209) y sale el dinero por Caja/Bancos. Idempotente POR
+// DEVOLUCIÓN (una misma devolución no reembolsa dos veces; devoluciones
+// parciales distintas del mismo pedido sí generan su propio asiento). Comité S2.
+function asientoReembolso(idDevolucion, idPedido, monto, metodoPago) {
+    if (!activo() || !(monto > 0)) return null;
+    if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='reembolso' AND referencia_id=? LIMIT 1").get(String(idDevolucion))) return null;
+    const iva = parseFloat(getValor('iva_pct', '0')) || 0;
+    const base = iva > 0 ? _r2(monto / (1 + iva / 100)) : _r2(monto);
+    const partidas = [{ cuenta: '401', debe: base }];
+    // Re-auditoría H4: un FIADO devuelto que NUNCA se cobró no puede sacar dinero
+    // de caja (nunca entró) — se cancela la cuenta por cobrar (105) y el IVA que
+    // quedó en 208 (no cobrado). Solo si ya se cobró (o fue contado) sale de
+    // caja/bancos con IVA en 209.
+    const ref = String(idPedido);
+    const fueCredito = !!db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='venta_credito' AND referencia_id=? LIMIT 1").get(ref);
+    const fueCobrado = !fueCredito || !!db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='cobro_credito' AND referencia_id=? LIMIT 1").get(ref);
+    if (fueCredito && !fueCobrado) {
+        if (iva > 0) partidas.push({ cuenta: '208', debe: _r2(monto - base) });
+        partidas.push({ cuenta: '105', haber: monto });   // el cliente ya no debe
+    } else {
+        if (iva > 0) partidas.push({ cuenta: '209', debe: _r2(monto - base) });
+        partidas.push({ cuenta: _cuentaCobro(metodoPago), haber: monto });
+    }
+    return registrarAsiento({
+        concepto: 'Reembolso devolución ' + idDevolucion + ' (pedido ' + idPedido + ')',
+        referencia_tipo: 'reembolso', referencia_id: idDevolucion, partidas, sucursal: _sucursalDePedido(idPedido),
+    });
+}
+
 // Devolución de mercancía: la pieza vuelve al inventario a su costo promedio
-// (cargo Inventario, abono Costo de ventas). El reembolso de dinero al
-// cliente no está modelado como flujo todavía → se registra con asiento
-// manual si aplica.
+// (cargo Inventario, abono Costo de ventas). El reembolso de DINERO, cuando lo
+// hay, lo asienta asientoReembolso aparte (un cambio de mercancía no mueve caja).
 function asientoDevolucion(idPedido, idProducto, cantidad) {
     if (!activo() || !(cantidad > 0)) return null;
-    const costo = _r2((db.prepare('SELECT COALESCE(costo,0) c FROM productos WHERE id=?').get(idProducto)?.c || 0) * cantidad);
+    // Re-auditoría H5: usar el costo CONGELADO al pedido (d.costo_unitario, mig
+    // 0061) — el MISMO que usó asientoCostoVenta — para que la devolución netee
+    // exacto contra el COGS de la venta aunque el costo del producto haya cambiado.
+    const unit = db.prepare(`
+        SELECT COALESCE(d.costo_unitario, p.costo, 0) c
+        FROM pedido_detalle d JOIN productos p ON p.id = d.id_producto
+        WHERE d.id_pedido = ? AND d.id_producto = ? LIMIT 1
+    `).get(idPedido, idProducto)?.c
+        ?? (db.prepare('SELECT COALESCE(costo,0) c FROM productos WHERE id=?').get(idProducto)?.c || 0);
+    const costo = _r2(unit * cantidad);
     if (!(costo > 0)) return null;
     return registrarAsiento({
         concepto: 'Devolución pedido ' + idPedido, referencia_tipo: 'devolucion', referencia_id: idPedido,
@@ -238,7 +280,145 @@ function libroMayor(desde, hasta, sucursal = null) {
     `).all(desde, hasta, sucursal || '', sucursal || '');
 }
 
+// BARRIDO DE ASIENTOS HUÉRFANOS (comité: Finanzas S1/S3 + Arquitectura R2).
+// Los asientos de marcar-pagado corren FUERA de la transacción de cobro; si el
+// proceso muere entre el commit del pago y el asiento, queda venta cobrada sin
+// asiento y la idempotencia 409 impide reintentar el chokepoint. Este barrido
+// idempotente detecta pagos RECIENTES sin su asiento y lo re-genera con la misma
+// lógica (a_credito → cobro_credito; contado → venta+costo). Ventana corta a
+// propósito: repara la ventana de crash, NO rellena historia previa a que se
+// encendiera contabilidad. Lo corre stockWatcher periódicamente.
+function barrerAsientosHuerfanos({ dias = 3, limite = 100 } = {}) {
+    if (!activo()) return { revisados: 0, reparados: 0 };
+    let orphans = [];
+    try {
+        orphans = db.prepare(`
+            SELECT lp.id_pedido AS id_pedido, lp.monto AS monto,
+                   COALESCE(p.a_credito,0) AS a_credito, p.metodo_pago AS metodo_pago
+            FROM links_pago lp
+            JOIN pedidos p ON p.id_pedido = lp.id_pedido
+            WHERE lp.estatus='pagado'
+              AND lp.pagado_en >= datetime('now', ?, 'localtime')
+              AND (
+                (COALESCE(p.a_credito,0)=0 AND NOT EXISTS (SELECT 1 FROM asientos a WHERE a.referencia_tipo='venta'         AND a.referencia_id=CAST(lp.id_pedido AS TEXT)))
+                OR (p.a_credito=1        AND NOT EXISTS (SELECT 1 FROM asientos a WHERE a.referencia_tipo='cobro_credito' AND a.referencia_id=CAST(lp.id_pedido AS TEXT)))
+              )
+            ORDER BY lp.pagado_en DESC LIMIT ?
+        `).all('-' + Number(dias) + ' days', Number(limite));
+    } catch (_) { return { revisados: 0, reparados: 0 }; }
+    let reparados = 0;
+    for (const o of orphans) {
+        try {
+            if (o.a_credito == 1) {
+                if (asientoCobroCredito(o.id_pedido, Number(o.monto || 0), o.metodo_pago)) reparados++;
+            } else {
+                const v = asientoVenta(o.id_pedido, Number(o.monto || 0), o.metodo_pago);
+                asientoCostoVenta(o.id_pedido);   // idempotente; null si sin costo o ya asentado
+                if (v) reparados++;
+            }
+        } catch (_) { /* un pedido malo no detiene el barrido */ }
+    }
+    // Re-auditoría H6: fiados RECIENTES sin su asiento de devengado (crash al
+    // crear el fiado, antes del pago). Mismo criterio de ventana/idempotencia.
+    let fiados = [];
+    try {
+        fiados = db.prepare(`
+            SELECT p.id_pedido, lp.monto
+            FROM pedidos p JOIN links_pago lp ON lp.id_pedido = p.id_pedido
+            WHERE p.a_credito = 1 AND p.creado_en >= datetime('now', ?, 'localtime')
+              AND NOT EXISTS (SELECT 1 FROM asientos a WHERE a.referencia_tipo='venta_credito' AND a.referencia_id=CAST(p.id_pedido AS TEXT))
+            GROUP BY p.id_pedido LIMIT ?
+        `).all('-' + Number(dias) + ' days', Number(limite));
+    } catch (_) {}
+    for (const f of fiados) {
+        try {
+            if (asientoVentaCredito(f.id_pedido, Number(f.monto || 0))) { asientoCostoVenta(f.id_pedido); reparados++; }
+        } catch (_) {}
+    }
+    return { revisados: orphans.length + fiados.length, reparados };
+}
+
+// CIERRE CONTABLE ANUAL (comité S8): traspasa el saldo de las cuentas de
+// resultados (ingreso/costo/gasto) del ejercicio a "Utilidad acumulada" (302,
+// capital), dejándolas en CERO, y bloquea el año (periodo_cerrado = AAAA-12).
+// Idempotente por año. La utilidad = ingresos − (costos+gastos). override=true:
+// el asiento de cierre se fecha 31-dic y debe entrar aunque el mes esté cerrado.
+const UTILIDAD_ACUM = '302';
+function cierreAnual(anio, { override = true } = {}) {
+    if (!activo()) return { ok: false, error: 'La contabilidad está apagada' };
+    anio = parseInt(anio, 10);
+    if (!(anio > 2000 && anio < 2100)) return { ok: false, error: 'Año inválido' };
+    // Re-auditoría H2: solo ejercicios CONCLUIDOS. Cerrar el año en curso
+    // traspasaría resultados a medias y bloquearía todos los asientos del resto
+    // del año (los de marcar-pagado fallan en silencio y el barrido no puede
+    // repararlos porque registrarAsiento sigue rechazando).
+    const anioActual = new Date().getFullYear();
+    if (anio >= anioActual) return { ok: false, error: 'Solo se puede cerrar un ejercicio concluido (' + anio + ' aún no termina)' };
+    const ref = String(anio);
+    if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='cierre_anual' AND referencia_id=? LIMIT 1").get(ref)) {
+        return { ok: false, error: 'El ejercicio ' + anio + ' ya fue cerrado' };
+    }
+    const desde = anio + '-01-01', hasta = anio + '-12-31';
+    const filas = db.prepare(`
+        SELECT d.cuenta, ROUND(SUM(d.debe) - SUM(d.haber), 2) saldo
+        FROM asientos_detalle d
+        JOIN asientos a ON a.id = d.id_asiento
+        JOIN plan_cuentas pc ON pc.codigo = d.cuenta
+        WHERE a.fecha >= ? AND a.fecha <= ? AND pc.tipo IN ('ingreso','costo','gasto')
+        GROUP BY d.cuenta HAVING ABS(ROUND(SUM(d.debe) - SUM(d.haber), 2)) > 0.005
+    `).all(desde, hasta);
+    if (!filas.length) return { ok: false, error: 'No hay movimientos de resultados en ' + anio };
+    // Contrapartida inversa para dejar cada cuenta de resultados en cero.
+    const partidas = filas.map(f => f.saldo > 0 ? { cuenta: f.cuenta, haber: f.saldo } : { cuenta: f.cuenta, debe: -f.saldo });
+    let debe = 0, haber = 0;
+    for (const p of partidas) { debe += p.debe || 0; haber += p.haber || 0; }
+    const utilidad = _r2(debe - haber);   // >0 = utilidad; <0 = pérdida
+    if (Math.abs(utilidad) > 0.005) partidas.push(utilidad > 0 ? { cuenta: UTILIDAD_ACUM, haber: utilidad } : { cuenta: UTILIDAD_ACUM, debe: -utilidad });
+    // Re-auditoría H8: re-check de idempotencia + asiento + candado en UNA
+    // transacción (better-sqlite3 anida con savepoints), para que dos procesos
+    // no puedan cerrar el mismo año y el candado no quede fuera si algo falla.
+    let id;
+    const tx = db.transaction(() => {
+        if (db.prepare("SELECT 1 FROM asientos WHERE referencia_tipo='cierre_anual' AND referencia_id=? LIMIT 1").get(ref)) {
+            throw new Error('El ejercicio ' + anio + ' ya fue cerrado');
+        }
+        id = registrarAsiento({
+            concepto: 'Cierre anual ' + anio + ' — traspaso de resultados a capital',
+            referencia_tipo: 'cierre_anual', referencia_id: ref, partidas, fecha: hasta, override,
+        });
+        // Bloquea el ejercicio (mes 12 → todos los meses del año quedan cerrados).
+        const actual = db.prepare("SELECT valor FROM configuracion WHERE clave='periodo_cerrado'").get()?.valor || '';
+        const nuevo = anio + '-12';
+        if (nuevo > actual) db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('periodo_cerrado', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run(nuevo);
+    });
+    try { tx(); } catch (e) { return { ok: false, error: e.message }; }
+    return { ok: true, id, anio, utilidad, cuentas_cerradas: filas.length };
+}
+
+// Diagnóstico: ventas pagadas SIN asiento de venta, y ventas con 401 pero sin
+// 501 (producto sin costo capturado → P&L infla la utilidad al 100% de margen).
+// Solo lectura, para un tablero de integridad. `dias` acota la ventana.
+function ventasSinAsiento({ dias = 90 } = {}) {
+    const desde = '-' + Number(dias) + ' days';
+    const sinVenta = db.prepare(`
+        SELECT lp.id_pedido, lp.monto, lp.pagado_en, COALESCE(p.a_credito,0) a_credito
+        FROM links_pago lp JOIN pedidos p ON p.id_pedido = lp.id_pedido
+        WHERE lp.estatus='pagado' AND lp.pagado_en >= datetime('now', ?, 'localtime')
+          AND ((COALESCE(p.a_credito,0)=0 AND NOT EXISTS (SELECT 1 FROM asientos a WHERE a.referencia_tipo='venta'         AND a.referencia_id=CAST(lp.id_pedido AS TEXT)))
+            OR (p.a_credito=1        AND NOT EXISTS (SELECT 1 FROM asientos a WHERE a.referencia_tipo='cobro_credito' AND a.referencia_id=CAST(lp.id_pedido AS TEXT))))
+        ORDER BY lp.pagado_en DESC LIMIT 200
+    `).all(desde);
+    const sinCosto = db.prepare(`
+        SELECT a.referencia_id AS id_pedido
+        FROM asientos a
+        WHERE a.referencia_tipo='venta' AND a.fecha >= date('now', ?, 'localtime')
+          AND NOT EXISTS (SELECT 1 FROM asientos c WHERE c.referencia_tipo='costo_venta' AND c.referencia_id=a.referencia_id)
+        ORDER BY a.fecha DESC LIMIT 200
+    `).all(desde);
+    return { sin_venta: sinVenta, sin_costo: sinCosto };
+}
+
 function _setDb(x) { db = x; }            // solo tests
 function _setActivo(f) { _activoFn = f; } // solo tests
 
-module.exports = { activo, mesCerradoDe, registrarAsiento, asientoVenta, asientoVentaCredito, asientoCobroCredito, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoEntradaContado, asientoReversa, libroMayor, _setDb, _setActivo };
+module.exports = { activo, mesCerradoDe, registrarAsiento, asientoVenta, asientoVentaCredito, asientoCobroCredito, asientoCostoVenta, asientoCompra, asientoGasto, asientoPagoCxP, asientoDevolucion, asientoReembolso, asientoEntradaContado, asientoReversa, libroMayor, barrerAsientosHuerfanos, ventasSinAsiento, cierreAnual, _setDb, _setActivo };

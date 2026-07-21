@@ -30,7 +30,9 @@ function checkin(req, res, ctx, { ses }) {
 // GET /api/asistencias?fecha=YYYY-MM-DD — visitas del día (default hoy) + total.
 function listar(req, res, ctx, { u }) {
     const { db, json } = ctx;
-    const fecha = (u.searchParams.get('fecha') || new Date().toISOString().slice(0, 10)).slice(0, 10);
+    // default hoy en HORA LOCAL (la columna fecha se llena con date('now','localtime')):
+    // usar UTC aquí dejaba la bandeja del día en 0 tras las 18:00 en México.
+    const fecha = (u.searchParams.get('fecha') || db.prepare("SELECT date('now','localtime') d").get().d).slice(0, 10);
     const rows = db.prepare('SELECT id, nombre, telefono, hora, id_cliente FROM asistencias WHERE fecha=? ORDER BY id DESC LIMIT 300').all(fecha);
     return json(res, { fecha, total: rows.length, asistencias: rows });
 }

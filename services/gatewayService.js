@@ -9,27 +9,10 @@
 // referencia real y el envío del link ocurre normal (cola_notificaciones). Así la
 // demostración "se ve real" sin cobrar nada de verdad. El pago se confirma a mano
 // (marcar-pagado), como cualquier link.
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
-const cb = require('./cryptoBackup');
 const providers = require('./gatewayProviders');
-
-function _instSecret() {
-    const p = path.join(__dirname, '..', 'dashboard', '.instancia_secret');
-    try { return fs.readFileSync(p, 'utf8').trim(); }
-    catch (_) { try { const s = crypto.randomBytes(32).toString('hex'); fs.writeFileSync(p, s, { mode: 0o600 }); return s; } catch (_) { return null; } }
-}
-function _key() { const s = _instSecret(); return s ? crypto.createHash('sha256').update(s).digest() : null; }
-function cifrarSecreto(texto) {
-    const k = _key(); if (!k || texto == null || texto === '') return String(texto ?? '');
-    try { return 'enc:' + cb.cifrar(Buffer.from(String(texto), 'utf8'), k).toString('base64'); } catch (_) { return String(texto); }
-}
-function descifrarSecreto(v) {
-    if (typeof v !== 'string' || !v.startsWith('enc:')) return v;
-    const k = _key(); if (!k) return '';
-    try { return cb.descifrar(Buffer.from(v.slice(4), 'base64'), k).toString('utf8'); } catch (_) { return ''; }
-}
+// Cifrado at-rest: implementación canónica en services/secretos.js (antes
+// estaba duplicada aquí y en pacService).
+const { cifrarSecreto, descifrarSecreto } = require('./secretos');
 
 function _cfg(db, clave, fb = '') { try { return db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(clave)?.valor ?? fb; } catch (_) { return fb; } }
 function proveedor(db) { return _cfg(db, 'pago_proveedor'); }

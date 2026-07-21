@@ -629,7 +629,7 @@ function _runCheck(fn, nombre) {
     try { fn(); } catch (e) { log.warn(`Check ${nombre} falló: ` + e.message); }
 }
 
-const BACKUP_REGISTRO_PATH = path.join(__dirname, '..', 'scripts', '.backup_registro.json');
+const BACKUP_REGISTRO_PATH = process.env.BACKUP_REGISTRO_PATH || path.join(__dirname, '..', 'scripts', '.backup_registro.json');
 const BACKUP_MAX_EDAD_MS   = 36 * 3_600_000; // 36h — el backup de DB corre a las 11:00 todos los días
 
 // El backup de DB (scripts/backup.js) es la única copia fuera del servidor.
@@ -878,11 +878,9 @@ async function runAll() {
         _runCheck(checkCampanasCRM, 'checkCampanasCRM');
         _runCheck(checkBackupReciente, 'checkBackupReciente');
         _runCheck(checkCacIneficiente, 'checkCacIneficiente');
-        // Depreciación mensual automática de activos fijos: idempotente por mes
-        // (ultima_depreciacion), así corre una sola vez al entrar el mes y no-opea
-        // el resto. Sin activos registrados no hace nada. Evita que alguien olvide
-        // correrla a mano cada mes.
-        _runCheck(() => { try { require('./activosFijosService').depreciarMes(); } catch (_) {} }, 'depreciarActivos');
+        // (la depreciación mensual corre más abajo vía checkDepreciacion, con
+        // gate de contabilidad — re-auditoría H3: aquí había una llamada
+        // duplicada SIN gate que avanzaba el subledger sin asiento)
         _runCheck(checkRelojSistema, 'checkRelojSistema');
         _runCheck(purgarImagenesAntiguas, 'purgarImagenesAntiguas');
         _runCheck(actualizarLeadScores, 'actualizarLeadScores');
@@ -924,9 +922,30 @@ async function runAll() {
                 }
             }
         } catch(e) { log.debug('No se pudo procesar reporte automático diario: ' + e.message); }
+
+        // Integridad contable: repara pagos recientes que quedaron sin asiento
+        // (crash entre el cobro atómico y el asiento best-effort). Idempotente y
+        // fail-closed: no hace nada si contabilidad está apagada. Comité 2026-07.
+        try { checkAsientosHuerfanos(); } catch(e) { log.debug('barrido asientos: ' + e.message); }
+
+        // Depreciación del mes en curso: antes dependía de un clic manual (meses
+        // sin correr → activos sobrevaluados). Idempotente por mes; los terrenos
+        // no entran (no se deprecian). Solo con contabilidad encendida.
+        try { checkDepreciacion(); } catch(e) { log.debug('depreciación: ' + e.message); }
     } catch (err) {
         log.error('Error en runAll', err);
     }
 }
 
-module.exports = { runAll, checkListaEspera, checkAlertas, checkCSAT, checkCarritosAbandonados, checkOfertasPorVencer, checkCarritosAbandonados24h, checkStockMinimo, checkSeguimiento48h, checkQuejasSinRespuesta, checkClientesDormidos, actualizarLeadScores, actualizarComprasDesdeEventos };
+function checkAsientosHuerfanos() {
+    const r = require('./contabilidadService').barrerAsientosHuerfanos();
+    if (r.reparados) log.warn('Contabilidad: ' + r.reparados + ' asiento(s) de venta re-generados (pago sin asiento)');
+}
+
+function checkDepreciacion() {
+    if (!require('./contabilidadService').activo()) return;   // fail-closed
+    const n = require('./activosFijosService').depreciarMes();  // mes en curso, idempotente
+    if (n) log.info('Contabilidad: depreciación del mes aplicada a ' + n + ' activo(s)');
+}
+
+module.exports = { runAll, checkListaEspera, checkAlertas, checkCSAT, checkCarritosAbandonados, checkOfertasPorVencer, checkCarritosAbandonados24h, checkStockMinimo, checkSeguimiento48h, checkQuejasSinRespuesta, checkClientesDormidos, checkAsientosHuerfanos, checkDepreciacion, actualizarLeadScores, actualizarComprasDesdeEventos };

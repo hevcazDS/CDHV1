@@ -24,6 +24,17 @@ function planCuentas(req, res, ctx) {
     return ctx.json(res, ctx.db.prepare('SELECT * FROM plan_cuentas ORDER BY codigo').all());
 }
 
+// Integridad contable: pagos sin asiento (ventana de crash) y ventas sin costo
+// (producto sin costo → utilidad inflada). Solo lectura; el barrido automático
+// (stockWatcher) repara los primeros. ?dias= acota (default 90).
+function integridad(req, res, ctx) {
+    const { json } = ctx;
+    if (!conta.activo()) return json(res, { conta_activa: false });
+    const dias = Math.max(1, parseInt(new URL(req.url, 'http://x').searchParams.get('dias') || '90', 10));
+    const r = conta.ventasSinAsiento({ dias });
+    return json(res, { conta_activa: true, dias, ...r, total_sin_venta: r.sin_venta.length, total_sin_costo: r.sin_costo.length });
+}
+
 // multitienda 0051: ?sucursal= validada contra el catálogo ('' = todo el negocio)
 function _sucursalParam(req, db) {
     const s = ((new URL(req.url, 'http://x')).searchParams.get('sucursal') || '').trim();
@@ -102,6 +113,22 @@ function activosDepreciar(req, res, ctx) {
     return readJson(req, res, d => {
         const n = require('../../services/activosFijosService').depreciarMes(d.fecha || null);
         return json(res, { ok: true, depreciados: n });
+    });
+}
+// POST /api/erp/cierre-anual — { anio } cierra el ejercicio (resultados → capital).
+function cierreAnualPost(req, res, ctx) {
+    const { json, readJson } = ctx;
+    return readJson(req, res, d => {
+        try { const r = conta.cierreAnual(d.anio); return json(res, r, r && r.ok === false ? 400 : 200); }
+        catch (e) { return json(res, { ok: false, error: e.message }, 400); }
+    });
+}
+// POST /api/erp/activos/:id/revaluar — { nuevo_valor } reconoce plusvalía al alza.
+function activosRevaluar(req, res, ctx, { params }) {
+    const { json, readJson } = ctx;
+    return readJson(req, res, d => {
+        try { return json(res, { ok: true, ...require('../../services/activosFijosService').revaluarActivo({ id: parseInt(params[0]), nuevo_valor: d.nuevo_valor, fecha: d.fecha || null }) }); }
+        catch (e) { return json(res, { ok: false, error: e.message }, 400); }
     });
 }
 
@@ -763,6 +790,7 @@ function conciliacionConciliar(req, res, ctx, { params }) {
 
 const RUTAS = [
     { metodo: 'GET',  path: '/api/erp/plan-cuentas',              area: 'finanzas', handler: planCuentas },
+    { metodo: 'GET',  path: '/api/erp/integridad',                area: 'finanzas', handler: integridad },
     { metodo: 'GET',  path: '/api/erp/asientos',                  area: 'finanzas', handler: asientosGet },
     { metodo: 'POST', path: '/api/erp/asientos',                  area: 'finanzas', handler: asientosPost },
     { metodo: 'GET',  path: '/api/erp/libro-mayor',               area: 'finanzas', handler: libroMayor },
@@ -777,8 +805,10 @@ const RUTAS = [
     { metodo: 'POST', path: '/api/erp/activos',                   area: 'finanzas', handler: activosPost },
     { metodo: 'POST', path: /^\/api\/erp\/activos\/(\d+)\/baja$/, area: 'finanzas', handler: activosBaja },
     { metodo: 'POST', path: '/api/erp/activos/depreciar',         area: 'finanzas', handler: activosDepreciar },
+    { metodo: 'POST', path: /^\/api\/erp\/activos\/(\d+)\/revaluar$/, area: 'finanzas', handler: activosRevaluar },
     { metodo: 'GET',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierreGet },
     { metodo: 'PUT',  path: '/api/erp/periodo-cierre',            area: 'finanzas', handler: periodoCierrePut },
+    { metodo: 'POST', path: '/api/erp/cierre-anual',              area: 'finanzas', handler: cierreAnualPost },
     { metodo: 'GET',  path: '/api/erp/rentabilidad-clientes',     area: 'finanzas', handler: rentabilidadClientes },
     { metodo: 'GET',  path: '/api/erp/rentabilidad-vendedores',   area: 'finanzas', handler: rentabilidadVendedores },
     { metodo: 'POST', path: /^\/api\/erp\/timbrar\/(\d+)$/,       area: 'finanzas', handler: timbrar },

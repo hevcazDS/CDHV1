@@ -113,7 +113,13 @@ const MODULOS = [
   { key: 'documentos_activo', titulo: '📄 Documentos', desc: 'Cotizaciones, pagarés y contratos con plantillas estándar o propias de la sucursal; imprimibles' },
   { key: 'nomina_fiscal_activo', titulo: '🧾 Nómina fiscal (LFT)', desc: 'Nómina completa: horas extra, comisiones, aguinaldo, finiquito, vacaciones LFT. Apagado = nómina sencilla' },
   { key: 'rrhh_activo', titulo: 'Recursos Humanos', desc: 'Empleados, horarios por Excel y nómina MX (con/sin impuestos)' },
+  { key: 'motor_flujo_activo', titulo: '🧩 Motor de flujo del bot', desc: 'El bot conversa siguiendo el flujo visual del editor (Configuración → Motor de flujo) en vez de solo el flujo base. Apagado, el editor guarda pero el bot sigue igual' },
 ];
+
+// Dependencias entre módulos (espejo de bot/flows/modulosDefaults.js DEPENDE_DE):
+// no puedes activar el hijo sin el padre, ni apagar el padre con el hijo activo.
+const DEPENDE_DE = { facturacion_activo: ['contabilidad_activo'] };
+const TITULO_DE = Object.fromEntries(MODULOS.map(m => [m.key, m.titulo]));
 
 // Mensaje personalizable que se sugiere en el ticket (solo cuando la propina
 // está activa). Editarlo es del gerente — es política del negocio.
@@ -165,6 +171,10 @@ export default function Modulos() {
   });
 
   const activoDe = (key) => estado?.find(r => r.key === key)?.activo ?? true;
+  // dependencias: qué le falta a `key` para poder encenderse, y qué módulos
+  // activos dependen de `key` (por lo que no puede apagarse todavía).
+  const depsFaltantes = (key) => (DEPENDE_DE[key] || []).filter(d => !activoDe(d));
+  const dependientesActivos = (key) => Object.keys(DEPENDE_DE).filter(k => DEPENDE_DE[k].includes(key) && activoDe(k));
 
   const toggleMutation = useMutation({
     mutationFn: ({ clave, activo }) => api.post('/api/puntos/config', { clave, activo }),
@@ -198,12 +208,23 @@ export default function Modulos() {
       <div className="card" style={{ maxWidth: 860 }}>
         <div className="card-header"><h3>{txt('⚙️ Módulos del sistema')}</h3></div>
         <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 14 }}>Activa o desactiva funciones sin reiniciar el bot.</p>
-        {MODULOS.map(m => (
-          <div className="toggle-row" key={m.key}>
-            <div className="info"><h4>{txt(m.titulo)}</h4><p>{m.desc}</p></div>
-            <Switch checked={activoDe(m.key)} onChange={e => toggle(m.key, e.target.checked)} color="var(--brand)" />
-          </div>
-        ))}
+        {MODULOS.map(m => {
+          const on = activoDe(m.key);
+          const faltan = depsFaltantes(m.key);
+          const usadoPor = on ? dependientesActivos(m.key) : [];
+          const bloqueado = (!on && faltan.length > 0) || usadoPor.length > 0;
+          const razon = (!on && faltan.length > 0) ? 'Primero activa: ' + faltan.map(k => TITULO_DE[k] || k).join(', ')
+            : usadoPor.length > 0 ? 'Lo requiere: ' + usadoPor.map(k => TITULO_DE[k] || k).join(', ') : '';
+          return (
+            <div className="toggle-row" key={m.key}>
+              <div className="info">
+                <h4>{txt(m.titulo)}</h4>
+                <p>{m.desc}{razon && <span style={{ color: 'var(--text-mute)' }}> · {razon}</span>}</p>
+              </div>
+              <Switch checked={on} disabled={bloqueado} onChange={e => toggle(m.key, e.target.checked)} color="var(--brand)" />
+            </div>
+          );
+        })}
       </div>
 
       {activoDe('propina_activo') && <PropinaMensajeCard txt={txt} />}

@@ -46,7 +46,7 @@ CREATE TABLE cola_notificaciones (id INTEGER PRIMARY KEY AUTOINCREMENT, estatus 
 // Pedido de prueba para /api/pedidos
 db.prepare("INSERT INTO pedidos (id_pedido, folio, cliente, estatus) VALUES (1, 'F-001', 'Cliente Test', 'generado')").run();
 
-// Cupón de prueba para /api/cupon/redimir
+// Cupón de prueba para /api/cupon/validar
 db.prepare("INSERT INTO promociones (codigo, tipo, valor, usos_max, usos_actual, activa) VALUES ('TEST10', 'porcentaje', 10, 1, 0, 1)").run();
 
 let pass = 0, fail = 0;
@@ -114,29 +114,18 @@ async function main() {
     const statsConError = await (await fetch(BASE + '/api/stats', { headers: authHeaders })).json();
     ok(statsConError.emails_error === 1, 'GET /api/stats refleja un email con estatus=error (antes invisible en el dashboard)');
 
-    // ── 7. Validación Zod nueva (fase 3) en /api/cupon/redimir ──────────
-    const cuponMalo = await fetch(BASE + '/api/cupon/redimir', {
-        method: 'POST', headers: authHeaders, body: JSON.stringify({ codigo: 'TEST10', idTicket: 'no-es-numero' }),
-    });
-    ok(cuponMalo.status === 400, 'POST /api/cupon/redimir con idTicket no numérico -> 400 (antes pasaba silencioso)');
-
-    const cuponBueno = await fetch(BASE + '/api/cupon/redimir', {
-        method: 'POST', headers: authHeaders, body: JSON.stringify({ codigo: 'TEST10' }),
-    });
-    const cuponBody = await cuponBueno.json();
-    ok(cuponBueno.status === 200 && cuponBody.ok === true, 'POST /api/cupon/redimir con código válido lo redime');
-
-    const cuponRepetido = await fetch(BASE + '/api/cupon/redimir', {
-        method: 'POST', headers: authHeaders, body: JSON.stringify({ codigo: 'TEST10' }),
-    });
-    const cuponRepetidoBody = await cuponRepetido.json();
-    ok(cuponRepetidoBody.ok === false, 'el mismo cupón de un solo uso no se puede redimir dos veces');
+    // ── 7. Cupón: validar (redimir se BORRÓ — el POS redime inline en /api/pos/venta) ──
+    const cuponValida = await fetch(BASE + '/api/cupon/validar?codigo=TEST10', { headers: authHeaders });
+    const cuponVBody = await cuponValida.json();
+    ok(cuponValida.status === 200 && cuponVBody.ok === true, 'GET /api/cupon/validar reconoce el cupón activo');
+    const cuponInvalido = await fetch(BASE + '/api/cupon/validar?codigo=NOEXISTE', { headers: authHeaders });
+    ok((await cuponInvalido.json()).ok === false, 'GET /api/cupon/validar rechaza código inexistente');
 
     // ── 8. Body malformado no tira el proceso (fase 1) ───────────────────
-    const malformado = await fetch(BASE + '/api/cupon/redimir', {
+    const malformado = await fetch(BASE + '/api/tono', {
         method: 'POST', headers: authHeaders, body: '{esto no es json',
     });
-    ok(malformado.status === 500, 'POST con JSON malformado responde 500 en vez de matar el proceso');
+    ok(malformado.status >= 400, 'POST con JSON malformado responde error en vez de matar el proceso');
     const sigueViva = await fetch(BASE + '/health');
     ok(sigueViva.status === 200, 'el servidor sigue respondiendo después del body malformado');
 

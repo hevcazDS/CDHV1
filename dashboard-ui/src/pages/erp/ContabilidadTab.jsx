@@ -31,8 +31,27 @@ export default function ContabilidadTab() {
   const totalDebe = cuentas.reduce((s, c) => s + c.debe, 0);
   const totalHaber = cuentas.reduce((s, c) => s + c.haber, 0);
 
+  // Integridad: pagos sin asiento (ventana de crash — el barrido los repara) y
+  // ventas sin COGS (producto sin costo → utilidad inflada). Solo se muestra
+  // cuando hay algo (auditoría de cobertura: el endpoint existía sin front).
+  const { data: integridad } = useQuery({
+    queryKey: ['erp-integridad'],
+    queryFn: () => api.get('/api/erp/integridad').catch(() => null),
+  });
+  const intSinVenta = integridad?.total_sin_venta || 0;
+  const intSinCosto = integridad?.total_sin_costo || 0;
+
   return (
     <div>
+      {(intSinVenta > 0 || intSinCosto > 0) && (
+        <Card withBorder radius="md" p="sm" mb="md" style={{ borderColor: 'var(--yellow)' }}>
+          <Text size="sm" fw={600}>⚠ Integridad contable (últimos {integridad.dias} días)</Text>
+          <Text size="xs" c="dimmed">
+            {intSinVenta > 0 && `${intSinVenta} pago(s) sin asiento de venta — el barrido automático los repara en la siguiente ronda. `}
+            {intSinCosto > 0 && `${intSinCosto} venta(s) sin costo (COGS): captura el costo de esos productos o la utilidad sale inflada.`}
+          </Text>
+        </Card>
+      )}
       <Group mb="md" gap="sm" align="end">
         <TextInput type="date" label="Desde" value={desde} onChange={e => setDesde(e.target.value)} />
         <TextInput type="date" label="Hasta" value={hasta} onChange={e => setHasta(e.target.value)} />
@@ -48,6 +67,7 @@ export default function ContabilidadTab() {
           totales: [{ label: 'Total debe / haber', valor: `$${totalDebe.toFixed(2)} / $${totalHaber.toFixed(2)}`, num: true }],
         })}>Imprimir libro</Button>
         <PeriodoCierre />
+        <CierreAnual />
         <Button variant="default" size="xs" onClick={() => exportarCSV(`diario_${desde}_${hasta}`,
           ['fecha', 'concepto', 'cuenta', 'debe', 'haber'],
           asientos.flatMap(a => (a.partidas || []).map(pa => [a.fecha, a.concepto, pa.cuenta + ' ' + (pa.nombre || ''), pa.debe.toFixed(2), pa.haber.toFixed(2)])))}>
@@ -196,6 +216,29 @@ function PolizaManual() {
         </Modal>
       )}
     </>
+  );
+}
+
+// Cierre CONTABLE ANUAL: traspasa resultados del ejercicio a Utilidad acumulada
+// (capital) y bloquea el año. Cierra el año anterior (el completo).
+function CierreAnual() {
+  const qc = useQueryClient();
+  const anio = new Date().getFullYear() - 1;
+  const mut = useMutation({
+    mutationFn: () => api.post('/api/erp/cierre-anual', { anio }),
+    onSuccess: (r) => {
+      if (r.ok === false) return toastErr(r.error);
+      const u = Math.abs(r.utilidad || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+      toastOk(`Ejercicio ${r.anio} cerrado — ${r.utilidad >= 0 ? 'utilidad' : 'pérdida'} ${u}`);
+      qc.invalidateQueries({ queryKey: ['periodo-cierre'] });
+    },
+    onError: (e) => toastErr(e.message),
+  });
+  return (
+    <Button size="xs" variant="default" loading={mut.isPending}
+      onClick={async () => { if (await confirmar({ titulo: 'Cerrar ejercicio', mensaje: `¿Cerrar contablemente el ejercicio ${anio}? Ventas, costos y gastos del año se traspasan a Utilidad acumulada y el ejercicio queda bloqueado.`, textoOk: `Cerrar ${anio}` })) mut.mutate(); }}>
+      Cerrar ejercicio {anio}
+    </Button>
   );
 }
 

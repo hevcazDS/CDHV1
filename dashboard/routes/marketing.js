@@ -1,8 +1,7 @@
 'use strict';
 // Lookups (categorías/marcas), historial de cola, reporte, reset beta, métricas,
 // conversión, ofertas, cupones y promociones. Migrado al patrón declarativo:
-// lecturas → gate global; reporte/promociones → gerente; beta/limpiar → prime;
-// cupon/redimir → areas pos||operacion.
+// lecturas → gate global; reporte/promociones → gerente; beta/limpiar → prime.
 const construirModulo = require('./_construirModulo');
 
 function categorias(req, res, ctx) {
@@ -167,27 +166,8 @@ function cuponValidar(req, res, ctx) {
     return json(res, { ok: true, codigo: promo.codigo, tipo: promo.tipo, valor: promo.valor, id_producto: promo.id_producto });
 }
 
-// POST /api/cupon/redimir — el cajero confirma el cobro con cupón (pos||operacion)
-function cuponRedimir(req, res, ctx) {
-    const { db, json, readBody, validar, CuponRedimirSchema } = ctx;
-    return readBody(req, body => {
-        try {
-            const parsed = validar(JSON.parse(body), CuponRedimirSchema, res, '/api/cupon/redimir');
-            if (!parsed) return;
-            const { codigo, idTicket } = parsed;
-            const hoy = new Date().toISOString().slice(0, 10);
-            const promo = db.prepare(`
-                SELECT * FROM promociones WHERE UPPER(codigo) = UPPER(?) AND activa = 1
-                  AND (fecha_inicio IS NULL OR fecha_inicio <= ?) AND (fecha_fin IS NULL OR fecha_fin >= ?)
-                  AND (usos_max = 0 OR usos_actual < usos_max) LIMIT 1`).get(String(codigo).trim(), hoy, hoy);
-            if (!promo) return json(res, { ok: false, error: 'Código no válido o expirado' });
-            const _upd = db.prepare('UPDATE promociones SET usos_actual=usos_actual+1 WHERE id=? AND (usos_max=0 OR usos_actual<usos_max)').run(promo.id);
-            if (_upd.changes === 0) return json(res, { ok: false, error: 'Ese cupón ya alcanzó su límite de usos' });
-            if (idTicket) db.prepare('UPDATE tickets_venta SET id_promocion=? WHERE id=?').run(promo.id, idTicket);
-            return json(res, { ok: true, codigo: promo.codigo, tipo: promo.tipo, valor: promo.valor });
-        } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
-    });
-}
+// (POST /api/cupon/redimir se BORRÓ 2026-07: era el flujo de ticket físico ya
+// retirado — el POS valida con /api/cupon/validar y redime inline en /api/pos/venta.)
 
 // GET /api/promociones — vista de gestión (con alcance calculado)
 function promocionesGet(req, res, ctx) {
@@ -304,11 +284,10 @@ const RUTAS = [
     { metodo: 'GET',  path: '/api/cola/historial',          handler: colaHistorial },
     { metodo: 'POST', path: '/api/reporte',                 roles: ['gerente'], handler: reporte },
     { metodo: 'POST', path: '/api/beta/limpiar',            roles: ['prime'], handler: betaLimpiar },
-    { metodo: 'GET',  path: '/api/metricas',                handler: metricas },
-    { metodo: 'GET',  path: '/api/conversion',              handler: conversion },
+    { metodo: 'GET',  path: '/api/metricas',                roles: ['gerente'], handler: metricas },
+    { metodo: 'GET',  path: '/api/conversion',              roles: ['gerente'], handler: conversion },
     { metodo: 'GET',  path: '/api/ofertas',                 handler: ofertas },
     { metodo: 'GET',  path: '/api/cupon/validar',           handler: cuponValidar },
-    { metodo: 'POST', path: '/api/cupon/redimir',           areas: ['pos', 'operacion'], handler: cuponRedimir },
     { metodo: 'GET',  path: '/api/promociones',             handler: promocionesGet },
     { metodo: 'POST', path: '/api/promociones',             roles: ['gerente'], handler: promocionesPost },
     { metodo: 'POST', path: '/api/promociones/flash',       roles: ['gerente'], handler: promocionesFlash },

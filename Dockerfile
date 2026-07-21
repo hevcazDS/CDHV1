@@ -38,6 +38,13 @@ ENV NODE_ENV=production \
     DB_PATH=/data/jugueteria.db
 
 EXPOSE 3001
-# Migraciones idempotentes antes de arrancar: un deploy nuevo nunca corre
-# contra una BD sin migrar
-CMD ["sh", "-c", "node scripts/migrate.js && exec pm2-runtime ecosystem.config.js"]
+# Arranque:
+# 1. PRIMER ARRANQUE (BD inexistente en el volumen): se crea completa desde
+#    db/schema.sql (instalarBaseDeDatos sella las migraciones como baseline).
+#    Sin esto, migrate.js la omite ("no existe") y bot+dashboard arrancarían
+#    contra una BD vacía rota. El clon nuevo cae en el ONBOARDING del panel.
+# 2. Migraciones idempotentes (--all: principal + instancias/*.db).
+# 3. pm2-runtime con ecosystem.docker: DASHBOARD PRIMERO (regla HS-502 — el
+#    panel debe estar arriba para mostrar el popup del QR cuando el bot
+#    arranque por primera vez), luego bot, luego daemon de respaldos.
+CMD ["sh", "-c", "[ -f \"$DB_PATH\" ] || node scripts/instalarBaseDeDatos.js crear-nueva \"$DB_PATH\"; node scripts/migrate.js --all && exec pm2-runtime ecosystem.docker.config.js"]

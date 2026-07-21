@@ -1,0 +1,21 @@
+# Caddyfile.example — proxy TLS delante del dashboard (copiar a /etc/caddy/Caddyfile).
+# Caddy consigue y renueva el certificado HTTPS solo (Let's Encrypt) — cero config TLS.
+#
+# El compose expone el dashboard SOLO en 127.0.0.1:3001 del host: nada llega
+# directo al contenedor, todo pasa por aquí. El compose ya trae TRUST_PROXY=1
+# y DASHBOARD_COOKIE_SECURE=true para este esquema.
+#
+# Si Caddy corre COMO CONTENEDOR (no en el host): usa `reverse_proxy bothsv:3001`
+# y descomenta la red `proxy` en docker-compose.yml.
+
+panel.tudominio.com {
+    reverse_proxy 127.0.0.1:3001
+
+    # Los adjuntos de correo / respaldo manual pueden ser grandes
+    request_body {
+        max_size 60MB
+    }
+
+    # Cabeceras de respuesta ya las pone el backend (CSP/HSTS/etc); Caddy solo
+    # necesita pasar la IP real, y eso lo hace por default (X-Forwarded-For).
+}

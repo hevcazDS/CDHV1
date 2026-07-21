@@ -12,7 +12,10 @@ function colaAtencionGet(req, res, ctx) {
     const { db, json } = ctx;
     const estatusF = (new URL('http://x' + req.url).searchParams.get('estatus') || 'en_espera').trim();
     const rows = db.prepare(`
-        SELECT ca.*, c.nombre AS cliente, c.telefono
+        SELECT ca.*, c.nombre AS cliente, c.telefono,
+               (SELECT m.contenido FROM mensajes m JOIN conversaciones cv ON cv.id = m.id_conversacion
+                WHERE cv.id_cliente = ca.id_cliente AND m.rol = 'cliente'
+                ORDER BY m.enviado_en DESC LIMIT 1) AS ultimo_mensaje
         FROM cola_atencion ca LEFT JOIN clientes c ON c.id = ca.id_cliente
         WHERE ca.estatus = ? ORDER BY ca.prioridad ASC, ca.creada_en ASC LIMIT 200`).all(estatusF);
     return json(res, rows);
@@ -33,14 +36,8 @@ function colaAtencionPut(req, res, ctx, { params }) {
     });
 }
 
-// GET /api/pedidos/:id/mensajes — últimos mensajes del cliente con el bot
-function pedidoMensajes(req, res, ctx, { params }) {
-    const { db, json } = ctx;
-    const ped = db.prepare('SELECT id_cliente, cliente FROM pedidos WHERE id_pedido=? LIMIT 1').get(parseInt(params[0]));
-    if (!ped) return json(res, []);
-    const rows = db.prepare('SELECT m.rol, m.contenido, m.enviado_en FROM mensajes m JOIN conversaciones cv ON cv.id=m.id_conversacion WHERE cv.id_cliente=? ORDER BY m.enviado_en DESC LIMIT 10').all(ped.id_cliente);
-    return json(res, rows.reverse());
-}
+// (GET /api/pedidos/:id/mensajes se BORRÓ 2026-07: redundante con
+// /api/clientes/:id/mensajes — sin consumidores, auditoría de cobertura.)
 
 // GET /api/clientes/:id/mensajes — conversación de un cliente
 function clienteMensajes(req, res, ctx, { params }) {
@@ -321,12 +318,11 @@ function preventasPost(req, res, ctx) {
 const RUTAS = [
     { metodo: 'GET',  path: '/api/cola_atencion',                       handler: colaAtencionGet },
     { metodo: 'PUT',  path: /^\/api\/cola_atencion\/(\d+)$/,            area: 'operacion', handler: colaAtencionPut },
-    { metodo: 'GET',  path: /^\/api\/pedidos\/(\d+)\/mensajes$/,        area: 'operacion', handler: pedidoMensajes },
     { metodo: 'GET',  path: /^\/api\/clientes\/(\d+)\/mensajes$/,       area: 'operacion', handler: clienteMensajes },
     { metodo: 'PUT',  path: /^\/api\/clientes\/(\d+)\/reanudar-bot$/,   area: 'operacion', handler: reanudarBot },
     { metodo: 'POST', path: '/api/actualizar_guia',                     area: 'operacion', handler: actualizarGuia },
     { metodo: 'GET',  path: '/api/lista-espera',                        handler: listaEspera },
-    { metodo: 'GET',  path: '/api/busquedas',                           handler: busquedas },
+    { metodo: 'GET',  path: '/api/busquedas',                           roles: ['gerente'], handler: busquedas },
     { metodo: 'GET',  path: '/api/metricas/campanas',                   roles: ['gerente'], handler: metricasCampanas },
     { metodo: 'GET',  path: '/api/metricas/canales',                    roles: ['gerente'], handler: metricasCanales },
     { metodo: 'GET',  path: '/api/metricas/operacion',                  roles: ['gerente'], handler: metricasOperacion },

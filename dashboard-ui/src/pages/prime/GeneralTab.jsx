@@ -267,11 +267,13 @@ export default function GeneralTab() {
         </Card>
 
         <Card withBorder radius="md" p="lg">
-          <Title order={4} mb={4}>Correo del bot</Title>
+          <Title order={4} mb={4}>Correo de la tienda</Title>
           <p className="page-sub" style={{ margin: '4px 0 16px' }}>
-            Cuenta y contraseña de aplicación que el propio bot usa para enviar correos
-            (notificaciones de pedido, backups). Útil para revender el sistema a otra empresa sin
-            tocar código ni el .env del servidor. La contraseña nunca se muestra una vez guardada.
+            Cuenta y contraseña de aplicación de Gmail que la tienda usa para su correo:
+            notificaciones de pedido, el módulo Correo (bandeja de entrada + envío con adjuntos).
+            Se guarda aquí en la base de datos, por instancia — revender el sistema a otra empresa
+            no toca código ni el .env. Los respaldos usan una cuenta aparte, la del .env del servidor.
+            La contraseña nunca se muestra una vez guardada.
           </p>
           {msgEmailBot && <div className="login-error" style={{ marginBottom: 12 }}>{msgEmailBot}</div>}
           <TextInput label="Correo" placeholder="bot@gmail.com" value={botEmailUsuario} onChange={e => setBotEmailUsuario(e.target.value)} mb="sm" />
