@@ -347,6 +347,62 @@ llegue a producción. Para la próxima verificación de build, usar siempre un d
 temporal (`docker cp` a `/tmp/...` + build ahí) en vez de sobrescribir `/app/dashboard-ui`
 directamente, sin esperar a que el clasificador lo bloquee.
 
+## 6f. Sesión 2026-07-21 (6ª pasada) — apagado del contenedor + revisión de código en busca de más bugs
+
+A petición del dueño: `docker compose down` — `bothsv` queda **completamente detenido**
+(no solo pausado; contenedor y red se eliminan, los volúmenes de datos/WhatsApp
+sobreviven). Ver `REANUDAR-DESARROLLO.md` para el procedimiento exacto de reanudación —
+el próximo `docker compose build` va a traer TODOS los commits de esta sesión, incluido
+el de esta pasada.
+
+Con el contenedor apagado, la revisión fue **puramente estática** (sin Puppeteer/navegador
+real, para no tener que levantarlo de nuevo solo para auditar):
+
+### Bug real encontrado y corregido
+`components/FichaCliente.jsx` — el `<div>` de KPIs (Pedidos / Gasto pagado / Puntos
+disponibles) dentro del drawer de ficha de cliente usaba `className="kpi-grid"` (que ya
+define `grid-template-columns: repeat(auto-fit, minmax(210px, 1fr))`, responsive por
+diseño) **pero lo sobreescribía** con un `style={{ gridTemplateColumns: '1fr 1fr 1fr' }}`
+inline — el inline gana sobre la clase, así que las 3 tarjetas quedaban SIEMPRE en 3
+columnas fijas sin poder colapsar, y el drawer (más angosto que una página completa)
+las apretaba. Cambiado a `repeat(auto-fit, minmax(100px, 1fr))`. Verificado con un build
+en un contenedor `node:20-slim` **efímero y descartable** montando el propio
+`dashboard-ui/` por bind-mount (no se tocó `bothsv`, ya apagado). **Nota operativa**: los
+artefactos de ese build (`node_modules`/`dist`) quedaron con dueño `root` en el host (por
+correr como root dentro del contenedor efímero) y no los pudo borrar el usuario normal
+con `rm -rf` — hubo que limpiarlos lanzando OTRO contenedor efímero para el `rm`. También
+se revirtió un cambio incidental en `dashboard-ui/package-lock.json` que el `npm install`
+de verificación generó con una versión de npm distinta a la original (no era un cambio de
+dependencias real, solo ruido del entorno de verificación).
+
+### Barridos que salieron limpios (sin hallazgos nuevos)
+- **Inyección SQL**: grep de `db.prepare`/`db.exec` con interpolación de template string
+  en `bot/`, `dashboard/`, `services/` — cero coincidencias, todo usa parámetros.
+- **XSS vía `document.write`/`dangerouslySetInnerHTML`**: los 3 usos del repo
+  (`lib/reporteImprimible.js`, `pages/Documentos.jsx`, `pages/Fiados.jsx`) escapan
+  `&`/`<`/`>` en **todo** valor dinámico que interpolan, incluidas las celdas de tabla con
+  datos que el cliente teclea por WhatsApp (nombre, teléfono) — el vector de XSS
+  almacenado que motivó el comentario de seguridad en `Fiados.jsx` ya estaba cerrado
+  ahí y en los otros dos archivos por igual.
+- **Endpoints `{items:[...]}` sin desenvolver en el frontend** (la misma clase de bug que
+  crasheaba `erp/ComprasTab.jsx` en la 4ª pasada): los otros 3 endpoints que envuelven así
+  su respuesta — `/api/mesas/:id/sugeridos`, `/api/pos/sugeridos`,
+  `/api/prime/palabras-filtro` — sí se desenvuelven correctamente en sus consumidores
+  (`Mesas.jsx`, `Mostrador.jsx`, `FiltrosTab.jsx`). No quedaba ningún otro caso de esta
+  familia de bug.
+- **Marcadores TODO/FIXME/XXX/HACK**: cero reales — todos los matches eran falsos
+  positivos de la palabra "TODOS" en español dentro de comentarios.
+- **`console.log` sueltos**: cero en el frontend; 2 en el backend
+  (`bot/db_connection.js`), ambos logs de arranque intencionales sin datos sensibles.
+
+### Reconfirmado como ya conocido y deliberadamente diferido (no se tocó)
+Los 8 grids de formulario fijos (`gridTemplateColumns: '1fr 1fr 1fr 1fr'`, etc., sin
+`@media`) de `prime/productoCampos.jsx` siguen sin arreglar — admin-only, menor
+severidad, ya documentado en la verificación de UI de esta misma sesión (§6, "UI —
+mejoró de ~35 a 8 archivos"). También tienen grids fijos `Mostrador.jsx` (dona del corte
+de caja, máximo 2 columnas) y `components/Calendario.jsx` (7 columnas, inherente a un
+calendario semanal) — bajo riesgo real, no se tocaron.
+
 ## 7. Runbooks / catálogos operativos (no tocar, son referencia viva)
 
 - `ERRORES.md` — catálogo de códigos `HS-xxx` para soporte/diagnóstico.

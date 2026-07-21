@@ -161,6 +161,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > (commit `057fef8`, sí está en `main`/GitHub) — falta un `docker compose build`
 > normal (o un rebuild autorizado explícitamente) para que ese último commit
 > llegue a producción.
+>
+> **2026-07-21 (6ª pasada, apagado del contenedor + revisión de código en busca de
+> más bugs):** a petición del dueño, se corrió `docker compose down` — `bothsv`
+> queda **completamente detenido** (no solo pausado), la BD/sesión de WhatsApp/red
+> docker sobreviven (viven en volúmenes, no en el contenedor). Ver
+> `REANUDAR-DESARROLLO.md` para el procedimiento exacto de reanudación
+> (`git pull && docker compose build && docker compose up -d`), que ahora sí trae
+> TODOS los commits pendientes de esta sesión (emoji, tono, ancho del dropdown, y
+> el de abajo). Con el contenedor apagado, la revisión de esta pasada fue
+> **puramente estática** (sin Puppeteer/navegador real) para no tener que
+> levantarlo de nuevo:
+> - **1 bug real encontrado y corregido**: `components/FichaCliente.jsx` (KPIs de
+>   Pedidos/Gasto pagado/Puntos en el drawer del cliente) sobreescribía el
+>   `gridTemplateColumns` responsive de la clase `.kpi-grid`
+>   (`repeat(auto-fit,minmax(210px,1fr))`) con un `'1fr 1fr 1fr'` fijo inline — el
+>   drawer es más angosto que una página completa, así que las 3 tarjetas no
+>   podían colapsar a menos columnas. Cambiado a
+>   `repeat(auto-fit,minmax(100px,1fr))`. Verificado con un build en un
+>   contenedor `node:20-slim` **efímero y descartable** (no `bothsv`, que sigue
+>   apagado) — cuidado al limpiar: los artefactos (`node_modules`/`dist`) quedan
+>   con dueño `root` y no los borra el usuario normal; hay que limpiarlos con
+>   otro contenedor efímero, no con `rm -rf` directo del host.
+> - **Barridos que salieron limpios (sin hallazgos nuevos)**: inyección SQL
+>   (`db.prepare`/`exec` con interpolación de string — ninguno), XSS vía
+>   `document.write`/`dangerouslySetInnerHTML` (los 3 usos —
+>   `lib/reporteImprimible.js`, `Documentos.jsx`, `Fiados.jsx` — ya escapan
+>   `&<>` en TODO valor dinámico, incl. las celdas de tabla con datos que
+>   escribe el cliente por WhatsApp), el patrón de endpoints `{items:[...]}` sin
+>   desenvolver en el frontend (los 3 que existen — `/api/pos/productos` ya
+>   arreglado en la 4ª pasada, `/api/mesas/:id/sugeridos`,
+>   `/api/pos/sugeridos`, `/api/prime/palabras-filtro` — todos correctos),
+>   marcadores TODO/FIXME/XXX (0 reales, solo falsos positivos de "TODOS" en
+>   español), `console.log` sueltos en el frontend (0) y en el backend (2,
+>   ambos logs de arranque intencionales en `db_connection.js`, sin datos
+>   sensibles).
+> - **Reconfirmado como ya conocido y deliberadamente diferido** (no se tocó):
+>   los 8 grids de formulario fijos (`1fr 1fr 1fr 1fr`, etc., sin `@media`) de
+>   `prime/productoCampos.jsx` — admin-only, menor severidad, documentado desde
+>   la verificación de seguridad/UI de este mismo día. `Mostrador.jsx` (dona del
+>   corte de caja) y `components/Calendario.jsx` (grid de 7 columnas) tienen
+>   grids fijos pero de bajo riesgo real (2 columnas máx. o inherentes a un
+>   calendario) — no ameritan cambio.
 
 ## Project
 
