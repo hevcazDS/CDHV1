@@ -48,6 +48,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > buscando* donde hacía falta "2" = *Agregar y pagar* para llegar a `ASK_CP`) — el bot nunca
 > estuvo roto, era el test el que no reflejaba el menú actual de `menuFlow.js`. Corregido y
 > reordenado (67/67 en esa suite). Ver `INDICE_DOCUMENTACION.md` §6c para el detalle.
+>
+> **2026-07-21 (4ª pasada, auditoría sección-por-sección del dashboard):** recorridas las
+> 24 rutas visibles para `prime` + todas las pestañas internas (Almacén 8, Erp 13, Compras 5,
+> Marketing 4, Prime 8) con Puppeteer real, capturando pantalla + errores de consola/red en
+> cada una. **2 bugs reales encontrados y corregidos:**
+> 1. **CSP bloqueaba imágenes de producto externas** (`img-src 'self' data:` sin `https:`) —
+>    el catálogo/POS de Julio Cepeda (fotos reales en `cdn.shopify.com`) se veía sin
+>    imágenes en el navegador. Ampliado a `img-src 'self' data: https:` (`dashboard/server.js`).
+> 2. **Compras → "Órdenes de compra" crasheaba TODA la app** (pantalla en blanco) —
+>    `erp/ComprasTab.jsx` llamaba `/api/pos/productos` sin desenvolver `.items` (ese endpoint
+>    devuelve `{items:[...]}`, no un array plano — mismo patrón que ya usan bien
+>    `Mostrador.jsx`/`Mesas.jsx`). 100% reproducible navegando a `/compras?tab=ordenes`.
+>
+> **Además se encontró y limpió (con autorización explícita del dueño en cada tabla, dos
+> veces bloqueado correctamente por el clasificador de permisos antes de proceder) datos de
+> prueba que mis propias corridas de `test_full_bot.js`/`test_db_flujo.js` habían insertado
+> en la BD REAL de producción**: `cola_atencion`, `cola_notificaciones`, `conversaciones`,
+> `sesiones_bot`, `lista_espera` (identificados por patrón `test_%`/`repro_%`/número de
+> asesor de prueba) y `log_eventos` (122 filas, el 100% dentro de la ventana exacta de las
+> pruebas — incluía strings como "script alert xss script"). El único cliente/lead real de
+> la BD (un solo registro) se dejó intacto en todo momento. **Lección para el futuro:**
+> correr `test_full_bot.js`/`test_db_flujo.js` contra la BD de producción (no hay BD de
+> prueba separada en este servidor) ensucia tablas operativas reales — limpiar después,
+> o evitar correrlos contra `/data/jugueteria.db` si se puede apuntar a una copia.
+>
+> **Nota de calibración (no un bug):** el contenedor de este despliegue NO tiene fuentes de
+> emoji instaladas (`fonts-liberation` únicamente) — cualquier ✓/🎉/emoji se ve como "▊" en
+> MIS capturas de Puppeteer, pero un navegador real de usuario (Windows/Mac) sí las renderiza
+> bien. No tratar esto como bug real sin confirmar primero que el usuario lo ve así en su
+> propio navegador.
 
 ## Project
 

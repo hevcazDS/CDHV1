@@ -21,7 +21,11 @@ export default function ComprasTab({ soloRecepcion = false }) {
   const [costo, setCosto] = useState(0);
 
   const { data: proveedores = [] } = useQuery({ queryKey: ['erp-proveedores'], queryFn: () => api.get('/api/erp/proveedores') });
-  const { data: productos = [] } = useQuery({ queryKey: ['erp-productos'], queryFn: () => api.get('/api/pos/productos').catch(() => []) });
+  // /api/pos/productos devuelve { items:[...] }, no un array plano (mismo
+  // patrón que Mostrador.jsx/Mesas.jsx) — sin el .then(r=>r.items||[]) esto
+  // crasheaba TODA la pestaña "Órdenes de compra" (productos.map sobre el
+  // objeto {items:[...]} en vez del array).
+  const { data: productos = [] } = useQuery({ queryKey: ['erp-productos'], queryFn: () => api.get('/api/pos/productos').then(r => r.items || []).catch(() => []) });
   const { data: ocs = [] } = useQuery({ queryKey: ['erp-ocs'], queryFn: () => api.get('/api/erp/ordenes-compra') });
   // Multitienda: gerente+ puede dirigir la OC a otra tienda (rol compras no ve
   // el catálogo → sus OC entran a su propia tienda, que es lo correcto).

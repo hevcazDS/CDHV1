@@ -410,7 +410,14 @@ const SECURITY_HEADERS = {
     // script-src SIN 'unsafe-inline': el build de Vite solo usa scripts externos
     // (módulos con hash), no hay <script> inline → endurece XSS. style-src SÍ
     // conserva 'unsafe-inline' porque Mantine inyecta estilos en línea.
-    'Content-Security-Policy':   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
+    // img-src con https: (no solo 'self' data:): productos.url_imagen es
+    // AMBIVALENTE por diseño (liga externa o archivo local, AUDITORIA_FOTOS.md)
+    // — con solo 'self' data:, el catálogo/POS de Julio Cepeda (fotos reales en
+    // cdn.shopify.com) se veía sin imágenes en el panel, bloqueado por CSP en
+    // silencio (el bot SÍ podía mandarlas por WhatsApp, fromUrl no pasa por el
+    // navegador). Las imágenes no ejecutan script; permitir cualquier https no
+    // reintroduce el riesgo que script-src/style-src sí mitigan.
+    'Content-Security-Policy':   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:",
     'Strict-Transport-Security': 'max-age=31536000',
     'Cache-Control':             'no-store, no-cache, must-revalidate',
 };

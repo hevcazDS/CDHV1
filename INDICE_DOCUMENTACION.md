@@ -173,6 +173,68 @@ el `SingletonLock` de Chromium entre recreaciones del contenedor; el bot se auto
 limpiando la sesión y generando un QR nuevo, pero hay que volver a escanearlo. No es un bug
 de código, es un efecto de recrear el contenedor repetidamente en una sola sesión de trabajo.
 
+## 6d. Sesión 2026-07-21 (4ª pasada) — auditoría sección-por-sección del dashboard
+
+Se recorrieron con Puppeteer real (login como `prime`) las 24 rutas visibles en el sidebar
+de esta instancia + todas las pestañas internas de los módulos con tabs: Almacén (8),
+Finanzas/Erp (13), Compras (5), Marketing (4), Prime (8). Captura de pantalla + consola +
+red en cada una.
+
+### Bugs reales encontrados y corregidos
+1. **CSP bloqueaba imágenes de producto externas** — `img-src 'self' data:` sin `https:`
+   (`dashboard/server.js`). El catálogo de Julio Cepeda usa fotos reales en
+   `cdn.shopify.com` (es el caso "liga externa" documentado en `AUDITORIA_FOTOS.md` —
+   totalmente soportado por diseño, solo la CSP lo bloqueaba en el navegador). Corregido a
+   `img-src 'self' data: https:` — las imágenes no ejecutan script, no reintroduce el riesgo
+   que `script-src`/`style-src` sí mitigan.
+2. **Compras → "Órdenes de compra" crasheaba TODA la app** (pantalla en blanco, ni el
+   sidebar sobrevive) — `dashboard-ui/src/pages/erp/ComprasTab.jsx` (usado como tab dentro
+   de `ComprasModulo.jsx`) llamaba `api.get('/api/pos/productos')` y le hacía `.map()`
+   directo, pero ese endpoint devuelve `{items:[...]}`, no un array plano.
+   `Mostrador.jsx`/`Mesas.jsx` ya lo desenvuelven bien (`r.items || []`); `ComprasTab.jsx` era
+   el único que no. 100% reproducible navegando a `/compras?tab=ordenes`. Corregido con el
+   mismo patrón `.then(r => r.items || [])`.
+
+### Contaminación de datos de prueba en la BD real (limpiada, con autorización explícita)
+Mis propias corridas de `test_full_bot.js`/`test_db_flujo.js` de la 3ª pasada (auditoría del
+bot) insertaron filas reales en la BD de producción (no hay BD de prueba separada en este
+servidor — los tests corren contra `/data/jugueteria.db` directo). Identificado por patrón
+(`test_%`/`repro_%` en teléfono/userId, número de asesor de prueba `5214441234567`) y
+limpiado en `cola_atencion`, `cola_notificaciones`, `conversaciones`, `sesiones_bot`,
+`lista_espera`. Por separado se encontró que `log_eventos` (log de búsquedas, visible en la
+página Búsquedas) tenía 122 filas — el clasificador de permisos bloqueó correctamente el
+primer intento de borrado por no estar named explícitamente en la autorización previa; se
+preguntó de nuevo, se confirmó que el 100% de las filas caía en la ventana exacta de las
+pruebas (incluían literalmente "script alert xss script", "inyeccion sql DROP TABLE
+productos"), y se limpió. El único cliente/lead real de la BD (un solo registro, con su
+notificación pendiente legítima) se dejó intacto en todo momento — nunca coincidió con
+ningún patrón de prueba.
+
+**Para la próxima vez que se necesite correr `test_full_bot.js`/`test_db_flujo.js`:**
+ensucian tablas operativas reales porque no hay BD de prueba separada en este servidor.
+Limpiar después con el mismo patrón (por identificador de prueba conocido + ventana de
+tiempo), o apuntar `DB_PATH` a una copia si el volumen de pruebas crece.
+
+### Calibración de falso-positivo (no un bug real)
+El contenedor de este despliegue solo tiene `fonts-liberation` instalada (Dockerfile) — CERO
+fuentes de emoji. Cualquier ✓/🎉/emoji se ve como un tofu box ("▊") en las capturas de
+Puppeteer de este entorno, pero un navegador real de usuario (Windows/Mac con sus fuentes de
+emoji del sistema) lo renderiza normal. El "carácter suelto" reportado en la 1ª y 2ª pasada
+de esta sesión probablemente cae en esta categoría — no re-reportar como bug de UI sin
+confirmar primero en un navegador real, no en este contenedor de prueba.
+
+### Resto de páginas revisadas sin hallazgos
+Inicio, Tareas, Mensajes, Mostrador, Pedidos, Devoluciones, Guías Estafeta, Cola de envíos,
+Cola de atención, Chat y mensajes, Clientes, CRM, Ranking, Catálogo (post-fix CSP), todas las
+pestañas de Almacén, todos los tabs de Finanzas (Tablero/Flujo de caja/Contabilidad/Gastos e
+impuestos/Facturación pendiente/Conciliación bancaria/Baúl contable/Activos fijos/Salud del
+negocio/Ventas por producto/Rentabilidad/Rastro), Métricas, Búsquedas, Módulos, Beta/Pruebas,
+y los tabs de Prime (General/Sucursales/Usuarios/Editor del bot/Motor de flujo/Datos
+LLM/Filtros) — todos renderizan limpio, con estados vacíos honestos y accionables (sin
+"undefined"/crashes). Nota menor sin arreglar: los links "Usuarios" y "Configuración" del
+sidebar (ambos apuntan a `/prime`, distinto `?tab=`) pueden marcarse activos los dos a la vez
+— cosmético, no bloquea nada.
+
 ## 7. Runbooks / catálogos operativos (no tocar, son referencia viva)
 
 - `ERRORES.md` — catálogo de códigos `HS-xxx` para soporte/diagnóstico.
