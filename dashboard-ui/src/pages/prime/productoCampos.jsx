@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Fieldset, TextInput, NumberInput, Select, Textarea, Group, Button, FileButton, Image, Text } from '@mantine/core';
 import { api } from '../../api';
 import { toastOk, toastErr } from '../../lib/ui';
+import { useTextoEmoji } from '../../context/EmojiContext';
 
 // Resuelve el valor de url_imagen a un src usable por <img>: URL externa tal
 // cual, o el servidor local de fotos de producto para un archivo guardado.
@@ -138,6 +139,7 @@ export function SelectCategoria({ form, categorias, onCrearCategoria }) {
 function _giro() { try { return localStorage.getItem('giro') || 'jugueteria'; } catch (_) { return 'jugueteria'; } }
 
 export function CamposProducto({ form, categorias, onCrearCategoria, idProducto }) {
+  const txt = useTextoEmoji();
   const giro = _giro();
   const [subiendo, setSubiendo] = useState(false);
   // Media avanzada (video + 3D): solo se muestra si el módulo está encendido.
@@ -241,7 +243,7 @@ export function CamposProducto({ form, categorias, onCrearCategoria, idProducto 
           <TextInput label="URL de imagen o foto subida" style={{ flex: 1 }} {...form.getInputProps('url_imagen')}
             description="Pega una liga externa (http…) o sube una foto: se optimiza a WebP y se guarda en el sistema" />
           <FileButton onChange={subirFoto} accept="image/png,image/jpeg">
-            {(props) => <Button {...props} variant="default" loading={subiendo}>📷 Subir foto</Button>}
+            {(props) => <Button {...props} variant="default" loading={subiendo}>{txt('📷 Subir foto')}</Button>}
           </FileButton>
         </Group>
         {form.values.url_imagen && (
@@ -262,7 +264,7 @@ export function CamposProducto({ form, categorias, onCrearCategoria, idProducto 
       </Fieldset>
 
       {mediaAvanzada && (
-        <Fieldset legend="🎬 Media avanzada (tienda en línea)" mb="md">
+        <Fieldset legend={txt('🎬 Media avanzada (tienda en línea)')} mb="md">
           <Text size="xs" c="dimmed" mb="sm">Para aprovechar más adelante en la tienda en línea / visor 3D. Solo se guardan las ligas.</Text>
           <TextInput label="Liga de video" placeholder="YouTube, Vimeo o .mp4" mb="sm" {...form.getInputProps('video_url')} />
           <TextInput label="Liga de modelo / render / animación 3D" placeholder=".glb, .gltf o Sketchfab" {...form.getInputProps('modelo_3d_url')} />

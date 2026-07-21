@@ -4,11 +4,13 @@ import { Card, TextInput, Group, Button, Text } from '@mantine/core';
 import { api } from '../../api';
 import { exportarCSV } from '../../lib/csv';
 import { confirmar, toastOk, toastErr } from '../../lib/ui';
+import { useTextoEmoji } from '../../context/EmojiContext';
 
 // Facturación: pedidos con datos fiscales. Con el PAC activo (Prime > General),
 // se timbra, descarga y cancela el CFDI directo aquí. Sin PAC, se exporta el CSV
 // para un despacho externo (comportamiento anterior).
 export default function FacturacionTab() {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const hoy = new Date().toISOString().slice(0, 10);
   const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
@@ -25,7 +27,7 @@ export default function FacturacionTab() {
     setBusy(f.id_pedido);
     try {
       const res = await api.post(`/api/erp/timbrar/${f.id_pedido}`, {});
-      if (res.ok) { toastOk('Timbrado ✅ ' + (res.uuid || '')); qc.invalidateQueries({ queryKey: ['fact-pend'] }); }
+      if (res.ok) { toastOk(txt('Timbrado ✅ ' + (res.uuid || ''))); qc.invalidateQueries({ queryKey: ['fact-pend'] }); }
       else toastErr(res.motivo || res.error || 'No se pudo timbrar');
     } catch (e) { toastErr(e.message); } finally { setBusy(null); }
   };
@@ -44,7 +46,7 @@ export default function FacturacionTab() {
     setBusy(f.id_pedido);
     try {
       const res = await api.post(`/api/erp/cfdi/${f.id_pedido}/rep`, {});
-      if (res.ok) { toastOk('Complemento de pago timbrado ✅ ' + (res.uuid || '')); qc.invalidateQueries({ queryKey: ['fact-pend'] }); }
+      if (res.ok) { toastOk(txt('Complemento de pago timbrado ✅ ' + (res.uuid || ''))); qc.invalidateQueries({ queryKey: ['fact-pend'] }); }
       else toastErr(res.error);
     } catch (e) { toastErr(e.message); } finally { setBusy(null); }
   };
@@ -97,7 +99,7 @@ export default function FacturacionTab() {
                         <Button size="compact-xs" variant="default" onClick={() => bajar(f, 'pdf')}>PDF</Button>
                         <Button size="compact-xs" variant="default" onClick={() => bajar(f, 'xml')}>XML</Button>
                         {f.metodo_sat === 'PPD' && !f.rep_uuid && <Button size="compact-xs" variant="default" loading={busy === f.id_pedido} onClick={() => rep(f)} title="Complemento de pago (factura PPD cobrada)">REP</Button>}
-                        {f.rep_uuid && <span className="badge badge-verde" title="Complemento de pago timbrado">REP ✓</span>}
+                        {f.rep_uuid && <span className="badge badge-verde" title="Complemento de pago timbrado">{txt('REP ✓')}</span>}
                         <Button size="compact-xs" variant="default" color="red" onClick={() => cancelar(f)}>Cancelar</Button>
                       </>}
                     </Group>

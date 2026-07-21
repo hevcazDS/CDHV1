@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { AppShell, Accordion, Menu } from '@mantine/core';
+import { AppShell, Accordion, Menu, SegmentedControl } from '@mantine/core';
 import { confirmar } from '../lib/ui';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -30,6 +30,29 @@ import { permite, etiquetaRol, esAuditor } from '../lib/permisos';
 // Ola 2 (PROPUESTA_UI_ERP §C): 9 grupos por dominio de negocio. Marketing,
 // Compras y Catálogo son páginas-módulo (sus antiguas páginas viven dentro
 // como tabs; las rutas viejas redirigen en App.jsx).
+// Tono del lienzo bajo el tema F (papel/oscuro/confort/azul, ver temaF.css) —
+// preferencia solo de este navegador (sin API, igual que en Prime > General):
+// vivía únicamente ahí, escondida para cualquier rol que no fuera prime. Se
+// repite aquí, en el menú del avatar, para que cualquier usuario la cambie
+// desde cualquier página sin tener que entrar a Configuración.
+const TONOS_F = [
+  { value: 'papel', label: 'Papel' },
+  { value: 'oscuro', label: 'Oscuro' },
+  { value: 'confort', label: 'Confort' },
+  { value: 'azul', label: 'Azul' },
+];
+function TonoFSwitcher() {
+  const [tono, setTono] = useState(() => {
+    try { const t = localStorage.getItem('tono-f'); return ['oscuro', 'confort', 'azul'].includes(t) ? t : 'papel'; } catch (_) { return 'papel'; }
+  });
+  const cambiar = (v) => {
+    setTono(v);
+    document.documentElement.setAttribute('data-tono-f', v);
+    try { localStorage.setItem('tono-f', v); } catch (_) {}
+  };
+  return <SegmentedControl fullWidth size="xs" value={tono} onChange={cambiar} data={TONOS_F} />;
+}
+
 const GRUPOS = [
   { titulo: 'Panel', enlaces: [
     { to: '/', label: 'Inicio', Icono: Home },
@@ -241,7 +264,6 @@ export default function Layout() {
         <div className="topbar-right">
           {/* Selector de tienda (una BD por tienda) — solo Prime y solo con 2+ instancias */}
           <InstanciaSwitcher />
-          <ThemeSwitcher />
           <NotificationBell />
           {/* El bot es un módulo (no la base): solo operación/gerente lo ven y controlan */}
           {permite(user?.rol, 'operacion') && <BotStatusWidget />}
@@ -254,6 +276,13 @@ export default function Layout() {
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Label>{user?.username} · {etiquetaRol(user?.rol)}</Menu.Label>
+              <Menu.Divider />
+              <Menu.Label>Apariencia</Menu.Label>
+              <div style={{ padding: '2px 10px 8px' }}>
+                {document.documentElement.getAttribute('data-tema-ui') !== 'clasico'
+                  ? <TonoFSwitcher />
+                  : <ThemeSwitcher />}
+              </div>
               <Menu.Divider />
               <Menu.Item color="red" leftSection={<LogOut size={14} />} onClick={async () => {
                 if (await confirmar({ titulo: 'Cerrar sesión', mensaje: '¿Cerrar tu sesión en el panel?', textoOk: 'Cerrar sesión' })) logout();

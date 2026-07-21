@@ -186,7 +186,7 @@ export default function Rrhh() {
                       {n.estatus === 'pagada' && !n.cfdi_uuid && (
                         <Button size="compact-xs" variant="subtle" ml={6} onClick={async () => {
                           const r = await api.post(`/api/rrhh/nomina/${n.id}/timbrar`, {}).catch(e => ({ ok: false, error: e.message }));
-                          if (r.ok) { toastOk('Recibo timbrado ✅'); qc.invalidateQueries({ queryKey: ['rrhh-nom'] }); } else handleApiError(new Error(r.error || r.motivo));
+                          if (r.ok) { toastOk(txt('Recibo timbrado ✅')); qc.invalidateQueries({ queryKey: ['rrhh-nom'] }); } else handleApiError(new Error(r.error || r.motivo));
                         }}>Timbrar</Button>
                       )}
                       {n.cfdi_uuid && <>

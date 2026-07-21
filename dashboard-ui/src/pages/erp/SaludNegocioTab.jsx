@@ -5,6 +5,7 @@ import { api } from '../../api';
 import { money } from '../../lib/format';
 import { handleApiError } from '../../lib/apiError';
 import { toastOk } from '../../lib/ui';
+import { useTextoEmoji } from '../../context/EmojiContext';
 
 // Salud del negocio (unit economics): CAC / LTV / Ratio LTV:CAC. El gasto de
 // adquisición (publicidad + ventas) es OPCIONAL — muchos negocios no pautan: si
@@ -17,6 +18,7 @@ const _hoy = () => new Date().toISOString().slice(0, 10);
 const _iniMes = () => _hoy().slice(0, 8) + '01';
 
 export default function SaludNegocioTab() {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const [desde, setDesde] = useState(_iniMes());
   const [hasta, setHasta] = useState(_hoy());
@@ -58,7 +60,7 @@ export default function SaludNegocioTab() {
 
       <Card withBorder radius="md" p="sm" className="card">
         <Group align="flex-end" gap="sm">
-          <Text size="sm" c="dimmed" style={{ flex: 1 }}>💡 Registra lo que gastaste en publicidad y el CAC se calcula solo (cuenta 602). Si no dejas el campo de arriba, se usa esto.</Text>
+          <Text size="sm" c="dimmed" style={{ flex: 1 }}>{txt('💡 ')}Registra lo que gastaste en publicidad y el CAC se calcula solo (cuenta 602). Si no dejas el campo de arriba, se usa esto.</Text>
           <NumberInput label="Registrar publicidad" prefix="$ " thousandSeparator="," min={0} value={pub} onChange={setPub} w={170} />
           <Button variant="light" loading={registrarPub.isPending} disabled={!(Number(pub) > 0)} onClick={() => registrarPub.mutate()}>Registrar gasto</Button>
         </Group>

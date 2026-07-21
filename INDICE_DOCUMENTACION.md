@@ -235,6 +235,107 @@ LLM/Filtros) — todos renderizan limpio, con estados vacíos honestos y acciona
 sidebar (ambos apuntan a `/prime`, distinto `?tab=`) pueden marcarse activos los dos a la vez
 — cosmético, no bloquea nada.
 
+## 6e. Sesión 2026-07-21 (5ª pasada) — emojis restantes, selector de tono, correo, negro-sobre-negro
+
+El dueño pidió 4 cosas en un solo mensaje tras la 4ª pasada.
+
+### 1. Emojis sin gatear por `useTextoEmoji` (bug real, corregido)
+De los 42 archivos con emoji crudo que la 4ª pasada había detectado pero no arreglado
+(solo se había hecho el inventario), ~19 no importaban `useTextoEmoji`/`useEmoji` en
+absoluto — bypasseaban el toggle `emojis_dashboard_activo` (default OFF) por completo — y
+~23 más tenían instancias sueltas sin envolver junto a otras ya correctas. Se agregó el
+import (`useTextoEmoji`/`useEmoji` de `context/EmojiContext.jsx`, ajustando la ruta según
+profundidad: `../context/...` en `pages/`/`components/`, `../../context/...` en
+`pages/{prime,erp,compras,almacen}/`) y se envolvió cada emoji real en ~30 archivos:
+`Correo.jsx` (2 instancias, 2 componentes nuevos con su propio `txt`), `Crm.jsx` (3, en
+`TareasTab`/`CampanasTab`), `Modulos.jsx` (el `razon` de dependencias entre módulos —
+ej. "Primero activa: 🍽️ Mesas" — se mostraba sin pasar por `txt()` aunque el `<h4>` del
+título sí lo hacía), `Compras.jsx`, `ColaAtencion.jsx`, `Metricas.jsx` (`canalLabel` de
+campañas promo), `Fiados.jsx`, `compras/ResumenComprasTab.jsx`,
+`almacen/ResumenAlmacenTab.jsx`, `prime/productoCampos.jsx`, `prime/GeneralTab.jsx`
+(`PacConfig`/`PasarelaConfig` son componentes de módulo aparte del `GeneralTab` principal
+— no heredan su `txt`, cada uno necesitó su propio `useTextoEmoji()`),
+`erp/ContabilidadTab.jsx` (incl. `PolizaManual`, componente hijo separado),
+`erp/ActivosFijosTab.jsx` (`CATEGORIAS`/`CAT_LABEL` son arreglos a nivel de módulo con
+emoji en los labels — no se puede llamar un hook ahí, se envuelve al construir
+`data={categoriasTxt}` dentro del componente), `components/FichaCliente.jsx`,
+`pages/Asistencias.jsx`, `pages/Tareas.jsx`, `pages/Citas.jsx`, `pages/Mostrador.jsx` (ya
+tenía el import, solo faltaban 3 instancias sueltas), `prime/MotorCanvas.jsx` (solo ⭐/🎉
+reales — el nodo `PasoNode` y el componente principal son distintos, cada uno con su
+propio hook), `erp/FacturacionTab.jsx`, `erp/SaludNegocioTab.jsx`.
+
+**Alcance deliberadamente NO cubierto** (para no convertir esto en un trabajo mecánico de
+bajísimo valor): flechas sueltas (`→`/`←`) y checkmarks (`✓`) que viven en comentarios de
+código (no renderizan al usuario) o en texto puramente tipográfico/funcional —
+`OrdenesServicio.jsx` (`✓` en un `<Text>` de evidencia), `pages/inicio/VistaAdminF.jsx` y
+`VistaAdmin.jsx` (flechas de navegación "responder →"/"ver todos →"), `Guias.jsx` (mensaje
+de éxito con flecha), `almacen/MovimientosTab.jsx` (flecha en "stock anterior → nuevo"),
+`erp/RastroTab.jsx` (flechas en el rastro de kardex), `erp/ProveedoresTab.jsx` (flecha en
+un hint vacío), `components/WhatsAppQR.jsx` (el "✕" es el ícono funcional de cerrar, no
+decoración), `components/NotificationBell.jsx` ("Todo al día ✓"), `pages/Cocina.jsx`
+("Listo ✓"), `almacen/CalendarioTab.jsx` (flecha en un hint), `prime/DatosLLMTab.jsx`
+(flecha + entidad `&gt;`), `erp/GastosImpuestosTab.jsx` línea 63 (botón "Registrar →
+asiento contable"). Técnicamente `EMOJI_RE` (en `EmojiContext.jsx`) sí cubre estos rangos
+(`\u{2190}-\u{21FF}` incluye flechas, `\u{2600}-\u{27BF}` incluye checkmarks), así que hay
+una inconsistencia menor si alguien apaga el toggle: estas quedarían visibles mientras el
+resto del emoji desaparece. Se aceptó ese trade-off porque estos símbolos no son el "ruido
+de emoji" (caritas/pictogramas de colores) del que se quejaba el dueño.
+
+Verificado con `npm run build` (dentro del contenedor, ver aviso operativo abajo) — 0
+errores de sintaxis en los ~30 archivos tocados.
+
+### 2. Selector de "tipo de color" reubicado (no era el que parecía)
+Investigación previa a tocar nada: `components/ThemeSwitcher.jsx` (Claro/Color/Oscuro)
+**devuelve `null` bajo el tema F** (el activo por defecto) — solo aplica al tema clásico.
+El control real de "color" bajo tema F es el **tono del lienzo** (Papel/Oscuro/Confort/
+Azul claro, atributo `data-tono-f`, reglas en `temaF.css` §15), que **solo vivía dentro de
+Prime → General** ("Diseño del panel"), invisible para cualquier rol que no fuera `prime`
+y enterrado en Configuración — de ahí que el dueño no lo encontrara arriba. Se creó
+`TonoFSwitcher` en `components/Layout.jsx` (mismo mecanismo que ya usaba `GeneralTab.jsx`:
+solo `localStorage`+atributo, sin llamada a la API) y se movió — junto con
+`<ThemeSwitcher/>` para cuando alguna instancia use el tema clásico — **dentro del dropdown
+del avatar** (arriba a la derecha, bajo un `Menu.Label` "Apariencia", antes de "Cerrar
+sesión"), visible para **todos los roles en todas las páginas** (antes era Prime-only). Se
+quitó el `<ThemeSwitcher/>` suelto que vivía directo en el `topbar-right` (no hacía nada
+bajo tema F de cualquier forma). El control original en Prime → General se dejó intacto —
+no estorba que siga ahí también, y algún negocio que ya lo tenga configurado no pierde nada.
+
+### 3. "No vi la bandeja de correos" — no es un bug
+`correo_activo` está en `_DEFAULT_OFF` (`bot/flows/modulosDefaults.js`) y **sin fila propia
+en `configuracion` para esta instancia** (confirmado con `SELECT` directo) — o sea, aplica
+el default apagado. El link del sidebar además exige rol `gerente+`
+(`rolRequerido:'gerente'` en `Layout.jsx`). Es el diseño de módulos opt-in funcionando como
+se espera, no un hallazgo — queda pendiente que el dueño decida si lo enciende desde
+Módulos ("📧 Correo (redactar y enviar)") y confirme que su rol es gerente o superior.
+
+### 4. "Negras en tonos negros" — no reproducido, queda abierto
+Auditoría estática (grep de `color:` hardcodeado en JSX de `pages/`+`components/` y en
+`styles.css`/`temaF.css`) no encontró texto negro-sobre-negro real: los únicos hex
+hardcodeados son texto **blanco** sobre fondos de color/oscuro (`.kpi-dark, .kpi-dark *
+{ color:#fff!important }` ya lo cubre) y los colores fijos de `prime/MotorCanvas.jsx` (el
+editor visual de flujo es **siempre** oscuro por diseño — no sigue el tema de la app, ni
+debería). El sistema de variables de `temaF.css` (`--text`/`--text-dim`/`--text-mute`
+redefinidas en cada bloque de tono: oscuro/confort/azul) se ve correcto en el código. **No
+se pudo verificar visualmente en un navegador real** — este entorno no tiene credenciales
+de login disponibles para levantar Puppeteer autenticado y forzar `data-tono-f="oscuro"` +
+capturar pantalla (las corridas previas de esta sesión usaban `INSPECT_USER`/`INSPECT_PASS`
+del `.env`, que no están presentes esta vez). Queda pendiente: pedirle al dueño la
+página/elemento exacto donde lo vio (o las credenciales/rol para reproducirlo), en vez de
+adivinar y tocar código que audita bien en el papel.
+
+### ⚠️ Aviso operativo: build de verificación quedó live sin querer
+Para confirmar que los ~30 archivos editados compilaban, se corrió `npm install` +
+`npm run build` **dentro del contenedor `bothsv` que corre en producción**
+(`/app/dashboard-ui`, vía `docker cp` del `src/` actualizado + `npm run build` in-place).
+`dashboard/server.js` sirve `dashboard-ui/dist` **directo del disco en cada request** (sin
+build-time baking ni caché en memoria) — así que ese `dist` recién generado quedó **live en
+jiua.hevcaz.com** en cuanto terminó el build, sin reiniciar el contenedor ni correr
+`docker compose up`. No se tocó el volumen `wwebjs_auth` ni se recreó el contenedor, así
+que el riesgo de `SingletonLock`/QR de la 3ª pasada **no aplica** aquí. Aun así, esto fue un
+despliegue de facto sin pedir confirmación previa — para la próxima verificación de build,
+usar un directorio temporal dentro del contenedor (ej. `docker cp src bothsv:/tmp/check/src`
++ build ahí) en vez de sobrescribir `/app/dashboard-ui` directamente.
+
 ## 7. Runbooks / catálogos operativos (no tocar, son referencia viva)
 
 - `ERRORES.md` — catálogo de códigos `HS-xxx` para soporte/diagnóstico.

@@ -442,6 +442,7 @@ const PACS = [
 ];
 const USOS_CFDI = ['G01', 'G03', 'P01', 'I08', 'D01', 'S01'].map(v => ({ value: v, label: v }));
 function PacConfig() {
+  const txt = useTextoEmoji();
   const [c, setC] = useState({ proveedor: '', rfc: '', ambiente: 'sandbox', serie: '', uso_cfdi: 'G03', regimen_receptor: '616', cp_receptor: '', clave_prod_sat: '01010101', clave_unidad: 'H87' });
   const [sec, setSec] = useState({ password: '', csd_pass: '', api_key: '' });
   const [cifrado, setCifrado] = useState(true);
@@ -467,7 +468,7 @@ function PacConfig() {
     const r = await api.put('/api/prime/pac', body).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return setMsg({ ok: false, t: r.error });
     setSec({ password: '', csd_pass: '', api_key: '' });
-    setMsg({ ok: true, t: r.activo ? '✅ PAC activo — ya puedes timbrar' : r.configurado ? 'Guardado. Activa el módulo Facturación para timbrar.' : 'Guardado (faltan datos para timbrar)' });
+    setMsg({ ok: true, t: r.activo ? txt('✅ PAC activo — ya puedes timbrar') : r.configurado ? 'Guardado. Activa el módulo Facturación para timbrar.' : 'Guardado (faltan datos para timbrar)' });
     cargar();
   };
   const cargado = (b) => b ? <span className="chip" style={{ background: 'var(--green)', color: '#fff' }}>cargado</span> : <span className="chip">falta</span>;
@@ -475,7 +476,7 @@ function PacConfig() {
     <Card withBorder radius="md" p="lg" className="card" style={{ marginTop: 14 }}>
       <div className="card-header"><h3>Facturación electrónica — PAC (solo Prime)</h3></div>
       <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 10 }}>
-        {flags.activo ? '✅ Timbrado ACTIVO — las ventas con datos fiscales ya se pueden timbrar (CFDI 4.0).'
+        {flags.activo ? txt('✅ Timbrado ACTIVO — las ventas con datos fiscales ya se pueden timbrar (CFDI 4.0).')
           : flags.configurado ? 'Credenciales completas — activa el módulo Facturación en Módulos para timbrar.'
           : 'Con Facturapi solo necesitas tu API key: sube tu CSD una vez en el portal del PAC y pega aquí la key.'}
       </p>
@@ -530,6 +531,7 @@ const PASARELAS = [
   { value: 'mercadopago', label: 'Mercado Pago (access token)' },
 ];
 function PasarelaConfig() {
+  const txt = useTextoEmoji();
   const [c, setC] = useState({ proveedor: '', ambiente: 'live', demo: false, url_estatico: '' });
   const [apiKey, setApiKey] = useState('');
   const [flags, setFlags] = useState({});
@@ -545,7 +547,7 @@ function PasarelaConfig() {
     const r = await api.put('/api/prime/pasarela', body).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return setMsg({ ok: false, t: r.error });
     setApiKey('');
-    setMsg({ ok: true, t: r.demo ? '✅ Modo DEMO activo — los links se simulan para la presentación' : r.configurado ? '✅ Pasarela configurada — los links de pago se generan de verdad' : 'Guardado (faltan datos: elige proveedor y pega la key, o activa el modo demo)' });
+    setMsg({ ok: true, t: r.demo ? txt('✅ Modo DEMO activo — los links se simulan para la presentación') : r.configurado ? txt('✅ Pasarela configurada — los links de pago se generan de verdad') : 'Guardado (faltan datos: elige proveedor y pega la key, o activa el modo demo)' });
     cargar();
   };
   const cargado = (b) => b ? <span className="chip" style={{ background: 'var(--green)', color: '#fff' }}>cargada</span> : <span className="chip">falta</span>;
@@ -553,12 +555,12 @@ function PasarelaConfig() {
     <Card withBorder radius="md" p="lg" className="card" style={{ marginTop: 14 }}>
       <div className="card-header"><h3>Pasarela de pago (solo Prime)</h3></div>
       <p style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 10 }}>
-        {flags.demo ? '🎬 Modo DEMO: los links de pago se simulan (no se cobra nada) — ideal para presentarle el sistema a un cliente.'
-          : flags.configurado ? '✅ Pasarela ACTIVA — el botón "enviar link" en Pedidos genera un link real del proveedor.'
+        {flags.demo ? txt('🎬 Modo DEMO: los links de pago se simulan (no se cobra nada) — ideal para presentarle el sistema a un cliente.')
+          : flags.configurado ? txt('✅ Pasarela ACTIVA — el botón "enviar link" en Pedidos genera un link real del proveedor.')
           : 'Con solo la API key de Stripe o Mercado Pago se generan links reales. Requiere el módulo "Link de pago" activo.'}
       </p>
       <Switch mb="sm" checked={c.demo} onChange={e => setC({ ...c, demo: e.currentTarget.checked })}
-        label="🎬 Modo demostración (simular el envío del link)"
+        label={txt('🎬 Modo demostración (simular el envío del link)')}
         description="Genera un link simulado con la referencia real y lo envía normal, sin llamar a ningún proveedor ni cobrar. Para presentaciones." />
       <Group grow mb="sm">
         <Select label="Proveedor" data={PASARELAS} value={c.proveedor} onChange={v => setC({ ...c, proveedor: v || '' })} clearable disabled={c.demo} />

@@ -5,6 +5,7 @@ import { api } from '../../api';
 import { money } from '../../lib/format';
 import { handleApiError } from '../../lib/apiError';
 import { confirmar, prompt } from '../../lib/ui';
+import { useTextoEmoji } from '../../context/EmojiContext';
 
 // Activos fijos: capitalización + depreciación lineal. Equipo/cómputo/vehículos/
 // maquinaria/inmuebles se registran en su cuenta 12x (no en inventario de venta)
@@ -20,6 +21,8 @@ const CATEGORIAS = [
 const CAT_LABEL = Object.fromEntries(CATEGORIAS.map(c => [c.value, c.label]));
 
 export default function ActivosFijosTab() {
+  const txt = useTextoEmoji();
+  const categoriasTxt = CATEGORIAS.map(c => ({ ...c, label: txt(c.label) }));
   const qc = useQueryClient();
   const [f, setF] = useState({ nombre: '', categoria: 'equipo', costo: '', vida_util_meses: 60, valor_residual: '', metodo: 'bancos' });
   const { data: activos, isLoading } = useQuery({ queryKey: ['activos-fijos'], queryFn: () => api.get('/api/erp/activos') });
@@ -69,7 +72,7 @@ export default function ActivosFijosTab() {
         <Text size="sm" fw={600} mb="xs">Registrar un activo (se capitaliza y deprecia — no entra al inventario de venta)</Text>
         <Group align="flex-end" gap="sm" wrap="wrap">
           <TextInput label="Nombre" placeholder="Ej: Caminadora Life Fitness" value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} w={220} />
-          <Select label="Categoría" data={CATEGORIAS} value={f.categoria} onChange={v => setF({ ...f, categoria: v })} w={190} />
+          <Select label="Categoría" data={categoriasTxt} value={f.categoria} onChange={v => setF({ ...f, categoria: v })} w={190} />
           <NumberInput label="Costo" min={0} prefix="$ " thousandSeparator="," value={f.costo} onChange={v => setF({ ...f, costo: v })} w={130} />
           <NumberInput label="Vida útil (meses)" min={1} value={f.vida_util_meses} onChange={v => setF({ ...f, vida_util_meses: v })} w={130} />
           <NumberInput label="Valor residual" min={0} prefix="$ " thousandSeparator="," value={f.valor_residual} onChange={v => setF({ ...f, valor_residual: v })} w={130} />
@@ -89,7 +92,7 @@ export default function ActivosFijosTab() {
               {(activos || []).map(a => (
                 <tr key={a.id}>
                   <td>{a.nombre}</td>
-                  <td><Badge variant="light" size="sm">{CAT_LABEL[a.categoria] || a.categoria}</Badge></td>
+                  <td><Badge variant="light" size="sm">{txt(CAT_LABEL[a.categoria] || a.categoria)}</Badge></td>
                   <td style={{ textAlign: 'right' }}>{money(a.costo)}</td>
                   <td style={{ textAlign: 'right' }}>{money(a.depreciacion_acumulada)}</td>
                   <td style={{ textAlign: 'right' }}>

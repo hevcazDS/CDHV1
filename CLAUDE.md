@@ -78,6 +78,78 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > MIS capturas de Puppeteer, pero un navegador real de usuario (Windows/Mac) sí las renderiza
 > bien. No tratar esto como bug real sin confirmar primero que el usuario lo ve así en su
 > propio navegador.
+>
+> **2026-07-21 (5ª pasada, emojis restantes + reubicación del selector de tono +
+> auditoría de "negro sobre negro"):** el dueño pidió 4 cosas en un solo mensaje.
+> 1. **Emojis sin gatear**: de los 42 archivos con emoji crudo detectados en la 4ª
+>    pasada, ~19 no importaban `useTextoEmoji` en absoluto (bypasseaban el toggle
+>    `emojis_dashboard_activo` por completo) y ~23 más tenían instancias sueltas sin
+>    envolver junto a otras ya correctas. Se agregó el import + `const txt =
+>    useTextoEmoji()` (o `useEmoji()` para un solo carácter) y se envolvió cada
+>    emoji real en ~30 archivos — `Correo.jsx`, `Crm.jsx`, `Modulos.jsx` (el `razon`
+>    de dependencias entre módulos venía sin envolver), `Compras.jsx`,
+>    `ColaAtencion.jsx`, `Metricas.jsx`, `Fiados.jsx`, `compras/ResumenComprasTab.jsx`,
+>    `almacen/ResumenAlmacenTab.jsx`, `prime/productoCampos.jsx`, `prime/GeneralTab.jsx`
+>    (`PacConfig`/`PasarelaConfig` son componentes propios sin acceso al `txt` del tab
+>    padre — cada uno necesitó su propio hook), `erp/ContabilidadTab.jsx`,
+>    `erp/ActivosFijosTab.jsx` (el `data=` del `Select` de categoría y el `CAT_LABEL`
+>    de la tabla son arreglos a nivel de módulo — se envuelven en el render, no en
+>    la constante), `FichaCliente.jsx`, `Asistencias.jsx`, `Tareas.jsx`, `Citas.jsx`,
+>    `Mostrador.jsx`, `prime/MotorCanvas.jsx` (solo ⭐/🎉 reales; los `⚠`/`⚙` se
+>    dejaron sin gatear a propósito — son iconos de estado funcionales del editor
+>    de flujo, no decoración), `erp/FacturacionTab.jsx`, `erp/SaludNegocioTab.jsx`.
+>    **Decisión de alcance deliberada**: flechas sueltas (`→`/`←`) y checkmarks
+>    (`✓`) en comentarios de código o en texto puramente tipográfico se dejaron
+>    SIN envolver (`OrdenesServicio.jsx`, `VistaAdminF.jsx`, `Guias.jsx`,
+>    `almacen/MovimientosTab.jsx`, `erp/RastroTab.jsx`, `erp/ProveedoresTab.jsx`,
+>    `WhatsAppQR.jsx` "✕", `NotificationBell.jsx` "✓", `Cocina.jsx` "✓",
+>    `inicio/VistaAdmin.jsx`, `almacen/CalendarioTab.jsx`, `prime/DatosLLMTab.jsx`,
+>    `erp/GastosImpuestosTab.jsx` línea 63) — técnicamente `EMOJI_RE` sí las cubre,
+>    pero no son el "ruido de emoji" del que se quejaba el dueño; envolverlas todas
+>    hubiera sido mucho trabajo mecánico de bajo valor. Build (`npm run build`
+>    dentro del contenedor) verificado sin errores.
+> 2. **Selector de "tipo de color"**: no era el `ThemeSwitcher.jsx` (Claro/Color/
+>    Oscuro) — ese solo aplica al tema **clásico** y bajo el tema **F** (el activo
+>    por defecto) devuelve `null`. El control real bajo tema F es el "tono del
+>    lienzo" (Papel/Oscuro/Confort/Azul, `data-tono-f`, ver `temaF.css`), que
+>    solo vivía dentro de **Prime → General** ("Diseño del panel"), invisible para
+>    cualquier rol que no fuera prime y enterrado en Configuración. Se creó
+>    `TonoFSwitcher` (mismo mecanismo cliente-only, sin API) dentro de
+>    `Layout.jsx` y se movió — junto con `ThemeSwitcher` para el caso clásico —
+>    **al dropdown del avatar** (arriba a la derecha, "para todas las páginas"),
+>    quitando el `<ThemeSwitcher/>` suelto que antes vivía en el topbar (ya no
+>    hacía nada bajo tema F). El copy de Prime → General se dejó intacto (no
+>    hace daño que siga ahí también).
+> 3. **"No vi la bandeja de correos"**: `correo_activo` está **OFF por defecto**
+>    (confirmado: sin fila en `configuracion` para esta instancia → aplica el
+>    default de `modulosDefaults.js`) y el link además requiere rol `gerente+`.
+>    No es un bug — es el diseño de módulos opt-in. Pendiente de que el dueño
+>    decida si lo enciende (Módulos → "Correo").
+> 4. **"Negras en tonos negros"**: auditoría estática (grep de `color:` hardcodeado
+>    en JSX + CSS) no encontró texto negro-sobre-negro real — los únicos hex
+>    hardcodeados son texto **blanco** sobre fondos de color/oscuros (intencional,
+>    `.kpi-dark, .kpi-dark * { color:#fff!important }` cubre ese caso) y los
+>    colores fijos de `MotorCanvas.jsx` (el editor de flujo SIEMPRE es oscuro,
+>    por diseño, no sigue el tema de la app). El sistema de variables de
+>    `temaF.css` (`--text`/`--text-dim`/`--text-mute` redefinidas por cada tono)
+>    parece correcto en el papel. **No se pudo reproducir visualmente** (no hay
+>    credenciales de login disponibles en este entorno para levantar un navegador
+>    real y forzar `data-tono-f=oscuro`) — pendiente de que el dueño señale la
+>    página/elemento exacto donde lo vio, para no adivinar y arreglar lo que no está roto.
+>
+> **⚠️ Aviso operativo importante:** para verificar que los cambios de esta pasada
+> compilaban sin errores, se corrió `npm install` + `npm run build` **dentro del
+> contenedor `bothsv` que está corriendo en producción** (`/app/dashboard-ui`).
+> `dashboard/server.js` sirve `dashboard-ui/dist` **directo del disco** en cada
+> request — no hay build-time baking ni caché en memoria — así que ese `dist`
+> recién generado **ya está live** en `jiua.hevcaz.com` en cuanto terminó el build,
+> sin que nadie reiniciara el contenedor ni corriera `docker compose up`. No se
+> tocó el volumen de WhatsApp (`wwebjs_auth`) ni se recreó el contenedor, así que
+> el riesgo de `SingletonLock`/QR documentado en la 3ª pasada NO aplica aquí. Aun
+> así, esto fue un despliegue de facto sin la confirmación explícita previa del
+> dueño — la próxima vez que se necesite verificar un build, hacerlo en un
+> directorio temporal dentro del contenedor (`docker cp` a `/tmp/...`) en vez de
+> sobrescribir `/app/dashboard-ui` directamente.
 
 ## Project
 

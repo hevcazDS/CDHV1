@@ -60,7 +60,7 @@ export default function Fiados() {
     if (!metodo) return;
     const r = await api.post(`/api/pos/fiados/${f.id_cliente}/abono`, { monto, metodo_pago: metodo }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return handleApiError(new Error(r.error));
-    toastOk(`Cobrado ${money(r.aplicado)} · ${r.tickets_pagados} ticket(s)` + (r.saldo_nuevo > 0 ? ` · saldo ${money(r.saldo_nuevo)}` : ' · al corriente 🎉'));
+    toastOk(txt(`Cobrado ${money(r.aplicado)} · ${r.tickets_pagados} ticket(s)` + (r.saldo_nuevo > 0 ? ` · saldo ${money(r.saldo_nuevo)}` : ' · al corriente 🎉')));
     qc.invalidateQueries({ queryKey: ['fiados'] });
   };
 

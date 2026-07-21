@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { esAdminOMas, etiquetaRol } from '../lib/permisos';
 import { toastErr } from '../lib/ui';
 import { fdate } from '../lib/format';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 // Tareas y recordatorios (Ola 2): el Administrador asigna trabajo a un área o
 // a una persona; cada quien ve y palomea lo suyo. Un especialista (almacén,
@@ -19,6 +20,7 @@ const AREAS_ASIGNABLES = [
 ];
 
 export default function Tareas() {
+  const txt = useTextoEmoji();
   const { user } = useAuth();
   const esAdmin = esAdminOMas(user?.rol);
   const qc = useQueryClient();
@@ -58,7 +60,7 @@ export default function Tareas() {
   });
 
   const opcionesAsignar = [
-    ...AREAS_ASIGNABLES.map(a => ({ value: 'area:' + a.value, label: '👥 ' + a.label })),
+    ...AREAS_ASIGNABLES.map(a => ({ value: 'area:' + a.value, label: txt('👥 ' + a.label) })),
     ...usuarios.map(u => ({ value: u.username, label: u.username + ' (' + etiquetaRol(u.rol) + ')' })),
   ];
   const pendientes = tareas.filter(t => t.estatus === 'pendiente');
@@ -98,7 +100,7 @@ export default function Tareas() {
           <table>
             <thead><tr><th style={{ width: 36 }}></th><th>Tarea</th><th>Fecha</th><th>Asignada a</th><th>De</th><th></th></tr></thead>
             <tbody>
-              {pendientes.length === 0 && <tr><td colSpan={6} className="empty">Sin pendientes 🎉</td></tr>}
+              {pendientes.length === 0 && <tr><td colSpan={6} className="empty">{txt('Sin pendientes 🎉')}</td></tr>}
               {pendientes.map(t => (
                 <tr key={t.id}>
                   <td><Checkbox checked={false} onChange={() => palomear.mutate({ id: t.id, hecha: true })} title="Marcar hecha" aria-label="Marcar hecha" /></td>

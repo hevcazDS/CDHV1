@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card } from '@mantine/core';
 import { api } from '../../api';
 import { money } from '../../lib/format';
+import { useTextoEmoji } from '../../context/EmojiContext';
 
 function Kpi({ valor, label, alerta, onClick }) {
   return (
@@ -18,6 +19,7 @@ function Kpi({ valor, label, alerta, onClick }) {
 }
 
 export default function ResumenComprasTab({ irA }) {
+  const txt = useTextoEmoji();
   const { data: ocs = [] } = useQuery({ queryKey: ['erp-ocs'], queryFn: () => api.get('/api/erp/ordenes-compra') });
   const { data: cxp = [] } = useQuery({ queryKey: ['erp-cxp'], queryFn: () => api.get('/api/erp/cxp') });
   const { data: solicitudes = [] } = useQuery({ queryKey: ['compras-sol'], queryFn: () => api.get('/api/compras/solicitudes') });
@@ -63,7 +65,7 @@ export default function ResumenComprasTab({ irA }) {
             <table>
               <thead><tr><th>Proveedor</th><th style={{ textAlign: 'right' }}>Monto</th><th>Vence</th></tr></thead>
               <tbody>
-                {cxpPend.length === 0 && <tr><td colSpan={3} className="empty">Sin cuentas por pagar 🎉</td></tr>}
+                {cxpPend.length === 0 && <tr><td colSpan={3} className="empty">{txt('Sin cuentas por pagar 🎉')}</td></tr>}
                 {cxpPend.slice(0, 6).map(c => (
                   <tr key={c.id}>
                     <td>{c.proveedor}</td>

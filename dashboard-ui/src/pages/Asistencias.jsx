@@ -6,11 +6,13 @@ import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 import { toastOk } from '../lib/ui';
 import { soloTelefono } from '../lib/format';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 // Check-in / asistencia (gimnasio y giros de servicio). Registra la entrada del
 // socio por teléfono o nombre; muestra las visitas del día. Congelar membresía se
 // hace en Suscripciones (suspender). Ver dashboard/routes/asistencias.js.
 export default function Asistencias() {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const [q, setQ] = useState('');
   const { data, isLoading } = useQuery({ queryKey: ['asistencias'], queryFn: () => api.get('/api/asistencias'), refetchInterval: 30000 });
@@ -21,7 +23,7 @@ export default function Asistencias() {
       const esTel = /^\+?\d[\d\s-]{6,}$/.test(v);
       return api.post('/api/asistencias', esTel ? { telefono: v } : { nombre: v });
     },
-    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); setQ(''); toastOk(`✅ ${r.nombre} — ${r.visitas_mes} visita${r.visitas_mes === 1 ? '' : 's'} este mes`); qc.invalidateQueries({ queryKey: ['asistencias'] }); },
+    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); setQ(''); toastOk(txt(`✅ ${r.nombre} — ${r.visitas_mes} visita${r.visitas_mes === 1 ? '' : 's'} este mes`)); qc.invalidateQueries({ queryKey: ['asistencias'] }); },
     onError: handleApiError,
   });
 

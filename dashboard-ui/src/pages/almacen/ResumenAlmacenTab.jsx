@@ -6,6 +6,7 @@ import { lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Text } from '@mantine/core';
 import { api } from '../../api';
+import { useTextoEmoji } from '../../context/EmojiContext';
 const BarraApilada = lazy(() => import('../../components/MiniCharts').then(m => ({ default: m.BarraApilada })));
 
 function Kpi({ valor, label, alerta }) {
@@ -18,6 +19,7 @@ function Kpi({ valor, label, alerta }) {
 }
 
 export default function ResumenAlmacenTab() {
+  const txt = useTextoEmoji();
   const { data: inv = [] } = useQuery({ queryKey: ['almacen-inv'], queryFn: () => api.get('/api/almacen/inventario') });
   const { data: ocs = [] } = useQuery({ queryKey: ['erp-ocs'], queryFn: () => api.get('/api/erp/ordenes-compra').catch(() => []) });
 
@@ -54,7 +56,7 @@ export default function ResumenAlmacenTab() {
             <table>
               <thead><tr><th>Producto</th><th>Sucursal</th><th className="num">Stock</th><th className="num">Mínimo</th></tr></thead>
               <tbody>
-                {agotados.length + criticos.length === 0 && <tr><td colSpan={4} className="empty">Nada en crítico 🎉<span className="empty-accion">Define mínimos por producto en Inventario para vigilarlos aquí</span></td></tr>}
+                {agotados.length + criticos.length === 0 && <tr><td colSpan={4} className="empty">{txt('Nada en crítico 🎉')}<span className="empty-accion">Define mínimos por producto en Inventario para vigilarlos aquí</span></td></tr>}
                 {[...agotados, ...criticos].slice(0, 8).map((r, i) => (
                   <tr key={i}>
                     <td><strong>{r.name}</strong></td>

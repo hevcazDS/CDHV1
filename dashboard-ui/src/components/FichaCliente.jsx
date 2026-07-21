@@ -8,6 +8,7 @@ import { fdate, soloTelefono, fmt } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
 import { toastOk } from '../lib/ui';
 import Badge from './Badge';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 // Ficha de cliente UNIFICADA (comité P1-6): antes vivía partida en Clientes
 // (gasto/puntos/pedidos) y CRM (notas/tareas/timeline). Un solo drawer con dos
@@ -20,6 +21,7 @@ function capitalizar(n) {
 }
 
 export default function FichaCliente({ cliente, onClose }) {
+  const txt = useTextoEmoji();
   const [tab, setTab] = useState('resumen');
   const abierto = !!cliente;
   const nombre = cliente?.nombre ? capitalizar(cliente.nombre) : soloTelefono(cliente?.telefono || '');
@@ -34,7 +36,7 @@ export default function FichaCliente({ cliente, onClose }) {
             {cliente.creado_en && <span className="chip">desde {fdate(cliente.creado_en)}</span>}
             {cliente.lead_score != null && <span className="chip">score {cliente.lead_score}</span>}
             {cliente.canal_origen && <span className="chip">{cliente.canal_origen}</span>}
-            {cliente.codigo_referido && <span className="chip" title="Código de referido">🎁 {cliente.codigo_referido}</span>}
+            {cliente.codigo_referido && <span className="chip" title="Código de referido">{txt('🎁 ')}{cliente.codigo_referido}</span>}
             {(cliente.tags || '').split(',').filter(Boolean).map(t => <span className="chip" key={t}>{t.trim()}</span>)}
           </div>
 

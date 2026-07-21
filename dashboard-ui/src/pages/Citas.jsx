@@ -6,6 +6,7 @@ import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 import { prompt, toastOk } from '../lib/ui';
 import Calendario from '../components/Calendario';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 const ESTATUS_BADGE = { pendiente: 'badge-amarillo', confirmada: 'badge-azul', completada: 'badge-verde', cancelada: 'badge-rojo', no_asistio: 'badge-rojo' };
 const ESTATUS_COLOR = { pendiente: '#eab308', confirmada: 'var(--info)', completada: 'var(--green)', cancelada: 'var(--red)', no_asistio: 'var(--red)' };
@@ -13,6 +14,7 @@ const ESTATUS_COLOR = { pendiente: '#eab308', confirmada: 'var(--info)', complet
 // Agenda del día/semana: el bot agenda solo (módulo Citas), aquí se opera
 // (confirmar/completar/cancelar) y se agenda manual por teléfono.
 export default function Citas() {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const hoy = new Date().toISOString().slice(0, 10);
   const en7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
@@ -85,7 +87,7 @@ export default function Citas() {
           const v = await prompt({ titulo: 'Anticipo al agendar', mensaje: 'Porcentaje de anticipo que el bot cobra al confirmar una cita (0 = apagado):', valorInicial: String(antCfg.pct) });
           if (v !== null) guardarAnticipo.mutate(Number(String(v).replace(/[^0-9.]/g, '')) || 0);
         }}>
-          💳 Anticipo al agendar: <strong>{antCfg.pct > 0 ? antCfg.pct + '%' : 'apagado'}</strong> · cambiar
+          {txt('💳 ')}Anticipo al agendar: <strong>{antCfg.pct > 0 ? antCfg.pct + '%' : 'apagado'}</strong> · cambiar
         </Text>
       )}
       <div className="page-scrollable">
@@ -168,7 +170,7 @@ export default function Citas() {
 
       {comis && (comis.filas || []).length > 0 && (
         <Card withBorder radius="md" p="lg" className="card" mt="md">
-          <div className="card-header"><h3>💇 Comisiones por empleado (mes en curso, citas cobradas)</h3></div>
+          <div className="card-header"><h3>{txt('💇 Comisiones por empleado (mes en curso, citas cobradas)')}</h3></div>
           <div className="table-wrap">
             <Table verticalSpacing="xs">
               <thead><tr><th>Empleado</th><th>Servicios</th><th>Cobrado</th><th>%</th><th>Comisión</th></tr></thead>

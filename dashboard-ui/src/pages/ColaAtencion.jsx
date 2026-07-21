@@ -65,7 +65,7 @@ export default function ColaAtencion() {
                     {r.motivo_escalada || '-'}
                     {r.ultimo_mensaje && (
                       <div className="text-muted" style={{ fontSize: 11, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                           title={r.ultimo_mensaje}>💬 {r.ultimo_mensaje}</div>
+                           title={r.ultimo_mensaje}>{txt('💬 ')}{r.ultimo_mensaje}</div>
                     )}
                   </td>
                   <td>{r.prioridad || 0}</td>

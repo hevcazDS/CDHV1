@@ -219,7 +219,7 @@ export default function Modulos() {
             <div className="toggle-row" key={m.key}>
               <div className="info">
                 <h4>{txt(m.titulo)}</h4>
-                <p>{m.desc}{razon && <span style={{ color: 'var(--text-mute)' }}> · {razon}</span>}</p>
+                <p>{m.desc}{razon && <span style={{ color: 'var(--text-mute)' }}> · {txt(razon)}</span>}</p>
               </div>
               <Switch checked={on} disabled={bloqueado} onChange={e => toggle(m.key, e.target.checked)} color="var(--brand)" />
             </div>

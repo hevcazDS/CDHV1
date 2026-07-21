@@ -9,6 +9,7 @@ import { soloTelefono } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { esAdminOMas } from '../lib/permisos';
 import FichaCliente from '../components/FichaCliente';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 const ETAPA_LABEL = { lead: 'Lead', contactado: 'Contactado', cotizado: 'Cotizado', ganado: 'Ganado', perdido: 'Perdido' };
 
@@ -55,6 +56,7 @@ function PipelineTab({ onAbrir }) {
 
 // ── Tab Tareas: pendientes/vencidas/mías, marcar hecha ──────────────────────
 function TareasTab() {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const [vista, setVista] = useState('pendientes');
   const { data: tareas } = useQuery({ queryKey: ['crm-tareas', vista], queryFn: () => api.get('/api/crm/tareas?vista=' + vista) });
@@ -77,7 +79,7 @@ function TareasTab() {
               {t.titulo}
               <span className="t"> · {t.cliente_nombre || soloTelefono(t.telefono)} · {t.tipo}{t.vence_en ? ' · vence ' + t.vence_en : ''}{t.asignado_a ? ' · ' + t.asignado_a : ''}</span>
             </span>
-            <span className="go" onClick={() => marcar.mutate({ id: t.id, estatus: 'hecha' })}>hecha ✓</span>
+            <span className="go" onClick={() => marcar.mutate({ id: t.id, estatus: 'hecha' })}>{txt('hecha ✓')}</span>
           </div>
         ))}
       </div>
@@ -159,6 +161,7 @@ function SegmentosTab() {
 
 // ── Tab Campañas (gerente): multi-paso sobre un segmento, con GATE humano ────
 function CampanasTab() {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const [nueva, setNueva] = useState({ nombre: '', id_segmento: '', pasos: [{ dia_offset: 0, mensaje: '', condicion_salto: '' }] });
 
@@ -214,7 +217,7 @@ function CampanasTab() {
                 value={p.condicion_salto || null} onChange={v => setPaso(i, 'condicion_salto', v || '')} />
               {nueva.pasos.length > 1 && <Button size="xs" variant="default" onClick={() => setNueva(n => ({ ...n, pasos: n.pasos.filter((_, j) => j !== i) }))}>×</Button>}
             </Group>
-            <Textarea size="xs" autosize minRows={2} placeholder="Hola {nombre} 👋 …" value={p.mensaje} onChange={e => setPaso(i, 'mensaje', e.target.value)} />
+            <Textarea size="xs" autosize minRows={2} placeholder={txt('Hola {nombre} 👋 …')} value={p.mensaje} onChange={e => setPaso(i, 'mensaje', e.target.value)} />
           </Card>
         ))}
         <Group justify="space-between" mt="sm">

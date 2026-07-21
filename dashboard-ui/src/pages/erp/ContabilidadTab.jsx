@@ -8,11 +8,13 @@ import Modal from '../../components/Modal';
 import { confirmar, toastErr, toastOk } from '../../lib/ui';
 import { exportarCSV } from '../../lib/csv';
 import { imprimirReporte } from '../../lib/reporteImprimible';
+import { useTextoEmoji } from '../../context/EmojiContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Libro mayor + diario de asientos. Los asientos automáticos requieren el
 // módulo "Contabilidad" encendido (Módulos); aquí solo se consulta.
 export default function ContabilidadTab() {
+  const txt = useTextoEmoji();
   const hoy = new Date().toISOString().slice(0, 10);
   const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const [desde, setDesde] = useState(hace30);
@@ -45,7 +47,7 @@ export default function ContabilidadTab() {
     <div>
       {(intSinVenta > 0 || intSinCosto > 0) && (
         <Card withBorder radius="md" p="sm" mb="md" style={{ borderColor: 'var(--yellow)' }}>
-          <Text size="sm" fw={600}>⚠ Integridad contable (últimos {integridad.dias} días)</Text>
+          <Text size="sm" fw={600}>{txt('⚠ ')}Integridad contable (últimos {integridad.dias} días)</Text>
           <Text size="xs" c="dimmed">
             {intSinVenta > 0 && `${intSinVenta} pago(s) sin asiento de venta — el barrido automático los repara en la siguiente ronda. `}
             {intSinCosto > 0 && `${intSinCosto} venta(s) sin costo (COGS): captura el costo de esos productos o la utilidad sale inflada.`}
@@ -139,6 +141,7 @@ export default function ContabilidadTab() {
 // depreciación... El backend valida el cuadre (registrarAsiento lanza si
 // debe ≠ haber); aquí se muestra en vivo para no mandar pólizas descuadradas.
 function PolizaManual() {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const [abierta, setAbierta] = useState(false);
   const hoy = new Date().toISOString().slice(0, 10);
@@ -209,7 +212,7 @@ function PolizaManual() {
           <Group justify="space-between" mt="xs">
             <Button variant="default" size="xs" onClick={() => setPartidas(ps => [...ps, { cuenta: '', debe: 0, haber: 0 }])}>+ Partida</Button>
             <Text size="sm" fw={700} c={cuadra ? 'teal' : 'red'}>
-              Cargos ${totalDebe.toFixed(2)} · Abonos ${totalHaber.toFixed(2)} {cuadra ? '✓ cuadra' : '— debe cuadrar'}
+              Cargos ${totalDebe.toFixed(2)} · Abonos ${totalHaber.toFixed(2)} {cuadra ? txt('✓ cuadra') : '— debe cuadrar'}
             </Text>
           </Group>
           <Text size="xs" c="dimmed" mt="xs">Cada partida lleva cargo O abono (no ambos). La póliza se registra en el diario como asiento manual.</Text>

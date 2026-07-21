@@ -162,7 +162,7 @@ export default function Mostrador() {
       )}
       {config && config.inventario === false && (
         <div style={{ marginBottom: 12, padding: '9px 14px', borderRadius: 'var(--radius)', background: 'rgba(251,189,35,0.15)', border: '1px solid var(--yellow)', color: 'var(--text)', fontSize: 13 }}>
-          ⚠️ El <strong>control de inventario está desactivado</strong>: estas ventas <strong>no descuentan stock</strong>. Actívalo en Módulos si tu negocio maneja existencias.
+          {txt('⚠️ ')}El <strong>control de inventario está desactivado</strong>: estas ventas <strong>no descuentan stock</strong>. Actívalo en Módulos si tu negocio maneja existencias.
         </div>
       )}
       {msg && <div className="login-error" style={{ marginBottom: 12 }}>{msg.t}</div>}
@@ -263,7 +263,7 @@ export default function Mostrador() {
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6 }}>Cupón / descuento (opcional)</div>
             {cuponInfo ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
-                <span>✅ <strong>{cuponInfo.codigo}</strong> — {cuponInfo.descripcion}</span>
+                <span>{txt('✅ ')}<strong>{cuponInfo.codigo}</strong> — {cuponInfo.descripcion}</span>
                 <Button size="xs" variant="subtle" color="red" onClick={quitarCupon}>Quitar</Button>
               </div>
             ) : (
@@ -317,7 +317,7 @@ export default function Mostrador() {
       {/* El corte es un evento de FIN DE TURNO — no convive con la pantalla de
           cobro (Ola 4 §A4): vive detrás de "Cerrar turno". */}
       {!mostrarCorte && (
-        <Button variant="default" mt="md" onClick={() => setMostrarCorte(true)}>🧾 Cerrar turno (corte de caja)</Button>
+        <Button variant="default" mt="md" onClick={() => setMostrarCorte(true)}>{txt('🧾 Cerrar turno (corte de caja)')}</Button>
       )}
       {mostrarCorte && <CorteCaja txt={txt} />}
 

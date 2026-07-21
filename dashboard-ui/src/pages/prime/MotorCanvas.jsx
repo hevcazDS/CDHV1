@@ -16,6 +16,7 @@ import { Lock, Plus, Save, Undo2, Redo2, MessageCircle, RotateCcw, Send } from '
 import { api } from '../../api';
 import { handleApiError } from '../../lib/apiError';
 import { toastOk, toastErr } from '../../lib/ui';
+import { useTextoEmoji, useEmoji } from '../../context/EmojiContext';
 
 // ── Traducción matcher interno ⇄ lenguaje llano ──────────────────────────────
 export function humanizar(input) {
@@ -29,6 +30,7 @@ export function humanizar(input) {
 
 // ── Nodo custom (tarjeta oscura, badges, candado) ────────────────────────────
 function PasoNode({ data, selected }) {
+  const emoji = useEmoji();
   const sellado = data.sellado;
   // validación en vivo: rojo = huérfano (inalcanzable), ámbar = sin salida
   const prob = data._problema;
@@ -43,7 +45,7 @@ function PasoNode({ data, selected }) {
       <Handle type="target" position={Position.Left} style={{ background: '#7c6cf0', width: 10, height: 10 }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
         <strong style={{ fontFamily: 'monospace', fontSize: 12 }}>{data.paso}</strong>
-        {data.es_inicial ? <span title="aquí empieza la conversación">⭐</span> : null}
+        {data.es_inicial ? <span title="aquí empieza la conversación">{emoji('⭐')}</span> : null}
         {sellado && <Lock size={11} color="#9ca3af" title="parte del flujo base — no se puede borrar" />}
         {prob && <span title={prob === 'huérfano' ? 'Ninguna pieza lleva aquí — el cliente nunca la verá' : 'No tiene ningún camino de salida — el cliente queda atorado'} style={{ marginLeft: 'auto', color: colorProb, fontSize: 11 }}>⚠</span>}
       </div>
@@ -233,6 +235,7 @@ function ModalCondicion({ abierto, inicial, accionInicial, acciones, origen, onO
 }
 
 export default function MotorCanvas({ data }) {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   // M2: paleta de acciones con metadata humana (backend = única fuente de verdad)
   const { data: catalogoAcciones } = useQuery({
@@ -510,7 +513,7 @@ export default function MotorCanvas({ data }) {
             {!nodoSel.data.sellado && !nodoSel.data.render && (
               <Textarea label="Texto que responde el bot" size="xs" mb="xs" autosize minRows={3}
                 description="Esto es lo que el cliente lee al llegar a esta pieza"
-                value={nodoSel.data.texto || ''} placeholder="Ej: 🎉 Esta semana 2x1 en peluches. ¿Te aparto uno?"
+                value={nodoSel.data.texto || ''} placeholder={txt('Ej: 🎉 Esta semana 2x1 en peluches. ¿Te aparto uno?')}
                 onChange={e => { if (!nodoSel.data.frase_clave) actualizarSel('frase_clave', 'motor_' + nodoSel.id.toLowerCase()); actualizarSel('texto', e.target.value); }} />
             )}
 
@@ -540,7 +543,7 @@ export default function MotorCanvas({ data }) {
             {!nodoSel.data.es_inicial && (
               <Button size="xs" variant="default" fullWidth mt="xs"
                 onClick={() => { setDirty(true); setNodes(ns => ns.map(n => ({ ...n, data: { ...n.data, es_inicial: n.id === sel } }))); }}>
-                ⭐ Hacer pieza inicial
+                {txt('⭐ Hacer pieza inicial')}
               </Button>
             )}
 

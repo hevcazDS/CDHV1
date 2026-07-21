@@ -6,6 +6,7 @@ import { api } from '../api';
 import { handleApiError } from '../lib/apiError';
 import { toastOk, toastErr } from '../lib/ui';
 import { fdate } from '../lib/format';
+import { useTextoEmoji } from '../context/EmojiContext';
 
 // Módulo de correo: bandeja de entrada (IMAP), enviados y redacción con adjuntos
 // (archivos + el cuerpo como PDF). Una sola pantalla con tres vistas segmentadas.
@@ -73,6 +74,7 @@ export default function Correo() {
 }
 
 function Bandeja({ onAbrir }) {
+  const txt = useTextoEmoji();
   const qc = useQueryClient();
   const { data: correos, isLoading } = useQuery({ queryKey: ['correo-bandeja'], queryFn: () => api.get('/api/correo/bandeja') });
   const sync = useMutation({
@@ -99,7 +101,7 @@ function Bandeja({ onAbrir }) {
               <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => { onAbrir(c); if (!c.leido) abrir.mutate(c); }}>
                 <td>
                   <Text size="sm" fw={c.leido ? 400 : 700} lineClamp={1}>{c.leido ? '' : '● '}{c.asunto || '(sin asunto)'}</Text>
-                  <Text size="xs" c="dimmed">{c.de} · {fdate(c.fecha)}{(c.adjuntos || []).length ? ` · 📎 ${c.adjuntos.length}` : ''}</Text>
+                  <Text size="xs" c="dimmed">{c.de} · {fdate(c.fecha)}{(c.adjuntos || []).length ? txt(` · 📎 ${c.adjuntos.length}`) : ''}</Text>
                 </td>
               </tr>
             ))}
@@ -111,6 +113,7 @@ function Bandeja({ onAbrir }) {
 }
 
 function Enviados() {
+  const txt = useTextoEmoji();
   const { data: enviados, isLoading } = useQuery({ queryKey: ['correo-enviados'], queryFn: () => api.get('/api/correo/enviados') });
   return (
     <Card withBorder radius="md" p="md" className="card">
@@ -123,7 +126,7 @@ function Enviados() {
               <tr key={e.id}>
                 <td>
                   <Text size="sm" fw={500} lineClamp={1}>{e.asunto || '(sin asunto)'}</Text>
-                  <Text size="xs" c="dimmed">{e.para} · {fdate(e.creado_en)}{(e.adjuntos || []).length ? ` · 📎 ${e.adjuntos.length}` : ''}</Text>
+                  <Text size="xs" c="dimmed">{e.para} · {fdate(e.creado_en)}{(e.adjuntos || []).length ? txt(` · 📎 ${e.adjuntos.length}`) : ''}</Text>
                 </td>
               </tr>
             ))}

@@ -99,7 +99,7 @@ export default function Metricas() {
   });
 
   const cargar = () => { refetchMetricas(); refetchConv(); refetchCampanas(); refetchMotivos(); refetchCanales(); refetchOper(); refetchBot(); refetchSeg(); refetchEmbudos(); };
-  const canalLabel = (c) => c === 'directo' ? 'Directo' : c === 'whatsapp' ? 'WhatsApp' : c.startsWith('promo:') ? '🔗 ' + c.slice(6) : c;
+  const canalLabel = (c) => c === 'directo' ? 'Directo' : c === 'whatsapp' ? 'WhatsApp' : c.startsWith('promo:') ? txt('🔗 ' + c.slice(6)) : c;
 
   const dias = d?.por_dia || [];
   const porEstatus = d?.por_estatus || [];
