@@ -121,12 +121,12 @@ function masivo(req, res, ctx) {
                     const nombreCap = nombre.charAt(0).toUpperCase() + nombre.slice(1).toLowerCase();
                     const msgP = mensaje.replace(/\{nombre\}/gi, nombreCap);
                     // ESCALONAMIENTO ANTI-BAN — INMUTABLE mientras se use whatsapp-web.js
-                    // (número personal, no API oficial). Cada mensaje se separa 15-120s;
+                    // (número personal, no API oficial). Cada mensaje se separa 1-5 min;
                     // NO reducir ni volver configurable: es lo que evita el baneo del
                     // número. Solo se relaja al migrar a la API oficial de Meta (WhatsApp
                     // Business Platform). El bot NUNCA lanza esto solo — lo dispara un
                     // humano (gerente+) desde /api/masivo; queda FUERA del motor de flujo.
-                    _accSeg += 15 + Math.random() * 105;
+                    _accSeg += 60 + Math.random() * 240;
                     const _cuando = new Date(_baseMs + _accSeg * 1000).toISOString().replace('T', ' ').slice(0, 19);
                     if (_conCampana) stmt.run(cli.telefono, msgP, 'programado', _cuando, _campana);
                     else stmt.run(cli.telefono, msgP, 'programado', _cuando);

@@ -43,18 +43,31 @@ function _optOutMarketing(tel) {
     } catch (_) { return false; }
 }
 
-function _insertCola(tel, asunto, cuerpo, campana) {
+// INMUTABLE mientras se use whatsapp-web.js (número personal, no API oficial).
+// Rango de separación entre mensajes de un mismo batch automático.
+// NO reducir: es lo que evita el ban. Solo se relaja al migrar a Meta Business API.
+const _STAGGER_MIN = 60;   // 1 min mínimo
+const _STAGGER_MAX = 240;  // 4 min máximo → rango total 1-5 min aleatorio
+
+// offsetSeg > 0 → insertar como 'programado' con enviar_despues_de en el futuro.
+// Los mensajes transaccionales 1:1 pasan offsetSeg=0 (o sin él) → 'pendiente' inmediato.
+function _insertCola(tel, asunto, cuerpo, campana, offsetSeg) {
     if (_CAMPANAS_MARKETING.has(campana) && _optOutMarketing(tel)) return;
+    const cuando = (offsetSeg > 0)
+        ? new Date(Date.now() + offsetSeg * 1000).toISOString().replace('T', ' ').slice(0, 19)
+        : null;
     try {
-        db.prepare(`
-            INSERT INTO cola_notificaciones (tipo, destinatario, asunto, cuerpo, estatus, campana)
-            VALUES ('whatsapp', ?, ?, ?, 'pendiente', ?)
-        `).run(tel, asunto, cuerpo, campana);
+        if (cuando) {
+            db.prepare(`INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus,enviar_despues_de,campana) VALUES ('whatsapp',?,?,?,'programado',?,?)`).run(tel, asunto, cuerpo, cuando, campana || null);
+        } else {
+            db.prepare(`INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus,campana) VALUES ('whatsapp',?,?,?,'pendiente',?)`).run(tel, asunto, cuerpo, campana || null);
+        }
     } catch (_) {
-        db.prepare(`
-            INSERT INTO cola_notificaciones (tipo, destinatario, asunto, cuerpo, estatus)
-            VALUES ('whatsapp', ?, ?, ?, 'pendiente')
-        `).run(tel, asunto, cuerpo);
+        if (cuando) {
+            db.prepare(`INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus,enviar_despues_de) VALUES ('whatsapp',?,?,?,'programado',?)`).run(tel, asunto, cuerpo, cuando);
+        } else {
+            db.prepare(`INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES ('whatsapp',?,?,?,'pendiente')`).run(tel, asunto, cuerpo);
+        }
     }
 }
 
@@ -155,6 +168,7 @@ function checkCSAT() {
     `).all();
 
     let total = 0;
+    let _off = 0;
     for (const e of entregas) {
         const tel = db.prepare(
             `SELECT telefono FROM clientes WHERE nombre=? LIMIT 1`
@@ -168,7 +182,8 @@ function checkCSAT() {
             `_(1 = Muy malo · 5 = Excelente)_`;
 
         try {
-            _insertCola(tel, 'CSAT post-entrega', cuerpo, 'csat_post_entrega');
+            _insertCola(tel, 'CSAT post-entrega', cuerpo, 'csat_post_entrega', _off);
+            _off += _STAGGER_MIN + Math.random() * (_STAGGER_MAX - _STAGGER_MIN);
             total++;
         } catch (err) {
             log.warn('Error CSAT', err);
@@ -189,6 +204,7 @@ function checkCarritosAbandonados() {
     `).all();
 
     let total = 0;
+    let _off = 0;
     for (const ca of abandonados) {
         let items = [];
         try { items = JSON.parse(ca.carrito_json); } catch (_) { continue; }
@@ -224,10 +240,11 @@ function checkCarritosAbandonados() {
 
         try {
             _insertCola(tel, _conOferta.length ? 'Oferta por vencer' : 'Carrito abandonado', cuerpo,
-                _conOferta.length ? 'oferta_por_vencer' : 'carrito_abandonado_2h');
+                _conOferta.length ? 'oferta_por_vencer' : 'carrito_abandonado_2h', _off);
 
             db.prepare('UPDATE carritos_abandonados SET notificado=1, notificado_en=datetime("now","localtime") WHERE id=?')
               .run(ca.id);
+            _off += _STAGGER_MIN + Math.random() * (_STAGGER_MAX - _STAGGER_MIN);
             total++;
         } catch (err) {
             log.warn('Error carrito abandonado', err);
@@ -250,6 +267,7 @@ function checkCarritosAbandonados24h() {
     `).all();
 
     let total = 0;
+    let _off = 0;
     for (const ca of abandonados) {
         const yaAvisado = db.prepare(`
             SELECT id FROM cola_notificaciones
@@ -292,7 +310,8 @@ function checkCarritosAbandonados24h() {
                 '⏰ Válido 48 horas — escribe *hola* para continuar. _No acumulable con otras promos._' +
                 '\n\n💬 Por cierto, ¿qué te detuvo? Responde *precio*, *envío* u *otro* — nos ayuda a mejorar.';
 
-            _insertCola(ca.telefono, 'Carrito abandonado 24h', cuerpo, 'carrito_abandonado_24h');
+            _insertCola(ca.telefono, 'Carrito abandonado 24h', cuerpo, 'carrito_abandonado_24h', _off);
+            _off += _STAGGER_MIN + Math.random() * (_STAGGER_MAX - _STAGGER_MIN);
             total++;
         } catch (err) {
             log.warn('Error carrito 24h', err);
@@ -315,6 +334,7 @@ function checkOfertasPorVencer() {
     `).all(manana);
 
     let total = 0;
+    let _off = 0;
     for (const ca of carritos) {
         let items = [];
         try { items = JSON.parse(ca.carrito_json); } catch(_) { continue; }
@@ -339,7 +359,8 @@ function checkOfertasPorVencer() {
             '\n\nEscribe *hola* para finalizar tu compra antes de que se acabe el precio especial.';
 
         try {
-            _insertCola(ca.telefono, 'Oferta por vencer 24h', cuerpo, 'oferta_por_vencer_24h');
+            _insertCola(ca.telefono, 'Oferta por vencer 24h', cuerpo, 'oferta_por_vencer_24h', _off);
+            _off += _STAGGER_MIN + Math.random() * (_STAGGER_MAX - _STAGGER_MIN);
             total++;
         } catch(e) { log.debug('No se pudo encolar oferta por vencer: ' + e.message); }
     }
@@ -421,12 +442,14 @@ function checkSeguimiento48h() {
     `).all();
 
     let total = 0;
+    let _off = 0;
     for (const e of pedidos) {
         if (!e.telefono) continue;
         const nombre = (e.nombre || '').split(' ')[0] || 'hola';
         const cuerpo = '\uD83D\uDCE6 \u00a1' + nombre + '! Tu pedido lleg\u00f3 hace dos d\u00edas.\n\n\u00bfLleg\u00f3 todo bien? \uD83E\uDDF8\n\nSi necesitas algo con gusto te ayudo. Escr\u00edbeme.';
         try {
-            _insertCola(e.telefono, 'Seguimiento 48h pedido ' + e.id_pedido, cuerpo, 'seguimiento_48h');
+            _insertCola(e.telefono, 'Seguimiento 48h pedido ' + e.id_pedido, cuerpo, 'seguimiento_48h', _off);
+            _off += _STAGGER_MIN + Math.random() * (_STAGGER_MAX - _STAGGER_MIN);
             total++;
         } catch(e) { log.debug('No se pudo encolar seguimiento 48h: ' + e.message); }
     }
@@ -500,13 +523,15 @@ function checkRecompraConsumibles() {
         `).all(dias, dias + 7); // ventana de 7 días para no perseguir viejos
     } catch (_) { return; }
     let total = 0;
+    let _off = 0;
     for (const f of filas) {
         // dedupe: ¿ya se le mandó recompra en 20 días?
         const ya = db.prepare(`SELECT 1 FROM cola_notificaciones WHERE (destinatario=? OR destinatario LIKE ?) AND campana='recompra' AND datetime(creada_en) > datetime('now','-20 days','localtime') LIMIT 1`).get(f.telefono, f.telefono + '@%');
         if (ya) continue;
         const nombre = (f.nombre || '').split(' ')[0];
         const cuerpo = '¡Hola' + (nombre ? ' ' + nombre : '') + '! ¿Ya se te acabó tu *' + f.producto + '*? 🛒\n\nEscribe *hola* y te lo dejo listo para recomprar en un momento.';
-        _insertCola(f.telefono, 'Recompra ' + f.producto, cuerpo, 'recompra');
+        _insertCola(f.telefono, 'Recompra ' + f.producto, cuerpo, 'recompra', _off);
+        _off += _STAGGER_MIN + Math.random() * (_STAGGER_MAX - _STAGGER_MIN);
         total++;
     }
     if (total > 0) log.info('[stockWatcher] ' + total + ' recordatorio(s) de recompra de consumibles');
@@ -541,6 +566,7 @@ function checkClientesDormidos() {
     `).all();
 
     let total = 0;
+    let _off = 0;
     for (const cli of dormidos) {
         // No chocar con un masivo reciente ni repetir esta campaña antes de 15 días
         const yaPromocionado = db.prepare(`
@@ -558,7 +584,8 @@ function checkClientesDormidos() {
             'Hay novedades desde tu última visita y un descuento esperándote en tu próxima compra.\n\nEscribe *hola* y te muestro lo nuevo. 🎁';
 
         try {
-            _insertCola(cli.telefono, 'Cliente dormido', cuerpo, 'reactivacion_dormidos');
+            _insertCola(cli.telefono, 'Cliente dormido', cuerpo, 'reactivacion_dormidos', _off);
+            _off += _STAGGER_MIN + Math.random() * (_STAGGER_MAX - _STAGGER_MIN);
             total++;
         } catch (e) { log.debug('No se pudo encolar reactivación de cliente dormido: ' + e.message); }
     }
@@ -742,15 +769,16 @@ function checkLinksPagoPorVencer() {
           AND NOT EXISTS (
               SELECT 1 FROM cola_notificaciones cn
               WHERE cn.asunto = 'Link de pago por vencer ' || lp.id
-                AND cn.estatus IN ('pendiente','enviado')
+                AND cn.estatus IN ('pendiente','programado','enviado')
           )
     `).all();
     let total = 0;
+    let _off = 0;
     for (const f of filas) {
         if (!f.telefono || !f.url_link) continue;
         const nombre = (f.nombre || '').split(' ')[0] || 'Hola';
         const cuerpo = '⏰ ' + nombre + ', tu link de pago del pedido *' + (f.folio || f.id_pedido) + '* está por vencer.\n\nSi aún quieres completar tu compra ($' + Number(f.monto || 0).toFixed(2) + '), aquí lo tienes:\n' + f.url_link + '\n\nSi ya pagaste, ignóralo. 🙌';
-        try { _insertCola(f.telefono, 'Link de pago por vencer ' + f.id, cuerpo, 'link_pago_por_vencer'); total++; }
+        try { _insertCola(f.telefono, 'Link de pago por vencer ' + f.id, cuerpo, 'link_pago_por_vencer', _off); _off += _STAGGER_MIN + Math.random() * (_STAGGER_MAX - _STAGGER_MIN); total++; }
         catch (e) { log.debug('No se pudo encolar recordatorio de link: ' + e.message); }
     }
     if (total > 0) log.info('Links de pago por vencer: ' + total + ' recordatorios');
@@ -808,14 +836,15 @@ function checkFiadosVencidos() {
           AND c.telefono IS NOT NULL
           AND NOT EXISTS (
               SELECT 1 FROM cola_notificaciones cn
-              WHERE cn.asunto = 'Fiado vencido ' || p.id_pedido AND cn.estatus IN ('pendiente','enviado')
+              WHERE cn.asunto = 'Fiado vencido ' || p.id_pedido AND cn.estatus IN ('pendiente','programado','enviado')
           )
     `).all();
     let total = 0;
+    let _off = 0;
     for (const f of filas) {
         const nombre = (f.nombre || '').split(' ')[0] || 'Hola';
         const cuerpo = '👋 ' + nombre + ', te recordamos con cariño que tu compra a crédito (pedido *' + (f.folio || f.id_pedido) + '*, $' + Number(f.monto || 0).toFixed(2) + ') ya venció. Cuando gustes pásate a liquidarla. ¡Gracias! 🙏';
-        try { _insertCola(f.telefono, 'Fiado vencido ' + f.id_pedido, cuerpo, 'recordatorio_fiado'); total++; }
+        try { _insertCola(f.telefono, 'Fiado vencido ' + f.id_pedido, cuerpo, 'recordatorio_fiado', _off); _off += _STAGGER_MIN + Math.random() * (_STAGGER_MAX - _STAGGER_MIN); total++; }
         catch (e) { log.debug('No se pudo encolar recordatorio de fiado: ' + e.message); }
     }
     if (total > 0) log.info('Fiados vencidos: ' + total + ' recordatorios');
@@ -832,11 +861,12 @@ function checkSuscripcionesVencidas() {
     const { generarCobrosVencidos } = require('./suscripcionCobro');
     const r = generarCobrosVencidos(db, { username: 'auto' });
     let avisos = 0;
+    let _off = 0;
     for (const c of r.cargos) {
         if (!c.telefono) continue;
         const nombre = (c.nombre || '').split(' ')[0] || 'Hola';
         const cuerpo = '📅 ' + nombre + ', se generó el cargo de tu suscripción (*' + c.folio + '*) por $' + Number(c.subtotal).toFixed(2) + '. Te avisamos para que puedas cubrirlo. ¡Gracias! 🙏';
-        try { _insertCola(c.telefono, 'Suscripcion cargo ' + c.folio, cuerpo, 'suscripcion'); avisos++; }
+        try { _insertCola(c.telefono, 'Suscripcion cargo ' + c.folio, cuerpo, 'suscripcion', _off); _off += _STAGGER_MIN + Math.random() * (_STAGGER_MAX - _STAGGER_MIN); avisos++; }
         catch (e) { log.debug('No se pudo encolar aviso de suscripción: ' + e.message); }
     }
     if (r.generados > 0) log.info('Suscripciones: ' + r.generados + ' cargos generados, ' + avisos + ' avisos');

@@ -28,9 +28,14 @@ function inscribirSegmento(db, idCampana, idSegmento) {
 }
 
 // Tick: avanza los inscritos de campañas ACTIVAS. Devuelve cuántos mensajes encoló.
+// INMUTABLE mientras se use whatsapp-web.js: no reducir.
+const _STAGGER_MIN = 60;
+const _STAGGER_MAX = 240;
+
 function avanzarCampanas(db, encolar) {
     const activas = db.prepare("SELECT id, nombre FROM crm_campanas WHERE estatus='activa'").all();
     let enviados = 0;
+    let _off = 0;
     for (const camp of activas) {
         const pasos = db.prepare('SELECT * FROM crm_campana_pasos WHERE id_campana=? ORDER BY orden').all(camp.id);
         if (!pasos.length) continue;
@@ -57,8 +62,9 @@ function avanzarCampanas(db, encolar) {
             const nombre = (ins.cliente_nombre || '').split(' ')[0] || 'Hola';
             const cuerpo = String(siguiente.mensaje).replace(/\{nombre\}/g, nombre);
             try {
-                encolar(ins.telefono, 'Campaña ' + camp.id + ' paso ' + siguiente.orden + ' cli ' + ins.id_cliente, cuerpo, 'crm_campana');
+                encolar(ins.telefono, 'Campaña ' + camp.id + ' paso ' + siguiente.orden + ' cli ' + ins.id_cliente, cuerpo, 'crm_campana', _off);
                 db.prepare('UPDATE crm_campana_inscritos SET paso_actual=? WHERE id=?').run(siguiente.orden, ins.id);
+                _off += _STAGGER_MIN + Math.random() * (_STAGGER_MAX - _STAGGER_MIN);
                 enviados++;
             } catch (_) { /* un fallo no frena a los demás */ }
         }
