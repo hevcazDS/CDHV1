@@ -66,7 +66,7 @@ function Resumen({ cliente }) {
 
   return (
     <div>
-      <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
+      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 10, marginBottom: 14 }}>
         <Card withBorder radius="md" p="sm" className="kpi-card">
           <div className="kpi-value" style={{ fontSize: 20 }}>{suyos.length}</div>
           <div className="kpi-label" style={{ fontSize: 11 }}>Pedidos</div>
