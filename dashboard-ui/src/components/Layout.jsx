@@ -188,12 +188,16 @@ export default function Layout() {
   useEffect(() => { localStorage.setItem('jc-sidebar-colapsado', colapsado ? '1' : '0'); }, [colapsado]);
   const [flyout, setFlyout] = useState(null);
   const navRef = useRef(null);
-  // Clic fuera del menú: se contrae solo (y cierra el submenú abierto)
+  // Clic fuera del menú: cierra el submenú/flyout abierto. El auto-colapso del
+  // riel SOLO aplica en viewport angosto (mobile/tablet, mismo corte que
+  // alAncho abajo) — sin el guard, cualquier clic dentro del CONTENIDO en
+  // escritorio (fuera de navRef) volvía a contraer el sidebar que el usuario
+  // acababa de expandir a propósito.
   useEffect(() => {
     function fuera(e) {
       if (navRef.current && !navRef.current.contains(e.target)) {
         setFlyout(null);
-        setColapsado(true);
+        if (window.innerWidth < 1000) setColapsado(true);
       }
     }
     document.addEventListener('mousedown', fuera);
@@ -314,17 +318,6 @@ export default function Layout() {
             </Accordion>
           )}
         </nav>
-        <div className="sidebar-foot">
-          {!colapsado && (
-            <div className="sidebar-user-info">
-              <span className="sidebar-user-name">{user?.username}</span>
-              <span className="sidebar-user-rol">{etiquetaRol(user?.rol)}</span>
-            </div>
-          )}
-          <button className="btn" title="Cerrar sesión" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={logout}>
-            <LogOut size={14} strokeWidth={1.75} />{!colapsado && 'Cerrar sesión'}
-          </button>
-        </div>
       </AppShell.Navbar>
 
       <AppShell.Main className="content">

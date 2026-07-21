@@ -14,6 +14,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > 6. **Ver `INDICE_DOCUMENTACION.md`** para el mapa completo de los 65 `.md` del repo (cuáles son vigentes vs. historial de auditorías ya cerradas). Verificación 2026-07-21 contra código real de los 4 hallazgos de seguridad y 4 contables que ese índice marcaba "candidatos a revisar": **auditor-bypass-de-rango, advertencia de contraseña default, CSP `unsafe-inline`, e inyección en `Content-Disposition`** de las 3 descargas fiscales — **los 4 ya estaban corregidos** en el código (no en los `.md`, que son snapshots congelados de auditorías de julio). De lo contable, **`asientoReversa` (sucursal) y la comisión de nómina fuera del flag fiscal ya estaban corregidos**; el **complemento de pago (REP/`timbrarREP`)** sí tenía el bug real (forma de pago fija `'03'` y saldo insoluto mal calculado) — **corregido hoy** en `services/pacService.js` (`payment_form` vía `_formaPagoSAT`, `last_balance:0` ya que el sistema no rastrea parcialidades reales); el desglose de `taxes` del REP se dejó **deliberadamente sin tocar** (arriesgar un formato adivinado contra un PAC real es peor que dejarlo documentado). El doble-asiento de `facturaXml` (compras.js) sigue como limitación **conscientemente documentada** en el propio código, no arreglado (requiere que el parser de CFDI exponga Descuento/Impuestos a nivel comprobante). De UI, el patrón "grid inline sin `@media`" bajó de ~35 a 8 archivos; se corrigieron los 2 que de verdad rompían en móvil (`erp/ComprasTab.jsx`, `inicio/VistaCajero.jsx`, reusando `.split-2w`/`.cols-3` ya existentes) — `prime/productoCampos.jsx` (8 grids de formulario) queda pendiente, es admin-only y de menor severidad.
 >
 > Todo lo demás abajo sigue siendo útil como historia y para los principios (chokepoint de dinero, golden/paridad byte-idéntico de JC, migraciones versionadas + espejo en `db/schema.sql`, módulos toggleables).
+>
+> **Regla permanente para Claude Code en este repo:** cada vez que se investigue o arregle
+> algo de sustancia (bug real, hallazgo de una auditoría, hueco de UI/seguridad/contable),
+> anotar el resultado en **este banner** (si toca una discrepancia ya listada) y en
+> `INDICE_DOCUMENTACION.md` §6 (si es nuevo). El objetivo es que ningún hallazgo quede
+> "flotando" solo en un `.md` de auditoría congelado — la próxima sesión debe poder confiar
+> en estos dos archivos como el estado real, sin releer los 65 `.md` desde cero.
+>
+> **2026-07-21 (2ª pasada, UI escritorio):** el dueño reportó dos bugs reales de `Layout.jsx`
+> verificados y corregidos: (a) `sidebar-foot` duplicaba "Cerrar sesión" (el comentario del
+> código ya decía "el pie del sidebar ya no duplica al usuario (tema F)" pero el JSX seguía
+> ahí — se borró, queda solo el del menú del avatar arriba a la derecha, con confirmación);
+> (b) el handler de "clic fuera del sidebar" forzaba `setColapsado(true)` en CUALQUIER clic
+> fuera del nav, sin importar el ancho de ventana — en escritorio, un clic dentro del
+> contenido volvía a contraer el sidebar que el usuario acababa de expandir a propósito.
+> Ahora ese auto-colapso solo aplica bajo 1000px (mismo corte que el efecto `alAncho`
+> existente). Verificado con Puppeteer real: sidebar se queda expandido tras clic en
+> contenido, `.sidebar-foot` ya no existe, y el dropdown del bot (arreglado el 2026-07-20)
+> se ve limpio también en escritorio (1440px).
 
 ## Project
 

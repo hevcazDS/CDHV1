@@ -3,6 +3,9 @@
 > Generado 2026-07-21 tras leer completos los 65 `.md` del repo (~11,300 líneas: 9 en
 > `docs/`, 54 en la raíz, 2 sueltos). Objetivo: tener un mapa de qué es vigente, qué es
 > histórico, y qué queda genuinamente pendiente — para no releer todo cada vez.
+>
+> **Regla viva (ver CLAUDE.md):** cada hallazgo/fix real de sustancia se anota aquí (§6) y
+> en el banner de `CLAUDE.md`, en vez de quedar solo en un `.md` de auditoría congelado.
 
 ## 1. Fuente de verdad ACTUAL — `docs/` (84 migraciones, no confiar en CLAUDE.md)
 
@@ -115,10 +118,28 @@ columnas, admin-only — no tiene clase `.cols-4` equivalente hoy).
     (instancia única), pero si se clona el negocio, revisar.
 
 ### UI (candidato de menor certeza — puede estar ya resuelto por el tema F)
-14. `REVISION_UI.md` (~35 páginas con `gridTemplateColumns` inline sin `@media`) — el mismo
-    patrón de bug que yo mismo encontré y arreglé hoy en `BuscadorGlobal`/`bot-status-dropdown`.
-    Vale la pena un barrido similar en Finanzas/Compras/RRHH si se sigue reportando ruptura en
-    móvil — pero primero confirmar si el tema F ya lo resolvió al reescribir esas páginas.
+14. `REVISION_UI.md` (~35 páginas con `gridTemplateColumns` inline sin `@media`) — verificado
+    2026-07-21: bajó a 8 archivos, 2 arreglados (ver §6). Detalle en §6, no repetir aquí.
+
+## 6b. Sesión 2026-07-21 (2ª pasada) — bugs de escritorio en `Layout.jsx`
+
+El dueño probó en escritorio los fixes de móvil de la pasada anterior y encontró dos bugs
+reales, ambos en `dashboard-ui/src/components/Layout.jsx`, **arreglados el mismo día**:
+
+1. **Logout duplicado**: `sidebar-foot` tenía un botón "Cerrar sesión" propio (sin
+   confirmación) además del menú del avatar arriba a la derecha (con confirmación). El
+   comentario del código ya decía "el pie del sidebar ya no duplica al usuario (tema F)" pero
+   el JSX nunca se había borrado — desincronía comentario/código clásica. Se eliminó el bloque
+   `sidebar-foot` completo; queda un solo punto de logout.
+2. **Auto-colapso del sidebar al hacer clic en el contenido, también en escritorio**: el
+   handler de "clic fuera del nav" llamaba `setColapsado(true)` sin importar el ancho de
+   ventana. En escritorio, cualquier clic dentro de `.content` (que está fuera de `navRef`)
+   volvía a contraer el sidebar expandido. Se le agregó el mismo guard `window.innerWidth <
+   1000` que ya usa el efecto `alAncho` (auto-colapso responsivo real, ese si estaba bien).
+
+Verificado con Puppeteer real (1440×900): sidebar se queda expandido tras clic en contenido,
+`.sidebar-foot` ya no existe en el DOM, y el dropdown del bot (arreglado la pasada anterior)
+se ve limpio también en escritorio.
 
 ## 7. Runbooks / catálogos operativos (no tocar, son referencia viva)
 
