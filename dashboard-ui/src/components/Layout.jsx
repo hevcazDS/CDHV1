@@ -270,7 +270,7 @@ export default function Layout() {
           {/* Identidad ÚNICA del usuario (arriba, estándar): avatar → menú con
               nombre/rol y "Cerrar sesión" CON confirmación (evita el click
               accidental). El pie del sidebar ya no duplica al usuario (tema F). */}
-          <Menu position="bottom-end" width={220} shadow="md">
+          <Menu position="bottom-end" width={260} shadow="md">
             <Menu.Target>
               <button className="avatar-chip" title={`${user?.username} · ${etiquetaRol(user?.rol)}${user?.version ? ' · v' + user.version : ''}`} style={{ cursor: 'pointer' }}>{iniciales}</button>
             </Menu.Target>
