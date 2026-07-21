@@ -4,7 +4,7 @@
 // mutations de cada tab viven en su componente; las queries compartidas
 // (sucursales, categorías) se piden por la misma queryKey de React Query, que
 // las deduplica, así que no hay doble fetch.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs } from '@mantine/core';
 import { useTextoEmoji } from '../context/EmojiContext';
@@ -16,6 +16,7 @@ import DatosLLMTab from './prime/DatosLLMTab';
 import BotEditorTab from './prime/BotEditorTab';
 import MotorTab from './prime/MotorTab';
 import FiltrosTab from './prime/FiltrosTab';
+const DemoTab = lazy(() => import('./prime/DemoTab'));
 
 // soloPrime: integraciones, identidad del negocio, gestión de usuarios y
 // exportación de datos del LLM son exclusivas de prime.
@@ -30,6 +31,7 @@ const TABS = [
   { key: 'motor', label: 'Motor de flujo', soloPrime: true, Componente: MotorTab },
   { key: 'datos', label: 'Datos LLM', soloPrime: true, Componente: DatosLLMTab },
   { key: 'filtros', label: 'Filtros', Componente: FiltrosTab },
+  { key: 'demo', label: '🎲 Demo', soloPrime: true, Componente: DemoTab },
 ];
 
 export default function Prime() {

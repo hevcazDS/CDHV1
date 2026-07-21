@@ -601,6 +601,7 @@ const ROUTE_MODULES = [
     require('./routes/mensajeria'),
     require('./routes/asistencias'),
     require('./routes/correo'),
+    require('./routes/demo'),
 ];
 
 function handleAPI(req, res) {
