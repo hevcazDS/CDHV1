@@ -168,12 +168,21 @@ async function timbrarNomina(db, idNomina) {
 // Complemento de pago (REP): timbra el recibo de pago de una factura PPD ya
 // cobrada. Lo dispara contabilidad manualmente (NO automático: una factura PUE
 // no lleva REP). Requiere que el pedido tenga cfdi_uuid (fue facturado PPD).
-// OJO: el mapeo completo del payment complement (parcialidad, saldo insoluto,
-// documento relacionado) debe validarse contra una factura PPD real antes de
-// producción — ver INTEGRACION_CICLO_FISCAL.md.
+// El sistema no rastrea parcialidades reales contra una factura CFDI (el abono
+// de fiado es una feature de POS aparte, no ligada a facturas): cada REP que
+// este código emite representa el pago TOTAL del documento en una sola
+// exhibición, por lo que el saldo insoluto correcto es SIEMPRE 0 (no
+// ped.total, que reportaría "sigues debiendo todo" — corregido, ver auditoría
+// REVISION_CODIGO_ERP.md MEDIO 2). `payment_form` ahora usa el método de pago
+// real del pedido (mismo helper que la factura principal), no '03' fijo.
+// OJO (sigue pendiente, no arreglado a ciegas): `taxes: []` — el desglose de
+// impuestos trasladados del complemento de pago no se arma aquí porque
+// replicarlo mal en un PAC real (Facturapi) podría timbrar un CFDI incorrecto;
+// validar el formato exacto contra una factura PPD real de sandbox antes de
+// confiar en él para un régimen que sí lo exija.
 async function timbrarREP(db, idPedido) {
     if (_cfg(db, 'facturacion_activo') !== '1' || !estaConfigurado(db)) return { ok: false, error: 'Configura el PAC y activa Facturación' };
-    const ped = db.prepare('SELECT folio, razon_social, rfc, cfdi_uuid, rep_uuid, total FROM pedidos WHERE id_pedido=?').get(idPedido);
+    const ped = db.prepare('SELECT folio, razon_social, rfc, cfdi_uuid, rep_uuid, total, metodo_pago FROM pedidos WHERE id_pedido=?').get(idPedido);
     if (!ped) return { ok: false, error: 'Pedido no encontrado' };
     if (!ped.cfdi_uuid) return { ok: false, error: 'El pedido no tiene factura timbrada (el REP referencia una factura PPD)' };
     if (ped.rep_uuid) return { ok: false, error: 'Este pago ya tiene complemento (REP)', uuid: ped.rep_uuid };
@@ -186,8 +195,8 @@ async function timbrarREP(db, idPedido) {
         complements: [{
             type: 'pago',
             data: [{
-                payment_form: '03', date: new Date().toISOString(),
-                related_documents: [{ uuid: ped.cfdi_uuid, amount: ped.total, last_balance: ped.total, taxes: [] }],
+                payment_form: _formaPagoSAT(ped.metodo_pago), date: new Date().toISOString(),
+                related_documents: [{ uuid: ped.cfdi_uuid, amount: ped.total, last_balance: 0, taxes: [] }],
             }],
         }],
     };

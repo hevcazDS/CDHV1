@@ -60,7 +60,7 @@ export default function ComprasTab({ soloRecepcion = false }) {
   });
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: soloRecepcion ? '1fr' : '1fr 1.6fr', gap: 20, alignItems: 'start' }}>
+    <div className={soloRecepcion ? undefined : 'split-2w'} style={soloRecepcion ? { display: 'grid', gridTemplateColumns: '1fr', gap: 20, alignItems: 'start' } : undefined}>
       {!soloRecepcion && (
       <Card withBorder radius="md" p="lg" className="card">
         <div className="card-header"><h3>Nueva orden de compra</h3></div>

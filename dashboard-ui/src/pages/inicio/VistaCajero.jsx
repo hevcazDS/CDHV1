@@ -16,7 +16,7 @@ export default function VistaCajero() {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100dvh - 260px)' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24, width: 'min(980px, 100%)' }}>
+      <div className="cols-3" style={{ gap: 24, width: 'min(980px, 100%)' }}>
         <Card withBorder radius="md" p="xl" className="kpi-card kpi-sq kpi-dark" style={{ minHeight: 220 }}>
           <Kpi Icono={Wallet} color="rgba(255,255,255,0.95)" label="Mis ventas cobradas hoy">
             {fmtMoneda(corte?.total_sistema)}
