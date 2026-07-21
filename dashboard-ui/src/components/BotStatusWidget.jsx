@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { esAdminOMas } from '../lib/permisos';
 import { api } from '../api';
 import { confirmar, toastOk, toastErr } from '../lib/ui';
+import { useWhatsAppQR } from '../hooks/useWhatsAppQR';
+import WhatsAppQR from './WhatsAppQR';
 
 const ETIQUETAS = {
   online: 'En línea',
@@ -21,6 +23,16 @@ export default function BotStatusWidget() {
   const queryClient = useQueryClient();
   const [abierto, setAbierto] = useState(false);
   const ref = useRef(null);
+  // El QR SOLO se pide/muestra cuando el usuario aprieta "Vincular WhatsApp"
+  // a propósito (bot opcional) — nunca automático al loguearse ni al entrar
+  // a Inicio. El poll de /api/bot/qr no arranca mientras mostrarQR es false.
+  const [mostrarQR, setMostrarQR] = useState(false);
+  const { qr, qrListo } = useWhatsAppQR(mostrarQR, 15000);
+  // Ya vinculado (el endpoint dejó de traer QR) → cerrar solo, sin que el
+  // usuario tenga que darle a la ✕.
+  useEffect(() => {
+    if (mostrarQR && qrListo && !qr) setMostrarQR(false);
+  }, [mostrarQR, qrListo, qr]);
 
   const { data: estado } = useQuery({
     queryKey: ['bot-status'],
@@ -74,6 +86,8 @@ export default function BotStatusWidget() {
             <button className="btn" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('start')}>Encender</button>
             <button className="btn" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('restart')}>Reiniciar</button>
             <button className="btn btn-danger" disabled={accionMutation.isPending} onClick={() => accionMutation.mutate('stop')}>Apagar</button>
+            <button className="btn" title="Vincular o revincular el WhatsApp del negocio (el bot es opcional)"
+              onClick={() => { setMostrarQR(true); setAbierto(false); }}>Vincular WhatsApp</button>
             {puedeBridge && (
               <button className="btn" disabled={accionMutation.isPending} title="Si el bot quedó zombie tras un reinicio del servidor (HS-502)"
                 onClick={async () => {
@@ -95,6 +109,7 @@ export default function BotStatusWidget() {
           </div>
         </div>
       )}
+      {mostrarQR && <WhatsAppQR qr={qr} onCerrar={() => setMostrarQR(false)} />}
     </div>
   );
 }

@@ -3,11 +3,11 @@ import QRCode from 'qrcode';
 import { QR_POLL_MS } from '../hooks/useWhatsAppQR';
 import { useEmoji } from '../context/EmojiContext';
 
-// Dibuja el QR de vinculación de WhatsApp. Lo usan tanto la compuerta de
-// App.jsx (antes de loguearse al dashboard) como el aviso de Inicio.jsx (si
-// WhatsApp se desvincula más tarde, con la sesión del dashboard ya abierta) —
-// un solo lugar para el canvas en vez de duplicar QRCode.toCanvas dos veces.
-export default function WhatsAppQR({ qr, pantallaCompleta = false }) {
+// Dibuja el QR de vinculación de WhatsApp. El bot es OPCIONAL: esto nunca se
+// muestra solo — lo abre el usuario a propósito desde BotStatusWidget
+// ("Vincular WhatsApp"), nunca aparece automático al loguearse ni al entrar
+// a Inicio. onCerrar (opcional): botón ✕ para salir sin tener que escanear.
+export default function WhatsAppQR({ qr, pantallaCompleta = false, onCerrar }) {
   const canvasRef = useRef(null);
   const emoji = useEmoji();
 
@@ -22,6 +22,7 @@ export default function WhatsAppQR({ qr, pantallaCompleta = false }) {
     <div
       className="card"
       style={{
+        position: 'relative',
         marginBottom: pantallaCompleta ? 0 : 0,
         padding: 24,
         textAlign: 'center',
@@ -30,6 +31,14 @@ export default function WhatsAppQR({ qr, pantallaCompleta = false }) {
         background: 'var(--panel)',
       }}
     >
+      {onCerrar && (
+        <button
+          onClick={onCerrar}
+          aria-label="Cerrar"
+          style={{ position: 'absolute', top: 10, right: 10, border: 'none', background: 'transparent',
+                   cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--text-mute)' }}
+        >✕</button>
+      )}
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{emoji('')}WhatsApp desconectado — escanea el QR para vincular</div>
       <div style={{ opacity: 0.7, fontSize: 13, marginBottom: 16 }}>
         Se actualiza solo cada {Math.round(QR_POLL_MS / 1000)}s mientras no se escanee. Si el teléfono pierde la

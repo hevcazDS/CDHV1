@@ -1,7 +1,5 @@
 import { CalendarDays } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useWhatsAppQR } from '../hooks/useWhatsAppQR';
-import WhatsAppQR from '../components/WhatsAppQR';
 import { esAdminOMas } from '../lib/permisos';
 import VistaAdmin from './inicio/VistaAdmin';
 import VistaAdminF from './inicio/VistaAdminF';
@@ -35,9 +33,6 @@ const SUBTITULO_POR_ROL = {
 export default function Inicio() {
   const { user } = useAuth();
   const esAdmin = esAdminOMas(user?.rol);
-  // El aviso de WhatsApp desvinculado es de quien opera el bot
-  const veQR = esAdmin || user?.rol === 'operador' || user?.rol === 'usuario';
-  const { qr } = useWhatsAppQR(veQR, 15000);
 
   const _fecha = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const hoyLargo = _fecha.charAt(0).toUpperCase() + _fecha.slice(1);
@@ -55,7 +50,6 @@ export default function Inicio() {
         </div>
         <span className="date-chip"><CalendarDays size={14} strokeWidth={1.75} />{hoyLargo}</span>
       </div>
-      {veQR && <WhatsAppQR qr={qr} />}
       <Vista />
     </div>
   );

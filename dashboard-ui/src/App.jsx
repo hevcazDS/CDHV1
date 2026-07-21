@@ -2,11 +2,9 @@ import { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader, Center } from '@mantine/core';
 import { useAuth } from './context/AuthContext';
-import { useWhatsAppQR } from './hooks/useWhatsAppQR';
 import { api } from './api';
 import { tieneRango } from './lib/roles';
 import { permite } from './lib/permisos';
-import WhatsAppQR from './components/WhatsAppQR';
 import Login from './components/Login';
 import Onboarding from './components/Onboarding';
 import Layout from './components/Layout';
@@ -49,11 +47,10 @@ const Tareas = lazy(() => import('./pages/Tareas'));
 
 export default function App() {
   const { user, cargando } = useAuth();
-  // Login primero, QR después (el endpoint del QR exige sesión). El poll
-  // se detiene al vincular o descartar; Inicio cubre desvinculaciones.
-  const [qrVisto, setQrVisto] = useState(false);
-  const { qr, qrListo } = useWhatsAppQR(!!user && !qrVisto);
-
+  // El bot de WhatsApp es OPCIONAL: login ya no queda bloqueado esperando un
+  // QR. Vincular (o gestionar start/stop/restart) vive sin bloquear en
+  // Inicio (tarjeta QR) y en el widget del header (BotStatusWidget) — nunca
+  // como pantalla completa obligatoria tras el login.
   const [onb, setOnb] = useState(undefined);
   useEffect(() => {
     api.get('/api/onboarding/estado').then(setOnb).catch(() => setOnb({ configurado: true }));
@@ -62,15 +59,6 @@ export default function App() {
   if (cargando || onb === undefined) return null;
   if (!user && !onb.configurado) return <Onboarding estado={onb} />;
   if (!user) return <Login />;
-  if (!qrListo) return null;
-  if (qr && !qrVisto) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <WhatsAppQR qr={qr} pantallaCompleta />
-        <button className="btn" onClick={() => setQrVisto(true)}>Continuar al panel sin vincular</button>
-      </div>
-    );
-  }
 
   return (
     <>
