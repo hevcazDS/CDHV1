@@ -202,11 +202,13 @@ suite('CLIENTE 5 — Carrito y pickup completo');
     const rVer = await msg(U, '1');
     assert('Ver detalle producto', rVer.includes('$') || rVer.includes('MXN') || rVer.includes('carrito') || rVer.includes('agregar') || rVer.includes('Agregar') || rVer.length > 20);
 
-    const rAgregar = await msg(U, '1'); // Agregar al carrito → va a SHOW_CART
-    assert('Producto en carrito o continuar compra', rAgregar.includes('carrito') || rAgregar.includes('pagar') || rAgregar.includes('buscar') || rAgregar.includes('continuar') || rAgregar.includes('1'));
+    // Opción 2 de VIEW_PRODUCT = "Agregar y pagar" → agrega y pide el CP
+    // directo (no hay paso intermedio de SHOW_CART); opción 1 sería "Agregar
+    // y seguir buscando", que regresa a SEARCHING (bug de este test corregido
+    // 2026-07-21: mandaba '1' aquí y nunca llegaba a pedir CP).
+    const rAgregar = await msg(U, '2');
+    assert('Producto en carrito, pide CP para checkout', rAgregar.includes('carrito') || rAgregar.includes('postal') || rAgregar.includes('CP') || rAgregar.includes('1'));
 
-    // SHOW_CART: opción 2 = proceder al pago → pide CP
-    const rPagar = await msg(U, '2');
     // CP → opciones de entrega
     const rCP = await msg(U, '78000');
     assert('Opción pickup disponible tras CP', rCP.includes('pickup') || rCP.includes('recoger') || rCP.includes('tienda') || rCP.includes('domicilio') || rCP.includes('Envío') || rCP.includes('envio') || rCP.includes('cobertura'));
@@ -222,18 +224,28 @@ suite('CLIENTE 6 — Flujo de envío con CP válido');
     const prod = db.prepare("SELECT name FROM productos WHERE activo=1 AND (stock_tienda>0 OR stock_cedis>0) LIMIT 1").get();
     if (!prod) return;
     await msg(U, prod.name.split(' ')[0]);
-    await msg(U, '1'); await msg(U, '1');
+    await msg(U, '1'); await msg(U, '2'); // ver detalle, luego "Agregar y pagar" (no "seguir buscando")
 
     const sess1 = sessionMgr.getSession(U);
     if (sess1.paso_actual === 'ASK_CP') {
-        const r1 = await msg(U, 'abc'); // CP inválido
+        const r1 = await msg(U, 'abc'); // CP inválido (sin dígitos) — sigue en ASK_CP
         assert('CP inválido rechazado', r1.includes('válido') || r1.includes('5 dígitos') || r1.includes('código'));
 
-        const r2 = await msg(U, '123456789'); // CP muy largo
-        assert('CP muy largo truncado/rechazado', !r2.includes('ERROR'));
-
+        // CP válido ANTES del "muy largo": orderFlow.js trunca a los primeros 5
+        // dígitos y ya AVANZA de estado (a domicilio/pickup/asesor) aunque el CP
+        // truncado no tenga cobertura real — encadenar un tercer CP después de
+        // ese caso ya no cae en ASK_CP (bug de este test corregido 2026-07-21).
         const r3 = await msg(U, '78000'); // CP válido SLP
         assert('CP 78000 SLP aceptado', r3.includes('envío') || r3.includes('cobertura') || r3.includes('flete') || r3.includes('domicilio'));
+
+        // Sesión nueva para el caso "CP muy largo" — solo nos importa que trunque
+        // sin tronar, no encadenarlo con el CP válido de arriba.
+        const U2 = 'test_c6b@c.us'; resetUser(U2);
+        await msg(U2, 'hola'); await msg(U2, '1');
+        await msg(U2, prod.name.split(' ')[0]);
+        await msg(U2, '1'); await msg(U2, '2');
+        const r2 = await msg(U2, '123456789'); // CP muy largo → trunca a 5 dígitos, no debe tronar
+        assert('CP muy largo truncado sin error', !r2.includes('ERROR'));
     } else {
         warn('Suite 6', `Estado inesperado: ${sess1.paso_actual}`);
     }

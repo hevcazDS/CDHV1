@@ -33,6 +33,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > existente). Verificado con Puppeteer real: sidebar se queda expandido tras clic en
 > contenido, `.sidebar-foot` ya no existe, y el dropdown del bot (arreglado el 2026-07-20)
 > se ve limpio también en escritorio (1440px).
+>
+> **2026-07-21 (3ª pasada, auditoría del bot sin WhatsApp conectado):** se pidió confirmar
+> que la lógica del bot (búsqueda/carrito/checkout/flujos/motor/CRM/contabilidad/etc.) sigue
+> funcionando sin una sesión de WhatsApp viva. **Sí — toda la batería (`npm test`, ~45
+> suites, exit 0) pasa limpia contra la BD real de producción**, incluida la simulación de
+> 20 clientes concurrentes vía `handleAction` directo (sin WhatsApp) en
+> `tests/test_full_bot.js`. De paso: WhatsApp está desconectado ahora mismo (`bot_estado_deseado=0`,
+> hay un QR pendiente) — efecto colateral de los múltiples `docker compose up -d` de esta
+> sesión chocando con el candado de sesión (`SingletonLock`) de Chromium entre recreaciones
+> del contenedor; el propio bot se auto-recupera limpiando la sesión y generando un QR nuevo,
+> pero requiere volver a escanearlo. Un hallazgo real y corregido: `tests/test_full_bot.js`
+> tenía 3 asserts rotos por un menú desactualizado (enviaban "1" = *Agregar y seguir
+> buscando* donde hacía falta "2" = *Agregar y pagar* para llegar a `ASK_CP`) — el bot nunca
+> estuvo roto, era el test el que no reflejaba el menú actual de `menuFlow.js`. Corregido y
+> reordenado (67/67 en esa suite). Ver `INDICE_DOCUMENTACION.md` §6c para el detalle.
 
 ## Project
 

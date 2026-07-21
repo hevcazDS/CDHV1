@@ -141,6 +141,38 @@ Verificado con Puppeteer real (1440×900): sidebar se queda expandido tras clic 
 `.sidebar-foot` ya no existe en el DOM, y el dropdown del bot (arreglado la pasada anterior)
 se ve limpio también en escritorio.
 
+## 6c. Sesión 2026-07-21 (3ª pasada) — auditoría del bot sin WhatsApp conectado
+
+Pedido: confirmar que la lógica del bot sigue funcionando sin una sesión de WhatsApp viva.
+Método: correr la batería real del proyecto dentro del contenedor (`docker exec bothsv
+npm test` + corridas puntuales), contra la BD real de producción, sin ningún cliente de
+WhatsApp — exactamente el escenario que `test_bot.js`/`test_full_bot.js` están diseñados
+para cubrir (mock del `client` de WhatsApp, `sendMessage` no hace nada real).
+
+**Resultado: `npm test` completo (~45 suites) exit 0.** Incluye pipeline de mensajes
+(117/117, DB mock), 34/34 tablas críticas contra la BD real, 67/67 en la simulación de 20
+clientes concurrentes vía `actionHandler.handleAction` directo (búsqueda, wizard, carrito,
+checkout con CP/pickup/envío, citas, devoluciones, referidos, XSS/SQLi/emojis-only sin
+crashear), motor de flujo, CRM-desde-el-bot, contabilidad (cuadre/reversa/cierre anual),
+activos fijos, correo, gimnasio/asistencias, cotizaciones persistidas, mensajería interna.
+
+**Hallazgo real (no del bot, del test) — corregido:** `tests/test_full_bot.js` tenía 3
+asserts que fallaban/advertían porque asumían un menú de `VIEW_PRODUCT` desactualizado:
+mandaban `"1"` ("Agregar y seguir buscando", que regresa a `SEARCHING`) donde hacía falta
+`"2"` ("Agregar y pagar", que sí lleva a `ASK_CP`) para llegar al checkout. Reproducido a
+mano con `handleAction` directo, confirmado que con la opción correcta el checkout (CP →
+envío gratis/pickup en sucursal/asesor) funciona perfecto. Corregido en el test (Suites 5 y
+6) + reordenado el caso de "CP muy largo" (que en `orderFlow.js` trunca a 5 dígitos y YA
+avanza de estado, por diseño — no es un bug, solo había que no encadenarlo con el CP válido
+en la misma sesión de prueba). Resultado tras el fix: 67/67, 0 fallas.
+
+**Efecto colateral encontrado (no relacionado con el bot, sí con esta sesión):** WhatsApp
+está desconectado ahora mismo (`bot_estado_deseado=0`, QR pendiente) — los múltiples
+`docker compose up -d` de las pasadas anteriores (rebuild tras cada fix de UI) chocaron con
+el `SingletonLock` de Chromium entre recreaciones del contenedor; el bot se autorrepara
+limpiando la sesión y generando un QR nuevo, pero hay que volver a escanearlo. No es un bug
+de código, es un efecto de recrear el contenedor repetidamente en una sola sesión de trabajo.
+
 ## 7. Runbooks / catálogos operativos (no tocar, son referencia viva)
 
 - `ERRORES.md` — catálogo de códigos `HS-xxx` para soporte/diagnóstico.
