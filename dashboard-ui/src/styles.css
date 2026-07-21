@@ -378,6 +378,24 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   font-size: 13px; background: var(--panel-2); border-color: transparent;
 }
 .buscador-input:focus { background: var(--panel); border-color: var(--border); }
+.buscador-toggle-movil {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 999px; border: none;
+  background: var(--panel-2); color: var(--text-mute);
+  display: flex; align-items: center; justify-content: center;
+}
+.buscador-overlay-movil {
+  /* left:72px = ancho del riel colapsado (64px, AppShell navbar) + margen —
+     con left:8px el monograma JC del riel quedaba encima del input. */
+  position: fixed; top: 10px; left: 72px; right: 8px; z-index: 1100;
+  max-width: none; margin-right: 0; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 999px; box-shadow: var(--shadow);
+}
+.buscador-overlay-movil .buscador-input { padding-right: 38px; }
+.buscador-cerrar-movil {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 28px; height: 28px; border-radius: 50%; border: none; background: none;
+  color: var(--text-mute); display: flex; align-items: center; justify-content: center;
+}
 .buscador-drop {
   position: absolute; top: calc(100% + 8px); left: 0; right: 0;
   background: var(--panel); border: 1px solid var(--border);

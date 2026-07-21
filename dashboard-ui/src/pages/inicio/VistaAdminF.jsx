@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { Check } from 'lucide-react';
 import { api } from '../../api';
 import PuntosGrafica from '../../components/PuntosGrafica';
 import { fdate } from '../../lib/format';
@@ -108,7 +109,11 @@ export default function VistaAdminF() {
         <div className="f-seccion">
           <div className="f-h4"><span>Requiere tu mano</span></div>
           <div className="f-stagger">
-            {mano.length === 0 && <div className="f-row" style={{ color: 'var(--text-mute)' }}>Nada pendiente — todo fluye solo ✓</div>}
+            {mano.length === 0 && (
+              <div className="f-row" style={{ color: 'var(--text-mute)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                Nada pendiente — todo fluye solo <Check size={14} strokeWidth={2} />
+              </div>
+            )}
             {mano.map(m => (
               <Link key={m.k} to={m.to} className="f-row">
                 <span className="who">{m.txt}{m.det && <span className="t"> · {m.det}</span>}</span>

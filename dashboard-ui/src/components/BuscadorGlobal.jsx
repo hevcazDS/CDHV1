@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Users, Package, Tag, CornerDownLeft, Truck, FileText, Factory, IdCard } from 'lucide-react';
+import { Search, X, Users, Package, Tag, CornerDownLeft, Truck, FileText, Factory, IdCard } from 'lucide-react';
 import { api } from '../api';
 import { soloTelefono } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
@@ -79,6 +79,17 @@ export default function BuscadorGlobal() {
   const ref = useRef(null);
   const inputRef = useRef(null);
   const timer = useRef(null);
+  // En viewport angosto (celular) el resto del topbar (campana, estatus del
+  // bot, avatar) no deja espacio real para el input — encogía a ~90px y
+  // cualquier texto, hasta "Buscar…", se veía cortado a la mitad ("Bu"), sin
+  // elipsis. Se colapsa a solo el icono y se expande como overlay al tocarlo.
+  const [angosto, setAngosto] = useState(() => window.innerWidth < 480);
+  const [expandido, setExpandido] = useState(false);
+  useEffect(() => {
+    const alAncho = () => setAngosto(window.innerWidth < 480);
+    window.addEventListener('resize', alAncho);
+    return () => window.removeEventListener('resize', alAncho);
+  }, []);
 
   // Ctrl+K / Cmd+K → enfocar el buscador desde cualquier página
   useEffect(() => {
@@ -106,10 +117,15 @@ export default function BuscadorGlobal() {
   }, [q]);
 
   useEffect(() => {
-    function fuera(e) { if (ref.current && !ref.current.contains(e.target)) setAbierto(false); }
+    function fuera(e) {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setAbierto(false);
+        if (!q.trim()) setExpandido(false);
+      }
+    }
     document.addEventListener('mousedown', fuera);
     return () => document.removeEventListener('mousedown', fuera);
-  }, []);
+  }, [q]);
 
   const ir = (ruta) => { setAbierto(false); setQ(''); navigate(ruta); };
 
@@ -127,8 +143,20 @@ export default function BuscadorGlobal() {
   const cats = orden.filter(k => res?.[k]?.length > 0);
   const hay = cats.length > 0 || destinos.length > 0;
 
+  if (angosto && !expandido) {
+    return (
+      <button
+        className="buscador-toggle-movil"
+        title="Buscar"
+        onClick={() => { setExpandido(true); setTimeout(() => inputRef.current?.focus(), 0); }}
+      >
+        <Search size={17} strokeWidth={1.75} />
+      </button>
+    );
+  }
+
   return (
-    <div className="buscador" ref={ref}>
+    <div className={`buscador${angosto ? ' buscador-overlay-movil' : ''}`} ref={ref}>
       <Search size={15} strokeWidth={1.75} className="buscador-icono" />
       <input
         ref={inputRef}
@@ -137,8 +165,16 @@ export default function BuscadorGlobal() {
         value={q}
         onChange={e => setQ(e.target.value)}
         onFocus={() => (res || destinos.length) && setAbierto(true)}
-        onKeyDown={e => { if (e.key === 'Enter' && destinos.length) ir(destinos[0].to); if (e.key === 'Escape') { setAbierto(false); e.currentTarget.blur(); } }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && destinos.length) ir(destinos[0].to);
+          if (e.key === 'Escape') { setAbierto(false); e.currentTarget.blur(); if (angosto) setExpandido(false); }
+        }}
       />
+      {angosto && (
+        <button className="buscador-cerrar-movil" title="Cerrar" onClick={() => { setQ(''); setAbierto(false); setExpandido(false); }}>
+          <X size={16} strokeWidth={1.75} />
+        </button>
+      )}
       {abierto && (res || destinos.length > 0) && (
         <div className="buscador-drop">
           {!hay && <div className="buscador-vacio">Sin resultados para “{q}”</div>}
