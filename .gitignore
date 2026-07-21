@@ -92,6 +92,11 @@ dashboard/.instancia_secret
 instancias/
 dashboard/.instancia_activa
 
+# Base de datos real + secretos/registros que ahora viven en /data (volumen
+# Docker) — nunca debe subirse al repo (casi pasa: git add -A la habría
+# incluido, .gitignore no la cubría en absoluto).
+data/
+
 # F5.4: archivero fiscal local (CFDI del PAC) — no se versiona
 contabilidad/
 restauracion/
