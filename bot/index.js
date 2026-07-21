@@ -591,7 +591,19 @@ function yaNosEscribioAntes(_db, telefono) {
 }
 
 // ── Procesador de cola_notificaciones ─────────────────────────────────────
+// Período de calentamiento: no drenar la cola los primeros minutos tras
+// reconectar. Evita que una ráfaga de mensajes de marketing provoque ban
+// automático de WhatsApp justo después de escanear el QR o reconectar.
+// (ponytail: 5 min. Ajustar solo si Meta/WAWEB lo permite con evidencia.)
+const _WARMUP_COLA_MS = 5 * 60_000;
+let _botConectadoEn = 0;   // timestamp del último client.on('ready')
+
 function procesarColaNotificaciones() {
+    if (Date.now() - _botConectadoEn < _WARMUP_COLA_MS) {
+        const restaSeg = Math.ceil((_WARMUP_COLA_MS - (Date.now() - _botConectadoEn)) / 1000);
+        log.debug('Cola suspendida — calentamiento activo, faltan ' + restaSeg + 's');
+        return;
+    }
     try {
         const _db = require('./db_connection');
         // Mensajes envenenados: 3 intentos fallidos → 'sin_entregar' (dejan
@@ -848,12 +860,17 @@ client.on('disconnected', reason => {
         log.warn('Reconexión automática desactivada — el bot queda detenido hasta un reinicio manual desde el dashboard');
     }
 });
+let _colaInterval = null;  // evita acumular timers en reconexiones sucesivas
 client.on('ready', () => {
     log.info('Bot conectado y listo');
     qrMostrado = false;
+    _botConectadoEn = Date.now();
     _setWhatsAppQR('');
-    // Procesar cola de notificaciones cada 30 segundos
-    setInterval(procesarColaNotificaciones, 30_000).unref();
+    // Un solo interval de cola — limpiar el anterior si existe (reconexión)
+    if (_colaInterval) { clearInterval(_colaInterval); _colaInterval = null; }
+    _colaInterval = setInterval(procesarColaNotificaciones, 30_000);
+    if (_colaInterval.unref) _colaInterval.unref();
+    log.info('Cola de notificaciones: calentamiento de 5 min activo (anti-ban)');
     arrancarStockWatcherWorker();
 
     // ── Backup automático ───────────────────────────────────────────

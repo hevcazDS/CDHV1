@@ -521,6 +521,14 @@ function checkRecompraConsumibles() {
 // ponytail: umbrales fijos (40d disparo, 15d anti-choque); ajustar si cambia el ritmo de masivos.
 function checkClientesDormidos() {
     if (!_flagActivo('reactivacion_activo')) return;
+    // Máximo una vez al día — evita ráfaga masiva en cada reconexión del bot.
+    // La verificación per-cliente (15 días) sigue activa como segunda capa.
+    const hoy = new Date().toISOString().slice(0, 10);
+    const ultDia = _valorConfig('dormidos_ultimo_dia', '');
+    if (ultDia === hoy) return;
+    try {
+        db.prepare("INSERT INTO configuracion (clave,valor) VALUES ('dormidos_ultimo_dia',?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor, actualizado_en=datetime('now','localtime')").run(hoy);
+    } catch(_) {}
     const dormidos = db.prepare(`
         SELECT c.id, c.telefono, c.nombre, MAX(p.creado_en) AS ultima_compra
         FROM clientes c
