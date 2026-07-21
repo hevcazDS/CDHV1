@@ -89,7 +89,7 @@
     "mailparser": "^3.9.14",
     "puppeteer-core": "^21.6.1",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.25.0",
+    "whatsapp-web.js": "https://github.com/erickmourasilva/whatsapp-web.js/archive/refs/heads/fix/wa-web-1043-serialized-compat-pr.tar.gz",
     "zod": "^3.25.76"
   },
   "devDependencies": {
