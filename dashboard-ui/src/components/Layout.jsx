@@ -227,7 +227,7 @@ export default function Layout() {
   const [abierto, setAbierto] = useState(grupoActivo);
   useEffect(() => { setAbierto(grupoActivo); }, [grupoActivo]);
 
-  // navbar sin breakpoint a propósito (sin versión móvil, es Electron/escritorio);
+  // El riel colapsado (64px) ya cubre el caso móvil (ver alAncho arriba);
   // padding en el prop de AppShell, no en .content (pisaría el offset del navbar)
   return (
     <AppShell layout="alt" header={{ height: 56 }} navbar={{ width: colapsado ? 64 : 252 }} padding={24}

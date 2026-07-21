@@ -142,6 +142,12 @@ td.num { text-align: right; }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
+/* Red de seguridad para móvil: cualquier elemento que se desborde (dropdown,
+   tabla sin su propio scroll, etc.) empujaba TODO el documento a ancho de
+   escritorio y forzaba al usuario a hacer pinch-zoom para ver el panel
+   completo. Los que sí necesitan scroll horizontal propio (.table-wrap) lo
+   declaran explícitamente y siguen funcionando igual. */
+html, body { overflow-x: hidden; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -456,7 +462,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 300px;
+  /* nunca más ancho que el viewport (con margen) — con width:300px fijo, los
+     botones de .bot-status-actions no cabían en pantallas angostas y se
+     salían del cuadro hacia la derecha, fuera de la pantalla. */
+  width: min(300px, calc(100vw - 24px));
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -465,8 +474,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   z-index: 20;
 }
 .bot-status-dropdown h4 { margin: 0 0 10px; font-size: 13px; color: var(--text-dim); }
-.bot-status-actions { display: flex; gap: 8px; margin-bottom: 12px; }
-.bot-status-actions .btn { flex: 1; padding: 8px; font-size: 13px; justify-content: center; }
+/* flex-wrap + min-width: los botones (5 con "Reiniciar bridge") no caben en
+   una sola fila en 300px de ancho — con solo flex:1 (sin wrap) se negaban a
+   encogerse bajo el ancho de su propio texto y desbordaban la fila entera. */
+.bot-status-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.bot-status-actions .btn { flex: 1 1 calc(50% - 4px); min-width: 0; padding: 8px; font-size: 13px; justify-content: center; }
 .bot-history-list { max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
 .bot-history-item { font-size: 12px; color: var(--text-dim); display: flex; justify-content: space-between; gap: 8px; }
 .bot-history-item .estatus { color: var(--text); font-weight: 600; }
