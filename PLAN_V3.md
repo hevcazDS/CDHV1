@@ -568,3 +568,94 @@ diseño en el propio archivo, igual que los otros 55 ya migrados.
        la vida de este repo en que `npm test` es seguro de correr
        literalmente en cualquier entorno, incluido el contenedor de
        producción, sin riesgo de contaminar datos reales.
+
+## Fase 13 — Split de `bot/flows/_shared.js` (2026-07-22j)
+
+A pedido explícito del dueño ("¿hay factibilidad real de dividir este
+archivo?"), reconsiderado tras 4 rondas previas (Fase 1 ítem 10, Fase 4
+ítem 20, Fase 7 confirmado limpio, Fase 11 ítem 69) que lo habían dejado
+íntegro por ser "ancho, no profundo". Se mapearon las 10 agrupaciones de
+dominio reales del archivo (1391 líneas) y sus dependencias internas —
+resultó ser un DAG limpio, sin ciclos: `_base` (requires externos, enum
+`S`, horario/flete, folio, cobertura, inventario) no depende de nada;
+`busqueda`/`carrito`/`clientes`/`pagos`/`tagging`/`menu` solo dependen de
+`_base`; `pedidos` depende de `_base`+`carrito`+`clientes`;
+`escalada` depende de `_base`+`tagging`; `handler` depende de
+`_base`+`carrito`.
+
+- [x] 77. **Split completo (no parcial) logrado con seguridad**:
+       `bot/flows/_shared.js` (1391 líneas) → `bot/flows/_shared.js`
+       (99 líneas, thin re-export) + `bot/flows/_shared/` con 10 archivos
+       de dominio (`_base.js` 214, `busqueda.js` 221, `carrito.js` 231,
+       `clientes.js` 59, `pagos.js` 111, `pedidos.js` 374, `menu.js` 129,
+       `tagging.js` 33, `escalada.js` 59, `handler.js` 37 — 1468 líneas en
+       total, extracción mecánica, sin cambio de lógica). Mismo patrón que
+       el split de `stockWatcher.js` (Fase 4 ítem 19): `_shared.js` sigue
+       existiendo como archivo (Node resuelve `require('./_shared')` al
+       archivo antes que al directorio, sin colisión) y expone EXACTAMENTE
+       las mismas 67 claves que antes (verificado por conteo programático:
+       `Object.keys(require('./_shared')).length === 67`, igual al conteo
+       manual del `module.exports` original). Los 20+ call sites reales
+       (`menuFlow.js`/`cartFlow.js`/`orderFlow.js`/`addressFlow.js`/
+       `asesorFlow.js`/`citasFlow.js`/`citasGestionFlow.js`/`mesaFlow.js`/
+       `motor/actions.js`/`actionHandler.js`/`dashboard/server.js`/
+       `dashboard/routes/{pos,mesas,citas}.js`/`services/suscripcionCobro.js`/
+       9 archivos de test) se relevaron con grep antes del split; los 3
+       patrones reales de destructuring (`{S,getValor,vocab,...}`,
+       `{searchProducts,...,S:SESION_S}`, `{partirCarrito,wizardSearch}`)
+       se probaron en vivo tras el split, todos resuelven. **Verificación**:
+       sintaxis limpia en los 11 archivos (`node -c`); `test:carrito`
+       (11/11); suite completa `npm test` — **399/399, idéntico al
+       baseline pre-split**, exit 0; `data/jugueteria.db` real confirmada
+       sin tocar (mtime sin cambios). Nota de diseño: `grabarPedidoEnvio`/
+       `grabarPedidoSplit` (que la Fase 4 ítem 20 había dejado sin
+       deduplicar entre sí por divergir demasiado) simplemente se
+       reubicaron intactas en `pedidos.js` junto al resto de
+       `grabarPedido*` — el split es de organización de archivo, no un
+       segundo intento de dedup.
+
+## Fase 14 — Split de `dashboard/routes/erpContabilidad.js` (2026-07-22j, en paralelo con la Fase 13)
+
+- [x] 78. `dashboard/routes/erpContabilidad.js` (891 líneas, ya candidato
+       explícito a "split opcional por dominio" desde una ronda anterior)
+       → 5 archivos: `erpContabilidad.js` (204, núcleo: plan de cuentas,
+       asientos, libro mayor, rastro, gastos, impuestos, cierre de
+       período/año), `erpTablero.js` (376, tablero + salud financiera +
+       flujo de caja + rentabilidad + gasto de marketing), `erpCfdi.js`
+       (197, timbrado/CFDI/DIOT/contabilidad electrónica), `erpConciliacion.js`
+       (129, conciliación bancaria + baúl contable), `erpActivos.js` (58,
+       activos fijos). Cada ruta copiada verbatim (mismo `area`/`pin`, sin
+       cambio de gate ni de lógica). `dashboard/server.js`'s `ROUTE_MODULES`
+       actualizado para montar los 4 archivos nuevos — único punto de
+       registro manual necesario, confirmado que era el único lugar que
+       hacía falta tocar. **Verificación**: sintaxis limpia; `test:contabilidad`
+       (6/6); `test:rutas` sin colisiones (339 rutas en 35 módulos, antes
+       336/31 — consistente con 4 módulos nuevos y cero rutas cambiadas);
+       `test:requires` (473/473 resuelven); suite completa `npm test` —
+       **399/399**, exit 0.
+
+## Verificación conjunta de las Fases 13+14
+
+Ambos splits (el más grande del repo, `_shared.js`, y el segundo más
+grande activo, `erpContabilidad.js`) se hicieron en paralelo por agentes
+distintos y se reverificaron juntos de forma independiente: `docker compose
+build` limpio, `npm test` completo corrido dos veces (una por cada agente,
+una por mí de forma independiente sobre la imagen final con ambos splits
+aplicados) — **399/399 ambas veces, 0 fallas, `data/jugueteria.db` con
+mtime idéntico** (confirmado que ninguna de las dos corridas tocó la BD
+real). Esta es la primera vez en el proyecto que un refactor de esta
+magnitud se verifica con la suite de tests completa real, no solo con
+`docker compose build` — directamente posible gracias a la Fase 12.
+
+- [x] 79. **Hallazgo incidental durante la verificación** (uno de los 2
+       agentes de las Fases 13/14, al correr `test:correo` como parte de su
+       propia verificación — no era su tarea asignada): `services/correoInbox.js`
+       (`sincronizar`) — `uid` es columna TEXT y algunos correos quedan
+       guardados con sufijo `.0` (`Number()` sin truncar en el insert); sin
+       `CAST` a entero, `MAX(uid)` compara como STRING y `"99.0" > "117.0"`
+       (el `9` inicial gana como texto) — el sync de correo entrante se
+       quedaba pegado en el UID 99 para siempre, nunca avanzaba a los
+       correos reales más nuevos. Corregido con `CAST(uid AS INTEGER)` en
+       el `MAX()` y `Math.trunc()` al guardar/consultar el UID. Test de
+       regresión agregado en `tests/test_correo.js` que documenta el bug
+       (compara la query con y sin `CAST`). `test:correo` 10/10 (antes 9/9).

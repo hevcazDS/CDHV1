@@ -548,6 +548,25 @@ intencional preexistente (evitar contaminar la BD real al correr `npm test`
 por default), no una regresión — no se tocó nada. Ver `PLAN_V3.md` Fase 11
 (ítems 69-71).
 
+## 6p. `npm test` seguro contra BD real + splits de los 2 archivos más grandes (2026-07-22)
+
+A pedido explícito: (1) los 4 scripts de test que necesitaban BD real se
+integraron de verdad a `npm test`, cada uno aislado en su propio código
+(`:memory:`/`crearFixture()`), nunca dependiendo de configuración externa;
+se encontraron y corrigieron 2 hallazgos reales en el camino —
+`test_db_flujo.js` (ya conectado a `npm test` desde antes de esta sesión)
+no se aislaba y mezclaba checks portables con checks de datos reales de
+esta instancia (separado en dos archivos), y `schema_guard.js` (el propio
+guard de la Fase 7) tenía un falso positivo por no ignorar comentarios SQL
+`--`. **Resultado: `npm test` completo corre 399/399, 0 fallas, seguro en
+cualquier entorno incluida producción — primera vez en la vida del repo.**
+(2) Con esa red de seguridad real ya disponible, se reconsideró el split
+de los 2 archivos más grandes con refactor pendiente: `bot/flows/_shared.js`
+(1391→99 líneas + 10 archivos de dominio, split COMPLETO logrado, DAG sin
+ciclos) y `dashboard/routes/erpContabilidad.js` (891→5 archivos por
+dominio). Ambos verificados con la suite completa real (399/399 dos veces),
+no solo con `docker compose build`. Ver `PLAN_V3.md` Fases 12-14.
+
 ## 7. Runbooks / catálogos operativos (no tocar, son referencia viva)
 
 - `ERRORES.md` — catálogo de códigos `HS-xxx` para soporte/diagnóstico.

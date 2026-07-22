@@ -193,6 +193,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > por default) reintroduciría el mismo incidente de contaminación de datos
 > ya limpiado varias veces antes. No se tocó `package.json`.
 >
+> **2026-07-22 (split de `bot/flows/_shared.js`, `PLAN_V3.md` Fase 13):** a
+> pedido explícito del dueño, reconsiderado el split de este archivo (1391
+> líneas, el más grande del repo) que 4 rondas previas habían dejado íntegro.
+> Mapeadas sus 10 agrupaciones de dominio reales — resultó ser un DAG limpio
+> sin ciclos, así que se logró un **split completo** (no parcial): `_shared.js`
+> quedó como thin re-export (99 líneas) + `bot/flows/_shared/` con 10 archivos
+> (`_base.js` núcleo sin dependencias internas; `busqueda`/`carrito`/
+> `clientes`/`pagos`/`tagging`/`menu` solo dependen de `_base`; `pedidos`
+> depende de `_base`+`carrito`+`clientes`; `escalada` de `_base`+`tagging`;
+> `handler` de `_base`+`carrito`). Mismo patrón que el split de
+> `stockWatcher.js` (Fase 4): `require('./_shared')` sigue resolviendo al
+> archivo (Node prioriza el archivo sobre el directorio homónimo), expone
+> las mismas 67 claves de antes (verificado programáticamente), y los ~20
+> call sites reales (flows del bot, `dashboard/server.js`, rutas, motor,
+> tests) se relevaron por grep y se probaron en vivo. Verificado: sintaxis
+> limpia en los 11 archivos, `test:carrito` 11/11, suite completa `npm test`
+> **399/399 — idéntico al baseline**, `data/jugueteria.db` real sin tocar.
+> Ver `PLAN_V3.md` ítem 77 para el detalle completo.
+>
+> **2026-07-22 (split de `erpContabilidad.js`, en paralelo, `PLAN_V3.md`
+> Fase 14):** el segundo archivo más grande del repo con refactor pendiente
+> (891 líneas, ya candidato explícito a "split por dominio" desde una
+> ronda anterior) → 5 archivos por dominio (`erpContabilidad.js` núcleo,
+> `erpTablero.js`, `erpCfdi.js`, `erpConciliacion.js`, `erpActivos.js`),
+> cada ruta copiada verbatim (mismo gate, misma lógica), `server.js`'s
+> `ROUTE_MODULES` actualizado para montar los 4 nuevos. Verificado:
+> `test:contabilidad` 6/6, `test:rutas` sin colisiones (339 rutas/35
+> módulos), `test:requires` 473/473, suite completa 399/399.
+>
+> **Ambos splits (Fases 13+14) reverificados juntos**, de forma
+> independiente, sobre la imagen final con los dos aplicados: `npm test`
+> completo **399/399, 0 fallas**, `data/jugueteria.db` con mtime idéntico
+> antes/después — primera vez que un refactor de esta magnitud en este
+> repo se verifica con la suite de tests real completa (posible gracias a
+> la Fase 12, que hizo `npm test` 100% seguro contra la BD real).
+>
 > Todo lo demás abajo sigue siendo útil como historia y para los principios (chokepoint de dinero, golden/paridad byte-idéntico de JC, migraciones versionadas + espejo en `db/schema.sql`, módulos toggleables).
 >
 > **Regla permanente para Claude Code en este repo:** cada vez que se investigue o arregle
