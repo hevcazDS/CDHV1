@@ -511,3 +511,60 @@ entre sí, no solo que cada diff se vea bien aislado.
        el que `test:notificaciones`/`test:fullbot`/`test:smoke` tampoco están
        en la cadena. **No se tocó `package.json`** — la exclusión es
        correcta y se deja así a propósito.
+
+## Fase 12 — `npm test` 100% seguro contra BD real (2026-07-22i)
+
+A pedido explícito: los 4 scripts que el ítem 71 dejó fuera se integraron
+de verdad a `npm test`, garantizando que **nunca** toquen producción —
+no con una copia desechable (eso ya no hace falta), sino aislados por
+diseño en el propio archivo, igual que los otros 55 ya migrados.
+
+- [x] 72. `test:carrito`/`test:dashboard-api`/`test:marketing` — verificado
+       por lectura de código que ya se auto-aíslan con `DB_PATH=':memory:'`
+       puesto incondicionalmente antes de requerir `db_connection` — cero
+       riesgo real, no dependían de ninguna copia externa. Agregados a la
+       cadena `npm test`.
+- [x] 73. `test_estris_bd.js`/`test_estres_bd.js` — no se auto-aislaba
+       (dependía del `DB_PATH` ambiente). Corregido: ahora usa
+       `crearFixture()` (mismo helper que ya usan 8 archivos más, esquema
+       real completo desde `db/schema.sql` en un tmpfile desechable),
+       incondicional, con limpieza en `after()`. Agregado a `npm test`.
+- [x] 74. **Hallazgo real durante la integración**: `test_db_flujo.js` — que
+       YA estaba conectado a `npm test` desde ANTES de esta sesión — tampoco
+       se auto-aislaba, y SÍ escribe/borra filas de prueba (cliente,
+       sesión, carrito abandonado, etc.). Si `npm test` se corría en el
+       contenedor de producción, escribía contra `data/jugueteria.db` real.
+       Además mezclaba dos tipos de check incompatibles con aislar: pruebas
+       de estructura (portables) y pruebas de SALUD DE DATOS REALES de esta
+       instancia (`≥277 productos con stock`, `≥11 sucursales`) que nunca
+       pueden pasar contra un fixture vacío. **Separado en dos archivos**:
+       `test_db_flujo.js` (estructura + round-trips, ahora aislado con
+       `crearFixture()`, sigue en `npm test`) y `test_db_flujo_salud.js`
+       (los checks de datos reales, solo lectura, NO conectado a `npm test`
+       a propósito — mismo criterio que `test_notificaciones.js`, se corre
+       manual contra la instancia real cuando se quiera auditar su salud).
+- [x] 75. **Segundo hallazgo real, en mi propio tooling**: al correr
+       `npm test` completo por primera vez de principio a fin, `test:schema`
+       (`scripts/db/schema_guard.js`, el propio guard que se arregló en la
+       Fase 7 ítem 48) reportó un falso positivo — decía que
+       `usuarios.rol`/`usuarios.creado_en` faltaban en `db/schema.sql`
+       cuando SÍ están ahí. Causa real: `parseSchema()` nunca ignoraba
+       comentarios SQL (`--`), y una nota inline
+       (`-- legacy (1=normal, 2=prime); los INSERT la escriben`) contiene
+       `);` dentro del propio comentario — el regex no-greedy de extracción
+       del CREATE TABLE cortaba el cuerpo justo ahí, perdiendo las columnas
+       reales que venían después. Corregido: `parseSchema()` ahora quita
+       comentarios `--` línea por línea antes de parsear. Verificado que no
+       hay ningún `--` dentro de un literal de `db/schema.sql` que pudiera
+       truncarse mal. **Nota para el dueño**: este SÍ era exactamente el
+       escenario que describiste ("si encuentra un fallo... se reporta")
+       — pero el fallo estaba en el script de verificación, no en la base
+       de datos real; no hizo falta ningún SQL de corrección para
+       producción porque `db/schema.sql` ya estaba correcto.
+- [x] 76. **`npm test` completo verificado de punta a punta por primera
+       vez**: 399/399 subpruebas pasan (0 fallas), las 43 suites del script
+       compuesto corren en orden, `data/jugueteria.db` real confirmada sin
+       cambios (mtime idéntico antes/después). Este es el primer momento en
+       la vida de este repo en que `npm test` es seguro de correr
+       literalmente en cualquier entorno, incluido el contenedor de
+       producción, sin riesgo de contaminar datos reales.

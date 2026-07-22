@@ -15,7 +15,7 @@
 // simulados en total) + una ráfaga de escritura directa sobre
 // cola_notificaciones/sesiones_bot para medir contención de SQLite.
 'use strict';
-const { test } = require('node:test');
+const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 
 // ── Cargar .env PRIMERO — antes de cualquier require ─────────────
@@ -40,6 +40,18 @@ if (fs_env.existsSync(env_path)) {
 if (!process.env.EMAIL_USER)      process.env.EMAIL_USER  = 'test@test.com';
 if (!process.env.EMAIL_PASS)      process.env.EMAIL_PASS  = 'test';
 if (!process.env.ASESOR_WHATSAPP) process.env.ASESOR_WHATSAPP = '5214441234567';
+
+// SIEMPRE contra una BD de prueba, JAMÁS contra producción — se pisa
+// incondicionalmente cualquier DB_PATH real que haya cargado el .env de
+// arriba (a diferencia del resto de esta función, que solo rellena lo que
+// falte). Mismo fixture real (db/schema.sql completo) que ya usan
+// test_motor_actions.js/test_motor_conversaciones.js/etc. — este archivo
+// inserta sus propios productos de prueba, así que solo necesita que
+// existan las tablas, no datos precargados.
+const { crearFixture } = require('./fixture_min');
+process.env.DB_PATH = crearFixture();
+console.log('🧪 BD de prueba (aislada, se borra al terminar):', process.env.DB_PATH);
+after(() => { try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {} });
 
 const db          = require('../bot/db_connection');
 const sessionMgr  = require('../bot/sessionManager');

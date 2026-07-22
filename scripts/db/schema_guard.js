@@ -24,9 +24,23 @@ const SCHEMA = path.join(ROOT, 'db', 'schema.sql');
 const DIRS = ['bot', 'services', 'dashboard'];
 const IGNORE_DIRS = new Set(['node_modules', 'dashboard-ui', 'demo', 'logs', '.git']);
 
+// db/schema.sql usa comentarios de línea estilo SQL (`--`), no `//` — sin
+// esto, un comentario que por casualidad contiene `);` (ej. una nota tipo
+// "-- legacy (1=normal, 2=prime); los INSERT la escriben") corta el cuerpo
+// del CREATE TABLE a la mitad ahí mismo (regex no-greedy hasta el primer
+// `);`), perdiendo las columnas reales que vienen después → falso positivo
+// de "columna faltante" (bug real encontrado corriendo `npm test` completo
+// por primera vez con las 4 pruebas de BD real integradas).
+function sinComentariosSql(src) {
+    return src.split('\n').map(l => {
+        const i = l.indexOf('--');
+        return i >= 0 ? l.slice(0, i) : l;
+    }).join('\n');
+}
+
 // ── Parseo de schema.sql → { tabla: Set(columnas/tokens del bloque) } ──────
 function parseSchema() {
-    const src = fs.readFileSync(SCHEMA, 'utf8');
+    const src = sinComentariosSql(fs.readFileSync(SCHEMA, 'utf8'));
     const tablas = {};
     // Bloques CREATE TABLE [IF NOT EXISTS] nombre ( ... );
     const re = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["'`]?(\w+)["'`]?\s*\(([\s\S]*?)\)\s*;/gi;
