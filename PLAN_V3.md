@@ -390,11 +390,74 @@ frontend, y dependencias/services. Veredictos y hallazgos:
        a propósito — su modo `--update` no encaja con el modelo de
        `node:test`, se verificó que sigue funcionando como está.
        `package.json` actualizado (8 scripts `test:*` + el script compuesto
-       `test`). **Pendiente real, no ejecutado**: los 39 archivos que
-       requieren BD real + `golden_snapshot.js` — migrarlos con seguridad
-       necesita un entorno con una copia de BD sembrada desechable, no la de
-       producción.
+       `test`). **Actualización — los 36 restantes también migrados**: se
+       hizo una copia desechable de la BD real vía `Database.backup()`
+       (checkpoint de WAL incluido, consistente), duplicada en 5 copias
+       independientes (`data/test_copia_1.db`...`_5.db`, una por lote en
+       paralelo para que no colisionaran entre sí) y usada solo vía
+       `-e DB_PATH=/data/test_copia_N.db` — la BD real (`data/jugueteria.db`)
+       nunca se tocó (confirmado: mtime sin cambios antes/después, 0 clientes
+       de prueba). **Resultado: 36/36 archivos migrados y ejecutados de
+       verdad, 366/366 pruebas pasan** en la corrida consolidada final.
+       Se encontraron y corrigieron 5 bugs preexistentes más de fixtures
+       desactualizados (mismo patrón que `test_erp.js`: `test_carrito.js`
+       sin `stock_exhibicion`, `test_dashboard_api.js` sin 3 columnas de
+       `pedidos`, `test_motor_c1c2c3.js` con un nodo `MENU` sin
+       `delegar:true`, `test_motor_interprete.js` con un fixture usando
+       `MENU` como nombre no-sellado cuando ya está sellado desde el ítem 26)
+       y 2 bugs reales de la propia conversión (no del código de la app):
+       `test_marketing.js` tenía lecturas que quedaban diferidas después de
+       mutaciones posteriores por el modelo de ejecución de `node:test`
+       (corregido capturando el valor en el punto correcto del programa);
+       `test_dashboard_api.js` dejaba el proceso colgado porque `server.js`
+       nunca cierra su `listen()` (corregido con la bandera oficial
+       `--test-force-exit`). `test_notificaciones.js`/`test_full_bot.js`
+       verificados sin ningún intento real de red/SMTP/WhatsApp (credenciales
+       falsas forzadas + confirmado en logs que ninguna suite llega a enviar
+       de verdad). Las copias de BD se borraron al terminar.
+       **Migración final: 55 de 58 archivos en `node:test`** (95%). Quedan
+       sin migrar a propósito: `fixture_min.js` (helper, no es un test),
+       `golden_snapshot.js` (su modo `--update` no encaja con el modelo de
+       node:test, verificado que sigue funcionando tal cual),
+       `test_rutas_smoke.js` (necesita un servidor dashboard vivo, no solo
+       una BD — fuera de alcance de esta ronda).
 - [x] 64. Nit de documentación: `docs/API.md` decía "importar Excel" para el
        import de horarios de RRHH — en realidad es CSV puro
        (`linea.split(',')`, sin manejo de campos con comillas). Corregido el
        texto; no se adoptó `xlsx` (no se pidió soporte real de `.xlsx`).
+
+## Fase 10 — Segunda revisión de optimización/refactorización (2026-07-22g)
+
+A pedido explícito ("revisa de nuevo el código en optimización y
+refactorización"), 2 agentes revisaron: (A) si los 64 fixes acumulados sobre
+los mismos archivos a lo largo de la sesión degradaron su estructura
+("parches sobre parches"), y (B) terreno nuevo — eficiencia del build Docker,
+`bot/flows/motor/actions.js`, `services/pacService.js`.
+
+- [x] 65. **Verificación de calidad, sin hallazgos**: los 9 archivos más
+       tocados de la sesión (`bot/index.js`, `_shared.js`, `cartFlow.js`,
+       `menuFlow.js`, `erpContabilidad.js`, `rrhh.js`, `GeneralTab.jsx`+
+       `general/*.jsx`, `nominaService.js`, `imagenProducto.js`/
+       `imagenWebp.js`) revisados uno por uno — **ninguna degradación
+       estructural**. Cada fix aterrizó en un lugar aislado y de propósito
+       único; ninguno requirió "parchar un parche".
+- [x] 66. **Real, corregido**: `Dockerfile` instalaba el paquete apt `sqlite3`
+       (el binario CLI) sin usarlo nunca — toda la app usa `better-sqlite3`
+       (paquete npm). Confirmado con grep (0 usos) antes de quitarlo. Único
+       lugar que menciona `sqlite3` CLI es `tests/sql/README.md`, y es una
+       conveniencia de desarrollo LOCAL (`sqlite3 archivo.db < query.sql`),
+       no algo que el contenedor de producción necesite.
+- [ ] 67. Nits de muy baja prioridad, documentados, no implementados:
+       `bot/flows/motor/actions.js` repite 3 veces el mismo lookup de
+       cliente por teléfono (`crm_cambiar_etapa`/`crm_crear_tarea`/
+       `crm_agregar_nota`) — podría ser un helper compartido, pero es un
+       lookup indexado (no hay problema de rendimiento real, solo
+       duplicación de 3 líneas). `services/pacService.js`'s
+       `enviarComprobante()` re-consulta `pedidos`/`clientes` que `timbrar()`
+       ya había consultado — consulta local barata a SQLite, no una llamada
+       al PAC, bajísima prioridad.
+- [x] 68. Confirmado limpio, sin acción: `Dockerfile`'s cacheo de capas ya es
+       correcto (manifiestos antes que código fuente en las 3 etapas);
+       `npm ci --omit=dev` ya es production-only; el stage `ui` no filtra
+       `node_modules` al final, solo `dist`; `nodemon` (única devDependency)
+       confirmado sin uso en el entrypoint de Docker.

@@ -2,17 +2,16 @@
 // tests/test_recetas.js — P3: recetas/insumos (BOM). Vender 3 tacos (receta:
 // 0.120 kg de carne + 2 tortillas c/u) descuenta carne 0.36 kg y tortillas 6,
 // SIN tocar el "stock" del platillo. Producto sin receta → flujo normal.
-//   node tests/test_recetas.js
+//   node --test tests/test_recetas.js
 
 const assert = require('assert');
+const { test, after } = require('node:test');
 const { crearFixture } = require('./fixture_min');
 process.env.DB_PATH = crearFixture();
 if (!process.env.CHROME_PATH) process.env.CHROME_PATH = '/usr/bin/true';
 
 const db = require('../bot/db_connection');
 const recetas = require('../services/recetasService');
-let ok = 0;
-const t = (n, fn) => { fn(); ok++; console.log('✅ ' + n); };
 
 // Insumos: carne (kg) y tortilla (pza); platillo: taco.
 const idCarne = db.prepare("INSERT INTO productos (tipo, name, cat, price, activo, unidad_medida) VALUES ('fisico','Carne pastor','insumos',150,1,'kg')").run().lastInsertRowid;
@@ -23,12 +22,12 @@ db.prepare("INSERT INTO inventarios (id_producto, sucursal, stock) VALUES (?, 'M
 db.prepare('INSERT INTO producto_insumos (id_producto, id_insumo, cantidad) VALUES (?,?,?)').run(idTaco, idCarne, 0.12);
 db.prepare('INSERT INTO producto_insumos (id_producto, id_insumo, cantidad) VALUES (?,?,?)').run(idTaco, idTort, 2);
 
-t('insumosDe: la receta del taco tiene 2 líneas', () => {
+test('insumosDe: la receta del taco tiene 2 líneas', () => {
     const ins = recetas.insumosDe(db, idTaco);
     assert.strictEqual(ins.length, 2);
 });
 
-t('vender 3 tacos: carne −0.36 kg, tortillas −6, platillo sin stock propio tocado', () => {
+test('vender 3 tacos: carne −0.36 kg, tortillas −6, platillo sin stock propio tocado', () => {
     const conReceta = recetas.descontarVenta(db, { id_producto: idTaco, cantidad: 3, sucursal: 'Matriz', motivo: 'Venta TEST', usuario: 'test' });
     assert.strictEqual(conReceta, true, 'debe reportar que SÍ había receta');
     const carne = db.prepare("SELECT stock FROM inventarios WHERE id_producto=? AND sucursal='Matriz'").get(idCarne).stock;
@@ -39,15 +38,16 @@ t('vender 3 tacos: carne −0.36 kg, tortillas −6, platillo sin stock propio t
     assert(!stkTaco, 'el platillo no genera fila de inventario propia');
 });
 
-t('el kardex narra el insumo ("— insumo de receta")', () => {
+test('el kardex narra el insumo ("— insumo de receta")', () => {
     const m = db.prepare("SELECT motivo FROM inventario_movimientos WHERE id_producto=? ORDER BY id DESC LIMIT 1").get(idCarne);
     assert(/insumo de receta/.test(m.motivo));
 });
 
-t('producto SIN receta: descontarVenta=false (el caller descuenta normal)', () => {
+test('producto SIN receta: descontarVenta=false (el caller descuenta normal)', () => {
     const idLego = db.prepare("SELECT id FROM productos WHERE name LIKE 'Lego%'").get().id;
     assert.strictEqual(recetas.descontarVenta(db, { id_producto: idLego, cantidad: 1, sucursal: 'Matriz', usuario: 'test' }), false);
 });
 
-console.log('\n' + ok + '/4 OK — recetas/insumos: el inventario del restaurante ya es real.');
-try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+after(() => {
+    try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+});

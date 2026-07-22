@@ -4,9 +4,10 @@
 // motor APAGADO (código: menuFlow adaptativo + citasFlow vía giroFlows) y con el
 // motor ENCENDIDO + barberia.json activo (nodos delegados). Deben ser byte a byte
 // iguales → el delta de giro reproduce la barbería-en-código.
-//   node tests/test_motor_barberia.js
+//   node --test tests/test_motor_barberia.js
 
-const assert = require('assert');
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
 // Reloj congelado: los días/horas de cita dependen de la fecha actual.
 const _RealDate = Date;
 const _FIXED = new _RealDate('2025-01-15T18:00:00-06:00').getTime();
@@ -46,7 +47,7 @@ async function correr() {
     return out;
 }
 
-(async () => {
+test('paridad barbería: código (motor OFF) === motor + delta barberia.json, turno a turno', async () => {
     cfg.invalidarCache();
     const codigo = await correr();               // motor OFF
 
@@ -59,15 +60,13 @@ async function correr() {
     require('../bot/flows/motor/grafo').invalidar();
     const motor = await correr();                // motor ON
 
-    let fallos = 0;
     for (let i = 0; i < RECORRIDO.length; i++) {
-        if (codigo[i] === motor[i]) { console.log('✅ turno ' + i + ' [' + RECORRIDO[i] + ']'); continue; }
-        fallos++;
-        console.error('❌ DIFF turno ' + i + ' [' + RECORRIDO[i] + ']');
-        console.error('   código: ' + JSON.stringify((codigo[i] || '').slice(0, 140)));
-        console.error('   motor:  ' + JSON.stringify((motor[i] || '').slice(0, 140)));
+        assert.strictEqual(motor[i], codigo[i],
+            'DIFF turno ' + i + ' [' + RECORRIDO[i] + ']\n   código: ' + JSON.stringify((codigo[i] || '').slice(0, 140)) +
+            '\n   motor:  ' + JSON.stringify((motor[i] || '').slice(0, 140)));
     }
+});
+
+after(() => {
     try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
-    if (fallos) { console.error('\n' + fallos + ' turno(s) difieren — el delta de barbería NO reproduce el código.'); process.exit(1); }
-    console.log('\nPARIDAD BARBERÍA OK — barberia.json reproduce la barbería-en-código byte a byte.');
-})().catch(e => { console.error('FATAL', e.stack || e.message); process.exit(1); });
+});

@@ -2,16 +2,15 @@
 // tests/test_citas_empleado.js — P2: citas por empleado + comisión por servicio.
 // Contract test: asignación (crear/actualizar), listado con nombre, y el reporte
 // de comisiones (citas COBRADAS × comision_pct del empleado, fallback al global).
-//   node tests/test_citas_empleado.js
+//   node --test tests/test_citas_empleado.js
 
-const assert = require('assert');
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
 const { crearFixture } = require('./fixture_min');
 process.env.DB_PATH = crearFixture();
 if (!process.env.CHROME_PATH) process.env.CHROME_PATH = '/usr/bin/true';
 
 const db = require('../bot/db_connection');
-let ok = 0;
-const t = (n, fn) => { fn(); ok++; console.log('✅ ' + n); };
 
 // Dos barberos: uno con comisión propia (20%), otro sin (usa la global 10%).
 db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES ('comision_pct','10')").run();
@@ -32,20 +31,20 @@ citaCobrada(eB, 100);
 // Una cita SIN cobrar de A — no debe contar en comisiones.
 db.prepare("INSERT INTO citas (telefono, servicio, fecha, hora, id_empleado) VALUES ('5218110000001','Corte',?,?,?)").run(hoy, '12:00', eA);
 
-t('citas.id_empleado: asignación y reasignación persisten', () => {
+test('citas.id_empleado: asignación y reasignación persisten', () => {
     const id = db.prepare("INSERT INTO citas (telefono, servicio, fecha, hora, id_empleado) VALUES ('5218110000002','Tinte',?, '13:00', ?)").run(hoy, eA).lastInsertRowid;
     assert.strictEqual(db.prepare('SELECT id_empleado FROM citas WHERE id=?').get(id).id_empleado, eA);
     db.prepare('UPDATE citas SET id_empleado=? WHERE id=?').run(eB, id);
     assert.strictEqual(db.prepare('SELECT id_empleado FROM citas WHERE id=?').get(id).id_empleado, eB);
 });
 
-t('listado con nombre del empleado (LEFT JOIN — sin asignar no truena)', () => {
+test('listado con nombre del empleado (LEFT JOIN — sin asignar no truena)', () => {
     const filas = db.prepare(`SELECT c.id, e.nombre AS empleado_nombre FROM citas c LEFT JOIN empleados e ON e.id=c.id_empleado WHERE c.fecha=?`).all(hoy);
     assert(filas.some(f => f.empleado_nombre === 'Barbero A'));
     assert(filas.some(f => f.empleado_nombre === 'Barbero B'));
 });
 
-t('comisiones: solo citas COBRADAS, pct propio (A: 200×20%=40) y fallback global (B: 100×10%=10)', () => {
+test('comisiones: solo citas COBRADAS, pct propio (A: 200×20%=40) y fallback global (B: 100×10%=10)', () => {
     const { comisiones } = require('../dashboard/routes/citas')._test;
     let out = null;
     const ctx = { db, json: (res, data) => { out = data; } };
@@ -58,5 +57,6 @@ t('comisiones: solo citas COBRADAS, pct propio (A: 200×20%=40) y fallback globa
     assert.strictEqual(B.comision, 10, '100 × 10% (fallback global)');
 });
 
-console.log('\n' + ok + '/3 OK — citas por empleado + comisión por servicio.');
-try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+after(() => {
+    try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+});

@@ -3,17 +3,16 @@
 // Prueba la ruta de dinero SELLADA directamente: crear_cita + cobrar_anticipo →
 // un pedido normal + link_pago + columnas citas.anticipo/saldo, sin tocar
 // inventario. También la barbería-sin-anticipo (porcentaje ausente → sin cobro).
-//   node tests/test_motor_anticipo.js
+//   node --test tests/test_motor_anticipo.js
 
-const assert = require('assert');
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
 const { crearFixture } = require('./fixture_min');
 process.env.DB_PATH = crearFixture();
 if (!process.env.CHROME_PATH) process.env.CHROME_PATH = '/usr/bin/true';
 
 const db = require('../bot/db_connection');
 const { ACTIONS } = require('../bot/flows/motor/actions');
-let ok = 0;
-const t = (n, fn) => { fn(); ok++; console.log('✅ ' + n); };
 
 // El fixture trae un servicio 'Corte de cabello' ($150).
 const servicio = db.prepare("SELECT id, name, price FROM productos WHERE tipo='servicio' LIMIT 1").get();
@@ -22,7 +21,7 @@ const ctxBase = () => ({ userId: 'cita@c.us', tel: '5218110000000', raw: '', dat
     cita_fecha: '2025-01-16', cita_hora: '11:00',
 } });
 
-t('crear_cita: inserta la cita y devuelve su id', () => {
+test('crear_cita: inserta la cita y devuelve su id', () => {
     const ctx = ctxBase();
     const r = ACTIONS.crear_cita(ctx);
     assert.strictEqual(r.resultado, 'ok');
@@ -32,7 +31,7 @@ t('crear_cita: inserta la cita y devuelve su id', () => {
     assert.strictEqual(cita.servicio_precio, servicio.price);
 });
 
-t('cobrar_anticipo: pedido + link + columnas anticipo/saldo (sin tocar inventario)', () => {
+test('cobrar_anticipo: pedido + link + columnas anticipo/saldo (sin tocar inventario)', () => {
     const ctx = ctxBase();
     ctx.data.cita_id = ACTIONS.crear_cita(ctx).data.cita_id;
     const invAntes = db.prepare("SELECT SUM(stock) s FROM inventarios").get().s;
@@ -60,7 +59,7 @@ t('cobrar_anticipo: pedido + link + columnas anticipo/saldo (sin tocar inventari
     assert.strictEqual(db.prepare("SELECT SUM(stock) s FROM inventarios").get().s, invAntes);
 });
 
-t('barbería sin anticipo: porcentaje ausente → sin_cobro, sin pedido', () => {
+test('barbería sin anticipo: porcentaje ausente → sin_cobro, sin pedido', () => {
     const ctx = ctxBase();
     ctx.data.cita_id = ACTIONS.crear_cita(ctx).data.cita_id;
     const pedAntes = db.prepare('SELECT COUNT(*) n FROM pedidos').get().n;
@@ -69,5 +68,6 @@ t('barbería sin anticipo: porcentaje ausente → sin_cobro, sin pedido', () => 
     assert.strictEqual(db.prepare('SELECT COUNT(*) n FROM pedidos').get().n, pedAntes);
 });
 
-console.log('\n' + ok + '/3 OK — anticipo de cita reusa la ruta de dinero sellada.');
-try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+after(() => {
+    try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+});

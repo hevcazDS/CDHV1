@@ -4,8 +4,10 @@
 // byte por byte lo mismo que tests/golden/jc.json (que se capturó con el motor
 // APAGADO). Si difiere un byte, revienta. Es la condición de mérito de que la
 // plantilla base reproduce a Julio Cepeda.
-//   node tests/test_motor_paridad.js
+//   node --test tests/test_motor_paridad.js
 
+const assert = require('assert');
+const { test, after } = require('node:test');
 const fs = require('fs');
 const path = require('path');
 
@@ -61,26 +63,28 @@ async function correr(inputs) {
     return turnos;
 }
 
-(async () => {
-    const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'golden', 'jc.json'), 'utf8'));
-    let fallos = 0;
-    for (const [nombre, inputs] of Object.entries(RECORRIDOS)) {
+const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'golden', 'jc.json'), 'utf8'));
+
+for (const [nombre, inputs] of Object.entries(RECORRIDOS)) {
+    test('paridad: ' + nombre, async () => {
         const ahora = await correr(inputs);
         const a = JSON.stringify(golden[nombre]);
         const b = JSON.stringify(ahora);
-        if (a === b) { console.log('✅ ' + nombre); continue; }
-        fallos++;
-        console.error('❌ DIFF (motor ON) en "' + nombre + '":');
-        const ga = golden[nombre] || [];
-        for (let i = 0; i < Math.max(ga.length, ahora.length); i++) {
-            if (JSON.stringify(ga[i]) !== JSON.stringify(ahora[i])) {
-                console.error('   turno ' + i + ' input=' + (ahora[i]?.in ?? ga[i]?.in));
-                console.error('     golden: ' + JSON.stringify(ga[i]?.out || '').slice(0, 160));
-                console.error('     motor:  ' + JSON.stringify(ahora[i]?.out || '').slice(0, 160));
+        if (a !== b) {
+            const ga = golden[nombre] || [];
+            const detalles = [];
+            for (let i = 0; i < Math.max(ga.length, ahora.length); i++) {
+                if (JSON.stringify(ga[i]) !== JSON.stringify(ahora[i])) {
+                    detalles.push('turno ' + i + ' input=' + (ahora[i]?.in ?? ga[i]?.in) +
+                        ' | golden: ' + JSON.stringify(ga[i]?.out || '').slice(0, 160) +
+                        ' | motor:  ' + JSON.stringify(ahora[i]?.out || '').slice(0, 160));
+                }
             }
+            assert.fail('DIFF (motor ON) en "' + nombre + '":\n' + detalles.join('\n'));
         }
-    }
+    });
+}
+
+after(() => {
     try { fs.rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
-    if (fallos) { console.error('\n' + fallos + ' recorrido(s) NO reproducen a JC con el motor encendido.'); process.exit(1); }
-    console.log('\nPARIDAD OK — jugueteria.json reproduce a Julio Cepeda byte a byte con el motor ENCENDIDO.');
-})().catch(e => { console.error('FATAL', e.stack || e.message); process.exit(1); });
+});

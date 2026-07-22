@@ -145,8 +145,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > `test_bot.js` (617 líneas, el más grande) da 117/117; corrida consolidada
 > final 229/231 (los 2 que fallan son un bug preexistente de fixture en
 > `test_roles_erp.js`, no una regresión, confirmado reconstruyendo el
-> original). Los 39 archivos restantes necesitan BD real sembrada para
-> migrarse con seguridad — no se tocaron. Ver `PLAN_V3.md` ítems 62-63.
+> original).
+>
+> **2026-07-22 (cierre de la migración a `node:test` + 2ª revisión de
+> optimización):** se hizo una copia desechable de la BD real (checkpoint de
+> WAL vía `Database.backup()`, 5 copias independientes para 5 lotes en
+> paralelo) para poder migrar con seguridad los 36 archivos que faltaban —
+> la BD real (`data/jugueteria.db`) nunca se tocó (mtime sin cambios, 0
+> clientes de prueba, verificado antes y después). **36/36 migrados y
+> ejecutados de verdad, 366/366 pruebas pasan** en la corrida consolidada
+> final; 5 bugs preexistentes más de fixtures desactualizados encontrados y
+> corregidos (mismo patrón que antes), más 2 bugs reales de la propia
+> migración (no del código de la app) encontrados y corregidos ejecutando
+> de verdad: `test_marketing.js` (orden de lecturas vs. mutaciones bajo el
+> modelo de ejecución diferida de `node:test`) y `test_dashboard_api.js`
+> (proceso colgado por un `server.listen()` que nunca cierra, resuelto con
+> `--test-force-exit`). `test_notificaciones.js`/`test_full_bot.js`
+> verificados sin ningún intento real de red/SMTP/WhatsApp. **Migración
+> final: 55 de 58 archivos de test en `node:test` (95%)** — quedan sin
+> migrar a propósito `fixture_min.js` (helper), `golden_snapshot.js` (su
+> modo `--update` no encaja con el modelo) y `test_rutas_smoke.js` (necesita
+> un servidor vivo, no solo BD). Las copias de BD se borraron al terminar.
+>
+> Segunda auditoría de arquitecto (2 agentes): revisó si los 64 fixes de la
+> sesión degradaron algún archivo tocado varias veces — **sin hallazgos, todo
+> limpio**. Terreno nuevo (Docker, `motor/actions.js`, `pacService.js`): el
+> `Dockerfile` instalaba el paquete apt `sqlite3` (CLI) sin usarlo nunca —
+> toda la app usa `better-sqlite3` (npm) — **corregido, quitado**. El resto
+> del cacheo de capas/tamaño de imagen ya estaba óptimo. Ver `PLAN_V3.md`
+> Fase 10 (ítems 65-68) para el detalle completo.
 >
 > Todo lo demás abajo sigue siendo útil como historia y para los principios (chokepoint de dinero, golden/paridad byte-idéntico de JC, migraciones versionadas + espejo en `db/schema.sql`, módulos toggleables).
 >

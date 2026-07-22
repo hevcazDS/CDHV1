@@ -3,8 +3,9 @@
 // Pinnea los invariantes de mayor riesgo financiero: partida doble que CUADRA,
 // idempotencia de cada asiento, reversa idempotente, y el barrido de asientos
 // huérfanos que repara un pago sin asiento. Sin HTTP: usa una BD temporal con el
-// subset de esquema real y llama al servicio directo.  node tests/test_contabilidad.js
-const assert = require('assert');
+// subset de esquema real y llama al servicio directo.  node --test tests/test_contabilidad.js
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -40,15 +41,12 @@ const cuadraGlobal = () => {
 };
 const tieneAsiento = (tipo, ref) => !!db.prepare('SELECT 1 FROM asientos WHERE referencia_tipo=? AND referencia_id=? LIMIT 1').get(tipo, String(ref));
 
-let ok = 0; const pruebas = [];
-const t = (n, fn) => pruebas.push([n, fn]);
-
 // pedido 1: contado, efectivo, $116 (base 100 + IVA 16), costo 40
 db.prepare("INSERT INTO pedidos (id_pedido,a_credito,metodo_pago) VALUES (1,0,'efectivo')").run();
 db.prepare('INSERT INTO productos (id,costo) VALUES (7,40)').run();
 db.prepare("INSERT INTO pedido_detalle (id_pedido,id_producto,cantidad,precio_unitario,costo_unitario,sucursal_origen) VALUES (1,7,1,116,40,'S1')").run();
 
-t('venta con IVA: cuadra, base 100 / IVA 16, idempotente', () => {
+test('venta con IVA: cuadra, base 100 / IVA 16, idempotente', () => {
     conta.asientoVenta(1, 116, 'efectivo');
     assert(tieneAsiento('venta', 1) && cuadraGlobal());
     const base = db.prepare("SELECT haber FROM asientos_detalle WHERE cuenta='401'").get().haber;
@@ -57,20 +55,20 @@ t('venta con IVA: cuadra, base 100 / IVA 16, idempotente', () => {
     assert.strictEqual(conta.asientoVenta(1, 116, 'efectivo'), null, 'segunda vez no duplica');
 });
 
-t('costo de venta: 501/115 por 40, idempotente', () => {
+test('costo de venta: 501/115 por 40, idempotente', () => {
     conta.asientoCostoVenta(1);
     assert(tieneAsiento('costo_venta', 1) && cuadraGlobal());
     assert.strictEqual(db.prepare("SELECT debe FROM asientos_detalle WHERE cuenta='501'").get().debe, 40);
     assert.strictEqual(conta.asientoCostoVenta(1), null, 'segunda vez no duplica');
 });
 
-t('reversa: cuadra y es idempotente', () => {
+test('reversa: cuadra y es idempotente', () => {
     conta.asientoReversa('venta', 1);
     assert(cuadraGlobal(), 'tras reversa el mayor sigue cuadrando');
     assert.strictEqual(conta.asientoReversa('venta', 1), null, 'no re-revierte');
 });
 
-t('barrido de huérfanos: repara un pago sin asiento', () => {
+test('barrido de huérfanos: repara un pago sin asiento', () => {
     // pedido 2 pagado (contado) SIN asiento — simula el crash tras el cobro
     db.prepare("INSERT INTO pedidos (id_pedido,a_credito,metodo_pago) VALUES (2,0,'efectivo')").run();
     db.prepare("INSERT INTO pedido_detalle (id_pedido,id_producto,cantidad,precio_unitario,costo_unitario,sucursal_origen) VALUES (2,7,1,58,40,'S1')").run();
@@ -82,7 +80,7 @@ t('barrido de huérfanos: repara un pago sin asiento', () => {
     assert.strictEqual(conta.barrerAsientosHuerfanos().reparados, 0, 'ya no hay huérfanos');
 });
 
-t('reembolso: reversa ingreso + sale caja, cuadra e idempotente por devolución', () => {
+test('reembolso: reversa ingreso + sale caja, cuadra e idempotente por devolución', () => {
     conta.asientoReembolso(55, 1, 58, 'efectivo');   // devolución #55 del pedido 1
     assert(tieneAsiento('reembolso', 55) && cuadraGlobal());
     // sale dinero por caja (101 al haber)
@@ -90,7 +88,7 @@ t('reembolso: reversa ingreso + sale caja, cuadra e idempotente por devolución'
     assert.strictEqual(conta.asientoReembolso(55, 1, 58, 'efectivo'), null, 'no reembolsa dos veces la misma devolución');
 });
 
-t('cierre anual: traspasa resultados a capital, cuentas en cero, idempotente', () => {
+test('cierre anual: traspasa resultados a capital, cuentas en cero, idempotente', () => {
     // ejercicio 2025: ingreso 1000, gasto 300 → utilidad 700
     conta.registrarAsiento({ concepto: 'venta 2025', referencia_tipo: 'manual', partidas: [{ cuenta: '101', debe: 1000 }, { cuenta: '401', haber: 1000 }], fecha: '2025-06-01' });
     conta.registrarAsiento({ concepto: 'gasto 2025', referencia_tipo: 'manual', partidas: [{ cuenta: '601', debe: 300 }, { cuenta: '101', haber: 300 }], fecha: '2025-06-02' });
@@ -106,10 +104,7 @@ t('cierre anual: traspasa resultados a capital, cuentas en cero, idempotente', (
     assert.strictEqual(conta.cierreAnual(new Date().getFullYear()).ok, false, 'no cierra el año en curso (H2)');
 });
 
-(async () => {
-    for (const [n, fn] of pruebas) { await fn(); ok++; console.log('✅ ' + n); }
-    console.log('\n' + ok + '/' + pruebas.length + ' OK — contabilidad: cuadre + idempotencia + reversa + barrido + reembolso + cierre anual.');
+after(() => {
     try { db.close(); } catch (_) {}
     for (const s of ['', '-wal', '-shm']) { try { fs.rmSync(DB + s, { force: true }); } catch (_) {} }
-    process.exit(ok === pruebas.length ? 0 : 1);
-})().catch(e => { console.error('❌', e); process.exit(1); });
+});

@@ -2,20 +2,18 @@
 // tests/test_correo.js — módulo de correo (Fase A: envío con adjuntos). Pinnea la
 // construcción del MIME (multipart/mixed con adjuntos base64; multipart/alternative
 // sin ellos) y el flujo de la ruta (gate por módulo, registro en 'enviados',
-// stub de envío para no mandar correo real).  node tests/test_correo.js
+// stub de envío para no mandar correo real).  node --test tests/test_correo.js
 
-const assert = require('assert');
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
 const { crearFixture } = require('./fixture_min');
 process.env.DB_PATH = crearFixture();
 if (!process.env.CHROME_PATH) process.env.CHROME_PATH = '/usr/bin/true';
 
 const db = require('../bot/db_connection');
 const email = require('../services/emailService');
-let ok = 0;
-const pruebas = [];
-const t = (n, fn) => pruebas.push([n, fn]);
 
-t('MIME sin adjuntos = multipart/alternative (texto + html)', () => {
+test('MIME sin adjuntos = multipart/alternative (texto + html)', () => {
     const { body } = email._construirMime({ from: 'a@x', to: 'b@y', subject: 'Hola', html: '<b>hi</b>', adjuntos: [] });
     assert(/Content-Type: multipart\/alternative/.test(body));
     assert(!/multipart\/mixed/.test(body));
@@ -24,7 +22,7 @@ t('MIME sin adjuntos = multipart/alternative (texto + html)', () => {
     assert(body.includes('Subject: =?UTF-8?B?' + Buffer.from('Hola').toString('base64')));
 });
 
-t('MIME con adjuntos = multipart/mixed { alternative, adjunto }', () => {
+test('MIME con adjuntos = multipart/mixed { alternative, adjunto }', () => {
     const data = Buffer.from('archivo binario de prueba');
     const { body } = email._construirMime({ from: 'a@x', to: 'b@y', subject: 'Con PDF', html: '<b>hi</b>',
         adjuntos: [{ nombre: 'cotizacion.pdf', tipo: 'application/pdf', data }] });
@@ -34,7 +32,7 @@ t('MIME con adjuntos = multipart/mixed { alternative, adjunto }', () => {
     assert(body.includes(data.toString('base64')), 'el adjunto va en base64');
 });
 
-t('MIME: nombre de adjunto no permite inyección de headers (CRLF)', () => {
+test('MIME: nombre de adjunto no permite inyección de headers (CRLF)', () => {
     const { body } = email._construirMime({ from: 'a@x', to: 'b@y', subject: 's', html: 'h',
         adjuntos: [{ nombre: 'malo"\r\nBcc: hacker@x', tipo: 'text/plain', data: Buffer.from('x') }] });
     // el CRLF se quita → NO se puede crear una línea de header nueva 'Bcc:'
@@ -42,7 +40,7 @@ t('MIME: nombre de adjunto no permite inyección de headers (CRLF)', () => {
     assert(!/\r\nBcc:/.test(body), 'sin salto que abra un header');
 });
 
-t('ruta: módulo apagado → 403', () => {
+test('ruta: módulo apagado → 403', () => {
     const { enviarPost } = require('../dashboard/routes/correo')._test;
     const out = {};
     const ctx = { db, json: (r, d, c) => { out.d = d; out.code = c || 200; }, readJson: (req, res, cb) => cb(req._body), log: { debug() {} } };
@@ -50,7 +48,7 @@ t('ruta: módulo apagado → 403', () => {
     assert.strictEqual(out.code, 403);
 });
 
-t('ruta: módulo ON + envío OK (stub) → registra en enviados con meta de adjunto', async () => {
+test('ruta: módulo ON + envío OK (stub) → registra en enviados con meta de adjunto', async () => {
     db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES ('correo_activo','1')").run();
     // stub del envío real y de isConfigured (no tocar SMTP en el test)
     const _envReal = email.enviarCorreo, _cfgReal = email.isConfigured;
@@ -70,7 +68,7 @@ t('ruta: módulo ON + envío OK (stub) → registra en enviados con meta de adju
     } finally { email.enviarCorreo = _envReal; email.isConfigured = _cfgReal; }
 });
 
-t('ruta: sincronizar con módulo apagado → 403', () => {
+test('ruta: sincronizar con módulo apagado → 403', () => {
     db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES ('correo_activo','0')").run();
     const { sincronizarPost } = require('../dashboard/routes/correo')._test;
     const out = {};
@@ -79,7 +77,7 @@ t('ruta: sincronizar con módulo apagado → 403', () => {
     assert.strictEqual(out.code, 403);
 });
 
-t('bandeja: lista entrantes y config cuenta los no leídos', () => {
+test('bandeja: lista entrantes y config cuenta los no leídos', () => {
     db.prepare("INSERT INTO correos (direccion, uid, de, asunto, cuerpo, adjuntos_json, leido, fecha) VALUES ('entrante', 7, 'x@y', 'Hola', '<p>hi</p>', '[]', 0, datetime('now'))").run();
     const { bandejaGet, configGet } = require('../dashboard/routes/correo')._test;
     let bandeja, cfg;
@@ -89,7 +87,7 @@ t('bandeja: lista entrantes y config cuenta los no leídos', () => {
     assert(cfg.sin_leer >= 1, 'config reporta no leídos');
 });
 
-t('secretos: cifra/descifra round-trip y deja pasar texto plano', () => {
+test('secretos: cifra/descifra round-trip y deja pasar texto plano', () => {
     const s = require('../services/secretos');
     const clave = 'abcd efgh ijkl mnop';
     const cif = s.cifrarSecreto(clave);
@@ -98,7 +96,7 @@ t('secretos: cifra/descifra round-trip y deja pasar texto plano', () => {
     assert.strictEqual(s.descifrarSecreto('texto plano'), 'texto plano', 'legacy/claro pasa igual');
 });
 
-t('ruta: descargar adjunto con módulo apagado → 403', () => {
+test('ruta: descargar adjunto con módulo apagado → 403', () => {
     db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES ('correo_activo','0')").run();
     const { adjuntoGet } = require('../dashboard/routes/correo')._test;
     const out = {};
@@ -106,9 +104,6 @@ t('ruta: descargar adjunto con módulo apagado → 403', () => {
     assert.strictEqual(out.code, 403);
 });
 
-(async () => {
-    for (const [n, fn] of pruebas) { await fn(); ok++; console.log('✅ ' + n); }
-    console.log('\n' + ok + '/9 OK — correo: MIME/adjuntos + anti-inyección + gate + bandeja/sincronizar + cifrado + descarga.');
+after(() => {
     try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
-    process.exit(ok === 9 ? 0 : 1);
-})().catch(e => { console.error('❌', e); process.exit(1); });
+});

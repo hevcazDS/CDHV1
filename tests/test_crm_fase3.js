@@ -3,9 +3,10 @@
 // el motor. Pinnea las REGLAS DURAS: solo corre lanzada (gate humano con
 // rastro), opt-out excluido al inscribir Y a media campaña, salto si_compro,
 // avance por días, techo por tick, y las acciones del lienzo.
-//   node tests/test_crm_fase3.js
+//   node --test tests/test_crm_fase3.js
 
-const assert = require('assert');
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
 const { crearFixture } = require('./fixture_min');
 process.env.DB_PATH = crearFixture();
 if (!process.env.CHROME_PATH) process.env.CHROME_PATH = '/usr/bin/true';
@@ -13,8 +14,6 @@ if (!process.env.CHROME_PATH) process.env.CHROME_PATH = '/usr/bin/true';
 const db = require('../bot/db_connection');
 const { inscribirSegmento, avanzarCampanas } = require('../services/crmCampanas');
 const { campanaPost, campanaLanzar } = require('../dashboard/routes/crm')._test;
-let ok = 0;
-const t = (n, fn) => { fn(); ok++; console.log('✅ ' + n); };
 const ctx = (out) => ({ db, json: (res, d, code) => { out.d = d; out.code = code || 200; }, readJson: (req, res, cb) => cb(req._body) });
 
 // Clientes: dos normales + un opt-out con score alto.
@@ -29,7 +28,8 @@ let cola = [];
 const encolar = (tel, asunto, cuerpo) => cola.push({ tel, asunto, cuerpo });
 
 let idCamp;
-t('crear campaña (borrador) valida pasos', () => {
+
+test('crear campaña (borrador) valida pasos', () => {
     const out = {};
     campanaPost({ _body: { nombre: 'Reactivación', id_segmento: idSeg, pasos: [
         { dia_offset: 0, mensaje: 'Hola {nombre}, tenemos novedades 🎉' },
@@ -40,14 +40,14 @@ t('crear campaña (borrador) valida pasos', () => {
     assert.strictEqual(db.prepare('SELECT estatus FROM crm_campanas WHERE id=?').get(idCamp).estatus, 'borrador');
 });
 
-t('REGLA DURA: en borrador el tick NO manda nada', () => {
+test('REGLA DURA: en borrador el tick NO manda nada', () => {
     cola = [];
     const n = avanzarCampanas(db, encolar);
     assert.strictEqual(n, 0);
     assert.strictEqual(cola.length, 0);
 });
 
-t('lanzar (gate humano): inscribe el segmento SIN opt-out y deja rastro', () => {
+test('lanzar (gate humano): inscribe el segmento SIN opt-out y deja rastro', () => {
     const out = {};
     campanaLanzar(null, null, ctx(out), { params: [String(idCamp)], ses: { username: 'gerente1' } });
     assert(out.d.ok);
@@ -57,7 +57,7 @@ t('lanzar (gate humano): inscribe el segmento SIN opt-out y deja rastro', () => 
     assert.strictEqual(c.aprobada_por, 'gerente1', 'rastro de quién lanzó');
 });
 
-t('tick día 0: manda el paso 1 personalizado a los 2 inscritos', () => {
+test('tick día 0: manda el paso 1 personalizado a los 2 inscritos', () => {
     cola = [];
     const n = avanzarCampanas(db, encolar);
     assert.strictEqual(n, 2);
@@ -68,7 +68,7 @@ t('tick día 0: manda el paso 1 personalizado a los 2 inscritos', () => {
     assert.strictEqual(avanzarCampanas(db, encolar), 0);
 });
 
-t('salto si_compro: Ana compra → su paso 2 se salta; Beto (día 3) sí lo recibe', () => {
+test('salto si_compro: Ana compra → su paso 2 se salta; Beto (día 3) sí lo recibe', () => {
     // Ana paga después de inscribirse
     const ped = db.prepare("INSERT INTO pedidos (cliente, id_cliente, id_producto, cantidad, estatus) VALUES ('Ana',?,1,1,'entregado')").run(idA).lastInsertRowid;
     db.prepare("INSERT INTO links_pago (id_pedido, monto, moneda, estatus, pagado_en) VALUES (?,100,'MXN','pagado',datetime('now','localtime','+1 minute'))").run(ped);
@@ -83,14 +83,14 @@ t('salto si_compro: Ana compra → su paso 2 se salta; Beto (día 3) sí lo reci
     assert.strictEqual(ana.terminado, 1, 'Ana terminó por salto');
 });
 
-t('al agotar pasos, los inscritos terminan y la campaña se marca terminada', () => {
+test('al agotar pasos, los inscritos terminan y la campaña se marca terminada', () => {
     cola = [];
     avanzarCampanas(db, encolar);   // Beto ya recibió paso 2 → siguiente tick lo termina
     const c = db.prepare('SELECT estatus FROM crm_campanas WHERE id=?').get(idCamp);
     assert.strictEqual(c.estatus, 'terminada');
 });
 
-t('acciones CRM del lienzo: crm_cambiar_etapa + crm_crear_tarea + crm_agregar_nota', () => {
+test('acciones CRM del lienzo: crm_cambiar_etapa + crm_crear_tarea + crm_agregar_nota', () => {
     const { ACTIONS } = require('../bot/flows/motor/actions');
     const cx = { tel: '5215550300', raw: 'me interesa la cotización', userId: 'x@c.us', data: {} };
     assert.strictEqual(ACTIONS.crm_cambiar_etapa(cx, { etapa: 'cotizado' }).resultado, 'ok');
@@ -101,5 +101,6 @@ t('acciones CRM del lienzo: crm_cambiar_etapa + crm_crear_tarea + crm_agregar_no
     assert(db.prepare("SELECT 1 FROM crm_notas WHERE id_cliente=? AND contenido LIKE '%cotización%'").get(idA));
 });
 
-console.log('\n' + ok + '/7 OK — CRM Fase 3: campañas con gate humano + acciones en el lienzo.');
-try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+after(() => {
+    try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+});

@@ -15,6 +15,8 @@
 // simulados en total) + una ráfaga de escritura directa sobre
 // cola_notificaciones/sesiones_bot para medir contención de SQLite.
 'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
 
 // ── Cargar .env PRIMERO — antes de cualquier require ─────────────
 const fs_env = require('fs');
@@ -56,8 +58,7 @@ const _tablasReq = ['productos','clientes','pedidos','pedido_detalle','sesiones_
 for (const t of _tablasReq) {
     try { db.prepare('SELECT 1 FROM ' + t + ' LIMIT 1').get(); }
     catch (e) {
-        console.error('\n❌ TABLA FALTANTE: ' + t + ' — este test necesita una base ya seedeada (DB_PATH real), no corre contra una DB vacía.\n');
-        process.exit(1);
+        throw new Error('TABLA FALTANTE: ' + t + ' — este test necesita una base ya seedeada (DB_PATH real), no corre contra una DB vacía.');
     }
 }
 console.log('✅ Tablas críticas verificadas\n');
@@ -204,8 +205,7 @@ function rafagaEscrituraDirecta(n) {
 }
 
 // ── Orquestación principal ──────────────────────────────────────────
-(async () => {
-    let huboFallo = false;
+test(`estrés de BD: ${USUARIOS_POR_OLEADA} usuarios x ${NUM_OLEADAS} oleadas`, async () => {
     try {
         console.log(`${C.bold}${C.info}${'═'.repeat(60)}${C.reset}`);
         console.log(`${C.bold}  ESTRÉS: ${USUARIOS_POR_OLEADA} usuarios x ${NUM_OLEADAS} oleadas (${USUARIOS_POR_OLEADA * NUM_OLEADAS} clientes simulados)${C.reset}`);
@@ -254,14 +254,12 @@ function rafagaEscrituraDirecta(n) {
             console.log(`  ${C.ok}${C.bold}✅ El bot soportó la carga sin errores contra la base de datos${C.reset}`);
         } else {
             console.log(`  ${C.fail}${C.bold}❌ Hubo errores bajo carga — revisar arriba${C.reset}`);
-            huboFallo = true;
         }
         console.log('═'.repeat(60) + '\n');
-    } catch (e) {
-        console.error(`${C.fail}❌ Error fatal en la prueba de estrés: ${e.message}${C.reset}`);
-        huboFallo = true;
+
+        assert.equal(fallidos.length, 0, `${fallidos.length} clientes simulados tiraron error a medio flujo`);
+        assert.equal(raf.errores, 0, `${raf.errores} errores en la ráfaga de escritura directa`);
     } finally {
         limpiarFixtures();
     }
-    process.exitCode = huboFallo ? 1 : 0;
-})();
+});

@@ -3,9 +3,10 @@
 // Cubre matchInput, resolverDestino, el linter, la carga de grafo, STEPS dinámico,
 // una transición conversacional real, el escape a ASESOR por reintentos y el
 // fail-closed sin grafo activo. Siembra un grafo mínimo en el fixture.
-//   node tests/test_motor_interprete.js
+//   node --test tests/test_motor_interprete.js
 
 const assert = require('assert');
+const { test, after } = require('node:test');
 const { crearFixture } = require('./fixture_min');
 process.env.DB_PATH = crearFixture();
 if (!process.env.CHROME_PATH) process.env.CHROME_PATH = '/usr/bin/true';
@@ -16,11 +17,8 @@ const linter = require('../bot/flows/motor/linter');
 const interprete = require('../bot/flows/motor/interprete');
 const sm = require('../bot/sessionManager');
 
-let ok = 0;
-const t = (n, fn) => { fn(); ok++; console.log('✅ ' + n); };
-
 // ── unidades puras ──────────────────────────────────────────────────────────
-t('matchInput: dígito, kw, regex, comodín, resultado', () => {
+test('matchInput: dígito, kw, regex, comodín, resultado', () => {
     const m = interprete.matchInput;
     assert.strictEqual(m('1', '1', '1'), true);
     assert.strictEqual(m('1', '2', '2'), false);
@@ -30,7 +28,7 @@ t('matchInput: dígito, kw, regex, comodín, resultado', () => {
     assert.strictEqual(m('resultado:hay', 'hay', 'hay'), false); // no se matchea contra input
 });
 
-t('resolverDestino: ramifica por resultado, si no usa la arista de entrada', () => {
+test('resolverDestino: ramifica por resultado, si no usa la arista de entrada', () => {
     const aristas = [
         { input: '*', destino: 'BUSCANDO' },
         { input: 'resultado:hay', destino: 'VER' },
@@ -41,11 +39,17 @@ t('resolverDestino: ramifica por resultado, si no usa la arista de entrada', () 
     assert.strictEqual(interprete.resolverDestino(aristas, aristas[0], 'ok'), 'BUSCANDO');
 });
 
-t('linter: acepta grafo válido, rechaza colgante/huérfano/anticipo-sin-%', () => {
+test('linter: acepta grafo válido, rechaza colgante/huérfano/anticipo-sin-%', () => {
+    // OJO: 'MENU' es un paso SELLADO (PASOS_SELLADOS, linter.js) desde que la
+    // Fase 5 (PLAN_V3 ítem 26) le agregó los estados de menuFlow.js — un nodo
+    // de conversación propio con ese nombre siempre es rechazado por diseño.
+    // Este fixture pre-existía a ese endurecimiento y usaba 'MENU' como nombre
+    // arbitrario; renombrado a 'INICIO' (no sellado) para probar lo que la
+    // prueba realmente quiere decir: "un grafo bien formado pasa el linter".
     const bueno = {
-        inicial: 'MENU',
-        nodos: { MENU: { paso: 'MENU', tipo: 'conversacion' }, FIN: { paso: 'FIN', tipo: 'conversacion' } },
-        aristas: { MENU: [{ input: '1', destino: 'FIN' }] },
+        inicial: 'INICIO',
+        nodos: { INICIO: { paso: 'INICIO', tipo: 'conversacion' }, FIN: { paso: 'FIN', tipo: 'conversacion' } },
+        aristas: { INICIO: [{ input: '1', destino: 'FIN' }] },
     };
     assert.strictEqual(linter.validar(bueno).ok, true);
 
@@ -61,7 +65,7 @@ t('linter: acepta grafo válido, rechaza colgante/huérfano/anticipo-sin-%', () 
 });
 
 // ── sin grafo activo: fail-closed ────────────────────────────────────────────
-t('sin grafo: cargarGrafoActivo=null, STEPS=[], handle=undefined', async () => {
+test('sin grafo: cargarGrafoActivo=null, STEPS=[], handle=undefined', async () => {
     G.invalidar();
     assert.strictEqual(G.cargarGrafoActivo(), null);
     assert.deepStrictEqual(interprete.STEPS, []);
@@ -86,7 +90,7 @@ function sembrarGrafo() {
     return gid;
 }
 
-t('grafo sembrado: carga + forma correcta', () => {
+test('grafo sembrado: carga + forma correcta', () => {
     sembrarGrafo();
     const g = G.cargarGrafoActivo();
     assert(g && g.inicial === 'MENU');
@@ -94,13 +98,13 @@ t('grafo sembrado: carga + forma correcta', () => {
     assert.strictEqual(g.aristas.MENU.length, 3);
 });
 
-t('STEPS: solo pasos conversacion (excluye sistema)', () => {
+test('STEPS: solo pasos conversacion (excluye sistema)', () => {
     const steps = interprete.STEPS;
     assert(steps.includes('MENU') && steps.includes('BUSCA') && steps.includes('NUM'));
     assert(!steps.includes('CONFIRM_ORDER'));
 });
 
-t('handle: transición conversacional avanza el estado y renderiza', async () => {
+test('handle: transición conversacional avanza el estado y renderiza', async () => {
     const U = 'flujo@c.us';
     sm.clearSession(U);
     const r = await interprete.handle({ userId: U, step: 'MENU', action: '1', raw: '1', data: {}, tel: '5218110000000' });
@@ -108,7 +112,7 @@ t('handle: transición conversacional avanza el estado y renderiza', async () =>
     assert.strictEqual(sm.getSession(U).paso_actual, 'BUSCA');
 });
 
-t('reintentos: 3 inputs inválidos → escape a ASESOR', async () => {
+test('reintentos: 3 inputs inválidos → escape a ASESOR', async () => {
     const U = 'reint@c.us';
     sm.clearSession(U);
     let data = {};
@@ -121,10 +125,11 @@ t('reintentos: 3 inputs inválidos → escape a ASESOR', async () => {
     assert.strictEqual(sm.getSession(U).paso_actual, 'ASESOR');    // 3er fallo → sellado
 });
 
-t('handle: paso ajeno al grafo → undefined (router viejo)', async () => {
+test('handle: paso ajeno al grafo → undefined (router viejo)', async () => {
     const r = await interprete.handle({ userId: 'x@c.us', step: 'PASO_INEXISTENTE', action: '1', raw: '1', data: {}, tel: '5218110000000' });
     assert.strictEqual(r, undefined);
 });
 
-console.log('\n' + ok + '/9 OK — intérprete del motor conforme a §C/§D.');
-try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+after(() => {
+    try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+});

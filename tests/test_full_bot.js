@@ -1,6 +1,6 @@
 // test_full_bot.js — Simulación de 20 clientes simultáneos
 // Prueba todos los flujos sin WhatsApp real — directo contra handleAction
-// Uso: node test_full_bot.js
+// Uso: node --test tests/test_full_bot.js
 'use strict';
 
 // ── Cargar .env PRIMERO — antes de cualquier require ─────────────
@@ -28,6 +28,8 @@ if (!process.env.EMAIL_USER)        process.env.EMAIL_USER  = 'test@test.com';
 if (!process.env.EMAIL_PASS)        process.env.EMAIL_PASS  = 'test';
 if (!process.env.ASESOR_WHATSAPP)   process.env.ASESOR_WHATSAPP = '5214441234567';
 
+const { test } = require('node:test');
+const nodeAssert  = require('node:assert/strict');
 const db          = require('../bot/db_connection');
 const sessionMgr  = require('../bot/sessionManager');
 const { handleAction } = require('../bot/actionHandler');
@@ -38,7 +40,7 @@ const _tablasReq = ['cola_notificaciones','cola_atencion','lista_espera',
 for (const t of _tablasReq) {
     try { db.prepare('SELECT 1 FROM ' + t + ' LIMIT 1').get(); }
     catch(e) {
-        console.error('\n\u274C TABLA FALTANTE: ' + t + ' \u2014 ejecuta las migraciones SQL pendientes\n');
+        console.error('\n❌ TABLA FALTANTE: ' + t + ' — ejecuta las migraciones SQL pendientes\n');
         process.exit(1);
     }
 }
@@ -48,12 +50,6 @@ try { db.prepare('SELECT 1 FROM log_eventos LIMIT 1').get(); }
 catch(_) { _hasLogEventos = false; console.warn('⚠️  log_eventos no existe — ejecutar 011_log_eventos.sql'); }
 
 console.log('✅ Tablas críticas verificadas\n');
-
-// ── Colores para output ────────────────────────────────────────────
-const C = { ok:'\x1b[32m', fail:'\x1b[31m', warn:'\x1b[33m', info:'\x1b[36m', reset:'\x1b[0m', bold:'\x1b[1m' };
-let passed = 0, failed = 0, warns = 0;
-const _fallos = []; // colectar fallos para reporte final
-const suitePromises = []; // promesas de cada suite — el resumen final espera a todas (item 49, PLAN_V3.md)
 
 // ── Mock del cliente de WhatsApp ───────────────────────────────────
 const mockClient = {
@@ -73,26 +69,15 @@ async function msg(userId, texto, isImage = false) {
     }
 }
 
-// ── Assertions ─────────────────────────────────────────────────────
-function assert(nombre, cond, detalle = '') {
-    if (cond) {
-        console.log('  ' + C.ok + '\u2705' + C.reset + ' ' + nombre);
-        passed++;
-    } else {
-        console.log('  ' + C.fail + '\u274C' + C.reset + ' ' + nombre + (detalle ? ' \u2014 ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
+// ── Assertion helper: subtest nombrado, misma condición que el harness
+//    original (assert(nombre, cond, detalle)) pero reportado por node:test ──
+async function assert(t, nombre, cond, detalle = '') {
+    await t.test(nombre, () => {
+        nodeAssert.ok(cond, detalle || nombre);
+    });
 }
 function warn(nombre, msg) {
-    console.log(`  ${C.warn}⚠️ ${C.reset} ${nombre}: ${msg}`);
-    warns++;
-}
-
-function suite(nombre) {
-    console.log(`\n${C.bold}${C.info}${'─'.repeat(56)}${C.reset}`);
-    console.log(`${C.bold}${C.info}  🧪 ${nombre}${C.reset}`);
-    console.log(`${C.info}${'─'.repeat(56)}${C.reset}`);
+    console.log(`  ⚠️  ${nombre}: ${msg}`);
 }
 
 // ── Limpiar sesiones de test al inicio ────────────────────────────
@@ -103,125 +88,87 @@ function resetUser(id) {
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 1: Flujo de bienvenida y menú
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 1 — Flujo básico de bienvenida');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 1 — Flujo básico de bienvenida', async (t) => {
     const U = 'test_c1@c.us'; resetUser(U);
     const r1 = await msg(U, 'hola');
-    assert('Muestra menú al saludar', r1.includes('Bienvenido') || r1.includes('juguete'));
-    assert('Menú tiene 4 opciones', r1.includes('1') && r1.includes('2') && r1.includes('3'));
+    await assert(t, 'Muestra menú al saludar', r1.includes('Bienvenido') || r1.includes('juguete'));
+    await assert(t, 'Menú tiene 4 opciones', r1.includes('1') && r1.includes('2') && r1.includes('3'));
 
     const r2 = await msg(U, 'Hola');
-    assert('Hola con mayúscula también funciona', r2.includes('1') || r2.includes('Bienvenido'));
+    await assert(t, 'Hola con mayúscula también funciona', r2.includes('1') || r2.includes('Bienvenido'));
 
     const r3 = await msg(U, '   hola   ');
-    assert('Hola con espacios extra funciona', r3.includes('1') || r3.includes('Bienvenido'));
-    } catch (e) {
-        const nombre = 'Suite 1 (CLIENTE 1) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+    await assert(t, 'Hola con espacios extra funciona', r3.includes('1') || r3.includes('Bienvenido'));
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 2: Detección de intención directa desde MENU
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 2 — Intención directa sin seleccionar menú');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 2 — Intención directa sin seleccionar menú', async (t) => {
     const U = 'test_c2@c.us'; resetUser(U);
     await msg(U, 'hola');
 
     const r1 = await msg(U, 'tienes patines');
-    assert('Detección de intención: tienes X', !r1.includes('Elige una opción'));
+    await assert(t, 'Detección de intención: tienes X', !r1.includes('Elige una opción'));
 
     resetUser(U); await msg(U, 'hola');
     const r2 = await msg(U, 'busco un lego para niño de 8 años');
-    assert('Detección: busco X para Y', !r2.includes('número de tu opción'));
+    await assert(t, 'Detección: busco X para Y', !r2.includes('número de tu opción'));
 
     resetUser(U); await msg(U, 'hola');
     const r3 = await msg(U, 'nesesito una muñeca');
-    assert('Detección con error ortográfico: nesesito', !r3.includes('Elige') || r3.length > 0); // pipeline en producción
+    await assert(t, 'Detección con error ortográfico: nesesito', !r3.includes('Elige') || r3.length > 0); // pipeline en producción
 
     resetUser(U); await msg(U, 'hola');
     const r4 = await msg(U, 'tnes hot wheels');
-    assert('Detección con error: tnes', !r4.includes('número de tu opción'));
-    } catch (e) {
-        const nombre = 'Suite 2 (CLIENTE 2) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+    await assert(t, 'Detección con error: tnes', !r4.includes('número de tu opción'));
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 3: Búsqueda de productos con resultados
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 3 — Búsqueda con resultados reales');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 3 — Búsqueda con resultados reales', async (t) => {
     const U = 'test_c3@c.us'; resetUser(U);
     await msg(U, 'hola');
     await msg(U, '1');
 
     const r1 = await msg(U, 'hot wheels');
-    assert('Búsqueda hot wheels encuentra algo', r1.includes('Hot Wheels') || r1.includes('resultados') || r1.includes('1.'));
+    await assert(t, 'Búsqueda hot wheels encuentra algo', r1.includes('Hot Wheels') || r1.includes('resultados') || r1.includes('1.'));
 
     resetUser(U); await msg(U, 'hola'); await msg(U, '1');
     const r2 = await msg(U, 'lego');
-    assert('Búsqueda lego encuentra algo', r2.includes('Lego') || r2.includes('LEGO') || r2.includes('1.'));
+    await assert(t, 'Búsqueda lego encuentra algo', r2.includes('Lego') || r2.includes('LEGO') || r2.includes('1.'));
 
     resetUser(U); await msg(U, 'hola'); await msg(U, '1');
     const r3 = await msg(U, 'xyzproductoinexistente12345');
-    assert('Producto inexistente → stock inteligente o asesor',
+    await assert(t, 'Producto inexistente → stock inteligente o asesor',
         r3.includes('Avísame') || r3.includes('asesor') || r3.includes('red') || r3.includes('volando'));
-    } catch (e) {
-        const nombre = 'Suite 3 (CLIENTE 3) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 4: Wizard de recomendación completo
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 4 — Wizard de recomendación completo');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 4 — Wizard de recomendación completo', async (t) => {
     const U = 'test_c4@c.us'; resetUser(U);
     await msg(U, 'hola');
     const rMenu = await msg(U, '2');
-    assert('Opción 2 inicia wizard', rMenu.includes('quién') || rMenu.includes('Para quién') || rMenu.includes('regalo'));
+    await assert(t, 'Opción 2 inicia wizard', rMenu.includes('quién') || rMenu.includes('Para quién') || rMenu.includes('regalo'));
 
     const r1 = await msg(U, '2'); // niño 3-8
-    assert('Wizard Q1 respondido', r1.includes('niño') || r1.includes('género') || r1.includes('Niña') || r1.includes('tipo') || r1.includes('Qué'));
+    await assert(t, 'Wizard Q1 respondido', r1.includes('niño') || r1.includes('género') || r1.includes('Niña') || r1.includes('tipo') || r1.includes('Qué'));
 
     const r2 = await msg(U, '1');
-    assert('Wizard Q2 respondido', r2.includes('tipo') || r2.includes('presupuesto') || r2.includes('precio') || r2.includes('Qué'));
+    await assert(t, 'Wizard Q2 respondido', r2.includes('tipo') || r2.includes('presupuesto') || r2.includes('precio') || r2.includes('Qué'));
 
     const r3 = await msg(U, '1');
-    assert('Wizard Q3 respondido — muestra productos o pide presupuesto',
+    await assert(t, 'Wizard Q3 respondido — muestra productos o pide presupuesto',
         r3.includes('$') || r3.includes('presupuesto') || r3.includes('precio') || r3.includes('MXN'));
-    } catch (e) {
-        const nombre = 'Suite 4 (CLIENTE 4) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 5: Flujo de carrito y compra completa (pickup)
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 5 — Carrito y pickup completo');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 5 — Carrito y pickup completo', async (t) => {
     const U = 'test_c5@c.us'; resetUser(U);
     await msg(U, 'hola');
     await msg(U, '1');
@@ -231,36 +178,27 @@ suitePromises.push((async () => {
     if (!prod) { warn('Suite 5', 'Sin productos con stock_tienda — saltando'); return; }
 
     const rBusq = await msg(U, prod.name.split(' ')[0]);
-    assert('Busca producto con stock', rBusq.includes('1.') || rBusq.includes(prod.name.split(' ')[0]));
+    await assert(t, 'Busca producto con stock', rBusq.includes('1.') || rBusq.includes(prod.name.split(' ')[0]));
 
     const rVer = await msg(U, '1');
-    assert('Ver detalle producto', rVer.includes('$') || rVer.includes('MXN') || rVer.includes('carrito') || rVer.includes('agregar') || rVer.includes('Agregar') || rVer.length > 20);
+    await assert(t, 'Ver detalle producto', rVer.includes('$') || rVer.includes('MXN') || rVer.includes('carrito') || rVer.includes('agregar') || rVer.includes('Agregar') || rVer.length > 20);
 
     // Opción 2 de VIEW_PRODUCT = "Agregar y pagar" → agrega y pide el CP
     // directo (no hay paso intermedio de SHOW_CART); opción 1 sería "Agregar
     // y seguir buscando", que regresa a SEARCHING (bug de este test corregido
     // 2026-07-21: mandaba '1' aquí y nunca llegaba a pedir CP).
     const rAgregar = await msg(U, '2');
-    assert('Producto en carrito, pide CP para checkout', rAgregar.includes('carrito') || rAgregar.includes('postal') || rAgregar.includes('CP') || rAgregar.includes('1'));
+    await assert(t, 'Producto en carrito, pide CP para checkout', rAgregar.includes('carrito') || rAgregar.includes('postal') || rAgregar.includes('CP') || rAgregar.includes('1'));
 
     // CP → opciones de entrega
     const rCP = await msg(U, '78000');
-    assert('Opción pickup disponible tras CP', rCP.includes('pickup') || rCP.includes('recoger') || rCP.includes('tienda') || rCP.includes('domicilio') || rCP.includes('Envío') || rCP.includes('envio') || rCP.includes('cobertura'));
-    } catch (e) {
-        const nombre = 'Suite 5 (CLIENTE 5) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+    await assert(t, 'Opción pickup disponible tras CP', rCP.includes('pickup') || rCP.includes('recoger') || rCP.includes('tienda') || rCP.includes('domicilio') || rCP.includes('Envío') || rCP.includes('envio') || rCP.includes('cobertura'));
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 6: Flujo de CP y envío
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 6 — Flujo de envío con CP válido');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 6 — Flujo de envío con CP válido', async (t) => {
     const U = 'test_c6@c.us'; resetUser(U);
     await msg(U, 'hola'); await msg(U, '1');
     const prod = db.prepare("SELECT name FROM productos WHERE activo=1 AND (stock_tienda>0 OR stock_cedis>0) LIMIT 1").get();
@@ -271,14 +209,14 @@ suitePromises.push((async () => {
     const sess1 = sessionMgr.getSession(U);
     if (sess1.paso_actual === 'ASK_CP') {
         const r1 = await msg(U, 'abc'); // CP inválido (sin dígitos) — sigue en ASK_CP
-        assert('CP inválido rechazado', r1.includes('válido') || r1.includes('5 dígitos') || r1.includes('código'));
+        await assert(t, 'CP inválido rechazado', r1.includes('válido') || r1.includes('5 dígitos') || r1.includes('código'));
 
         // CP válido ANTES del "muy largo": orderFlow.js trunca a los primeros 5
         // dígitos y ya AVANZA de estado (a domicilio/pickup/asesor) aunque el CP
         // truncado no tenga cobertura real — encadenar un tercer CP después de
         // ese caso ya no cae en ASK_CP (bug de este test corregido 2026-07-21).
         const r3 = await msg(U, '78000'); // CP válido SLP
-        assert('CP 78000 SLP aceptado', r3.includes('envío') || r3.includes('cobertura') || r3.includes('flete') || r3.includes('domicilio'));
+        await assert(t, 'CP 78000 SLP aceptado', r3.includes('envío') || r3.includes('cobertura') || r3.includes('flete') || r3.includes('domicilio'));
 
         // Sesión nueva para el caso "CP muy largo" — solo nos importa que trunque
         // sin tronar, no encadenarlo con el CP válido de arriba.
@@ -287,25 +225,16 @@ suitePromises.push((async () => {
         await msg(U2, prod.name.split(' ')[0]);
         await msg(U2, '1'); await msg(U2, '2');
         const r2 = await msg(U2, '123456789'); // CP muy largo → trunca a 5 dígitos, no debe tronar
-        assert('CP muy largo truncado sin error', !r2.includes('ERROR'));
+        await assert(t, 'CP muy largo truncado sin error', !r2.includes('ERROR'));
     } else {
         warn('Suite 6', `Estado inesperado: ${sess1.paso_actual}`);
     }
-    } catch (e) {
-        const nombre = 'Suite 6 (CLIENTE 6) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 7: Cliente cambia de flujo a mitad del proceso
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 7 — Cambio de contexto a mitad del flujo');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 7 — Cambio de contexto a mitad del flujo', async (t) => {
     const U = 'test_c7@c.us'; resetUser(U);
     await msg(U, 'hola');
     await msg(U, '1');
@@ -314,79 +243,61 @@ suitePromises.push((async () => {
 
     // A mitad del flujo, el cliente escribe hola para reiniciar
     const r1 = await msg(U, 'hola');
-    assert('hola reinicia flujo desde cualquier estado', r1.includes('Bienvenido') || r1.includes('1'));
+    await assert(t, 'hola reinicia flujo desde cualquier estado', r1.includes('Bienvenido') || r1.includes('1'));
 
     const sess = sessionMgr.getSession(U);
-    assert('Sesión vuelve a MENU tras hola', sess.paso_actual === 'MENU');
+    await assert(t, 'Sesión vuelve a MENU tras hola', sess.paso_actual === 'MENU');
 
     // Reiniciar con 0
     await msg(U, 'hola'); await msg(U, '1'); await msg(U, 'barbie');
     const r2 = await msg(U, '0');
-    assert('"0" también reinicia el flujo', !sessionMgr.getSession(U).paso_actual?.includes('SEARCHING') || r2.includes('1'));
-    } catch (e) {
-        const nombre = 'Suite 7 (CLIENTE 7) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+    await assert(t, '"0" también reinicia el flujo', !sessionMgr.getSession(U).paso_actual?.includes('SEARCHING') || r2.includes('1'));
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 8: Detección y manejo de quejas
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 8 — Cliente con queja legítima');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 8 — Cliente con queja legítima', async (t) => {
     const U = 'test_c8@c.us'; resetUser(U);
     await msg(U, 'hola');
 
     const r1 = await msg(U, 'quiero poner una queja');
-    assert('Queja detectada y respuesta empática', r1.includes('asesor') || r1.includes('sentimos') || r1.includes('lamentamos') || r1.includes('CASO') || r1.includes('queja') || r1.includes('Queja') || r1.toLowerCase().includes('caso'));
+    await assert(t, 'Queja detectada y respuesta empática', r1.includes('asesor') || r1.includes('sentimos') || r1.includes('lamentamos') || r1.includes('CASO') || r1.includes('queja') || r1.includes('Queja') || r1.toLowerCase().includes('caso'));
 
     resetUser(U); await msg(U, 'hola');
     const r2 = await msg(U, 'estoy muy molesto con mi pedido');
-    assert('Frustración detectada', r2.includes('entend') || r2.includes('asesor') || r2.includes('disculpa') || r2.includes('lamentamos') || r2.includes('ayudar') || r2.toLowerCase().includes('molest') || r2.length > 10);
+    await assert(t, 'Frustración detectada', r2.includes('entend') || r2.includes('asesor') || r2.includes('disculpa') || r2.includes('lamentamos') || r2.includes('ayudar') || r2.toLowerCase().includes('molest') || r2.length > 10);
 
     resetUser(U); await msg(U, 'hola');
     const r3 = await msg(U, 'me llegó un producto dañado');
-    assert('Producto dañado detectado como queja/devolución', r3.includes('devoluci') || r3.includes('asesor') || r3.includes('Entendido') || r3.includes('lamentamos') || r3.includes('pasó') || r3.includes('motivo'));
-    } catch (e) {
-        const nombre = 'Suite 8 (CLIENTE 8) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+    await assert(t, 'Producto dañado detectado como queja/devolución', r3.includes('devoluci') || r3.includes('asesor') || r3.includes('Entendido') || r3.includes('lamentamos') || r3.includes('pasó') || r3.includes('motivo'));
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 9: Flujo de devolución completo
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 9 — Devolución paso a paso');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 9 — Devolución paso a paso', async (t) => {
     const U = 'test_c9@c.us'; resetUser(U);
     await msg(U, 'hola');
 
     const r1 = await msg(U, 'quiero devolver un producto');
-    assert('Devolución inicia flujo', r1.includes('pasó') || r1.includes('motivo') || r1.includes('devolución'));
+    await assert(t, 'Devolución inicia flujo', r1.includes('pasó') || r1.includes('motivo') || r1.includes('devolución'));
 
     const r2 = await msg(U, '1'); // dañado
-    assert('Selección de motivo aceptada', r2.includes('folio') || r2.includes('pedido'));
+    await assert(t, 'Selección de motivo aceptada', r2.includes('folio') || r2.includes('pedido'));
 
     const r3 = await msg(U, 'sin folio');
-    assert('"sin folio" aceptado', r3.includes('fecha') || r3.includes('foto') || r3.includes('problema'));
+    await assert(t, '"sin folio" aceptado', r3.includes('fecha') || r3.includes('foto') || r3.includes('problema'));
 
     const r4 = await msg(U, 'hace una semana');
-    assert('Fecha aceptada', r4.includes('foto') || r4.includes('imagen') || r4.includes('problema') || r4.includes('Tienes'));
+    await assert(t, 'Fecha aceptada', r4.includes('foto') || r4.includes('imagen') || r4.includes('problema') || r4.includes('Tienes'));
 
     // Verificar el estado antes de enviar la respuesta de foto
     const _sesDevPre = sessionMgr.getSession(U);
     const r5 = await msg(U, '2'); // no tengo foto — acción '2'
     // La respuesta debe incluir algo sobre dónde compró O método de pago
-    assert('Sin foto continúa el flujo',
-        r5.includes('realizaste') || r5.includes('D\u00f3nde') || r5.includes('WhatsApp') ||
+    await assert(t, 'Sin foto continúa el flujo',
+        r5.includes('realizaste') || r5.includes('Dónde') || r5.includes('WhatsApp') ||
         r5.toLowerCase().includes('nde') || r5.includes('compra') || r5.includes('pago') ||
         r5.includes('PayPal') || (_sesDevPre.paso_actual === 'DEVOLUCION'));
 
@@ -396,7 +307,7 @@ suitePromises.push((async () => {
         sessionMgr.updateSession(U, 'DEVOLUCION', { paso: 'pedir_donde_compro', motivo: 'Producto dañado', tieneFoto: false, folio: 'SIN FOLIO', total: 0 });
     }
     const r6 = await msg(U, '1'); // WhatsApp
-    assert('Canal de compra aceptado', r6.toLowerCase().includes('pago') || r6.toLowerCase().includes('m') || r6.includes('PayPal') || r6.includes('Efectivo') || r6.includes('Tarjeta') || r6.includes('método'));
+    await assert(t, 'Canal de compra aceptado', r6.toLowerCase().includes('pago') || r6.toLowerCase().includes('m') || r6.includes('PayPal') || r6.includes('Efectivo') || r6.includes('Tarjeta') || r6.includes('método'));
 
     // Forzar estado si es necesario
     const _sesDev7 = sessionMgr.getSession(U);
@@ -404,104 +315,77 @@ suitePromises.push((async () => {
         sessionMgr.updateSession(U, 'DEVOLUCION', { paso: 'pedir_metodo_pago', motivo: 'Producto dañado', canalCompra: 'WhatsApp', tieneFoto: false, folio: 'SIN FOLIO', total: 0 });
     }
     const r7 = await msg(U, '1'); // PayPal
-    assert('Método de pago → cierra flujo', r7.includes('registrada') || r7.includes('asesor') || r7.includes('30 minutos') || r7.includes('Listo'));
+    await assert(t, 'Método de pago → cierra flujo', r7.includes('registrada') || r7.includes('asesor') || r7.includes('30 minutos') || r7.includes('Listo'));
 
     // Verificar tag en DB
     const cli = db.prepare('SELECT tags FROM clientes WHERE telefono=?').get('test_c9');
-    if (cli) assert('Tag devolucion asignado', (cli.tags||'').includes('devolucion'));
+    if (cli) await assert(t, 'Tag devolucion asignado', (cli.tags||'').includes('devolucion'));
     else warn('Suite 9', 'Cliente no encontrado en DB (puede no haberse registrado sin nombre)');
-    } catch (e) {
-        const nombre = 'Suite 9 (CLIENTE 9) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 10: Troll / contenido inapropiado
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 10 — Troll e intentos de inyección');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 10 — Troll e intentos de inyección', async (t) => {
     const U = 'test_c10@c.us'; resetUser(U);
     await msg(U, 'hola');
 
     // Blacklist de trolls en MENU
     const r1 = await msg(U, 'hackear el bot');
-    assert('Intento de hackear → respuesta neutra', !r1.includes('ERROR') && r1.length < 500);
+    await assert(t, 'Intento de hackear → respuesta neutra', !r1.includes('ERROR') && r1.length < 500);
 
     resetUser(U); await msg(U, 'hola');
     const r2 = await msg(U, 'inyeccion sql DROP TABLE productos');
-    assert('Intento SQL injection manejado', !r2.includes('ERROR'));
+    await assert(t, 'Intento SQL injection manejado', !r2.includes('ERROR'));
 
     resetUser(U); await msg(U, 'hola');
     // Mensaje extremadamente largo
     const r3 = await msg(U, 'a'.repeat(2000));
-    assert('Mensaje 2000 chars manejado sin crash', !r3.includes('ERROR'));
+    await assert(t, 'Mensaje 2000 chars manejado sin crash', !r3.includes('ERROR'));
 
     resetUser(U); await msg(U, 'hola');
     // Emojis y caracteres especiales
     const r4 = await msg(U, '🎉🎊🎈🎁🎀🎂🎃🎄🎅🎆🎇✨🌟💫⭐');
-    assert('Solo emojis manejado', !r4.includes('ERROR'));
+    await assert(t, 'Solo emojis manejado', !r4.includes('ERROR'));
 
     resetUser(U); await msg(U, 'hola');
     // Script injection
     const _rXSS = await msg(U, '<script>alert("xss")</script>');
-    assert('Intento XSS no causa error',
+    await assert(t, 'Intento XSS no causa error',
         !(_rXSS||'').includes('ERROR') &&
         !(_rXSS||'').includes('<script>') &&
         !(_rXSS||'').includes('</script>'));
-    } catch (e) {
-        const nombre = 'Suite 10 (CLIENTE 10) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 11: Lista de espera cuando no hay stock
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 11 — Lista de espera (sin stock)');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 11 — Lista de espera (sin stock)', async (t) => {
     const U = 'test_c11@c.us'; resetUser(U);
     await msg(U, 'hola'); await msg(U, '1');
 
     // Producto que sabemos no existe
     const r1 = await msg(U, 'producto que definitivamente no existe xyz99');
-    assert('Sin stock → opciones de lista espera', 
+    await assert(t, 'Sin stock → opciones de lista espera',
         r1.includes('Avísame') || r1.includes('alternativas') || r1.includes('volando') || r1.includes('lista'));
 
     if (r1.includes('1')) {
         const r2 = await msg(U, '1'); // Avísame
-        assert('Registro en lista espera aceptado', 
+        await assert(t, 'Registro en lista espera aceptado',
             r2.includes('Anotado') || r2.includes('avisa') || r2.includes('llegue'));
 
         try {
             const enEspera = db.prepare("SELECT COUNT(*) as n FROM lista_espera WHERE telefono LIKE '%test_c11%'").get();
-            if (enEspera.n > 0) assert('Registro en DB confirmado', true);
+            if (enEspera.n > 0) await assert(t, 'Registro en DB confirmado', true);
             else warn('Suite 11', 'Sin registro en DB — puede ser que el flujo no llegó al INSERT');
         } catch(e) { warn('Suite 11 DB', e.message); }
     }
-    } catch (e) {
-        const nombre = 'Suite 11 (CLIENTE 11) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 12: Múltiples usuarios simultáneos — sin interferencia
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTES 12-15 — Sesiones simultáneas sin interferencia');
-suitePromises.push((async () => {
-    try {
+test('CLIENTES 12-15 — Sesiones simultáneas sin interferencia', async (t) => {
     const users = ['test_u12@c.us','test_u13@c.us','test_u14@c.us','test_u15@c.us'];
     users.forEach(u => resetUser(u));
 
@@ -516,91 +400,64 @@ suitePromises.push((async () => {
         msg(users[3], '4'),  // asesor
     ]);
 
-    assert('U12 en SEARCHING', sessionMgr.getSession(users[0]).paso_actual === 'SEARCHING' || r12.includes('busco'));
-    assert('U13 en WIZARD', sessionMgr.getSession(users[1]).paso_actual?.includes('WIZARD') || r13.includes('quién'));
-    assert('U14 rastreo respondido', r14.includes('folio') || r14.includes('pedido') || r14.includes('rastrear'));
-    assert('U15 asesor respondido', r15.includes('asesor') || r15.includes('contactar'));
+    await assert(t, 'U12 en SEARCHING', sessionMgr.getSession(users[0]).paso_actual === 'SEARCHING' || r12.includes('busco'));
+    await assert(t, 'U13 en WIZARD', sessionMgr.getSession(users[1]).paso_actual?.includes('WIZARD') || r13.includes('quién'));
+    await assert(t, 'U14 rastreo respondido', r14.includes('folio') || r14.includes('pedido') || r14.includes('rastrear'));
+    await assert(t, 'U15 asesor respondido', r15.includes('asesor') || r15.includes('contactar'));
 
     // Verificar que las sesiones no se mezclaron
     const s12 = sessionMgr.getSession(users[0]).paso_actual;
     const s13 = sessionMgr.getSession(users[1]).paso_actual;
-    assert('Sesiones U12 y U13 son independientes', s12 !== s13 || (s12 === 'MENU' && s13 === 'MENU'));
-    } catch (e) {
-        const nombre = 'Suite 12 (CLIENTES 12-15) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+    await assert(t, 'Sesiones U12 y U13 son independientes', s12 !== s13 || (s12 === 'MENU' && s13 === 'MENU'));
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 13: Respuestas inválidas en flujos críticos
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 16 — Respuestas inválidas / fuera de rango');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 16 — Respuestas inválidas / fuera de rango', async (t) => {
     const U = 'test_c16@c.us'; resetUser(U);
     await msg(U, 'hola');
 
     // Número fuera de rango en menú
     const r1 = await msg(U, '99');
-    assert('Opción 99 en menú manejada', !r1.includes('ERROR') && r1.length > 0);
+    await assert(t, 'Opción 99 en menú manejada', !r1.includes('ERROR') && r1.length > 0);
 
     const r2 = await msg(U, '-1');
-    assert('Opción negativa en menú manejada', !r2.includes('ERROR'));
+    await assert(t, 'Opción negativa en menú manejada', !r2.includes('ERROR'));
 
     // Texto en campo numérico
     resetUser(U); await msg(U, 'hola'); await msg(U, '1'); await msg(U, 'lego'); await msg(U, '1');
     const r3 = await msg(U, 'quiero el de la foto'); // en lugar de número
-    assert('Texto en lugar de número manejado', !r3.includes('ERROR'));
+    await assert(t, 'Texto en lugar de número manejado', !r3.includes('ERROR'));
 
     // Wizard con respuesta inválida
     resetUser(U); await msg(U, 'hola'); await msg(U, '2');
     const r4 = await msg(U, 'para mi perro');
-    assert('Respuesta inválida en wizard manejada', !r4.includes('ERROR') && r4.length > 0);
-    } catch (e) {
-        const nombre = 'Suite 13 (CLIENTE 16) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+    await assert(t, 'Respuesta inválida en wizard manejada', !r4.includes('ERROR') && r4.length > 0);
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 14: Rastreo de pedido
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 17 — Rastreo de pedido');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 17 — Rastreo de pedido', async (t) => {
     const U = 'test_c17@c.us'; resetUser(U);
     await msg(U, 'hola');
 
     const r1 = await msg(U, '3'); // rastrear
-    assert('Opción 3 solicita folio', r1.includes('folio') || r1.includes('pedido'));
+    await assert(t, 'Opción 3 solicita folio', r1.includes('folio') || r1.includes('pedido'));
 
     const r2 = await msg(U, 'HEV-PED-000001');
-    assert('Folio real encontrado o mensaje de no encontrado', r2.includes('pedido') || r2.includes('folio') || r2.includes('encontré') || r2.includes('encontr') || r2.includes('Folio') || r2.length > 10);
+    await assert(t, 'Folio real encontrado o mensaje de no encontrado', r2.includes('pedido') || r2.includes('folio') || r2.includes('encontré') || r2.includes('encontr') || r2.includes('Folio') || r2.length > 10);
 
     const r3 = await msg(U, 'FOLIO-INVENTADO-9999');
-    assert('Folio inválido → mensaje claro',
+    await assert(t, 'Folio inválido → mensaje claro',
         !r3.includes('ERROR') && (r3.includes('encontré') || r3.includes('válido') || r3.includes('folio')));
-    } catch (e) {
-        const nombre = 'Suite 14 (CLIENTE 17) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 15: Carrito con múltiples productos y límites
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 18 — Límites de carrito');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 18 — Límites de carrito', async (t) => {
     const U = 'test_c18@c.us'; resetUser(U);
     await msg(U, 'hola'); await msg(U, '1');
     const prod = db.prepare("SELECT name FROM productos WHERE activo=1 AND stock_tienda>0 LIMIT 1").get();
@@ -609,7 +466,7 @@ suitePromises.push((async () => {
     await msg(U, prod.name.split(' ')[0]);
     await msg(U, '1'); // ver producto
     const r1 = await msg(U, '1'); // agregar
-    assert('Producto agregado al carrito', r1.includes('carrito') || r1.includes('agregado') || r1.includes('otro'));
+    await assert(t, 'Producto agregado al carrito', r1.includes('carrito') || r1.includes('agregado') || r1.includes('otro'));
 
     // Intentar agregar más de 2 del mismo
     await msg(U, 'hola'); await msg(U, '1');
@@ -617,71 +474,51 @@ suitePromises.push((async () => {
     await msg(U, '1');
     const r2 = await msg(U, '1');
     // Segundo intento del mismo producto
-    const sess = sessionMgr.getSession(U);
-    assert('Carrito no crashea con duplicados', !r2.includes('ERROR'));
-    } catch (e) {
-        const nombre = 'Suite 15 (CLIENTE 18) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+    await assert(t, 'Carrito no crashea con duplicados', !r2.includes('ERROR'));
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 16: CSAT flujo
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 19 — CSAT respuesta');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 19 — CSAT respuesta', async (t) => {
     const U = 'test_c19@c.us'; resetUser(U);
     // Simular estado CSAT directo
     sessionMgr.updateSession(U, 'CSAT', { idPedido: null });
 
     const r1 = await msg(U, '5');
-    assert('CSAT 5 estrellas aceptado',
+    await assert(t, 'CSAT 5 estrellas aceptado',
         r1.includes('gracias') || r1.includes('Gracias') || r1.includes('encantó') || r1.includes('satisfacción') || !r1.includes('ERROR'));
 
     resetUser(U);
     sessionMgr.updateSession(U, 'CSAT', { idPedido: null });
     const r2 = await msg(U, '1');
-    assert('CSAT 1 estrella aceptado', !r2.includes('ERROR'));
+    await assert(t, 'CSAT 1 estrella aceptado', !r2.includes('ERROR'));
 
     resetUser(U);
     sessionMgr.updateSession(U, 'CSAT', { idPedido: null });
     const r3 = await msg(U, '7'); // fuera de rango
-    assert('CSAT fuera de rango manejado', !r3.includes('ERROR'));
-    } catch (e) {
-        const nombre = 'Suite 16 (CLIENTE 19) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+    await assert(t, 'CSAT fuera de rango manejado', !r3.includes('ERROR'));
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 17: Garantías de DB — datos se guardan
 // ══════════════════════════════════════════════════════════════════
-suite('GARANTÍAS DE BASE DE DATOS');
-suitePromises.push((async () => {
-    try {
+test('GARANTÍAS DE BASE DE DATOS', async (t) => {
     // Verificar que la sesión persiste en SQLite
     const U = 'test_db_persist@c.us';
     sessionMgr.updateSession(U, 'SEARCHING', { carrito: [{id:1, name:'Test', price:100, cantidad:1}] });
     const recovered = sessionMgr.getSession(U);
-    assert('Sesión persiste en SQLite', recovered.paso_actual === 'SEARCHING');
-    assert('Carrito persiste en sesión', (recovered.data?.carrito||[]).length === 1);
+    await assert(t, 'Sesión persiste en SQLite', recovered.paso_actual === 'SEARCHING');
+    await assert(t, 'Carrito persiste en sesión', (recovered.data?.carrito||[]).length === 1);
 
     // Verificar que log_eventos recibe búsquedas
-    let prevCount = 0, newCount = 0;
     try {
-        prevCount = db.prepare("SELECT COUNT(*) as n FROM log_eventos WHERE tipo_evento='busqueda'").get().n;
+        const prevCount = db.prepare("SELECT COUNT(*) as n FROM log_eventos WHERE tipo_evento='busqueda'").get().n;
         const Ubusq = 'test_log@c.us'; resetUser(Ubusq);
         await msg(Ubusq, 'hola'); await msg(Ubusq, '1');
         await msg(Ubusq, 'patines');
-        newCount = db.prepare("SELECT COUNT(*) as n FROM log_eventos WHERE tipo_evento='busqueda'").get().n;
-        assert('log_eventos registra búsquedas', newCount > prevCount);
+        const newCount = db.prepare("SELECT COUNT(*) as n FROM log_eventos WHERE tipo_evento='busqueda'").get().n;
+        await assert(t, 'log_eventos registra búsquedas', newCount > prevCount);
         sessionMgr.clearSession('test_log@c.us');
     } catch(e) {
         warn('log_eventos', 'Tabla no existe — ejecutar 011_log_eventos.sql en DB Browser');
@@ -689,26 +526,17 @@ suitePromises.push((async () => {
 
     // Verificar cola_notificaciones
     const prevCola = db.prepare("SELECT COUNT(*) as n FROM cola_notificaciones").get().n;
-    assert('cola_notificaciones accesible', typeof prevCola === 'number');
+    await assert(t, 'cola_notificaciones accesible', typeof prevCola === 'number');
 
     sessionMgr.clearSession(U);
     sessionMgr.clearSession('test_db_persist@c.us');
     sessionMgr.clearSession('test_log@c.us');
-    } catch (e) {
-        const nombre = 'Suite 17 (GARANTÍAS DE BASE DE DATOS) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 18: Devolución con cambio de contexto a mitad
 // ══════════════════════════════════════════════════════════════════
-suite('CLIENTE 20 — Cambio abrupto: devolución → nueva compra');
-suitePromises.push((async () => {
-    try {
+test('CLIENTE 20 — Cambio abrupto: devolución → nueva compra', async (t) => {
     const U = 'test_c20@c.us'; resetUser(U);
     await msg(U, 'hola');
 
@@ -717,46 +545,12 @@ suitePromises.push((async () => {
     await msg(U, '1'); // motivo
     // A mitad del flujo cambia completamente de opinión
     const r1 = await msg(U, 'hola');
-    assert('hola cancela devolución en curso', r1.includes('1') || r1.includes('Bienvenido'));
+    await assert(t, 'hola cancela devolución en curso', r1.includes('1') || r1.includes('Bienvenido'));
 
     const sess = sessionMgr.getSession(U);
-    assert('Estado vuelve a MENU', sess.paso_actual === 'MENU');
+    await assert(t, 'Estado vuelve a MENU', sess.paso_actual === 'MENU');
 
     // Ahora hace una compra normal
     const r2 = await msg(U, '1');
-    assert('Puede iniciar búsqueda tras cancelar devolución', r2.includes('busco') || r2.includes('busca') || r2.includes('foto'));
-    } catch (e) {
-        const nombre = 'Suite 18 (CLIENTE 20) — excepción no capturada';
-        const detalle = e.message;
-        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
-        _fallos.push({ nombre, detalle });
-        failed++;
-    }
-})());
-
-// ── Resumen final ──────────────────────────────────────────────────
-// Espera a que las 18 suites terminen de verdad (cada IIFE arriba fue
-// capturada en suitePromises) en vez de un setTimeout fijo — una suite
-// lenta ya no puede quedar fuera del conteo (item 49, PLAN_V3.md).
-(async () => {
-    await Promise.all(suitePromises);
-    console.log(`\n${'═'.repeat(56)}`);
-    console.log(`${C.bold}  RESULTADO FINAL${C.reset}`);
-    console.log('═'.repeat(56));
-    console.log(`  ${C.ok}${C.bold}${passed} ✅ pasaron${C.reset}`);
-    console.log(`  ${C.fail}${C.bold}${failed} ❌ fallaron${C.reset}`);
-    console.log(`  ${C.warn}${warns} ⚠️  advertencias${C.reset}`);
-    console.log('═'.repeat(56));
-    if (failed === 0) {
-        console.log('\n  ' + C.ok + C.bold + '\u2705 Todos los tests pasaron \u2014 listo para producci\u00f3n' + C.reset + '\n');
-    } else {
-        console.log('\n  ' + C.fail + C.bold + '\u274C ' + failed + ' tests fallaron' + C.reset + '\n');
-        console.log(C.bold + '  REPORTE DE FALLOS:' + C.reset);
-        _fallos.forEach((f, i) => {
-            console.log('  ' + (i+1) + '. ' + C.fail + f.nombre + C.reset);
-            if (f.detalle) console.log('     ' + f.detalle);
-        });
-        console.log('');
-        process.exitCode = 1;
-    }
-})();
+    await assert(t, 'Puede iniciar búsqueda tras cancelar devolución', r2.includes('busco') || r2.includes('busca') || r2.includes('foto'));
+});

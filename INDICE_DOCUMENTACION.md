@@ -523,6 +523,18 @@ librería, **ambas autorizadas por el dueño e implementadas**:
 
 Ver `PLAN_V3.md` Fase 9 (ítems 60-64) para el detalle completo.
 
+## 6n. Cierre de la migración a node:test + 2ª revisión de optimización (2026-07-22)
+
+Con una copia desechable de la BD real (nunca se tocó la producción,
+verificado por mtime + conteo de clientes de prueba antes/después), se
+migraron y ejecutaron de verdad los 36 archivos de test restantes —
+**366/366 pruebas pasan**, 5 bugs preexistentes más de fixtures encontrados
+y corregidos, 2 bugs reales de la propia migración encontrados y corregidos.
+**Migración final: 55 de 58 archivos en `node:test` (95%)**. Segunda
+auditoría de arquitecto: sin degradación en los 9 archivos más tocados de
+la sesión; un hallazgo real en terreno nuevo (`sqlite3` CLI muerto en el
+Dockerfile, corregido). Ver `PLAN_V3.md` Fase 10 (ítems 65-68).
+
 ## 7. Runbooks / catálogos operativos (no tocar, son referencia viva)
 
 - `ERRORES.md` — catálogo de códigos `HS-xxx` para soporte/diagnóstico.

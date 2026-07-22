@@ -2,17 +2,20 @@
 // tests/test_mensajeria.js — mensajería interna del equipo (1-a-1 + grupos).
 // Pinnea: directo idempotente (no duplica el par), grupo con N miembros, envío/
 // lectura solo para miembros (403 al ajeno), y el conteo de no-leídos + marcado
-// de leído al abrir.  node tests/test_mensajeria.js
+// de leído al abrir.  node --test tests/test_mensajeria.js
 
-const assert = require('assert');
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
 const { crearFixture } = require('./fixture_min');
 process.env.DB_PATH = crearFixture();
 if (!process.env.CHROME_PATH) process.env.CHROME_PATH = '/usr/bin/true';
 
 const db = require('../bot/db_connection');
 const M = require('../dashboard/routes/mensajeria')._test;
-let ok = 0;
-const t = (n, fn) => { fn(); ok++; console.log('✅ ' + n); };
+
+after(() => {
+    try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+});
 
 // tres usuarios
 const uid = {};
@@ -27,7 +30,7 @@ const ctxDe = (username, out) => ({
     obtenerSesion: () => ({ username, rol: 'usuario' }),
 });
 
-t('directo: se crea una vez y es idempotente (no duplica el par)', () => {
+test('directo: se crea una vez y es idempotente (no duplica el par)', () => {
     const o1 = {}; M.directoPost({ _body: { id_usuario: uid.beto } }, null, ctxDe('ana', o1));
     assert(o1.d.ok && o1.d.id_canal);
     const o2 = {}; M.directoPost({ _body: { id_usuario: uid.ana } }, null, ctxDe('beto', o2)); // el otro sentido
@@ -35,12 +38,12 @@ t('directo: se crea una vez y es idempotente (no duplica el par)', () => {
     assert.strictEqual(db.prepare("SELECT COUNT(*) n FROM canales_internos WHERE tipo='directo'").get().n, 1);
 });
 
-t('directo: no se puede chatear con uno mismo', () => {
+test('directo: no se puede chatear con uno mismo', () => {
     const o = {}; M.directoPost({ _body: { id_usuario: uid.ana } }, null, ctxDe('ana', o));
     assert.strictEqual(o.code, 400);
 });
 
-t('enviar y leer dentro del directo; el no-miembro recibe 403', () => {
+test('enviar y leer dentro del directo; el no-miembro recibe 403', () => {
     const oc = {}; M.directoPost({ _body: { id_usuario: uid.beto } }, null, ctxDe('ana', oc));
     const canal = oc.d.id_canal;
     const oe = {}; M.enviarPost({ _body: { cuerpo: 'hola beto' } }, null, ctxDe('ana', oe), { params: [String(canal)] });
@@ -52,7 +55,7 @@ t('enviar y leer dentro del directo; el no-miembro recibe 403', () => {
     assert.strictEqual(o403b.code, 403);
 });
 
-t('no-leídos: beto ve 1, y al abrir el canal baja a 0', () => {
+test('no-leídos: beto ve 1, y al abrir el canal baja a 0', () => {
     const on = {}; M.noLeidosGet(null, null, ctxDe('beto', on));
     assert.strictEqual(on.d.total, 1, 'el mensaje de ana cuenta como no leído para beto');
     // ana no se cuenta a sí misma
@@ -66,7 +69,7 @@ t('no-leídos: beto ve 1, y al abrir el canal baja a 0', () => {
     assert.strictEqual(on2.d.total, 0, 'tras abrir, ya no hay no-leídos');
 });
 
-t('grupo: se crea con varios miembros y todos pueden escribir/leer', () => {
+test('grupo: se crea con varios miembros y todos pueden escribir/leer', () => {
     const og = {}; M.grupoPost({ _body: { nombre: 'Equipo', miembros: [uid.beto, uid.caro] } }, null, ctxDe('ana', og));
     assert(og.d.ok);
     const canal = og.d.id_canal;
@@ -76,19 +79,15 @@ t('grupo: se crea con varios miembros y todos pueden escribir/leer', () => {
     assert(om.d.some(m => /hola equipo/.test(m.cuerpo)));
 });
 
-t('grupo sin integrantes reales → rechazado', () => {
+test('grupo sin integrantes reales → rechazado', () => {
     const o = {}; M.grupoPost({ _body: { nombre: 'Solo yo', miembros: [] } }, null, ctxDe('ana', o));
     assert.strictEqual(o.code, 400);
 });
 
-t('canales: ana ve su directo con beto y el grupo, con nombre resuelto', () => {
+test('canales: ana ve su directo con beto y el grupo, con nombre resuelto', () => {
     const o = {}; M.canalesGet(null, null, ctxDe('ana', o));
     const tipos = o.d.map(c => c.tipo).sort();
     assert.deepStrictEqual(tipos, ['directo', 'grupo']);
     const directo = o.d.find(c => c.tipo === 'directo');
     assert.strictEqual(directo.nombre, 'BETO', 'el directo muestra el nombre del otro');
 });
-
-console.log('\n' + ok + '/7 OK — mensajería interna: directo dedupe + grupo + membresía + no-leídos.');
-try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
-process.exit(ok === 7 ? 0 : 1);

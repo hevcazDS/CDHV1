@@ -11,12 +11,19 @@
 // entrypoint, no exporta nada) en un puerto fijo de prueba y se le pega con
 // fetch real — es la única forma de probar requireSession/cookies/Zod tal
 // cual los ve un cliente real.
+//
+// dashboard/server.js nunca cierra su listener (es un entrypoint real), así
+// que el proceso del test runner se queda vivo tras la última aserción —
+// por eso el script npm de este archivo corre con `--test-force-exit`.
 'use strict';
 process.env.DB_PATH = ':memory:';
 process.env.DASHBOARD_PORT = process.env.DASHBOARD_PORT || '39091';
 process.env.DASHBOARD_USER = 'test_admin';
 process.env.DASHBOARD_PASS = 'test_pass_' + Math.random().toString(36).slice(2);
 const BASE = `http://127.0.0.1:${process.env.DASHBOARD_PORT}`;
+
+const { test, before } = require('node:test');
+const assert = require('node:assert/strict');
 
 const db = require('../bot/db_connection');
 
@@ -25,6 +32,7 @@ const db = require('../bot/db_connection');
 // por su cuenta al cargar.
 db.exec(`
 CREATE TABLE pedidos (id_pedido INTEGER PRIMARY KEY AUTOINCREMENT, folio TEXT, cliente TEXT,
+    id_cliente INTEGER, a_credito INTEGER DEFAULT 0, cobrado_por TEXT,
     estatus TEXT NOT NULL DEFAULT 'generado', ciudad_envio TEXT, email_notificado INTEGER DEFAULT 0,
     metodo_entrega TEXT, metodo_pago TEXT, repartidor_nombre TEXT, repartidor_telefono TEXT,
     creado_en TEXT DEFAULT (datetime('now','localtime')));
@@ -49,93 +57,131 @@ db.prepare("INSERT INTO pedidos (id_pedido, folio, cliente, estatus) VALUES (1, 
 // Cupón de prueba para /api/cupon/validar
 db.prepare("INSERT INTO promociones (codigo, tipo, valor, usos_max, usos_actual, activa) VALUES ('TEST10', 'porcentaje', 10, 1, 0, 1)").run();
 
-let pass = 0, fail = 0;
-const ok = (c, m) => { if (c) { pass++; console.log('  ✅ ' + m); } else { fail++; console.log('  ❌ ' + m); } };
+let authHeaders;
 
-async function main() {
+before(async () => {
     require('../dashboard/server'); // entrypoint — no exporta nada, llama server.listen() al cargar
     await new Promise(r => setTimeout(r, 400)); // tiempo a que el listen() async termine
+});
 
-    console.log('\nSuite: dashboard/server.js — contrato HTTP\n');
-
-    // ── 1. Sin sesión: /api/pedidos debe rechazar ───────────────────────
+// ── 1. Sin sesión: /api/pedidos debe rechazar ───────────────────────
+test('GET /api/pedidos sin cookie de sesión -> 401', async () => {
     const sinSesion = await fetch(BASE + '/api/pedidos');
-    ok(sinSesion.status === 401, 'GET /api/pedidos sin cookie de sesión -> 401');
+    assert.strictEqual(sinSesion.status, 401);
+});
 
-    // ── 2. Login ─────────────────────────────────────────────────────────
+// ── 2. Login ─────────────────────────────────────────────────────────
+test('POST /api/login con password incorrecto -> 401', async () => {
     const loginMalo = await fetch(BASE + '/api/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: process.env.DASHBOARD_USER, password: 'incorrecta' }),
     });
-    ok(loginMalo.status === 401, 'POST /api/login con password incorrecto -> 401');
+    assert.strictEqual(loginMalo.status, 401);
+});
 
+test('POST /api/login con credenciales correctas -> 200 y cookie jc_session', async () => {
     const loginBueno = await fetch(BASE + '/api/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: process.env.DASHBOARD_USER, password: process.env.DASHBOARD_PASS }),
     });
-    ok(loginBueno.status === 200, 'POST /api/login con credenciales correctas -> 200');
+    assert.strictEqual(loginBueno.status, 200);
     const setCookie = loginBueno.headers.get('set-cookie') || '';
     const cookie = setCookie.split(';')[0]; // "jc_session=<token>"
-    ok(cookie.startsWith('jc_session='), 'login devuelve cookie jc_session');
-    const authHeaders = { Cookie: cookie, 'Content-Type': 'application/json' };
+    assert.ok(cookie.startsWith('jc_session='), 'login devuelve cookie jc_session');
+    authHeaders = { Cookie: cookie, 'Content-Type': 'application/json' };
+});
 
-    // ── 3. /api/me con la cookie ya autenticado ─────────────────────────
+// ── 3. /api/me con la cookie ya autenticado ─────────────────────────
+test('GET /api/me refleja el usuario logueado', async () => {
     const me = await fetch(BASE + '/api/me', { headers: authHeaders });
     const meBody = await me.json();
-    ok(me.status === 200 && meBody.username === process.env.DASHBOARD_USER, 'GET /api/me refleja el usuario logueado');
+    assert.strictEqual(me.status, 200);
+    assert.strictEqual(meBody.username, process.env.DASHBOARD_USER);
+});
 
-    // ── 4. /api/pedidos con sesión ───────────────────────────────────────
+// ── 4. /api/pedidos con sesión ───────────────────────────────────────
+test('GET /api/pedidos con sesión devuelve el pedido de prueba', async () => {
     const pedidos = await fetch(BASE + '/api/pedidos', { headers: authHeaders });
     const pedidosBody = await pedidos.json();
-    ok(pedidos.status === 200 && Array.isArray(pedidosBody) && pedidosBody.length === 1, 'GET /api/pedidos con sesión devuelve el pedido de prueba');
+    assert.strictEqual(pedidos.status, 200);
+    assert.ok(Array.isArray(pedidosBody) && pedidosBody.length === 1);
+});
 
-    // ── 5. /health no requiere sesión ────────────────────────────────────
+// ── 5. /health no requiere sesión ────────────────────────────────────
+test('GET /health no requiere sesión', async () => {
     const health = await fetch(BASE + '/health');
-    ok(health.status === 200, 'GET /health no requiere sesión');
+    assert.strictEqual(health.status, 200);
+});
 
-    // ── 5b. /api/bot/qr — lo publica bot/index.js en `configuracion`. EXIGE
-    // sesión (contrato nuevo para despliegue en servidor): quien vea el QR
-    // puede vincular el WhatsApp del negocio a su teléfono, así que sin
-    // cookie debe responder 401. Flujo: login primero, QR después (App.jsx).
+// ── 5b. /api/bot/qr — lo publica bot/index.js en `configuracion`. EXIGE
+// sesión (contrato nuevo para despliegue en servidor): quien vea el QR
+// puede vincular el WhatsApp del negocio a su teléfono, así que sin
+// cookie debe responder 401. Flujo: login primero, QR después (App.jsx).
+test('GET /api/bot/qr sin sesión -> 401 (ya no es pública)', async () => {
     const qrSinSesion = await fetch(BASE + '/api/bot/qr');
-    ok(qrSinSesion.status === 401, 'GET /api/bot/qr sin sesión -> 401 (ya no es pública)');
+    assert.strictEqual(qrSinSesion.status, 401);
+});
+
+test('GET /api/bot/qr con sesión y sin QR pendiente devuelve null', async () => {
     const qrVacio = await (await fetch(BASE + '/api/bot/qr', { headers: authHeaders })).json();
-    ok(qrVacio.qr === null, 'GET /api/bot/qr con sesión y sin QR pendiente devuelve null');
+    assert.strictEqual(qrVacio.qr, null);
+});
+
+test('GET /api/bot/qr con sesión refleja el QR publicado por el bot', async () => {
     db.prepare("INSERT INTO configuracion (clave, valor) VALUES ('whatsapp_qr', 'dato-qr-de-prueba') ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor").run();
     const qrConDato = await (await fetch(BASE + '/api/bot/qr', { headers: authHeaders })).json();
-    ok(qrConDato.qr === 'dato-qr-de-prueba', 'GET /api/bot/qr con sesión refleja el QR publicado por el bot');
+    assert.strictEqual(qrConDato.qr, 'dato-qr-de-prueba');
+});
 
-    // ── 6. /api/stats agrega correctamente ───────────────────────────────
+// ── 6. /api/stats agrega correctamente ───────────────────────────────
+test('GET /api/stats cuenta el pedido de prueba', async () => {
     const stats = await fetch(BASE + '/api/stats', { headers: authHeaders });
     const statsBody = await stats.json();
-    ok(stats.status === 200 && statsBody.pedidos_total === 1, 'GET /api/stats cuenta el pedido de prueba');
-    ok(statsBody.emails_error === 0, 'GET /api/stats reporta 0 emails con error cuando no hay ninguno');
+    assert.strictEqual(stats.status, 200);
+    assert.strictEqual(statsBody.pedidos_total, 1);
+});
+
+test('GET /api/stats reporta 0 emails con error cuando no hay ninguno', async () => {
+    const stats = await fetch(BASE + '/api/stats', { headers: authHeaders });
+    const statsBody = await stats.json();
+    assert.strictEqual(statsBody.emails_error, 0);
+});
+
+test('GET /api/stats refleja un email con estatus=error (antes invisible en el dashboard)', async () => {
     db.prepare("INSERT INTO cola_emails (estatus) VALUES ('error')").run();
     const statsConError = await (await fetch(BASE + '/api/stats', { headers: authHeaders })).json();
-    ok(statsConError.emails_error === 1, 'GET /api/stats refleja un email con estatus=error (antes invisible en el dashboard)');
+    assert.strictEqual(statsConError.emails_error, 1);
+});
 
-    // ── 7. Cupón: validar (redimir se BORRÓ — el POS redime inline en /api/pos/venta) ──
+// ── 7. Cupón: validar (redimir se BORRÓ — el POS redime inline en /api/pos/venta) ──
+test('GET /api/cupon/validar reconoce el cupón activo', async () => {
     const cuponValida = await fetch(BASE + '/api/cupon/validar?codigo=TEST10', { headers: authHeaders });
     const cuponVBody = await cuponValida.json();
-    ok(cuponValida.status === 200 && cuponVBody.ok === true, 'GET /api/cupon/validar reconoce el cupón activo');
-    const cuponInvalido = await fetch(BASE + '/api/cupon/validar?codigo=NOEXISTE', { headers: authHeaders });
-    ok((await cuponInvalido.json()).ok === false, 'GET /api/cupon/validar rechaza código inexistente');
+    assert.strictEqual(cuponValida.status, 200);
+    assert.strictEqual(cuponVBody.ok, true);
+});
 
-    // ── 8. Body malformado no tira el proceso (fase 1) ───────────────────
+test('GET /api/cupon/validar rechaza código inexistente', async () => {
+    const cuponInvalido = await fetch(BASE + '/api/cupon/validar?codigo=NOEXISTE', { headers: authHeaders });
+    assert.strictEqual((await cuponInvalido.json()).ok, false);
+});
+
+// ── 8. Body malformado no tira el proceso (fase 1) ───────────────────
+test('POST con JSON malformado responde error en vez de matar el proceso', async () => {
     const malformado = await fetch(BASE + '/api/tono', {
         method: 'POST', headers: authHeaders, body: '{esto no es json',
     });
-    ok(malformado.status >= 400, 'POST con JSON malformado responde error en vez de matar el proceso');
-    const sigueViva = await fetch(BASE + '/health');
-    ok(sigueViva.status === 200, 'el servidor sigue respondiendo después del body malformado');
+    assert.ok(malformado.status >= 400);
+});
 
-    // ── 9. Logout invalida la sesión ──────────────────────────────────────
+test('el servidor sigue respondiendo después del body malformado', async () => {
+    const sigueViva = await fetch(BASE + '/health');
+    assert.strictEqual(sigueViva.status, 200);
+});
+
+// ── 9. Logout invalida la sesión ──────────────────────────────────────
+test('tras logout, la misma cookie ya no es válida', async () => {
     await fetch(BASE + '/api/logout', { method: 'POST', headers: authHeaders });
     const trasLogout = await fetch(BASE + '/api/pedidos', { headers: authHeaders });
-    ok(trasLogout.status === 401, 'tras logout, la misma cookie ya no es válida');
-
-    console.log(`\n${pass}/${pass + fail} pruebas pasaron\n`);
-    process.exit(fail > 0 ? 1 : 0);
-}
-
-main().catch(e => { console.error('Error inesperado en la suite:', e); process.exit(1); });
+    assert.strictEqual(trasLogout.status, 401);
+});

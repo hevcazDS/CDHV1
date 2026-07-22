@@ -2,9 +2,10 @@
 // tests/test_citas_gestion.js — P0-b: reagendar / cancelar cita por el bot
 // (self-service, deja de mandar todo a "escribe asesor"). Corre el flow real
 // contra el fixture con giro de servicio (citas_activo ON).
-//   node tests/test_citas_gestion.js
+//   node --test tests/test_citas_gestion.js
 
-const assert = require('assert');
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
 const { crearFixture } = require('./fixture_min');
 process.env.DB_PATH = crearFixture();
 if (!process.env.CHROME_PATH) process.env.CHROME_PATH = '/usr/bin/true';
@@ -18,9 +19,6 @@ conf.invalidarCache();
 
 const gestion = require('../bot/flows/citasGestionFlow');
 const sm = require('../bot/sessionManager');
-let ok = 0;
-const pruebas = [];
-const T = (n, fn) => pruebas.push([n, fn]);
 
 const TEL = '5215550800';
 const U = TEL + '@c.us';
@@ -32,7 +30,7 @@ const nuevaCita = () => {
 };
 const cx = (action) => ({ userId: U, action, step: sm.getSession(U).paso_actual, data: sm.getSession(U).data || {}, tel: TEL, raw: action });
 
-T('esIntencionGestion detecta cancelar/cambiar/reagendar Y consultar cita', () => {
+test('esIntencionGestion detecta cancelar/cambiar/reagendar Y consultar cita', () => {
     assert(gestion.esIntencionGestion('quiero cancelar mi cita'));
     assert(gestion.esIntencionGestion('puedo cambiar la cita?'));
     assert(gestion.esIntencionGestion('reagendar cita'));
@@ -42,7 +40,7 @@ T('esIntencionGestion detecta cancelar/cambiar/reagendar Y consultar cita', () =
     assert(!gestion.esIntencionGestion('quiero un corte'));
 });
 
-T('sin cita futura → mensaje claro, vuelve a MENU', () => {
+test('sin cita futura → mensaje claro, vuelve a MENU', () => {
     db.prepare("DELETE FROM citas WHERE telefono=?").run(TEL);
     sm.clearSession(U);
     const r = gestion.iniciar(U, {}, TEL);
@@ -50,7 +48,7 @@ T('sin cita futura → mensaje claro, vuelve a MENU', () => {
     assert.strictEqual(sm.getSession(U).paso_actual, 'MENU');
 });
 
-T('iniciar con cita → muestra la cita y entra a CITA_GESTION', () => {
+test('iniciar con cita → muestra la cita y entra a CITA_GESTION', () => {
     nuevaCita();
     sm.clearSession(U);
     const r = gestion.iniciar(U, {}, TEL);
@@ -58,7 +56,7 @@ T('iniciar con cita → muestra la cita y entra a CITA_GESTION', () => {
     assert.strictEqual(sm.getSession(U).paso_actual, 'CITA_GESTION');
 });
 
-T('cancelar (opción 2) → estatus cancelada + log', async () => {
+test('cancelar (opción 2) → estatus cancelada + log', async () => {
     const id = nuevaCita();
     sm.clearSession(U); gestion.iniciar(U, {}, TEL);
     const r = await gestion.handle(cx('2'));
@@ -68,7 +66,7 @@ T('cancelar (opción 2) → estatus cancelada + log', async () => {
     assert.strictEqual(sm.getSession(U).paso_actual, 'MENU');
 });
 
-T('reagendar (1 → día → hora) → actualiza fecha/hora + log, no duplica cita', async () => {
+test('reagendar (1 → día → hora) → actualiza fecha/hora + log, no duplica cita', async () => {
     const id = nuevaCita();
     const citasAntes = db.prepare('SELECT COUNT(*) n FROM citas WHERE telefono=?').get(TEL).n;
     sm.clearSession(U); gestion.iniciar(U, {}, TEL);
@@ -85,7 +83,7 @@ T('reagendar (1 → día → hora) → actualiza fecha/hora + log, no duplica ci
     assert(db.prepare("SELECT 1 FROM log_eventos WHERE tipo_evento='cita_reagendada'").get());
 });
 
-T('citas_activo OFF → el flow no opera (fail-closed a MENU)', async () => {
+test('citas_activo OFF → el flow no opera (fail-closed a MENU)', async () => {
     db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES ('citas_activo','0')").run();
     conf.invalidarCache();
     nuevaCita(); sm.clearSession(U);
@@ -96,9 +94,6 @@ T('citas_activo OFF → el flow no opera (fail-closed a MENU)', async () => {
     conf.invalidarCache();
 });
 
-(async () => {
-    for (const [n, fn] of pruebas) { await fn(); ok++; console.log('✅ ' + n); }
-    console.log('\n' + ok + '/6 OK — reagendar/cancelar cita por el bot (self-service).');
+after(() => {
     try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
-    process.exit(0);
-})().catch(e => { console.error('❌', e); process.exit(1); });
+});

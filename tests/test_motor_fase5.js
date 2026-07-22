@@ -3,9 +3,10 @@
 // la guardia de re-lint que usa PUT /api/prime/motor/nodo (un cambio de params que
 // invalidaría el grafo NO se persiste). No monta el server HTTP; prueba la lógica
 // que los handlers envuelven (seeder + linter), estilo contract test.
-//   node tests/test_motor_fase5.js
+//   node --test tests/test_motor_fase5.js
 
-const assert = require('assert');
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
 const { crearFixture } = require('./fixture_min');
 process.env.DB_PATH = crearFixture();
 if (!process.env.CHROME_PATH) process.env.CHROME_PATH = '/usr/bin/true';
@@ -14,10 +15,8 @@ const db = require('../bot/db_connection');
 const seeder = require('../bot/flows/motor/seeder');
 const grafo = require('../bot/flows/motor/grafo');
 const linter = require('../bot/flows/motor/linter');
-let ok = 0;
-const t = (n, fn) => { fn(); ok++; console.log('✅ ' + n); };
 
-t('sembrarGiro: barbería siembra su delta activo+válido', () => {
+test('sembrarGiro: barbería siembra su delta activo+válido', () => {
     const r = seeder.sembrarGiro(db, 'barberia');
     assert.strictEqual(r.valido, 1, 'errs: ' + JSON.stringify(r.errs));
     grafo.invalidar();
@@ -26,19 +25,19 @@ t('sembrarGiro: barbería siembra su delta activo+válido', () => {
     assert(g.nodos.CITA_SERVICIO && !g.nodos.WIZARD_Q1, 'barbería tiene CITA_* y no WIZARD');
 });
 
-t('sembrarGiro: un giro sin plantilla propia cae a la base JC', () => {
+test('sembrarGiro: un giro sin plantilla propia cae a la base JC', () => {
     const r = seeder.sembrarGiro(db, 'abarrotes');   // mapeado a jugueteria
     assert.strictEqual(r.valido, 1);
     grafo.invalidar();
     assert(grafo.cargarGrafoActivo().nodos.WIZARD_Q1, 'la base JC sí trae wizard');
 });
 
-t('sembrar activa uno solo: el nuevo grafo desactiva al anterior', () => {
+test('sembrar activa uno solo: el nuevo grafo desactiva al anterior', () => {
     const activos = db.prepare('SELECT COUNT(*) n FROM flujo_grafo WHERE activo=1').get().n;
     assert.strictEqual(activos, 1, 'debe haber exactamente 1 grafo activo');
 });
 
-t('re-lint (guardia del PUT): porcentaje>0 pasa, porcentaje=0 se rechaza', () => {
+test('re-lint (guardia del PUT): porcentaje>0 pasa, porcentaje=0 se rechaza', () => {
     // Grafo mínimo con un cobro de anticipo — la regla anti-"vender gratis".
     const conAnticipo = {
         inicial: 'A',
@@ -54,5 +53,6 @@ t('re-lint (guardia del PUT): porcentaje>0 pasa, porcentaje=0 se rechaza', () =>
     assert(val.errs.some(e => /anticipo sin porcentaje/.test(e)));
 });
 
-console.log('\n' + ok + '/4 OK — Fase 5: siembra por giro + guardia de re-lint.');
-try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+after(() => {
+    try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
+});

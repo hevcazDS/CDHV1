@@ -4,9 +4,10 @@
 //   C2: llegar a un nodo delegado por cable despacha su código real (no mensaje vacío).
 //   C3: no se puede crear una pieza conversación no-delegada con nombre sellado (ASESOR...).
 //   Medias: '*' se ordena al final al guardar; escalada por reintentos nunca es mensaje vacío.
-//   node tests/test_motor_c1c2c3.js
+//   node --test tests/test_motor_c1c2c3.js
 
-const assert = require('assert');
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
 const { crearFixture } = require('./fixture_min');
 process.env.DB_PATH = crearFixture();
 if (!process.env.CHROME_PATH) process.env.CHROME_PATH = '/usr/bin/true';
@@ -19,9 +20,6 @@ const conf = require('../bot/flows/_config');
 const sm = require('../bot/sessionManager');
 const { grafoPut } = require('../dashboard/routes/motorFlujo')._test;
 
-let ok = 0;
-const pruebas = [];
-const t = (n, fn) => pruebas.push([n, fn]);
 const ctx = (out) => ({ db, json: (res, d, code) => { out.d = d; out.code = code || 200; }, readJson: (req, res, cb) => cb(req._body) });
 
 // Grafo: MENU delegado (como la plantilla real de JC) + pieza custom PROMO_X.
@@ -46,21 +44,21 @@ sembrar();
 
 const CX = (U, step, texto) => ({ userId: U, step, action: texto, raw: texto, data: (sm.getSession(U) || {}).data || {}, tel: '5218110009999', message: {} });
 
-t('C1: cable custom kw:promo desde MENU delegado DISPARA', async () => {
+test('C1: cable custom kw:promo desde MENU delegado DISPARA', async () => {
     const U = 'c1@c.us'; sm.clearSession(U);
     const r = await interprete.handle(CX(U, 'MENU', 'quiero la promo'));
     assert(/Promo especial/.test(r), 'debe renderizar la pieza custom, no delegar: ' + r);
     assert.strictEqual(sm.getSession(U).paso_actual, 'PROMO_X');
 });
 
-t("C1: '*' sobre delegado NO cuenta — '1' sigue cayendo a menuFlow byte-idéntico", async () => {
+test("C1: '*' sobre delegado NO cuenta — '1' sigue cayendo a menuFlow byte-idéntico", async () => {
     const U = 'c1b@c.us'; sm.clearSession(U);
     const r = await interprete.handle(CX(U, 'MENU', '1'));
     assert(typeof r === 'string' && r.length > 0 && !/Promo especial/.test(r), 'debe delegar al código: ' + r);
     assert.notStrictEqual(sm.getSession(U).paso_actual, 'PROMO_X');
 });
 
-t('C2: PROMO_X --kw:menu--> MENU delegado despacha su código real (no vacío)', async () => {
+test('C2: PROMO_X --kw:menu--> MENU delegado despacha su código real (no vacío)', async () => {
     const U = 'c2@c.us'; sm.clearSession(U);
     sm.updateSession(U, 'PROMO_X', {});
     const r = await interprete.handle(CX(U, 'PROMO_X', 'ver menu'));
@@ -69,7 +67,7 @@ t('C2: PROMO_X --kw:menu--> MENU delegado despacha su código real (no vacío)',
     assert.notStrictEqual(sm.getSession(U).paso_actual, 'PROMO_X');
 });
 
-t('escalada por 3 reintentos NUNCA es mensaje vacío', async () => {
+test('escalada por 3 reintentos NUNCA es mensaje vacío', async () => {
     const U = 'esc@c.us'; sm.clearSession(U);
     let r;
     for (let i = 0; i < 3; i++) {
@@ -80,25 +78,25 @@ t('escalada por 3 reintentos NUNCA es mensaje vacío', async () => {
     assert(typeof r === 'string' && r.trim().length > 0, 'mensaje de escalada vacío');
 });
 
-t('C3 linter: pieza conversación no-delegada llamada ASESOR/SHOW_CART → error', () => {
+test('C3 linter: pieza conversación no-delegada llamada ASESOR/SHOW_CART → error', () => {
     for (const paso of ['ASESOR', 'SHOW_CART', 'PAGO_METODO']) {
         const g = { inicial: 'MENU', nodos: { MENU: { paso: 'MENU', tipo: 'conversacion' }, [paso]: { paso, tipo: 'conversacion', params: {} } },
             aristas: { MENU: [{ input: '1', destino: paso }] } };
         assert(linter.validar(g).errs.some(e => e.includes(paso)), paso + ' debió rechazarse');
     }
     // delegado o sistema con ese nombre SÍ pasa (así vienen las plantillas)
-    const okG = { inicial: 'MENU', nodos: { MENU: { paso: 'MENU', tipo: 'conversacion' }, ASESOR: { paso: 'ASESOR', tipo: 'conversacion', params: { delegar: true } } },
+    const okG = { inicial: 'MENU', nodos: { MENU: { paso: 'MENU', tipo: 'conversacion', params: { delegar: true } }, ASESOR: { paso: 'ASESOR', tipo: 'conversacion', params: { delegar: true } } },
         aristas: { MENU: [{ input: '1', destino: 'ASESOR' }] } };
     assert.strictEqual(linter.validar(okG).ok, true);
 });
 
-t("C1 linter: cable '*' saliendo de pieza delegada → error", () => {
+test("C1 linter: cable '*' saliendo de pieza delegada → error", () => {
     const g = { inicial: 'MENU', nodos: { MENU: { paso: 'MENU', tipo: 'conversacion', params: { delegar: true } }, X: { paso: 'X', tipo: 'conversacion' } },
         aristas: { MENU: [{ input: '*', destino: 'X' }] } };
     assert(linter.validar(g).errs.some(e => /siempre/.test(e)));
 });
 
-t('C3 grafoPut: crear nodo ASESOR conversación → 400', () => {
+test('C3 grafoPut: crear nodo ASESOR conversación → 400', () => {
     const out = {};
     grafoPut({ _body: { nodos: [
         { paso: 'MENU', tipo: 'conversacion', params: { delegar: true }, es_inicial: 1 },
@@ -108,7 +106,7 @@ t('C3 grafoPut: crear nodo ASESOR conversación → 400', () => {
     assert(String(out.d.errs || out.d.error).includes('ASESOR'));
 });
 
-t("media: al guardar, '*' queda al FINAL aunque se dibuje primero", () => {
+test("media: al guardar, '*' queda al FINAL aunque se dibuje primero", () => {
     const out = {};
     grafoPut({ _body: { nodos: [
         { paso: 'MENU', tipo: 'conversacion', params: { delegar: true }, es_inicial: 1 },
@@ -126,7 +124,7 @@ t("media: al guardar, '*' queda al FINAL aunque se dibuje primero", () => {
     assert.deepStrictEqual(inputs, ['1', '*'], 'el comodín debe quedar al final: ' + inputs);
 });
 
-t('M4: versiones lista + revertir re-activa una versión anterior (con lint)', () => {
+test('M4: versiones lista + revertir re-activa una versión anterior (con lint)', () => {
     const { versionesGet, revertirPost } = require('../dashboard/routes/motorFlujo')._test;
     // guardar OTRA versión limpia encima (v3), para revertir a la v2 del test anterior
     const outG = {};
@@ -153,7 +151,7 @@ t('M4: versiones lista + revertir re-activa una versión anterior (con lint)', (
     assert.strictEqual(out4.code, 400, 'una versión que ya no pasa el linter no se restaura');
 });
 
-t('M2: catálogo de acciones cubre TODO el registro y marca las selladas', () => {
+test('M2: catálogo de acciones cubre TODO el registro y marca las selladas', () => {
     const { ACTIONS, CATALOGO } = require('../bot/flows/motor/actions');
     for (const k of Object.keys(ACTIONS)) assert(CATALOGO[k], 'acción sin metadata en el catálogo: ' + k);
     assert(CATALOGO.cobrar_anticipo.sellada && CATALOGO.escalar.sellada && CATALOGO.grabar_pedido_pickup.sellada);
@@ -167,7 +165,7 @@ t('M2: catálogo de acciones cubre TODO el registro y marca las selladas', () =>
     assert.strictEqual(out.code, 400);
 });
 
-t('M1 frasesPut: acepta clave del grafo activo, rechaza desconocida', () => {
+test('M1 frasesPut: acepta clave del grafo activo, rechaza desconocida', () => {
     const { frasesPut } = require('../dashboard/routes/primeConfig')._test;
     const ctxB = (out) => ({ db, json: (res, d, code) => { out.d = d; out.code = code || 200; }, readBody: (req, cb) => cb(req._rawBody) });
     // el grafo activo (guardado por el test anterior) usa frase_clave 'promo_x'
@@ -180,7 +178,7 @@ t('M1 frasesPut: acepta clave del grafo activo, rechaza desconocida', () => {
     assert.strictEqual(out2.code, 400);
 });
 
-t('simulador: inicio + cable custom + pieza base — sin efectos en BD', () => {
+test('simulador: inicio + cable custom + pieza base — sin efectos en BD', () => {
     const { simularPost } = require('../dashboard/routes/motorFlujo')._test;
     const pedidosAntes = db.prepare('SELECT COUNT(*) n FROM pedidos').get().n;
     const out = {};
@@ -195,7 +193,7 @@ t('simulador: inicio + cable custom + pieza base — sin efectos en BD', () => {
     assert.strictEqual(db.prepare('SELECT COUNT(*) n FROM pedidos').get().n, pedidosAntes, 'el simulador jamás escribe');
 });
 
-t('endurecimiento: tope de piezas, cota de nombre, tope de cables (400 limpio)', () => {
+test('endurecimiento: tope de piezas, cota de nombre, tope de cables (400 limpio)', () => {
     // nombre de paso larguísimo → 400 (cota de longitud, no solo charset)
     const outN = {};
     grafoPut({ _body: { nodos: [
@@ -212,7 +210,7 @@ t('endurecimiento: tope de piezas, cota de nombre, tope de cables (400 limpio)',
     assert(/piezas/.test(outP.d.error));
 });
 
-t('versionesGet: el activo SIEMPRE va en la lista + activo_id', () => {
+test('versionesGet: el activo SIEMPRE va en la lista + activo_id', () => {
     const { versionesGet } = require('../dashboard/routes/motorFlujo')._test;
     const out = {};
     versionesGet(null, null, ctx(out));
@@ -220,9 +218,6 @@ t('versionesGet: el activo SIEMPRE va en la lista + activo_id', () => {
     assert(out.d.versiones.some(v => v.id === out.d.activo_id && v.activo), 'el activo debe estar en la lista y marcado');
 });
 
-(async () => {
-    for (const [n, fn] of pruebas) { await fn(); ok++; console.log('✅ ' + n); }
-    console.log('\n' + ok + '/14 OK — C1/C2/C3 + M1/M2/M4 + medias + simulador + endurecimiento.');
+after(() => {
     try { require('fs').rmSync(process.env.DB_PATH, { force: true }); } catch (_) {}
-    process.exit(0);
-})().catch(e => { console.error('❌', e); process.exit(1); });
+});
