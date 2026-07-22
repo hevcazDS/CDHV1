@@ -16,6 +16,7 @@ Windows quedan `start.bat`/`stop.bat` para dev/revisión local.
 
 ## Instalar / clonar una instancia
 
+**Ruta PM2** (dev/revisión local, Windows con `start.bat`/`stop.bat`):
 ```bash
 npm ci                      # instala según package-lock (preferido sobre npm install)
 cp .env.example .env         # llenar valores reales (el bot sale si falta DB_PATH/CHROME_PATH)
@@ -23,6 +24,19 @@ node scripts/migrate.js      # aplica migrations/*.sql (idempotente)
 npm run build:dashboard-ui   # construye dashboard-ui/dist (server.js lo sirve)
 npm run start:all            # bot + dashboard vía pm2
 ```
+
+**Ruta Docker** (objetivo real de servidor — así corre la instancia de
+producción, ver `docker-compose.yml`/`Dockerfile`, `pm2-runtime
+ecosystem.docker.config.js` dentro del contenedor):
+```bash
+cp .env.example .env         # llenar valores reales
+docker compose build         # multi-stage: build de dashboard-ui/dist + deps
+docker compose up -d         # las migraciones corren solas al arrancar
+docker compose ps            # debe verse "healthy" en ~30-60s
+curl -s http://127.0.0.1:3001/health
+```
+Para retomar tras un `git pull` con cambios nuevos: repetir `build` + `up -d`
+(las migraciones son idempotentes, no hace falta correrlas aparte).
 
 `package.json install:all` = `npm ci` + build UI + instala `desktop/`. Base de
 datos fresca: `scripts/instalarBaseDeDatos.js` (usa `db/schema.sql` — recuerda

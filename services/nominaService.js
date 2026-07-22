@@ -166,25 +166,40 @@ function calcular(desde, hasta) {
 }
 
 // Marca pagada la nómina del periodo y (si contabilidad activa) asienta el
-// gasto completo con sus contrapartidas reales: al banco solo sale el NETO; las
-// retenciones (ISR + IMSS obrero) quedan como pasivo por pagar (211); y el
-// IMSS PATRONAL es gasto adicional del negocio que se debe al IMSS (210).
+// gasto completo con sus contrapartidas reales: el NETO sale de la cuenta que
+// corresponda al método de pago de CADA empleado (mismo criterio que
+// _cuentaCobro() en contabilidadService.js: 'efectivo' -> Caja 101, cualquier
+// otro método -> Bancos 102); las retenciones (ISR + IMSS obrero) quedan como
+// pasivo por pagar (211); y el IMSS PATRONAL es gasto adicional del negocio
+// que se debe al IMSS (210).
 //   Debe 601 = brutos + IMSS patronal
-//   Haber 102 = netos ; Haber 211 = retenciones ; Haber 210 = IMSS patronal
-// (cuadra; para nómina sin impuestos queda 601/102 por el bruto, como antes).
-function pagar(desde, hasta) {
-    const filas = db.prepare("SELECT * FROM nominas WHERE desde=? AND hasta=? AND estatus='calculada'").all(desde, hasta);
+//   Haber 101/102 = netos (según metodo_pago) ; Haber 211 = retenciones ; Haber 210 = IMSS patronal
+// (cuadra; para nómina sin impuestos queda 601/101-102 por el bruto, como antes).
+function pagar(desde, hasta, usuario) {
+    const filas = db.prepare(`
+        SELECT n.*, e.metodo_pago
+        FROM nominas n JOIN empleados e ON e.id = n.id_empleado
+        WHERE n.desde=? AND n.hasta=? AND n.estatus='calculada'
+    `).all(desde, hasta);
     if (!filas.length) return { pagadas: 0, total: 0 };
     const bruto = _r2(filas.reduce((s, f) => s + (f.bruto || 0), 0));
     const retenciones = _r2(filas.reduce((s, f) => s + (f.isr || 0) + (f.imss || 0), 0));
     const patronal = _r2(filas.reduce((s, f) => s + (f.imss_patronal || 0), 0));
-    const neto = _r2(bruto - retenciones);
-    db.prepare("UPDATE nominas SET estatus='pagada', pagada_en=datetime('now','localtime') WHERE desde=? AND hasta=? AND estatus='calculada'")
-      .run(desde, hasta);
+    db.prepare("UPDATE nominas SET estatus='pagada', pagada_en=datetime('now','localtime'), pagada_por=? WHERE desde=? AND hasta=? AND estatus='calculada'")
+      .run(usuario || null, desde, hasta);
     try {
         const conta = require('./contabilidadService');
         if (conta.registrarAsiento && conta.activo()) {
-            const partidas = [{ cuenta: '601', debe: _r2(bruto + patronal) }, { cuenta: '102', haber: neto }];
+            const netoPorCuenta = {};
+            for (const f of filas) {
+                const cuenta = f.metodo_pago === 'efectivo' ? '101' : '102';
+                const netoEmpleado = _r2((f.bruto || 0) - (f.isr || 0) - (f.imss || 0));
+                netoPorCuenta[cuenta] = _r2((netoPorCuenta[cuenta] || 0) + netoEmpleado);
+            }
+            const partidas = [{ cuenta: '601', debe: _r2(bruto + patronal) }];
+            for (const cuenta of ['101', '102']) {
+                if (netoPorCuenta[cuenta] > 0) partidas.push({ cuenta, haber: netoPorCuenta[cuenta] });
+            }
             if (retenciones > 0) partidas.push({ cuenta: '211', haber: retenciones });
             if (patronal > 0) partidas.push({ cuenta: '210', haber: patronal });
             conta.registrarAsiento({

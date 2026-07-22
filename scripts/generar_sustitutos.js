@@ -32,10 +32,14 @@ function calcularScore(base, cand) {
     const ct = new Set((cand.tags || '').toLowerCase().split(',').map(t => t.trim()).filter(t => t.length > 3));
     const comunes = [...bt].filter(t => ct.has(t)).length;
     score += Math.min(comunes, 3);
-    // Precio muy similar (±10%)
-    const diff = Math.abs(base.price - cand.price) / base.price;
-    if (diff <= 0.10)      score += 2;
-    else if (diff <= 0.20) score += 1;
+    // Precio muy similar (±10%) — si el producto base tiene price=0 (SKU de
+    // servicio/bundle sin precio propio) la división da NaN; se omite este
+    // criterio y el producto igual puntúa por los demás (categoría/marca/etc.).
+    if (base.price > 0) {
+        const diff = Math.abs(base.price - cand.price) / base.price;
+        if (diff <= 0.10)      score += 2;
+        else if (diff <= 0.20) score += 1;
+    }
 
     return score;
 }

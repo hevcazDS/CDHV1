@@ -660,6 +660,12 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
             return `${formatProducts(products)}\n\nElige un número para ver el producto.`;
         }
         if (action === '4') {
+            // Desde OFERTAS el texto promete "🏠 Volver al menú" (no "buscar otro")
+            // — honrar eso con el menú principal real en vez de mandar a SEARCHING.
+            if (data.source === 'oferta') {
+                sessionManager.updateSession(userId, S.MENU, {});
+                return menuPrincipal(tel);
+            }
             sessionManager.updateSession(userId, S.SEARCHING, { ...data, viewing:undefined });
             return `🔍 ¿Qué ${vocab().item} buscas?`;
         }
@@ -674,21 +680,20 @@ const hayMatchReal = !isFallback && results.some(p => p.score >= 13);
     // ── SHOW_CART ────────────────────────────────────────
 
     if (step === S.ADD_MORE) {
-        if (action === '1' || action.includes('agregar') || action.includes('otro')) {
+        // El menú previo promete 1=Pagar ahora, 2=Seguir comprando, 3=Ver carrito
+        // — antes "2" caía en una confirmación de compra falsa (ultimoPedido
+        // nunca se define en el repo). Ahora "pagar"/"ver carrito" mandan al
+        // flow real (SHOW_CART, cartFlow.js), que sí sabe cobrar de verdad.
+        if (action === '2' || action.includes('seguir') || action.includes('otro') || action.includes('buscar')) {
             sessionManager.updateSession(userId, S.SEARCHING, { carrito: data.carrito || [] });
             return `🔍 ¿Qué otro ${vocab().item} buscas?`;
         }
-        if (action === '2' || action.includes('final') || action.includes('listo') || action.includes('no')) {
-            const ped = data.ultimoPedido || {};
-            sessionManager.clearSession(userId);
-            return (t('gracias_cierre', { folio: ped.folio || 'N/A' }) ||
-                `🎉 *¡Gracias por tu compra en Julio Cepeda Jugueterías!*\n\n` +
-                `📋 Folio: *${ped.folio || 'N/A'}*\n\n` +
-                `Te avisamos por aquí cuando confirmemos tu pago. 📲\n\n` +
-                `¡Hasta pronto! 🧸`
-            );
+        if (action === '1' || action === '3' || action.includes('pagar') || action.includes('carrito')) {
+            const carrito = data.carrito || [];
+            sessionManager.updateSession(userId, S.SHOW_CART, { ...data, carrito });
+            return mostrarCarrito(carrito);
         }
-        return `Responde con 1 _(agregar otro)_ o 2 _(finalizar)_.`;
+        return `Responde con 1 _(pagar ahora)_, 2 _(seguir comprando)_ o 3 _(ver carrito)_.`;
     }
 
     // ── REFERIDOS ─────────────────────────────────────────

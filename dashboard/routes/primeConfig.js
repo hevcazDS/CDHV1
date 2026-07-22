@@ -248,6 +248,10 @@ function envioPut(req, res, ctx, { params }) {
             if (ped) {
                 const nuevoTotal = (ped.subtotal || 0) - (ped.descuento || 0) + costo;
                 db.prepare("UPDATE pedidos SET total=?, actualizado_en=datetime('now','localtime') WHERE id_pedido=?").run(nuevoTotal, idPedido);
+                // El link de pago (y por tanto corte de caja/asientoVenta, que
+                // leen links_pago.monto) debe reflejar el total corregido, no
+                // solo pedidos.total — si no, se desincroniza (ver pos.js/erpContabilidad.js).
+                db.prepare("UPDATE links_pago SET monto=? WHERE id_pedido=? AND estatus IN ('generado','pagado')").run(nuevoTotal, idPedido);
             }
             return json(res, { ok: true, id_pedido: idPedido, costo_envio: costo });
         } catch (e) { return json(res, { ok: false, error: e.message }, 500); }

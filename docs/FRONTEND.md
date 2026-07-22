@@ -69,10 +69,13 @@ Config: `Modulos`, `Prime`.
 
 `Prime.jsx` es un orquestador delgado que monta un componente por pestaña desde
 `pages/prime/`: `GeneralTab`, `SucursalesTab`, `InventarioTab`, `CatalogoTab`,
-`UsuariosTab`, `DatosLLMTab`, `FiltrosTab`, `MotorTab`+`MotorCanvas` (lienzo
-React Flow del motor de flujo), `BotEditorTab`, `VariantesModal`,
+`UsuariosTab`, `DatosLLMTab`, `FiltrosTab`, `DemoTab`, `MotorTab`+`MotorCanvas`
+(lienzo React Flow del motor de flujo), `BotEditorTab`, `VariantesModal`,
 `productoCampos.jsx` (campos compartidos). Cada tab monta solo cuando está
 activo (`{TabActivo && <TabActivo/>}`) → sus queries disparan al abrir.
+`GeneralTab.jsx` a su vez delega 8 widgets ya extraídos a
+`pages/prime/general/*.jsx` (`ZonasComisiones`, `RegimenFiscal`, `PacConfig`,
+`PasarelaConfig`, `ZonaHoraria`, `ZonaPeligro`, `CifradoBackup`, `LinkPagoBase`).
 Subcarpetas `pages/almacen/`, `pages/compras/`, `pages/erp/`, `pages/inicio/`
 alojan los tabs de esas páginas-módulo.
 

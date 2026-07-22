@@ -132,8 +132,8 @@ gestiona prime. Prime no puede borrarse a sí mismo ni al último prime.
 `scripts/migrate.js` + `migrations/*.sql` + tabla-libro `schema_migrations`:
 runner idempotente (tolera `duplicate column name`/`already exists`). **Es la
 fuente de verdad del esquema** — por encima de `db/schema.sql`, que ha
-drifteado respecto a producción. Hay 84 migraciones a la fecha
-(`0001`–`0084`). Regla vigente: toda columna `NOT NULL` nueva debe traer
+drifteado respecto a producción. Hay 87 migraciones a la fecha
+(`0001`–`0087`). Regla vigente: toda columna `NOT NULL` nueva debe traer
 `DEFAULT` o `UPDATE` de backfill en la misma migración versionada, y
 espejarse a mano en `db/schema.sql`. Ver [BASE_DE_DATOS.md](BASE_DE_DATOS.md).
 

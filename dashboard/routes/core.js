@@ -5,7 +5,11 @@
 //   - login/logout/me caen al gate global (están en la whitelist pública de
 //     server.js, por eso se alcanzan SIN sesión; la lógica de sesión vive en
 //     el handler).
-//   - buscar/pedidos/guias/stats → gate global (cualquier sesión).
+//   - buscar/guias → gate global (cualquier sesión).
+//   - pedidos → area:'operacion' (mismo gate que clientes: un especialista
+//     de área rango-1 como almacén/rh no tiene por qué leer pedidos/clientes).
+//   - stats → areas:['operacion','finanzas'] (operador/usuario Y contabilidad
+//     lo consumen de verdad en su Inicio; almacén/compras/rh no lo usan hoy).
 //   - clientes y todo /api/bot/* → area:'operacion' (defensa en profundidad;
 //     el widget del bot ya se oculta para no-operacion en el front).
 // Sin opts.prefijo: agrupa muchos prefijos distintos.
@@ -325,10 +329,10 @@ const RUTAS = [
     { metodo: 'POST', path: '/api/login',                  handler: login },
     { metodo: 'POST', path: '/api/logout',                 handler: logout },
     { metodo: 'GET',  path: '/api/me',                     handler: me },
-    { metodo: 'GET',  path: '/api/pedidos',                handler: pedidos },
+    { metodo: 'GET',  path: '/api/pedidos',                area: 'operacion', handler: pedidos },
     { metodo: 'GET',  path: '/api/clientes',               area: 'operacion', handler: clientes },
     { metodo: 'GET',  path: '/api/guias',                  roles: ['gerente'], handler: guias },
-    { metodo: 'GET',  path: '/api/stats',                  handler: stats },
+    { metodo: 'GET',  path: '/api/stats',                  areas: ['operacion', 'finanzas'], handler: stats },
     { metodo: 'GET',  path: '/api/bot/status',             area: 'operacion', handler: botStatus },
     { metodo: 'GET',  path: '/api/bot/status-history',     area: 'operacion', handler: botStatusHistory },
     { metodo: 'GET',  path: '/api/bot/qr',                 area: 'operacion', handler: botQr },

@@ -2,7 +2,12 @@
 // directo por el BOM). filas = array de objetos o arrays.
 export function exportarCSV(nombre, encabezados, filas) {
   const esc = (v) => {
-    const s = v == null ? '' : String(v);
+    let s = v == null ? '' : String(v);
+    // Mitigación de inyección de fórmulas CSV: si el valor (p.ej. el nombre
+    // de un cliente, texto libre desde WhatsApp) empieza con =, +, - o @,
+    // Excel/Sheets lo interpreta como fórmula al abrir el export. Un `'`
+    // inicial fuerza texto literal sin alterar el valor visible.
+    if (/^[=+\-@]/.test(s.trim())) s = "'" + s;
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   const lineas = [encabezados.map(esc).join(',')];

@@ -22,15 +22,21 @@ function crear(req, res, ctx, { ses }) {
         const descripcion = String(d.descripcion || '').trim();
         if (!descripcion) return json(res, { ok: false, error: 'Describe el trabajo encargado' }, 400);
         const tel = String(d.telefono || '').replace(/\D/g, '') || null;
-        const folio = 'OS-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' +
-            String((db.prepare('SELECT COUNT(*) n FROM ordenes_servicio').get().n || 0) + 1).padStart(3, '0');
-        const r = db.prepare(`INSERT INTO ordenes_servicio (folio, id_cliente, id_cita, cliente_nombre, telefono, descripcion, id_empleado, creado_por)
-                              VALUES (?,?,?,?,?,?,?,?)`)
-            .run(folio, Number(d.id_cliente) > 0 ? Number(d.id_cliente) : null,
-                 Number(d.id_cita) > 0 ? Number(d.id_cita) : null,
-                 String(d.cliente_nombre || '').trim() || null, tel, descripcion,
-                 Number(d.id_empleado) > 0 ? Number(d.id_empleado) : null, ses?.username || null);
-        return json(res, { ok: true, id: r.lastInsertRowid, folio });
+        // count+insert atómico (db.transaction) para que el folio del día no
+        // pueda duplicarse si dos altas caen en el mismo instante.
+        const insertar = db.transaction(() => {
+            const folio = 'OS-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' +
+                String((db.prepare('SELECT COUNT(*) n FROM ordenes_servicio').get().n || 0) + 1).padStart(3, '0');
+            const r = db.prepare(`INSERT INTO ordenes_servicio (folio, id_cliente, id_cita, cliente_nombre, telefono, descripcion, id_empleado, creado_por)
+                                  VALUES (?,?,?,?,?,?,?,?)`)
+                .run(folio, Number(d.id_cliente) > 0 ? Number(d.id_cliente) : null,
+                     Number(d.id_cita) > 0 ? Number(d.id_cita) : null,
+                     String(d.cliente_nombre || '').trim() || null, tel, descripcion,
+                     Number(d.id_empleado) > 0 ? Number(d.id_empleado) : null, ses?.username || null);
+            return { id: r.lastInsertRowid, folio };
+        });
+        const { id, folio } = insertar();
+        return json(res, { ok: true, id, folio });
     });
 }
 

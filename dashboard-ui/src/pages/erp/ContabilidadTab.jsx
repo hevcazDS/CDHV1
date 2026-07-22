@@ -59,12 +59,12 @@ export default function ContabilidadTab() {
         <TextInput type="date" label="Hasta" value={hasta} onChange={e => setHasta(e.target.value)} />
         <Button variant="default" size="xs" onClick={() => exportarCSV(`libro_mayor_${desde}_${hasta}`,
           ['cuenta', 'nombre', 'debe', 'haber', 'saldo'],
-          cuentas.map(x => [x.cuenta, x.nombre, x.debe.toFixed(2), x.haber.toFixed(2), x.saldo.toFixed(2)]))}>
+          cuentas.map(x => [x.cuenta, x.nombre, (x.debe ?? 0).toFixed(2), (x.haber ?? 0).toFixed(2), (x.saldo ?? 0).toFixed(2)]))}>
           Exportar libro (CSV)
         </Button>
         <Button variant="default" size="xs" disabled={!cuentas.length} onClick={() => imprimirReporte({
           titulo: 'Libro mayor', subtitulo: `Del ${desde} al ${hasta}`,
-          columnas: [{ key: 'cuenta', label: 'Cuenta' }, { key: 'nombre', label: 'Nombre' }, { key: 'debe', label: 'Debe', num: true, render: c => '$' + c.debe.toFixed(2) }, { key: 'haber', label: 'Haber', num: true, render: c => '$' + c.haber.toFixed(2) }, { key: 'saldo', label: 'Saldo', num: true, render: c => '$' + c.saldo.toFixed(2) }],
+          columnas: [{ key: 'cuenta', label: 'Cuenta' }, { key: 'nombre', label: 'Nombre' }, { key: 'debe', label: 'Debe', num: true, render: c => '$' + (c.debe ?? 0).toFixed(2) }, { key: 'haber', label: 'Haber', num: true, render: c => '$' + (c.haber ?? 0).toFixed(2) }, { key: 'saldo', label: 'Saldo', num: true, render: c => '$' + (c.saldo ?? 0).toFixed(2) }],
           filas: cuentas,
           totales: [{ label: 'Total debe / haber', valor: `$${totalDebe.toFixed(2)} / $${totalHaber.toFixed(2)}`, num: true }],
         })}>Imprimir libro</Button>
@@ -72,7 +72,7 @@ export default function ContabilidadTab() {
         <CierreAnual />
         <Button variant="default" size="xs" onClick={() => exportarCSV(`diario_${desde}_${hasta}`,
           ['fecha', 'concepto', 'cuenta', 'debe', 'haber'],
-          asientos.flatMap(a => (a.partidas || []).map(pa => [a.fecha, a.concepto, pa.cuenta + ' ' + (pa.nombre || ''), pa.debe.toFixed(2), pa.haber.toFixed(2)])))}>
+          asientos.flatMap(a => (a.partidas || []).map(pa => [a.fecha, a.concepto, pa.cuenta + ' ' + (pa.nombre || ''), (pa.debe ?? 0).toFixed(2), (pa.haber ?? 0).toFixed(2)])))}>
           Exportar diario (CSV)
         </Button>
         <Button variant="default" size="xs" disabled={!asientos.length} onClick={() => imprimirReporte({
@@ -99,9 +99,9 @@ export default function ContabilidadTab() {
                 {cuentas.map(c => (
                   <tr key={c.cuenta}>
                     <td><strong>{c.cuenta}</strong> <span className="text-muted" style={{ fontSize: 12 }}>{c.nombre}</span></td>
-                    <td>${c.debe.toFixed(2)}</td>
-                    <td>${c.haber.toFixed(2)}</td>
-                    <td style={{ fontWeight: 700 }}>${c.saldo.toFixed(2)}</td>
+                    <td>${(c.debe ?? 0).toFixed(2)}</td>
+                    <td>${(c.haber ?? 0).toFixed(2)}</td>
+                    <td style={{ fontWeight: 700 }}>${(c.saldo ?? 0).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -122,7 +122,7 @@ export default function ContabilidadTab() {
                     <td style={{ fontSize: 13 }}>{a.concepto}</td>
                     <td style={{ fontSize: 12 }}>
                       {(a.partidas || []).map((pa, i) => (
-                        <div key={i}>{pa.cuenta} {pa.nombre}: {pa.debe > 0 ? `cargo $${pa.debe.toFixed(2)}` : `abono $${pa.haber.toFixed(2)}`}</div>
+                        <div key={i}>{pa.cuenta} {pa.nombre}: {pa.debe > 0 ? `cargo $${pa.debe.toFixed(2)}` : `abono $${(pa.haber ?? 0).toFixed(2)}`}</div>
                       ))}
                     </td>
                   </tr>

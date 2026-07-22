@@ -2,9 +2,10 @@
 // RRHH (módulo rrhh_activo): empleados, horarios por plantilla CSV, nómina,
 // aguinaldo y finiquito. Acceso: rh, contabilidad, administrador+.
 // Migrado al patrón declarativo del tronco: area:'rrhh' + precondición de
-// módulo (rrhh_activo). Los tres PAGOS con PIN incondicional (nómina/aguinaldo/
-// finiquito) usan pin:true (el tronco valida + audita); editar salario tiene PIN
-// CONDICIONAL (solo si cambia) y se queda en el handler.
+// módulo (rrhh_activo). Los PAGOS/altas con PIN incondicional (alta de
+// empleado —fija salario_diario inicial—, nómina, aguinaldo, finiquito) usan
+// pin:true (el tronco valida + audita); editar salario en un empleado ya
+// existente tiene PIN CONDICIONAL (solo si cambia) y se queda en el handler.
 const nominaService = require('../../services/nominaService');
 const autorizacion = require('../autorizacion');
 const { rangoDe } = require('../permisos');
@@ -18,21 +19,22 @@ function empleadosGet(req, res, ctx) {
     const todos = new URL(req.url, 'http://x').searchParams.get('todos') === '1';
     return json(res, db.prepare(`SELECT * FROM empleados ${todos ? '' : 'WHERE activo=1'} ORDER BY activo DESC, nombre`).all());
 }
-function empleadosPost(req, res, ctx) {
-    const { db, json, readJson } = ctx;
-    return readJson(req, res, d => {
-        const nombre = String(d.nombre || '').trim();
-        const salario = Number(d.salario_diario);
-        if (!nombre || !(salario > 0)) return json(res, { ok: false, error: 'Nombre y salario diario (>0) son obligatorios' }, 400);
-        const s = (v) => String(v || '').trim() || null;
-        const r = db.prepare(`INSERT INTO empleados (nombre, puesto, salario_diario, con_impuestos, rfc, curp, nss, fecha_alta, departamento, comision_pct, metodo_pago, username, contacto_emergencia, fecha_nacimiento, domicilio, horario, dia_descanso) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-            .run(nombre, s(d.puesto), salario, d.con_impuestos ? 1 : 0,
-                 s(d.rfc), s(d.curp), s(d.nss), s(d.fecha_alta), s(d.departamento),
-                 Math.max(0, Number(d.comision_pct) || 0), (d.metodo_pago === 'efectivo' ? 'efectivo' : 'transferencia'),
-                 s(d.username), s(d.contacto_emergencia),
-                 s(d.fecha_nacimiento), s(d.domicilio), s(d.horario), s(d.dia_descanso));
-        return json(res, { ok: true, id: r.lastInsertRowid });
-    });
+// POST /api/rrhh/empleados — alta con salario_diario inicial → pin:true (el
+// tronco valida + audita; mismo gate que editar el salario de uno existente).
+function empleadosPost(req, res, ctx, { body }) {
+    const { db, json } = ctx;
+    const d = body;
+    const nombre = String(d.nombre || '').trim();
+    const salario = Number(d.salario_diario);
+    if (!nombre || !(salario > 0)) return json(res, { ok: false, error: 'Nombre y salario diario (>0) son obligatorios' }, 400);
+    const s = (v) => String(v || '').trim() || null;
+    const r = db.prepare(`INSERT INTO empleados (nombre, puesto, salario_diario, con_impuestos, rfc, curp, nss, fecha_alta, departamento, comision_pct, metodo_pago, username, contacto_emergencia, fecha_nacimiento, domicilio, horario, dia_descanso) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(nombre, s(d.puesto), salario, d.con_impuestos ? 1 : 0,
+             s(d.rfc), s(d.curp), s(d.nss), s(d.fecha_alta), s(d.departamento),
+             Math.max(0, Number(d.comision_pct) || 0), (d.metodo_pago === 'efectivo' ? 'efectivo' : 'transferencia'),
+             s(d.username), s(d.contacto_emergencia),
+             s(d.fecha_nacimiento), s(d.domicilio), s(d.horario), s(d.dia_descanso));
+    return json(res, { ok: true, id: r.lastInsertRowid });
 }
 
 // PUT /api/rrhh/empleados/:id — editar/baja. Cambiar salario exige PIN (CONDICIONAL).
@@ -149,12 +151,17 @@ function nominaGet(req, res, ctx) {
         SELECT n.*, e.nombre, e.con_impuestos FROM nominas n JOIN empleados e ON e.id = n.id_empleado
         ORDER BY n.hasta DESC, e.nombre LIMIT 300`).all());
 }
-// POST /api/rrhh/nomina/pagar — pin:true (el tronco validó el PIN y auditó).
-function nominaPagar(req, res, ctx, { body }) {
-    const { json } = ctx;
+// POST /api/rrhh/nomina/pagar — pin:true (el tronco validó el PIN y auditó
+// la autorización); además deja huella propia (usuario + periodo + monto),
+// igual que aguinaldoPagar/finiquitoPagar, porque el PIN del tronco solo
+// registra "quién autorizó", no el detalle del pago en sí.
+function nominaPagar(req, res, ctx, { body, ses }) {
+    const { db, json } = ctx;
     try {
         const { desde, hasta } = body;
-        return json(res, { ok: true, ...nominaService.pagar(desde, hasta) });
+        const r = nominaService.pagar(desde, hasta, ses.username);
+        if (r.pagadas > 0) require('../../services/configAudit').logCambio(db, 'nomina_pagada', desde + ' a ' + hasta + ' $' + r.total, ses.username);
+        return json(res, { ok: true, ...r });
     } catch (e) { return json(res, { ok: false, error: e.message }, 500); }
 }
 
@@ -239,7 +246,7 @@ function nominaDescargar(req, res, ctx, { params }) {
 
 const RUTAS = [
     { metodo: 'GET',    path: '/api/rrhh/empleados',                        area: 'rrhh', handler: empleadosGet },
-    { metodo: 'POST',   path: '/api/rrhh/empleados',                        area: 'rrhh', handler: empleadosPost },
+    { metodo: 'POST',   path: '/api/rrhh/empleados',                        area: 'rrhh', pin: true, handler: empleadosPost },
     { metodo: 'PUT',    path: /^\/api\/rrhh\/empleados\/(\d+)$/,            area: 'rrhh', handler: empleadosPut },
     { metodo: 'GET',    path: '/api/rrhh/plantilla-horarios',               area: 'rrhh', handler: plantillaHorarios },
     { metodo: 'POST',   path: '/api/rrhh/horarios/importar',                area: 'rrhh', handler: horariosImportar },

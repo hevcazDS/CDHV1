@@ -66,6 +66,18 @@ const {
 
 const STEPS = [S.SHOW_CART, S.CONFIRM_ORDER, S.OFERTAS, S.CUPON, S.PAGO_METODO, S.PAGO_COMPROBANTE];
 
+// El CUPON handler quema usos_actual+1 en cuanto el código es válido (antes de
+// confirmar pedido, guarda atómica anti doble-canje). Si el pedido se abandona
+// SIN completarse (stock agotado al confirmar, cancelación explícita) hay que
+// devolver ese uso — floor-guardado (usos_actual>0) para no ir negativo ni con
+// un doble-cancel. Guarda de negativo. No revierte en un pedido exitoso.
+function _revertirCupon(idPromo) {
+    if (!idPromo) return;
+    try {
+        db.prepare('UPDATE promociones SET usos_actual=usos_actual-1 WHERE id=? AND usos_actual>0').run(idPromo);
+    } catch (e) { log.debug('No se pudo revertir uso de cupón: ' + e.message); }
+}
+
 async function handle(ctx) {
     const { userId, session, message, client, raw, action, step, data, tel } = ctx;
 
@@ -152,6 +164,7 @@ async function handle(ctx) {
                 }
             }
             if (_sinStock.length > 0) {
+                _revertirCupon(data.idPromo);
                 sessionManager.clearSession(userId);
                 return (
                     '\u26A0\uFE0F *Lo sentimos* \u2014 mientras procesabas tu pedido, se agot\u00F3 el stock de:\n\n' +
@@ -210,6 +223,7 @@ async function handle(ctx) {
             return '🏷️ Escribe tu *código de descuento*:';
         }
         if (action === '4') {
+            _revertirCupon(data.idPromo);
             sessionManager.clearSession(userId);
             return t('cancelado') || `❌ Pedido cancelado. Escribe *hola* cuando quieras volver. ${vocab().emoji}`;
         }
@@ -241,10 +255,18 @@ async function handle(ctx) {
                     ? '\n🛒 _' + data.carrito.length + ' en carrito · $' + totalCarrito(data.carrito).toFixed(2) + ' MXN_'
                     : '';
 
+                // Todas las ofertas activas (no solo la elegida) — para que "3️⃣ Ver
+                // otras ofertas" muestre una lista real en vez de re-mostrar la misma.
+                const _todasOfertas = _ofertas.map(oo => {
+                    const pp = oo.id === _prod.id ? _prod : db.prepare('SELECT * FROM productos WHERE id=? LIMIT 1').get(oo.id);
+                    if (!pp) return null;
+                    return { ...pp, price: oo.precio_oferta, _precioOriginal: pp.price, _descuento: oo.valor, _fechaVence: oo.fecha_fin, _esOferta: true };
+                }).filter(Boolean);
+
                 // Mandar a VIEW_PRODUCT con el producto YA seleccionado (viewing seteado)
                 sessionManager.updateSession(userId, S.VIEW_PRODUCT, {
                     carrito:  data.carrito || [],
-                    products: [_prodOferta],
+                    products: _todasOfertas,
                     source:   'oferta',
                     viewing:  _prodOferta,
                 });

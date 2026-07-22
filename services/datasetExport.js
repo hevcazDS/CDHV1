@@ -18,12 +18,11 @@
 // el número, y así el archivo exportado lleva menos PII.
 'use strict';
 
-const net    = require('net');
-const tls    = require('tls');
-const zlib   = require('zlib');
-const crypto = require('crypto');
-const db     = require('../bot/db_connection');
-const log    = require('../bot/logger')('datasetExport');
+const zlib       = require('zlib');
+const crypto     = require('crypto');
+const db         = require('../bot/db_connection');
+const log        = require('../bot/logger')('datasetExport');
+const smtpClient = require('./smtpClient');
 
 const SMTP_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
 const SMTP_PORT = parseInt(process.env.EMAIL_PORT || '587');
@@ -149,40 +148,17 @@ function _enviarConAdjunto({ user, pass, dest, asunto, cuerpo, adjunto }) {
         '',
     ].join('\r\n');
 
-    return new Promise((resolve) => {
-        const sock = net.createConnection(SMTP_PORT, SMTP_HOST);
-        let tlsSock = null, step = 0, rcptPend = 0;
-        const send = (s) => (tlsSock || sock).write(s + '\r\n');
-        const fin = (ok, err) => { try { (tlsSock || sock).destroy(); } catch (_) {} resolve({ ok, err }); };
-
-        function onData(data) {
-            const code = parseInt(String(data).slice(0, 3));
-            if (step === 0 && code === 220) { send('EHLO dataset.bot'); step = 1; }
-            else if (step === 1 && code === 250) { send('STARTTLS'); step = 2; }
-            else if (step === 2 && code === 220) {
-                tlsSock = tls.connect({ socket: sock, host: SMTP_HOST, servername: SMTP_HOST }, () => {
-                    tlsSock.on('data', onData); send('EHLO dataset.bot'); step = 3;
-                });
-            }
-            else if (step === 3 && code === 250) { send('AUTH LOGIN'); step = 4; }
-            else if (step === 4 && code === 334) { send(Buffer.from(user).toString('base64')); step = 5; }
-            else if (step === 5 && code === 334) { send(Buffer.from(pass).toString('base64')); step = 6; }
-            else if (step === 6 && code === 235) { send('MAIL FROM:<' + user + '>'); step = 7; }
-            else if (step === 7 && code === 250) {
-                rcptPend = destList.length;
-                for (const d of destList) send('RCPT TO:<' + d + '>');
-                step = 8;
-            }
-            else if (step === 8 && code === 250) { if (--rcptPend <= 0) { send('DATA'); step = 9; } }
-            else if (step === 9 && code === 354) { send(body + '\r\n.'); step = 10; }
-            else if (step === 10 && code === 250) { fin(true); }
-            else if (code >= 400) { fin(false, 'SMTP ' + code + ': ' + String(data).trim()); }
-        }
-        sock.on('data', onData);
-        sock.on('error', (e) => fin(false, 'socket: ' + e.message));
-        sock.on('timeout', () => fin(false, 'timeout'));
-        sock.setTimeout(30000);
-    });
+    return smtpClient.sendMail({
+        host: SMTP_HOST, port: SMTP_PORT, user, pass,
+        mailFrom: user, to: destList, rawBody: body,
+        ehloName: 'dataset.bot', timeoutMs: 30000,
+    }).then(() => ({ ok: true })).catch((e) => ({
+        ok: false,
+        err: e.stage === 'tls' ? 'tls: ' + e.message
+            : e.stage === 'socket' ? 'socket: ' + e.message
+            : e.stage === 'timeout' ? 'timeout'
+            : e.message, // stage 'smtp' → e.message ya trae "SMTP <code>: ..."
+    }));
 }
 
 // ── API pública: construir + comprimir + enviar ──────────────────

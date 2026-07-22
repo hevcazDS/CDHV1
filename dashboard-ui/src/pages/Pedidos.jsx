@@ -3,6 +3,7 @@ import { Bike, Check, History, Link2, ReceiptText, RefreshCw, X } from 'lucide-r
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, ActionIcon, Table, Select, Button, TextInput } from '@mantine/core';
 import { api } from '../api';
+import { exportarCSV as exportarCSVComun } from '../lib/csv';
 import { fmt, fdate } from '../lib/format';
 import { handleApiError } from '../lib/apiError';
 import { confirmar, toastOk } from '../lib/ui';
@@ -128,15 +129,15 @@ export default function Pedidos() {
 
   const exportarCSV = () => {
     if (!rows?.length) return;
-    const filas = rows.map(r => [
-      r.folio || `#${r.id_pedido}`, r.cliente || '-', fmt(r.total), r.pago_estatus || '-',
-      r.estatus, r.numero_guia || '-', r.fecha_entrega_est || '-',
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    const csv = 'Folio,Cliente,Total,Pago,Estatus,Guia,Entrega\n' + filas.join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    a.download = `pedidos_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
+    // Delegado al escapador compartido (lib/csv.js): mismo BOM/CRLF que el
+    // resto del panel y la misma guardia anti-inyección de fórmulas (un
+    // r.cliente hostil tipo `=HYPERLINK(...)` no debe ejecutarse en Excel).
+    exportarCSVComun(`pedidos_${new Date().toISOString().slice(0, 10)}`,
+      ['Folio', 'Cliente', 'Total', 'Pago', 'Estatus', 'Guia', 'Entrega'],
+      rows.map(r => [
+        r.folio || `#${r.id_pedido}`, r.cliente || '-', fmt(r.total), r.pago_estatus || '-',
+        r.estatus, r.numero_guia || '-', r.fecha_entrega_est || '-',
+      ]));
   };
 
   return (

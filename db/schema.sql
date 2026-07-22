@@ -1294,6 +1294,7 @@ CREATE TABLE IF NOT EXISTS nominas (
     septimo_dia     REAL NOT NULL DEFAULT 0,        -- migrations/0044 (día de descanso pagado)
     estatus      TEXT NOT NULL DEFAULT 'calculada',
     pagada_en    TEXT,
+    pagada_por   TEXT,                              -- migrations/0087 (usuario que ejecutó el pago)
     cfdi_uuid    TEXT,                              -- migrations/0053 (timbrado nómina)
     cfdi_estatus TEXT,                              -- migrations/0053
     horas_extra  REAL NOT NULL DEFAULT 0,            -- migrations/0033

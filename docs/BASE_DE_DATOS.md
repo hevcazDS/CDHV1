@@ -1,7 +1,7 @@
 # Base de datos
 
 SQLite (better-sqlite3, WAL). **Fuente de verdad del esquema: `migrations/*.sql`**
-(84 migraciones), no `db/schema.sql` (drifteado respecto a producción). Este
+(87 migraciones), no `db/schema.sql` (drifteado respecto a producción). Este
 documento inventaría las tablas por dominio; para la definición exacta de una
 columna, ver la migración citada o `PRAGMA table_info(...)` contra una `.db`
 real.
@@ -67,7 +67,7 @@ Tablas **base** (preexistentes al versionado de migraciones): `productos`,
 |---|---|---|
 | `empleados` | `0023,0033,0041,0064` | comisión, método pago, `tipo_baja`/`fecha_baja`, datos de contrato (nacimiento, domicilio, horario, día descanso) |
 | `horarios_empleado` | `0023` | horario por fecha |
-| `nominas` | `0023,0033,0042,0044,0053` | horas extra, comisiones, prima dominical, IMSS patronal, séptimo día, CFDI |
+| `nominas` | `0023,0033,0042,0044,0053,0087` | horas extra, comisiones, prima dominical, IMSS patronal, séptimo día, CFDI, `pagada_por` (usuario que autorizó el pago) |
 | `nomina_extraordinaria` | `0038` | pagos extraordinarios |
 | `incapacidades_empleado` | `0044` | incapacidades por rango de fechas |
 
@@ -112,5 +112,6 @@ Tablas **base** (preexistentes al versionado de migraciones): `productos`,
 
 ## Discrepancias con CLAUDE.md
 
-1. CLAUDE.md lista ~15-26 tablas críticas; el esquema real tiene **~70+ tablas** en 84 migraciones.
+1. CLAUDE.md lista ~15-26 tablas críticas; el esquema real tiene **~125 tablas**
+   (`grep -c "CREATE TABLE" db/schema.sql`) en 87 migraciones.
 2. Dominios completos ausentes de CLAUDE.md: contabilidad (`plan_cuentas`/`asientos`), RRHH (`empleados`/`nominas`), CRM (`crm_*`), motor de flujo (`flujo_*`), mensajería (`canales_internos`), correo (`correos`), activos fijos, conciliación.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, lazy, Suspense } from 'react';
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, Group, Title, Table, Text, Button, TextInput, NumberInput, Select, ActionIcon, Checkbox } from '@mantine/core';
@@ -58,7 +58,16 @@ export default function Mostrador() {
   const [cobrando, setCobrando] = useState(false);
   const [mostrarCorte, setMostrarCorte] = useState(false);
 
-  useEffect(() => { if (config?.metodos?.length) setMetodoPago(config.metodos[0]); }, [config]);
+  // Solo fija el default la PRIMERA vez que carga config -- un refetch en
+  // segundo plano (ej. al recuperar el foco de la ventana) no debe pisar la
+  // selección que el cajero ya hizo a mitad de una venta (ej. cambió a "tarjeta").
+  const metodoPagoInicializado = useRef(false);
+  useEffect(() => {
+    if (config?.metodos?.length && !metodoPagoInicializado.current) {
+      metodoPagoInicializado.current = true;
+      setMetodoPago(config.metodos[0]);
+    }
+  }, [config]);
 
   const buscar = async (q) => {
     setBusqueda(q);
@@ -118,6 +127,12 @@ export default function Mostrador() {
 
   const cobrar = async () => {
     if (!carrito.length) return;
+    // Guarda de UX: si paga en efectivo, el monto recibido debe cubrir el
+    // total antes de siquiera llamar al backend (que también lo valida).
+    if (metodoPago === 'efectivo' && efectivo !== '' && Number(efectivo) < totalNeto) {
+      setMsg({ ok: false, t: 'El efectivo recibido no cubre el total de la venta' });
+      return;
+    }
     setMsg(null); setCobrando(true);
     try {
       const armarVenta = (pin) => api.post('/api/pos/venta', {

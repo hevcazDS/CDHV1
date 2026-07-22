@@ -53,6 +53,7 @@ console.log('✅ Tablas críticas verificadas\n');
 const C = { ok:'\x1b[32m', fail:'\x1b[31m', warn:'\x1b[33m', info:'\x1b[36m', reset:'\x1b[0m', bold:'\x1b[1m' };
 let passed = 0, failed = 0, warns = 0;
 const _fallos = []; // colectar fallos para reporte final
+const suitePromises = []; // promesas de cada suite — el resumen final espera a todas (item 49, PLAN_V3.md)
 
 // ── Mock del cliente de WhatsApp ───────────────────────────────────
 const mockClient = {
@@ -103,7 +104,8 @@ function resetUser(id) {
 //  SUITE 1: Flujo de bienvenida y menú
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 1 — Flujo básico de bienvenida');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c1@c.us'; resetUser(U);
     const r1 = await msg(U, 'hola');
     assert('Muestra menú al saludar', r1.includes('Bienvenido') || r1.includes('juguete'));
@@ -114,13 +116,21 @@ suite('CLIENTE 1 — Flujo básico de bienvenida');
 
     const r3 = await msg(U, '   hola   ');
     assert('Hola con espacios extra funciona', r3.includes('1') || r3.includes('Bienvenido'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 1 (CLIENTE 1) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 2: Detección de intención directa desde MENU
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 2 — Intención directa sin seleccionar menú');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c2@c.us'; resetUser(U);
     await msg(U, 'hola');
 
@@ -138,13 +148,21 @@ suite('CLIENTE 2 — Intención directa sin seleccionar menú');
     resetUser(U); await msg(U, 'hola');
     const r4 = await msg(U, 'tnes hot wheels');
     assert('Detección con error: tnes', !r4.includes('número de tu opción'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 2 (CLIENTE 2) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 3: Búsqueda de productos con resultados
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 3 — Búsqueda con resultados reales');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c3@c.us'; resetUser(U);
     await msg(U, 'hola');
     await msg(U, '1');
@@ -158,15 +176,23 @@ suite('CLIENTE 3 — Búsqueda con resultados reales');
 
     resetUser(U); await msg(U, 'hola'); await msg(U, '1');
     const r3 = await msg(U, 'xyzproductoinexistente12345');
-    assert('Producto inexistente → stock inteligente o asesor', 
+    assert('Producto inexistente → stock inteligente o asesor',
         r3.includes('Avísame') || r3.includes('asesor') || r3.includes('red') || r3.includes('volando'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 3 (CLIENTE 3) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 4: Wizard de recomendación completo
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 4 — Wizard de recomendación completo');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c4@c.us'; resetUser(U);
     await msg(U, 'hola');
     const rMenu = await msg(U, '2');
@@ -179,15 +205,23 @@ suite('CLIENTE 4 — Wizard de recomendación completo');
     assert('Wizard Q2 respondido', r2.includes('tipo') || r2.includes('presupuesto') || r2.includes('precio') || r2.includes('Qué'));
 
     const r3 = await msg(U, '1');
-    assert('Wizard Q3 respondido — muestra productos o pide presupuesto', 
+    assert('Wizard Q3 respondido — muestra productos o pide presupuesto',
         r3.includes('$') || r3.includes('presupuesto') || r3.includes('precio') || r3.includes('MXN'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 4 (CLIENTE 4) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 5: Flujo de carrito y compra completa (pickup)
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 5 — Carrito y pickup completo');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c5@c.us'; resetUser(U);
     await msg(U, 'hola');
     await msg(U, '1');
@@ -212,13 +246,21 @@ suite('CLIENTE 5 — Carrito y pickup completo');
     // CP → opciones de entrega
     const rCP = await msg(U, '78000');
     assert('Opción pickup disponible tras CP', rCP.includes('pickup') || rCP.includes('recoger') || rCP.includes('tienda') || rCP.includes('domicilio') || rCP.includes('Envío') || rCP.includes('envio') || rCP.includes('cobertura'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 5 (CLIENTE 5) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 6: Flujo de CP y envío
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 6 — Flujo de envío con CP válido');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c6@c.us'; resetUser(U);
     await msg(U, 'hola'); await msg(U, '1');
     const prod = db.prepare("SELECT name FROM productos WHERE activo=1 AND (stock_tienda>0 OR stock_cedis>0) LIMIT 1").get();
@@ -249,13 +291,21 @@ suite('CLIENTE 6 — Flujo de envío con CP válido');
     } else {
         warn('Suite 6', `Estado inesperado: ${sess1.paso_actual}`);
     }
-})();
+    } catch (e) {
+        const nombre = 'Suite 6 (CLIENTE 6) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 7: Cliente cambia de flujo a mitad del proceso
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 7 — Cambio de contexto a mitad del flujo');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c7@c.us'; resetUser(U);
     await msg(U, 'hola');
     await msg(U, '1');
@@ -273,13 +323,21 @@ suite('CLIENTE 7 — Cambio de contexto a mitad del flujo');
     await msg(U, 'hola'); await msg(U, '1'); await msg(U, 'barbie');
     const r2 = await msg(U, '0');
     assert('"0" también reinicia el flujo', !sessionMgr.getSession(U).paso_actual?.includes('SEARCHING') || r2.includes('1'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 7 (CLIENTE 7) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 8: Detección y manejo de quejas
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 8 — Cliente con queja legítima');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c8@c.us'; resetUser(U);
     await msg(U, 'hola');
 
@@ -293,13 +351,21 @@ suite('CLIENTE 8 — Cliente con queja legítima');
     resetUser(U); await msg(U, 'hola');
     const r3 = await msg(U, 'me llegó un producto dañado');
     assert('Producto dañado detectado como queja/devolución', r3.includes('devoluci') || r3.includes('asesor') || r3.includes('Entendido') || r3.includes('lamentamos') || r3.includes('pasó') || r3.includes('motivo'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 8 (CLIENTE 8) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 9: Flujo de devolución completo
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 9 — Devolución paso a paso');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c9@c.us'; resetUser(U);
     await msg(U, 'hola');
 
@@ -344,13 +410,21 @@ suite('CLIENTE 9 — Devolución paso a paso');
     const cli = db.prepare('SELECT tags FROM clientes WHERE telefono=?').get('test_c9');
     if (cli) assert('Tag devolucion asignado', (cli.tags||'').includes('devolucion'));
     else warn('Suite 9', 'Cliente no encontrado en DB (puede no haberse registrado sin nombre)');
-})();
+    } catch (e) {
+        const nombre = 'Suite 9 (CLIENTE 9) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 10: Troll / contenido inapropiado
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 10 — Troll e intentos de inyección');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c10@c.us'; resetUser(U);
     await msg(U, 'hola');
 
@@ -379,13 +453,21 @@ suite('CLIENTE 10 — Troll e intentos de inyección');
         !(_rXSS||'').includes('ERROR') &&
         !(_rXSS||'').includes('<script>') &&
         !(_rXSS||'').includes('</script>'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 10 (CLIENTE 10) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 11: Lista de espera cuando no hay stock
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 11 — Lista de espera (sin stock)');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c11@c.us'; resetUser(U);
     await msg(U, 'hola'); await msg(U, '1');
 
@@ -405,13 +487,21 @@ suite('CLIENTE 11 — Lista de espera (sin stock)');
             else warn('Suite 11', 'Sin registro en DB — puede ser que el flujo no llegó al INSERT');
         } catch(e) { warn('Suite 11 DB', e.message); }
     }
-})();
+    } catch (e) {
+        const nombre = 'Suite 11 (CLIENTE 11) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 12: Múltiples usuarios simultáneos — sin interferencia
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTES 12-15 — Sesiones simultáneas sin interferencia');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const users = ['test_u12@c.us','test_u13@c.us','test_u14@c.us','test_u15@c.us'];
     users.forEach(u => resetUser(u));
 
@@ -435,13 +525,21 @@ suite('CLIENTES 12-15 — Sesiones simultáneas sin interferencia');
     const s12 = sessionMgr.getSession(users[0]).paso_actual;
     const s13 = sessionMgr.getSession(users[1]).paso_actual;
     assert('Sesiones U12 y U13 son independientes', s12 !== s13 || (s12 === 'MENU' && s13 === 'MENU'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 12 (CLIENTES 12-15) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 13: Respuestas inválidas en flujos críticos
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 16 — Respuestas inválidas / fuera de rango');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c16@c.us'; resetUser(U);
     await msg(U, 'hola');
 
@@ -461,13 +559,21 @@ suite('CLIENTE 16 — Respuestas inválidas / fuera de rango');
     resetUser(U); await msg(U, 'hola'); await msg(U, '2');
     const r4 = await msg(U, 'para mi perro');
     assert('Respuesta inválida en wizard manejada', !r4.includes('ERROR') && r4.length > 0);
-})();
+    } catch (e) {
+        const nombre = 'Suite 13 (CLIENTE 16) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 14: Rastreo de pedido
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 17 — Rastreo de pedido');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c17@c.us'; resetUser(U);
     await msg(U, 'hola');
 
@@ -478,15 +584,23 @@ suite('CLIENTE 17 — Rastreo de pedido');
     assert('Folio real encontrado o mensaje de no encontrado', r2.includes('pedido') || r2.includes('folio') || r2.includes('encontré') || r2.includes('encontr') || r2.includes('Folio') || r2.length > 10);
 
     const r3 = await msg(U, 'FOLIO-INVENTADO-9999');
-    assert('Folio inválido → mensaje claro', 
+    assert('Folio inválido → mensaje claro',
         !r3.includes('ERROR') && (r3.includes('encontré') || r3.includes('válido') || r3.includes('folio')));
-})();
+    } catch (e) {
+        const nombre = 'Suite 14 (CLIENTE 17) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 15: Carrito con múltiples productos y límites
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 18 — Límites de carrito');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c18@c.us'; resetUser(U);
     await msg(U, 'hola'); await msg(U, '1');
     const prod = db.prepare("SELECT name FROM productos WHERE activo=1 AND stock_tienda>0 LIMIT 1").get();
@@ -505,19 +619,27 @@ suite('CLIENTE 18 — Límites de carrito');
     // Segundo intento del mismo producto
     const sess = sessionMgr.getSession(U);
     assert('Carrito no crashea con duplicados', !r2.includes('ERROR'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 15 (CLIENTE 18) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 16: CSAT flujo
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 19 — CSAT respuesta');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c19@c.us'; resetUser(U);
     // Simular estado CSAT directo
     sessionMgr.updateSession(U, 'CSAT', { idPedido: null });
 
     const r1 = await msg(U, '5');
-    assert('CSAT 5 estrellas aceptado', 
+    assert('CSAT 5 estrellas aceptado',
         r1.includes('gracias') || r1.includes('Gracias') || r1.includes('encantó') || r1.includes('satisfacción') || !r1.includes('ERROR'));
 
     resetUser(U);
@@ -529,13 +651,21 @@ suite('CLIENTE 19 — CSAT respuesta');
     sessionMgr.updateSession(U, 'CSAT', { idPedido: null });
     const r3 = await msg(U, '7'); // fuera de rango
     assert('CSAT fuera de rango manejado', !r3.includes('ERROR'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 16 (CLIENTE 19) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 17: Garantías de DB — datos se guardan
 // ══════════════════════════════════════════════════════════════════
 suite('GARANTÍAS DE BASE DE DATOS');
-(async () => {
+suitePromises.push((async () => {
+    try {
     // Verificar que la sesión persiste en SQLite
     const U = 'test_db_persist@c.us';
     sessionMgr.updateSession(U, 'SEARCHING', { carrito: [{id:1, name:'Test', price:100, cantidad:1}] });
@@ -564,13 +694,21 @@ suite('GARANTÍAS DE BASE DE DATOS');
     sessionMgr.clearSession(U);
     sessionMgr.clearSession('test_db_persist@c.us');
     sessionMgr.clearSession('test_log@c.us');
-})();
+    } catch (e) {
+        const nombre = 'Suite 17 (GARANTÍAS DE BASE DE DATOS) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ══════════════════════════════════════════════════════════════════
 //  SUITE 18: Devolución con cambio de contexto a mitad
 // ══════════════════════════════════════════════════════════════════
 suite('CLIENTE 20 — Cambio abrupto: devolución → nueva compra');
-(async () => {
+suitePromises.push((async () => {
+    try {
     const U = 'test_c20@c.us'; resetUser(U);
     await msg(U, 'hola');
 
@@ -587,10 +725,21 @@ suite('CLIENTE 20 — Cambio abrupto: devolución → nueva compra');
     // Ahora hace una compra normal
     const r2 = await msg(U, '1');
     assert('Puede iniciar búsqueda tras cancelar devolución', r2.includes('busco') || r2.includes('busca') || r2.includes('foto'));
-})();
+    } catch (e) {
+        const nombre = 'Suite 18 (CLIENTE 20) — excepción no capturada';
+        const detalle = e.message;
+        console.log('  ' + C.fail + '❌' + C.reset + ' ' + nombre + (detalle ? ' — ' + detalle : ''));
+        _fallos.push({ nombre, detalle });
+        failed++;
+    }
+})());
 
 // ── Resumen final ──────────────────────────────────────────────────
-setTimeout(() => {
+// Espera a que las 18 suites terminen de verdad (cada IIFE arriba fue
+// capturada en suitePromises) en vez de un setTimeout fijo — una suite
+// lenta ya no puede quedar fuera del conteo (item 49, PLAN_V3.md).
+(async () => {
+    await Promise.all(suitePromises);
     console.log(`\n${'═'.repeat(56)}`);
     console.log(`${C.bold}  RESULTADO FINAL${C.reset}`);
     console.log('═'.repeat(56));
@@ -610,4 +759,4 @@ setTimeout(() => {
         console.log('');
         process.exitCode = 1;
     }
-}, 3000);
+})();

@@ -41,7 +41,10 @@ function crearVentana() {
     });
 
     let intentos = 0;
-    const cargar = () => win.loadURL(DASHBOARD_URL).catch(() => {});
+    const cargar = () => {
+        if (!win || win.isDestroyed()) return; // la ventana se cerró mientras el retry estaba pendiente
+        win.loadURL(DASHBOARD_URL).catch(() => {});
+    };
     win.webContents.on('did-fail-load', () => {
         if (intentos++ < 20) setTimeout(cargar, 1000); // el dashboard puede tardar unos segundos en levantar
     });

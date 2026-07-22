@@ -459,7 +459,7 @@ function aplicarCupon(codigo, carrito, idProducto) {
     const subtotal = totalCarrito(carrito);
     let descuento = 0;
     if (promo.tipo === 'porcentaje') {
-        descuento = subtotal * (promo.valor / 100);
+        descuento = Math.min(subtotal * (promo.valor / 100), subtotal);
     } else {
         descuento = Math.min(promo.valor, subtotal); // monto fijo — no puede superar el total
     }
@@ -826,48 +826,90 @@ function insertarPedidoConCarrito(clienteNombre, carrito, ciudadEnvio, estatus, 
     return _insertarPedidoConCarritoTx(clienteNombre, carrito, ciudadEnvio, estatus, sucursalOrigen, folio, idCliente, canalCreacion);
 }
 
-function grabarPedidoPickup(data, telefono) {
-    const folio   = generarFolio('pedido');
-    const cliente = upsertCliente(telefono, data.nombre || null);
-    const carrito = data.carrito && data.carrito.length ? data.carrito : [{ ...data.selectedProduct, cantidad: 1 }];
-
+// ── Helpers de deduplicación de grabarPedido* ───────────────────────────
+// Bloques que se repetían byte-por-byte en las 4 rutas de grabado de pedido
+// (pickup / envío / split / pickup-unificado). Cada uno es una extracción
+// mecánica de un fragmento idéntico — no cambian el orden ni la lógica de
+// cada función llamante, solo evitan repetir el texto.
+function _calcRefInfo(telefono, carrito, descuentoManual) {
     // Descuento automático de bienvenida del referido (10%, un solo uso) —
-    // no se combina con un cupón manual ya aplicado (data.descuentoCupon).
-    const _refInfo = data.descuentoCupon ? { aplica: false, descuento: 0 } : referidosService.calcularDescuentoReferido(telefono, carrito);
-    const descuentoReferido = _refInfo.aplica ? _refInfo.descuento : 0;
+    // no se combina con un cupón manual ya aplicado.
+    return descuentoManual ? { aplica: false, descuento: 0 } : referidosService.calcularDescuentoReferido(telefono, carrito);
+}
+function _actualizarTotalesPedido(pedidoRowid, subtotalBruto, descuento, total) {
+    db.prepare('UPDATE pedidos SET subtotal=?, descuento=?, total=? WHERE id_pedido=?').run(subtotalBruto, descuento, total, pedidoRowid);
+}
+function _actualizarCpPedido(pedidoRowid, cp) {
+    if (!cp) return;
+    try { db.prepare('UPDATE pedidos SET cp=? WHERE id_pedido=?').run(cp, pedidoRowid); }
+    catch(e) { log.debug('No se pudo guardar CP en pedido: ' + e.message); }
+}
+function _generarCodigoRetiro() {
+    return `RET-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
+}
+function _insertarReservaPickup(pedidoRowid, idPunto, limiteMs, codigo) {
+    if (!idPunto) return;
+    const limite = new Date(Date.now() + limiteMs).toISOString().replace('T',' ').substring(0,19);
+    db.prepare(`INSERT INTO reservas_pickup (id_pedido, id_punto, estatus, fecha_limite, codigo_retiro) VALUES (?,?,'apartado',?,?)`)
+      .run(pedidoRowid, idPunto, limite, codigo);
+}
 
-    const { pedidoRowid, subtotal: subtotalBruto } = insertarPedidoConCarrito(
-        cliente.nombre || telefono, carrito, data.ciudad_cob || '', 'Pick Up Pendiente', data.estado_cob, folio, cliente.id,
+// Base compartida por grabarPedidoPickup / grabarPedidoPickupUnificado — las
+// dos únicas de las 4 rutas cuyo esqueleto es idéntico (mismo orden de
+// escritura en BD, mismo shape de retorno). grabarPedidoEnvio y
+// grabarPedidoSplit divergen demasiado (flete/dirección/guía Estafeta en
+// Envio; dos sub-pedidos con descuento repartido en Split) como para forzar
+// la misma base sin arriesgar un cambio de comportamiento — quedan aparte,
+// pero reusan los helpers de arriba donde su fragmento es idéntico.
+function _grabarPedidoPickupBase(data, telefono, opts) {
+    const { estatus, limiteMs, enviarEmail, buildCarrito } = opts;
+    const cliente = upsertCliente(telefono, data.nombre || null);
+    const carrito = buildCarrito(data);
+    const folio   = generarFolio('pedido');
+    const subtotalBruto = totalCarrito(carrito);
+
+    const _refInfo = _calcRefInfo(telefono, carrito, data.descuentoCupon);
+    const descuentoReferido = _refInfo.aplica ? _refInfo.descuento : 0;
+    const subtotal = subtotalBruto - descuentoReferido;
+
+    const { pedidoRowid } = insertarPedidoConCarrito(
+        cliente.nombre || telefono, carrito, data.ciudad_cob || '', estatus, data.estado_cob, folio, cliente.id,
         data.origenVentaPrevia ? 'asesor' : 'bot'
     );
-    const subtotal = subtotalBruto - descuentoReferido;
-    db.prepare('UPDATE pedidos SET subtotal=?, descuento=?, total=? WHERE id_pedido=?').run(subtotalBruto, descuentoReferido, subtotal, pedidoRowid);
-    if (data.cp) { try { db.prepare('UPDATE pedidos SET cp=? WHERE id_pedido=?').run(data.cp, pedidoRowid); } catch(e) { log.debug('No se pudo guardar CP en pedido: ' + e.message); } }
+    _actualizarTotalesPedido(pedidoRowid, subtotalBruto, descuentoReferido, subtotal);
+    _actualizarCpPedido(pedidoRowid, data.cp);
     const linkUrl = insertarLinkPago(pedidoRowid, subtotal, folio);
     if (_refInfo.aplica) referidosService.marcarDescuentoReferidoUsado(_refInfo.idCliente);
 
-    const codigo = `RET-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
-    const limite = new Date(Date.now() + 72*3600*1000).toISOString().replace('T',' ').substring(0,19);
-    if (data.idPunto) {
-        db.prepare(`INSERT INTO reservas_pickup (id_pedido, id_punto, estatus, fecha_limite, codigo_retiro) VALUES (?,?,'apartado',?,?)`)
-          .run(pedidoRowid, data.idPunto, limite, codigo);
-    }
+    const codigo = _generarCodigoRetiro();
+    _insertarReservaPickup(pedidoRowid, data.idPunto, limiteMs, codigo);
 
-    // Notificar por correo (async)
-    const productosEmailPu = carrito.map(i => ({ nombre:i.name, cantidad:i.cantidad, precio:i.price }));
-    emailSvc.notificarPedido({
-        folio, idPedido: pedidoRowid,
-        cliente: cliente.nombre || telefono,
-        total: subtotal, subtotal: subtotalBruto, costoEnv: 0, metodo: 'pickup',
-        tipoEntrega: 'pickup',
-        codigoRetiro: codigo,
-        productos: productosEmailPu,
-        linkPago: linkUrl,
-        fechaCreacion: new Date().toLocaleString('es-MX'),
-    }).catch(e => log.warn('Error email', e));
+    if (enviarEmail) {
+        // Notificar por correo (async)
+        const productosEmailPu = carrito.map(i => ({ nombre:i.name, cantidad:i.cantidad, precio:i.price }));
+        emailSvc.notificarPedido({
+            folio, idPedido: pedidoRowid,
+            cliente: cliente.nombre || telefono,
+            total: subtotal, subtotal: subtotalBruto, costoEnv: 0, metodo: 'pickup',
+            tipoEntrega: 'pickup',
+            codigoRetiro: codigo,
+            productos: productosEmailPu,
+            linkPago: linkUrl,
+            fechaCreacion: new Date().toLocaleString('es-MX'),
+        }).catch(e => log.warn('Error email', e));
+    }
 
     mensajeService.marcarOutcome(db, telefono, 'venta');
     return { folio, total: subtotal, linkUrl, codigo, descuentoReferido };
+}
+
+function grabarPedidoPickup(data, telefono) {
+    return _grabarPedidoPickupBase(data, telefono, {
+        estatus: 'Pick Up Pendiente',
+        limiteMs: 72 * 3600 * 1000,
+        enviarEmail: true,
+        buildCarrito: (d) => d.carrito && d.carrito.length ? d.carrito : [{ ...d.selectedProduct, cantidad: 1 }],
+    });
 }
 
 // Anticipo de cita = un PEDIDO normal de una línea (el servicio) cuyo total es el
@@ -896,9 +938,7 @@ function grabarPedidoEnvio(data, telefono) {
     // El cupón (si se aplicó en el flujo CUPON de cartFlow.js) debe descontarse
     // aquí mismo: este `total` es el que se cobra en el link de pago real.
     const descuentoCupon = data.descuentoCupon || 0;
-    // Descuento automático de bienvenida del referido (10%, un solo uso) —
-    // no se combina con un cupón manual ya aplicado.
-    const _refInfo = descuentoCupon ? { aplica: false, descuento: 0 } : referidosService.calcularDescuentoReferido(telefono, carrito);
+    const _refInfo = _calcRefInfo(telefono, carrito, descuentoCupon);
     const descuentoReferido = _refInfo.aplica ? _refInfo.descuento : 0;
     const descuento = descuentoCupon + descuentoReferido;
     const total     = subtotal + costoEnv - descuento;
@@ -913,8 +953,8 @@ function grabarPedidoEnvio(data, telefono) {
         data.nombre, carrito, data.ciudad || data.ciudad_cob, 'Pendiente', data.estado_cob, folio, cliente.id,
         data.origenVentaPrevia ? 'asesor' : 'bot'
     );
-    db.prepare('UPDATE pedidos SET subtotal=?, descuento=?, total=? WHERE id_pedido=?').run(subtotal, descuento, total, pedidoRowid);
-    if (data.cp) { try { db.prepare('UPDATE pedidos SET cp=? WHERE id_pedido=?').run(data.cp, pedidoRowid); } catch(e) { log.debug('No se pudo guardar CP en pedido: ' + e.message); } }
+    _actualizarTotalesPedido(pedidoRowid, subtotal, descuento, total);
+    _actualizarCpPedido(pedidoRowid, data.cp);
     // Método de entrega a domicilio: paquetería (con guía Estafeta) o
     // repartidor propio (entrega local, SIN guía). Default 'paqueteria' deja
     // a Julio Cepeda igual que siempre.
@@ -986,9 +1026,7 @@ function grabarPedidoSplit(data, telefono) {
     // oferta") y, si aplica, se carga completo a un solo sub-pedido (el de
     // envío si existe, si no al de pickup) para no fraccionar un 10% entre
     // dos folios distintos.
-    const _refInfo = data.descuentoCupon
-        ? { aplica: false, descuento: 0 }
-        : referidosService.calcularDescuentoReferido(telefono, [...carritoPickup, ...carritoEnvio]);
+    const _refInfo = _calcRefInfo(telefono, [...carritoPickup, ...carritoEnvio], data.descuentoCupon);
     const _descAEnvio  = _refInfo.aplica && carritoEnvio.length > 0;
     const _descAPickup = _refInfo.aplica && !_descAEnvio && carritoPickup.length > 0;
 
@@ -1002,15 +1040,11 @@ function grabarPedidoSplit(data, telefono) {
             cliente.nombre || telefono, carritoPickup, data.ciudad_cob || '', 'Pick Up Pendiente', data.estado_cob, folio, cliente.id,
             data.origenVentaPrevia ? 'asesor' : 'bot'
         );
-        db.prepare('UPDATE pedidos SET subtotal=?, descuento=?, total=? WHERE id_pedido=?').run(subtotalBruto, descuentoReferido, subtotal, pedidoRowid);
-        if (data.cp) { try { db.prepare('UPDATE pedidos SET cp=? WHERE id_pedido=?').run(data.cp, pedidoRowid); } catch(e) { log.debug('No se pudo guardar CP en pedido: ' + e.message); } }
+        _actualizarTotalesPedido(pedidoRowid, subtotalBruto, descuentoReferido, subtotal);
+        _actualizarCpPedido(pedidoRowid, data.cp);
         const linkUrl = insertarLinkPago(pedidoRowid, subtotal, folio);
-        const codigo  = `RET-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
-        const limite  = new Date(Date.now() + 72*3600*1000).toISOString().replace('T',' ').substring(0,19);
-        if (data.idPunto) {
-            db.prepare(`INSERT INTO reservas_pickup (id_pedido, id_punto, estatus, fecha_limite, codigo_retiro) VALUES (?,?,'apartado',?,?)`)
-              .run(pedidoRowid, data.idPunto, limite, codigo);
-        }
+        const codigo  = _generarCodigoRetiro();
+        _insertarReservaPickup(pedidoRowid, data.idPunto, 72 * 3600 * 1000, codigo);
         resultados.pedidoPickup = { folio, total: subtotal, linkUrl, codigo, descuentoReferido };
     }
 
@@ -1036,7 +1070,7 @@ function grabarPedidoSplit(data, telefono) {
             data.nombre || cliente.nombre, carritoEnvio, data.ciudad || data.ciudad_cob, 'Pendiente', data.estado_cob, folio, cliente.id,
             data.origenVentaPrevia ? 'asesor' : 'bot'
         );
-        db.prepare('UPDATE pedidos SET subtotal=?, descuento=?, total=? WHERE id_pedido=?').run(subtotalBruto, descuentoReferido, total, pedidoRowid);
+        _actualizarTotalesPedido(pedidoRowid, subtotalBruto, descuentoReferido, total);
         const linkUrl = insertarLinkPago(pedidoRowid, total, folio);
         resultados.pedidoEnvio = { folio, total, linkUrl, costoEnv, subtotal: subtotalBruto, descuentoReferido };
     }
@@ -1053,31 +1087,16 @@ function grabarPedidoSplit(data, telefono) {
  * incluyendo los que normalmente irían a envío (cliente eligió esperar en sucursal).
  */
 function grabarPedidoPickupUnificado(data, telefono) {
-    const cliente = upsertCliente(telefono, data.nombre || null);
-    const carrito = [...(data.carritoPickup||[]), ...(data.carritoEnvio||[])];
-    const folio   = generarFolio('pedido');
-    const subtotalBruto = totalCarrito(carrito);
-
-    const _refInfo = data.descuentoCupon ? { aplica: false, descuento: 0 } : referidosService.calcularDescuentoReferido(telefono, carrito);
-    const descuentoReferido = _refInfo.aplica ? _refInfo.descuento : 0;
-    const subtotal = subtotalBruto - descuentoReferido;
-
-    const { pedidoRowid } = insertarPedidoConCarrito(
-        cliente.nombre || telefono, carrito, data.ciudad_cob || '', 'Pick Up Pendiente — Espera artículos de almacén', data.estado_cob, folio, cliente.id,
-        data.origenVentaPrevia ? 'asesor' : 'bot'
-    );
-    db.prepare('UPDATE pedidos SET subtotal=?, descuento=?, total=? WHERE id_pedido=?').run(subtotalBruto, descuentoReferido, subtotal, pedidoRowid);
-    if (data.cp) { try { db.prepare('UPDATE pedidos SET cp=? WHERE id_pedido=?').run(data.cp, pedidoRowid); } catch(e) { log.debug('No se pudo guardar CP en pedido: ' + e.message); } }
-    const linkUrl = insertarLinkPago(pedidoRowid, subtotal, folio);
-    if (_refInfo.aplica) referidosService.marcarDescuentoReferidoUsado(_refInfo.idCliente);
-    const codigo  = `RET-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
-    const limite  = new Date(Date.now() + 14*24*3600*1000).toISOString().replace('T',' ').substring(0,19); // 14 días
-    if (data.idPunto) {
-        db.prepare(`INSERT INTO reservas_pickup (id_pedido, id_punto, estatus, fecha_limite, codigo_retiro) VALUES (?,?,'apartado',?,?)`)
-          .run(pedidoRowid, data.idPunto, limite, codigo);
-    }
-    mensajeService.marcarOutcome(db, telefono, 'venta');
-    return { folio, total: subtotal, linkUrl, codigo, descuentoReferido };
+    // 14 días de plazo (vs 72h en pickup normal): el cliente eligió esperar
+    // en sucursal a que lleguen los artículos de almacén, no es un retiro
+    // inmediato. Sin notificación por correo (histórico: solo grabarPedidoPickup
+    // la envía).
+    return _grabarPedidoPickupBase(data, telefono, {
+        estatus: 'Pick Up Pendiente — Espera artículos de almacén',
+        limiteMs: 14 * 24 * 3600 * 1000,
+        enviarEmail: false,
+        buildCarrito: (d) => [...(d.carritoPickup || []), ...(d.carritoEnvio || [])],
+    });
 }
 
 // ═══════════════════════════════════════════════════════

@@ -47,6 +47,49 @@ function sinComentarios(src) {
     return src.replace(/\/\*[\s\S]*?\*\//g, ' ').split('\n').map(l => { const i = l.indexOf('//'); return i >= 0 ? l.slice(0, i) : l; }).join('\n');
 }
 
+// ── ALTER con nombre de columna interpolado (template literal) ─────────────
+// reAlter (arriba) exige un nombre de columna literal `\w+` tras ADD COLUMN,
+// pero `_asegurarColumnasUsuarios` (dashboard/server.js) arma el SQL como
+// `ALTER TABLE usuarios ADD COLUMN ${nombre} TEXT` dentro de un
+// `for (const nombre of requeridas)` — reAlter nunca matchea eso y el check
+// lo salta en silencio. En vez de parsear JS en general (arriesgado y fuera
+// de alcance), resolvemos este patrón concreto: hallamos el ALTER con
+// `${var}`, el `for...of` que declara esa variable, y el array literal de
+// origen — y validamos cada nombre de columna de ese array contra schema.sql.
+function checkAltersTemplateLiteral(src, rel, schema, faltantes) {
+    const reAlterTpl = /ALTER\s+TABLE\s+["'`]?(\w+)["'`]?\s+ADD\s+COLUMN\s+\$\{\s*(\w+)\s*\}/gi;
+    if (!reAlterTpl.test(src)) return;
+    reAlterTpl.lastIndex = 0;
+
+    // loopVar -> arrayVar, de cada `for (const loopVar of arrayVar)` del archivo
+    const forOf = {};
+    const reForOf = /for\s*\(\s*const\s+(\w+)\s+of\s+(\w+)\s*\)/g;
+    let fm;
+    while ((fm = reForOf.exec(src)) !== null) forOf[fm[1]] = fm[2];
+
+    // arrayVar -> contenido crudo de `const arrayVar = [ ... ]`
+    const arrays = {};
+    const reArr = /const\s+(\w+)\s*=\s*\[([^\]]*)\]/g;
+    let am;
+    while ((am = reArr.exec(src)) !== null) arrays[am[1]] = am[2];
+
+    let m;
+    while ((m = reAlterTpl.exec(src)) !== null) {
+        const t = m[1].toLowerCase(), loopVar = m[2];
+        const arrayVar = forOf[loopVar];
+        const contenido = arrayVar && arrays[arrayVar];
+        if (!contenido) {
+            faltantes.push(rel + ': ALTER `' + m[1] + '` con columna dinámica `${' + loopVar + '}` que no se pudo resolver contra un array de origen — revisar a mano');
+            continue;
+        }
+        const cols = [...contenido.matchAll(/['"`]([^'"`]+)['"`]/g)].map(x => x[1].toLowerCase());
+        if (!schema[t]) { faltantes.push(rel + ': ALTER de tabla `' + m[1] + '` que no está en db/schema.sql'); continue; }
+        for (const c of cols) {
+            if (!schema[t].has(c)) faltantes.push(rel + ': ALTER `' + m[1] + '.' + c + '` (vía `${' + loopVar + '}` de `' + arrayVar + '`) — columna no está en el CREATE de db/schema.sql');
+        }
+    }
+}
+
 function walk(dir, out) {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
         if (IGNORE_DIRS.has(e.name)) continue;
@@ -78,6 +121,7 @@ function main() {
             if (!schema[t]) faltantes.push(rel + ': ALTER de tabla `' + m[1] + '` que no está en db/schema.sql');
             else if (!schema[t].has(c)) faltantes.push(rel + ': ALTER `' + m[1] + '.' + m[2] + '` — columna no está en el CREATE de db/schema.sql');
         }
+        checkAltersTemplateLiteral(src, rel, schema, faltantes);
     }
 
     if (faltantes.length) {

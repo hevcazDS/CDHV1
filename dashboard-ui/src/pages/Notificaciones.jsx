@@ -31,7 +31,7 @@ const PLANTILLAS_IND = {
 };
 
 const PLANTILLAS_MAS = {
-  promocion: 'Hola {nombre} \n\nTenemos ofertas especiales esta semana en Julio Cepeda Jugueterías. ¡Escríbenos para conocer los descuentos! ',
+  promocion: 'Hola {nombre} \n\nTenemos ofertas especiales esta semana en {negocio}. ¡Escríbenos para conocer los descuentos! ',
   reactivacion: 'Hola {nombre} \n\n¡Hace tiempo no nos visitas! Te extrañamos. Tenemos productos nuevos que te van a encantar. ',
   novedad: 'Hola {nombre} \n\nAcabamos de recibir productos nuevos que creemos te van a interesar. Escríbenos para verlos. ',
 };
@@ -40,13 +40,12 @@ function capitalizar(nombre) {
   return nombre ? nombre.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : 'Sin nombre';
 }
 
-export default function Notificaciones() {
+// ── Tab Individual: chat en vivo + venta previa (POS) ────────────────────────
+function IndividualTab() {
   const txt = useTextoEmoji();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState('individual');
 
-  // Individual
   const [filtro, setFiltro] = useState('');
   const [clienteSel, setClienteSel] = useState(null);
   const [msgInd, setMsgInd] = useState('');
@@ -58,16 +57,6 @@ export default function Notificaciones() {
   const [posResultados, setPosResultados] = useState([]);
   const [posCarrito, setPosCarrito] = useState([]);
   const [respPos, setRespPos] = useState(null);
-
-  // Masivo
-  const [audienciaTipo, setAudienciaTipo] = useState('todos');
-  const [limM, setLimM] = useState(50);
-  const [msgMasivo, setMsgMasivo] = useState('');
-  const [codigoCampana, setCodigoCampana] = useState('');
-  const [waLink, setWaLink] = useState('');
-  const [cuando, setCuando] = useState('ahora');
-  const [fechaProg, setFechaProg] = useState('');
-  const [respMasivo, setRespMasivo] = useState(null);
 
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes'],
@@ -81,18 +70,11 @@ export default function Notificaciones() {
     queryFn: () => api.get('/api/promociones?activa=1'),
   });
   const [cuponSelInd, setCuponSelInd] = useState(null);
-  const [cuponSelMas, setCuponSelMas] = useState(null);
   const refMsgInd = useRef(null);
-  const refMsgMasivo = useRef(null);
   const insertarCuponInd = () => {
     if (!cuponSelInd) return;
     insertarEnCursor(refMsgInd, msgInd, setMsgInd, cuponSelInd);
     setCuponSelInd(null);
-  };
-  const insertarCuponMasivo = () => {
-    if (!cuponSelMas) return;
-    insertarEnCursor(refMsgMasivo, msgMasivo, setMsgMasivo, cuponSelMas);
-    setCuponSelMas(null);
   };
 
   // clienteSel?.id como parte de la queryKey es lo que resuelve el bug ya
@@ -114,11 +96,14 @@ export default function Notificaciones() {
 
   // ?cliente=<id> en la URL (llega desde el botón "Chatear" de Cola de
   // Atención) preselecciona ese cliente en cuanto carga la lista completa.
+  // Este tab siempre es el que se muestra por default al entrar a la página
+  // (ver Notificaciones más abajo), que es la ruta real por la que llega
+  // este parámetro -- no depende de coordinar el tab activo con el padre.
   useEffect(() => {
     const idParam = searchParams.get('cliente');
     if (!idParam || !clientes.length) return;
     const c = clientes.find(cl => String(cl.id) === idParam);
-    if (c) { setTab('individual'); setClienteSel(c); }
+    if (c) setClienteSel(c);
     setSearchParams(prev => { prev.delete('cliente'); return prev; }, { replace: true });
   }, [searchParams, clientes]);
 
@@ -142,18 +127,6 @@ export default function Notificaciones() {
     setMsgReanudar(null);
     reanudarBotMutation.mutate(paso);
   };
-
-  const { data: audiencia } = useQuery({
-    queryKey: ['audiencia-masivo', audienciaTipo, limM],
-    queryFn: () => {
-      const params = new URLSearchParams({ limite: limM });
-      if (audienciaTipo === 'conPedido') params.set('soloConPedido', '1');
-      if (audienciaTipo === 'recurrentes') params.set('soloTags', 'cliente_recurrente');
-      if (audienciaTipo === 'sinActividad') params.set('sinActividad', '1');
-      return api.get('/api/masivo/preview?' + params.toString()).then(r => (r.ok ? r.clientes : []));
-    },
-    enabled: tab === 'masivo',
-  });
 
   const listaFiltrada = clientes.filter(c =>
     !filtro || (c.nombre || '').toLowerCase().includes(filtro.toLowerCase()) || (c.telefono || '').includes(filtro)
@@ -215,7 +188,200 @@ export default function Notificaciones() {
     enviarPosMutation.mutate();
   };
 
-  const usarPlantillaMasiva = (tipo) => setMsgMasivo(PLANTILLAS_MAS[tipo]);
+  return (
+    <div className="split-2">
+      <Card withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{txt('👥 Seleccionar cliente')}</div>
+          <TextInput placeholder="Buscar nombre o teléfono..." value={filtro} onChange={e => setFiltro(e.target.value)} />
+        </div>
+        <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+          {listaFiltrada.length === 0 && <div className="empty">Sin resultados</div>}
+          {listaFiltrada.map(c => {
+            const sel = clienteSel?.id === c.id;
+            return (
+              <div key={c.id} onClick={() => setClienteSel(c)} style={{
+                display: 'flex', alignItems: 'center', gap: 9, padding: '9px 13px', cursor: 'pointer',
+                borderBottom: '1px solid var(--border)', background: sel ? 'var(--panel-2)' : 'transparent',
+                borderLeft: `3px solid ${sel ? 'var(--accent)' : 'transparent'}`,
+              }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: sel ? 'var(--accent)' : 'var(--panel-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+                  {capitalizar(c.nombre)[0]}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: sel ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{capitalizar(c.nombre)}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-mute)', fontFamily: 'monospace' }}>{soloTelefono(c.telefono).slice(0, 18)}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card withBorder radius="md" p="lg">
+        <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 12, minHeight: 50, display: 'flex', alignItems: 'center' }}>
+          {!clienteSel && <span style={{ color: 'var(--text-mute)', fontSize: 13 }}>Selecciona un cliente</span>}
+          {clienteSel && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%' }}>
+              <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
+                {capitalizar(clienteSel.nombre)[0]}
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{capitalizar(clienteSel.nombre)}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-mute)', fontFamily: 'monospace' }}>{soloTelefono(clienteSel.telefono)}</div>
+                {clienteSel.codigo_referido && (
+                  <div style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'monospace' }} title="Código de referido — puedes mencionárselo al cliente en esta venta">
+                    <Emoji></Emoji>{clienteSel.codigo_referido}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {clienteSel && (
+          <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 7, padding: 8, marginBottom: 12 }}>
+            {hilo === undefined && <div className="text-muted" style={{ fontSize: 12 }}>Cargando conversación...</div>}
+            {hilo?.length === 0 && <div className="text-muted" style={{ fontSize: 12 }}>Sin mensajes registrados todavía.</div>}
+            {hilo?.map((m, i) => {
+              const dcha = m.rol === 'bot' || m.rol === 'asesor';
+              return (
+                <div key={i} style={{ display: 'flex', justifyContent: dcha ? 'flex-end' : 'flex-start', marginBottom: 6 }}>
+                  <div className={`chat-burbuja rol-${m.rol}`}>
+                    <div>{m.contenido}</div>
+                    <div className="chat-meta">{m.rol} · {fdate(m.enviado_en)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {clienteSel && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Regresar al bot</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              <Button variant="light" size="xs" disabled={reanudarBotMutation.isPending} onClick={() => reanudarBot('confirmar_direccion')}>
+                {txt('📮 Pedir confirmación de dirección')}
+              </Button>
+              <Button variant="light" size="xs" disabled={reanudarBotMutation.isPending} onClick={() => reanudarBot('generar_pago')}>
+                {txt('💳 Generar/reenviar link de pago')}
+              </Button>
+            </div>
+            {msgReanudar && <div className={msgReanudar.ok ? 'card' : 'login-error'} style={{ marginTop: 8, fontSize: 12 }}>{txt(msgReanudar.texto)}</div>}
+          </div>
+        )}
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Plantillas</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            <Button variant="default" size="xs" onClick={() => usarPlantilla('pedido_listo')}>{txt('📦 Pedido listo')}</Button>
+            <Button variant="default" size="xs" onClick={() => usarPlantilla('guia_generada')}>{txt('🚚 Guía lista')}</Button>
+            <Button variant="default" size="xs" onClick={() => usarPlantilla('pago_pendiente')}>{txt('💳 Pago pendiente')}</Button>
+            <Button variant="default" size="xs" onClick={() => usarPlantilla('seguimiento')}>{txt('👋 Seguimiento')}</Button>
+          </div>
+        </div>
+        <Textarea ref={refMsgInd} label="Mensaje" value={msgInd} onChange={e => setMsgInd(e.target.value)} placeholder="Escribe o elige una plantilla..." minRows={4} mb="sm" />
+        {cuponesActivos.length > 0 && (
+          <Group gap={6} mb="sm" wrap="nowrap">
+            <Select
+              placeholder="Insertar código de cupón..." size="xs" style={{ flex: 1 }}
+              data={cuponesActivos.map(c => ({ value: c.codigo, label: `${c.codigo} (${c.tipo === 'porcentaje' ? c.valor + '%' : '$' + c.valor})` }))}
+              value={cuponSelInd} onChange={setCuponSelInd} comboboxProps={{ withinPortal: true }} searchable
+            />
+            <Button variant="default" size="xs" disabled={!cuponSelInd} onClick={insertarCuponInd}>Insertar</Button>
+          </Group>
+        )}
+        <Button fullWidth disabled={enviarIndMutation.isPending} onClick={enviarIndividual}>{txt('📤 Enviar por WhatsApp')}</Button>
+        {respInd && <div className={respInd.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respInd.texto)}</div>}
+
+        <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>{txt('🛒 Venta previa (POS)')}</div>
+          <Group gap={6} mb={8} wrap="nowrap">
+            <TextInput placeholder="Buscar producto..." value={posQ} onChange={e => setPosQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscarProductoPOS()} style={{ flex: 1 }} />
+            <Button variant="default" size="xs" onClick={buscarProductoPOS}>Buscar</Button>
+          </Group>
+          <div style={{ maxHeight: 140, overflowY: 'auto', marginBottom: 8 }}>
+            {posResultados.length === 0 && <div className="text-muted" style={{ fontSize: 12 }}>{posQ ? 'Sin resultados.' : ''}</div>}
+            {posResultados.map(p => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                <div style={{ flex: 1 }}>{p.name} — ${Number(p.price).toFixed(2)}</div>
+                <Button variant="default" size="xs" onClick={() => agregarProductoPOS(p)}>+ Agregar</Button>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 12, marginBottom: 8, color: 'var(--text-mute)' }}>
+            {posCarrito.length === 0 ? 'Carrito vacío' : posCarrito.map(it => (
+              <div key={it.id_producto} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
+                <span style={{ flex: 1 }}>{it.nombre} ×{it.cantidad}</span>
+                <Button variant="default" size="xs" onClick={() => quitarProductoPOS(it.id_producto)}></Button>
+              </div>
+            ))}
+          </div>
+          <Button fullWidth size="sm" disabled={enviarPosMutation.isPending} onClick={enviarVentaPrevia}>{txt('📨 Crear venta previa y enviar')}</Button>
+          {respPos && <div className={respPos.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respPos.texto)}</div>}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── Tab Masivo: broadcast por audiencia + cupón flash ────────────────────────
+function MasivoTab() {
+  const txt = useTextoEmoji();
+  const queryClient = useQueryClient();
+
+  const [audienciaTipo, setAudienciaTipo] = useState('todos');
+  const [limM, setLimM] = useState(50);
+  const [msgMasivo, setMsgMasivo] = useState('');
+  const [codigoCampana, setCodigoCampana] = useState('');
+  const [waLink, setWaLink] = useState('');
+  const [cuando, setCuando] = useState('ahora');
+  const [fechaProg, setFechaProg] = useState('');
+  const [respMasivo, setRespMasivo] = useState(null);
+
+  // Marca del negocio para la plantilla de "promoción" -- igual que en
+  // Layout.jsx, arranca del último nombre visto (localStorage), NUNCA de un
+  // nombre hardcodeado: este panel es white-label y un broadcast masivo con
+  // "Julio Cepeda Jugueterías" hardcodeado saldría mal en cualquier clon.
+  const [nombreNegocio, setNombreNegocio] = useState(() => {
+    try { return localStorage.getItem('nombre-negocio') || ''; } catch (_) { return ''; }
+  });
+  useEffect(() => {
+    api.get('/api/negocio').then(d => {
+      if (d?.nombre_negocio) {
+        setNombreNegocio(d.nombre_negocio);
+        try { localStorage.setItem('nombre-negocio', d.nombre_negocio); } catch (_) {}
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Cupones activos -- para insertar el código en el mensaje sin tener que
+  // ir a copiarlo manualmente desde la página de Cupones.
+  const { data: cuponesActivos = [] } = useQuery({
+    queryKey: ['promociones', '1'],
+    queryFn: () => api.get('/api/promociones?activa=1'),
+  });
+  const [cuponSelMas, setCuponSelMas] = useState(null);
+  const refMsgMasivo = useRef(null);
+  const insertarCuponMasivo = () => {
+    if (!cuponSelMas) return;
+    insertarEnCursor(refMsgMasivo, msgMasivo, setMsgMasivo, cuponSelMas);
+    setCuponSelMas(null);
+  };
+
+  const { data: audiencia } = useQuery({
+    queryKey: ['audiencia-masivo', audienciaTipo, limM],
+    queryFn: () => {
+      const params = new URLSearchParams({ limite: limM });
+      if (audienciaTipo === 'conPedido') params.set('soloConPedido', '1');
+      if (audienciaTipo === 'recurrentes') params.set('soloTags', 'cliente_recurrente');
+      if (audienciaTipo === 'sinActividad') params.set('sinActividad', '1');
+      return api.get('/api/masivo/preview?' + params.toString()).then(r => (r.ok ? r.clientes : []));
+    },
+  });
+
+  const usarPlantillaMasiva = (tipo) => setMsgMasivo(PLANTILLAS_MAS[tipo].replace('{negocio}', nombreNegocio || 'nuestra tienda'));
 
   // Cupón flash: solo tiene sentido con envío inmediato -- la ventana de
   // validez arranca "desde el envío", y para un broadcast programado eso
@@ -287,6 +453,128 @@ export default function Notificaciones() {
   };
 
   return (
+    <div className="split-2">
+      <Card withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{txt('🎯 Audiencia')}</div>
+          <Select
+            mb={7} value={audienciaTipo} onChange={v => setAudienciaTipo(v ?? audienciaTipo)} comboboxProps={{ withinPortal: true }}
+            data={[
+              { value: 'todos', label: txt('👥 Todos los clientes') },
+              { value: 'conPedido', label: txt('📦 Con pedido previo') },
+              { value: 'recurrentes', label: txt('⭐ Recurrentes') },
+              { value: 'sinActividad', label: txt('😴 Sin actividad 30+ días') },
+            ]}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <label style={{ fontSize: 12, color: 'var(--text-mute)', whiteSpace: 'nowrap' }}>Máx:</label>
+            <TextInput type="number" value={limM} min={1} max={500} onChange={e => setLimM(parseInt(e.target.value) || 50)} w={70} size="xs" />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-mute)' }}>
+            <span>{audiencia === undefined ? 'Calculando...' : 'clientes recibirán el mensaje'}</span>
+            <strong style={{ fontSize: 18, color: 'var(--accent)' }}>{audiencia === undefined ? '...' : audiencia.length}</strong>
+          </div>
+        </div>
+        <div style={{ maxHeight: 350, overflowY: 'auto', fontSize: 12 }}>
+          {audiencia?.length === 0 && <div className="empty">Sin clientes para esta audiencia</div>}
+          {audiencia?.map(c => (
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 12px', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, flex: 1 }}>{capitalizar(c.nombre)}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-mute)', fontFamily: 'monospace' }}>{soloTelefono(c.telefono).slice(0, 15)}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card withBorder radius="md" p="lg">
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Plantillas</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            <Button variant="default" size="xs" onClick={() => usarPlantillaMasiva('promocion')}>{txt('🏷️ Promoción')}</Button>
+            <Button variant="default" size="xs" onClick={() => usarPlantillaMasiva('reactivacion')}>{txt('👋 Reactivación')}</Button>
+            <Button variant="default" size="xs" onClick={() => usarPlantillaMasiva('novedad')}>{txt('✨ Novedad')}</Button>
+          </div>
+        </div>
+        <Textarea
+          ref={refMsgMasivo}
+          label={<>Mensaje <span style={{ fontWeight: 400, color: 'var(--text-mute)' }}>- usa {'{nombre}'}</span></>}
+          value={msgMasivo} onChange={e => setMsgMasivo(e.target.value)} placeholder="Hola {nombre}..." minRows={5} mb="sm"
+        />
+        {cuponesActivos.length > 0 && (
+          <Group gap={6} mb="sm" wrap="nowrap">
+            <Select
+              placeholder="Insertar código de cupón..." size="xs" style={{ flex: 1 }}
+              data={cuponesActivos.map(c => ({ value: c.codigo, label: `${c.codigo} (${c.tipo === 'porcentaje' ? c.valor + '%' : '$' + c.valor})` }))}
+              value={cuponSelMas} onChange={setCuponSelMas} comboboxProps={{ withinPortal: true }} searchable
+            />
+            <Button variant="default" size="xs" disabled={!cuponSelMas} onClick={insertarCuponMasivo}>Insertar</Button>
+          </Group>
+        )}
+        <div style={{ padding: '8px 12px', background: 'var(--panel-2)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--yellow)', marginBottom: 10 }}>
+          {txt('⚠️ Excluidos: troll, blacklist, queja, devolucion')}
+        </div>
+        <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 7, textTransform: 'uppercase' }}>{txt('⏰ Programar')}</div>
+          <Radio.Group value={cuando} onChange={v => toggleProgramar(v === 'programar')}>
+            <Group gap={12}>
+              <Radio value="ahora" label="Ahora" />
+              <Radio value="programar" label="Programar..." />
+            </Group>
+          </Radio.Group>
+          {cuando === 'programar' && (
+            <TextInput type="datetime-local" value={fechaProg} onChange={e => setFechaProg(e.target.value)} size="xs" mt={8} />
+          )}
+        </div>
+
+        {cuando === 'ahora' && (
+          <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 10 }}>
+            <Group justify="space-between" mb={cuponFlash ? 8 : 0}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', textTransform: 'uppercase' }}>{txt('⚡ Cupón flash')}</div>
+              <Switch checked={cuponFlash} onChange={e => setCuponFlash(e.currentTarget.checked)} size="sm" />
+            </Group>
+            {cuponFlash && (
+              <>
+                <p className="page-sub" style={{ margin: '0 0 8px', fontSize: 12 }}>
+                  Se activa justo al enviar este broadcast: válido por los minutos indicados desde
+                  ahora, hasta el máximo de redenciones (tope global, no por cliente).
+                </p>
+                <Group grow mb={8}>
+                  <TextInput placeholder="Código (ej: FLASH10)" size="xs" value={flashCodigo} onChange={e => setFlashCodigo(e.target.value)} />
+                  <NumberInput placeholder="% descuento" size="xs" min={1} max={100} value={flashValor === '' ? '' : Number(flashValor)} onChange={v => setFlashValor(v === '' ? '' : String(v))} />
+                </Group>
+                <Group grow>
+                  <NumberInput label="Minutos de validez" size="xs" min={1} max={1440} value={Number(flashMinutos)} onChange={v => setFlashMinutos(String(v ?? 10))} />
+                  <NumberInput label="Máx. redenciones" size="xs" min={1} value={Number(flashUsosMax)} onChange={v => setFlashUsosMax(String(v ?? 10))} />
+                </Group>
+              </>
+            )}
+          </div>
+        )}
+
+        <TextInput label="Código de campaña (opcional — para medir atribución)" placeholder="ej. VERANO_IG"
+          value={codigoCampana} onChange={e => setCodigoCampana(e.target.value)} mb="xs" size="xs" />
+        <Group gap="xs" mb="sm">
+          <Button size="xs" variant="default" onClick={async () => {
+            try { const r = await api.get('/api/marketing/wa-link?campana=' + encodeURIComponent(codigoCampana || 'general'));
+              if (r.ok) { setWaLink(r.link); navigator.clipboard?.writeText(r.link); } else toastErr(r.error);
+            } catch (e) { toastErr(e.message); }
+          }}>Generar link wa.me para redes</Button>
+          {waLink && <span style={{ fontSize: 11, color: 'var(--text-mute)', wordBreak: 'break-all' }}>Copiado: {waLink}</span>}
+        </Group>
+        <Button fullWidth disabled={enviarMasivoMutation.isPending} onClick={enviarMasivo}>
+          <Emoji></Emoji>Enviar a {audiencia?.length || 0} clientes
+        </Button>
+        {respMasivo && <div className={respMasivo.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respMasivo.texto)}</div>}
+      </Card>
+    </div>
+  );
+}
+
+export default function Notificaciones() {
+  const txt = useTextoEmoji();
+  const [tab, setTab] = useState('individual');
+
+  return (
     <div className="sin-scroll">
       <div className="page-title">Operación diaria</div>
       <div className="page-sub">Chat en vivo, venta previa y campañas masivas</div>
@@ -299,259 +587,8 @@ export default function Notificaciones() {
         </Tabs.List>
       </Tabs>
 
-      {tab === 'individual' && (
-        <div className="split-2">
-          <Card withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
-            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{txt('👥 Seleccionar cliente')}</div>
-              <TextInput placeholder="Buscar nombre o teléfono..." value={filtro} onChange={e => setFiltro(e.target.value)} />
-            </div>
-            <div style={{ maxHeight: 420, overflowY: 'auto' }}>
-              {listaFiltrada.length === 0 && <div className="empty">Sin resultados</div>}
-              {listaFiltrada.map(c => {
-                const sel = clienteSel?.id === c.id;
-                return (
-                  <div key={c.id} onClick={() => setClienteSel(c)} style={{
-                    display: 'flex', alignItems: 'center', gap: 9, padding: '9px 13px', cursor: 'pointer',
-                    borderBottom: '1px solid var(--border)', background: sel ? 'var(--panel-2)' : 'transparent',
-                    borderLeft: `3px solid ${sel ? 'var(--accent)' : 'transparent'}`,
-                  }}>
-                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: sel ? 'var(--accent)' : 'var(--panel-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
-                      {capitalizar(c.nombre)[0]}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: sel ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{capitalizar(c.nombre)}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-mute)', fontFamily: 'monospace' }}>{soloTelefono(c.telefono).slice(0, 18)}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-
-          <Card withBorder radius="md" p="lg">
-            <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 12, minHeight: 50, display: 'flex', alignItems: 'center' }}>
-              {!clienteSel && <span style={{ color: 'var(--text-mute)', fontSize: 13 }}>Selecciona un cliente</span>}
-              {clienteSel && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%' }}>
-                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
-                    {capitalizar(clienteSel.nombre)[0]}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{capitalizar(clienteSel.nombre)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-mute)', fontFamily: 'monospace' }}>{soloTelefono(clienteSel.telefono)}</div>
-                    {clienteSel.codigo_referido && (
-                      <div style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'monospace' }} title="Código de referido — puedes mencionárselo al cliente en esta venta">
-                        <Emoji></Emoji>{clienteSel.codigo_referido}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {clienteSel && (
-              <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 7, padding: 8, marginBottom: 12 }}>
-                {hilo === undefined && <div className="text-muted" style={{ fontSize: 12 }}>Cargando conversación...</div>}
-                {hilo?.length === 0 && <div className="text-muted" style={{ fontSize: 12 }}>Sin mensajes registrados todavía.</div>}
-                {hilo?.map((m, i) => {
-                  const dcha = m.rol === 'bot' || m.rol === 'asesor';
-                  return (
-                    <div key={i} style={{ display: 'flex', justifyContent: dcha ? 'flex-end' : 'flex-start', marginBottom: 6 }}>
-                      <div className={`chat-burbuja rol-${m.rol}`}>
-                        <div>{m.contenido}</div>
-                        <div className="chat-meta">{m.rol} · {fdate(m.enviado_en)}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {clienteSel && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Regresar al bot</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                  <Button variant="light" size="xs" disabled={reanudarBotMutation.isPending} onClick={() => reanudarBot('confirmar_direccion')}>
-                    {txt('📮 Pedir confirmación de dirección')}
-                  </Button>
-                  <Button variant="light" size="xs" disabled={reanudarBotMutation.isPending} onClick={() => reanudarBot('generar_pago')}>
-                    {txt('💳 Generar/reenviar link de pago')}
-                  </Button>
-                </div>
-                {msgReanudar && <div className={msgReanudar.ok ? 'card' : 'login-error'} style={{ marginTop: 8, fontSize: 12 }}>{txt(msgReanudar.texto)}</div>}
-              </div>
-            )}
-
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Plantillas</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                <Button variant="default" size="xs" onClick={() => usarPlantilla('pedido_listo')}>{txt('📦 Pedido listo')}</Button>
-                <Button variant="default" size="xs" onClick={() => usarPlantilla('guia_generada')}>{txt('🚚 Guía lista')}</Button>
-                <Button variant="default" size="xs" onClick={() => usarPlantilla('pago_pendiente')}>{txt('💳 Pago pendiente')}</Button>
-                <Button variant="default" size="xs" onClick={() => usarPlantilla('seguimiento')}>{txt('👋 Seguimiento')}</Button>
-              </div>
-            </div>
-            <Textarea ref={refMsgInd} label="Mensaje" value={msgInd} onChange={e => setMsgInd(e.target.value)} placeholder="Escribe o elige una plantilla..." minRows={4} mb="sm" />
-            {cuponesActivos.length > 0 && (
-              <Group gap={6} mb="sm" wrap="nowrap">
-                <Select
-                  placeholder="Insertar código de cupón..." size="xs" style={{ flex: 1 }}
-                  data={cuponesActivos.map(c => ({ value: c.codigo, label: `${c.codigo} (${c.tipo === 'porcentaje' ? c.valor + '%' : '$' + c.valor})` }))}
-                  value={cuponSelInd} onChange={setCuponSelInd} comboboxProps={{ withinPortal: true }} searchable
-                />
-                <Button variant="default" size="xs" disabled={!cuponSelInd} onClick={insertarCuponInd}>Insertar</Button>
-              </Group>
-            )}
-            <Button fullWidth disabled={enviarIndMutation.isPending} onClick={enviarIndividual}>{txt('📤 Enviar por WhatsApp')}</Button>
-            {respInd && <div className={respInd.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respInd.texto)}</div>}
-
-            <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>{txt('🛒 Venta previa (POS)')}</div>
-              <Group gap={6} mb={8} wrap="nowrap">
-                <TextInput placeholder="Buscar producto..." value={posQ} onChange={e => setPosQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscarProductoPOS()} style={{ flex: 1 }} />
-                <Button variant="default" size="xs" onClick={buscarProductoPOS}>Buscar</Button>
-              </Group>
-              <div style={{ maxHeight: 140, overflowY: 'auto', marginBottom: 8 }}>
-                {posResultados.length === 0 && <div className="text-muted" style={{ fontSize: 12 }}>{posQ ? 'Sin resultados.' : ''}</div>}
-                {posResultados.map(p => (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                    <div style={{ flex: 1 }}>{p.name} — ${Number(p.price).toFixed(2)}</div>
-                    <Button variant="default" size="xs" onClick={() => agregarProductoPOS(p)}>+ Agregar</Button>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 12, marginBottom: 8, color: 'var(--text-mute)' }}>
-                {posCarrito.length === 0 ? 'Carrito vacío' : posCarrito.map(it => (
-                  <div key={it.id_producto} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
-                    <span style={{ flex: 1 }}>{it.nombre} ×{it.cantidad}</span>
-                    <Button variant="default" size="xs" onClick={() => quitarProductoPOS(it.id_producto)}></Button>
-                  </div>
-                ))}
-              </div>
-              <Button fullWidth size="sm" disabled={enviarPosMutation.isPending} onClick={enviarVentaPrevia}>{txt('📨 Crear venta previa y enviar')}</Button>
-              {respPos && <div className={respPos.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respPos.texto)}</div>}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {tab === 'masivo' && (
-        <div className="split-2">
-          <Card withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
-            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{txt('🎯 Audiencia')}</div>
-              <Select
-                mb={7} value={audienciaTipo} onChange={v => setAudienciaTipo(v ?? audienciaTipo)} comboboxProps={{ withinPortal: true }}
-                data={[
-                  { value: 'todos', label: txt('👥 Todos los clientes') },
-                  { value: 'conPedido', label: txt('📦 Con pedido previo') },
-                  { value: 'recurrentes', label: txt('⭐ Recurrentes') },
-                  { value: 'sinActividad', label: txt('😴 Sin actividad 30+ días') },
-                ]}
-              />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <label style={{ fontSize: 12, color: 'var(--text-mute)', whiteSpace: 'nowrap' }}>Máx:</label>
-                <TextInput type="number" value={limM} min={1} max={500} onChange={e => setLimM(parseInt(e.target.value) || 50)} w={70} size="xs" />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-mute)' }}>
-                <span>{audiencia === undefined ? 'Calculando...' : 'clientes recibirán el mensaje'}</span>
-                <strong style={{ fontSize: 18, color: 'var(--accent)' }}>{audiencia === undefined ? '...' : audiencia.length}</strong>
-              </div>
-            </div>
-            <div style={{ maxHeight: 350, overflowY: 'auto', fontSize: 12 }}>
-              {audiencia?.length === 0 && <div className="empty">Sin clientes para esta audiencia</div>}
-              {audiencia?.map(c => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 12px', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, flex: 1 }}>{capitalizar(c.nombre)}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-mute)', fontFamily: 'monospace' }}>{soloTelefono(c.telefono).slice(0, 15)}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card withBorder radius="md" p="lg">
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, textTransform: 'uppercase' }}>Plantillas</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                <Button variant="default" size="xs" onClick={() => usarPlantillaMasiva('promocion')}>{txt('🏷️ Promoción')}</Button>
-                <Button variant="default" size="xs" onClick={() => usarPlantillaMasiva('reactivacion')}>{txt('👋 Reactivación')}</Button>
-                <Button variant="default" size="xs" onClick={() => usarPlantillaMasiva('novedad')}>{txt('✨ Novedad')}</Button>
-              </div>
-            </div>
-            <Textarea
-              ref={refMsgMasivo}
-              label={<>Mensaje <span style={{ fontWeight: 400, color: 'var(--text-mute)' }}>- usa {'{nombre}'}</span></>}
-              value={msgMasivo} onChange={e => setMsgMasivo(e.target.value)} placeholder="Hola {nombre}..." minRows={5} mb="sm"
-            />
-            {cuponesActivos.length > 0 && (
-              <Group gap={6} mb="sm" wrap="nowrap">
-                <Select
-                  placeholder="Insertar código de cupón..." size="xs" style={{ flex: 1 }}
-                  data={cuponesActivos.map(c => ({ value: c.codigo, label: `${c.codigo} (${c.tipo === 'porcentaje' ? c.valor + '%' : '$' + c.valor})` }))}
-                  value={cuponSelMas} onChange={setCuponSelMas} comboboxProps={{ withinPortal: true }} searchable
-                />
-                <Button variant="default" size="xs" disabled={!cuponSelMas} onClick={insertarCuponMasivo}>Insertar</Button>
-              </Group>
-            )}
-            <div style={{ padding: '8px 12px', background: 'var(--panel-2)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--yellow)', marginBottom: 10 }}>
-              {txt('⚠️ Excluidos: troll, blacklist, queja, devolucion')}
-            </div>
-            <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 7, textTransform: 'uppercase' }}>{txt('⏰ Programar')}</div>
-              <Radio.Group value={cuando} onChange={v => toggleProgramar(v === 'programar')}>
-                <Group gap={12}>
-                  <Radio value="ahora" label="Ahora" />
-                  <Radio value="programar" label="Programar..." />
-                </Group>
-              </Radio.Group>
-              {cuando === 'programar' && (
-                <TextInput type="datetime-local" value={fechaProg} onChange={e => setFechaProg(e.target.value)} size="xs" mt={8} />
-              )}
-            </div>
-
-            {cuando === 'ahora' && (
-              <div style={{ padding: 10, background: 'var(--panel-2)', borderRadius: 7, marginBottom: 10 }}>
-                <Group justify="space-between" mb={cuponFlash ? 8 : 0}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', textTransform: 'uppercase' }}>{txt('⚡ Cupón flash')}</div>
-                  <Switch checked={cuponFlash} onChange={e => setCuponFlash(e.currentTarget.checked)} size="sm" />
-                </Group>
-                {cuponFlash && (
-                  <>
-                    <p className="page-sub" style={{ margin: '0 0 8px', fontSize: 12 }}>
-                      Se activa justo al enviar este broadcast: válido por los minutos indicados desde
-                      ahora, hasta el máximo de redenciones (tope global, no por cliente).
-                    </p>
-                    <Group grow mb={8}>
-                      <TextInput placeholder="Código (ej: FLASH10)" size="xs" value={flashCodigo} onChange={e => setFlashCodigo(e.target.value)} />
-                      <NumberInput placeholder="% descuento" size="xs" min={1} max={100} value={flashValor === '' ? '' : Number(flashValor)} onChange={v => setFlashValor(v === '' ? '' : String(v))} />
-                    </Group>
-                    <Group grow>
-                      <NumberInput label="Minutos de validez" size="xs" min={1} max={1440} value={Number(flashMinutos)} onChange={v => setFlashMinutos(String(v ?? 10))} />
-                      <NumberInput label="Máx. redenciones" size="xs" min={1} value={Number(flashUsosMax)} onChange={v => setFlashUsosMax(String(v ?? 10))} />
-                    </Group>
-                  </>
-                )}
-              </div>
-            )}
-
-            <TextInput label="Código de campaña (opcional — para medir atribución)" placeholder="ej. VERANO_IG"
-              value={codigoCampana} onChange={e => setCodigoCampana(e.target.value)} mb="xs" size="xs" />
-            <Group gap="xs" mb="sm">
-              <Button size="xs" variant="default" onClick={async () => {
-                try { const r = await api.get('/api/marketing/wa-link?campana=' + encodeURIComponent(codigoCampana || 'general'));
-                  if (r.ok) { setWaLink(r.link); navigator.clipboard?.writeText(r.link); } else toastErr(r.error);
-                } catch (e) { toastErr(e.message); }
-              }}>Generar link wa.me para redes</Button>
-              {waLink && <span style={{ fontSize: 11, color: 'var(--text-mute)', wordBreak: 'break-all' }}>Copiado: {waLink}</span>}
-            </Group>
-            <Button fullWidth disabled={enviarMasivoMutation.isPending} onClick={enviarMasivo}>
-              <Emoji></Emoji>Enviar a {audiencia?.length || 0} clientes
-            </Button>
-            {respMasivo && <div className={respMasivo.ok ? 'card' : 'login-error'} style={{ marginTop: 12 }}>{txt(respMasivo.texto)}</div>}
-          </Card>
-        </div>
-      )}
+      {tab === 'individual' && <IndividualTab />}
+      {tab === 'masivo' && <MasivoTab />}
       </div>
     </div>
   );

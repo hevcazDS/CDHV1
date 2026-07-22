@@ -158,12 +158,13 @@ function sembrarAnio(productos) {
         'Carmen Ríos', 'Jorge Luna', 'Fer Solís', 'Andrés Rojo', 'Bere Campos', 'Toño Salas'];
     const gens = ['F', 'M'], edades = ['0-2', '3-5', '6-8', '9-12', 'adulto'], presu = ['bajo', 'medio', 'alto'];
     nombres.forEach((n, k) => {
+        const telefono = '521' + rnd(3000000000, 3999999999);
         const r = db.prepare(`INSERT INTO clientes (nombre, telefono, canal_origen, activo, creado_en, tags, lead_score, edad_pref, genero_pref, presupuesto_pref, codigo_referido)
             VALUES (?,?, ?,1,?, 'demo', ?,?,?,?,?)`)
-            .run(n, '521' + rnd(3000000000, 3999999999), pick(['whatsapp', 'directo', 'promo:verano']),
+            .run(n, telefono, pick(['whatsapp', 'directo', 'promo:verano']),
                 isoDT(diasAtras(rnd(30, 360))), rnd(10, 95), pick(edades), pick(gens), pick(presu),
                 crypto.randomBytes(3).toString('hex').toUpperCase().slice(0, 5));
-        clientes.push({ id: r.lastInsertRowid, telefono: '521' + rnd(3000000000, 3999999999) });
+        clientes.push({ id: r.lastInsertRowid, telefono });
     });
 
     const vendibles = productos.length ? productos : db.prepare("SELECT id, price, costo, tipo FROM productos WHERE activo=1 LIMIT 200").all().map(p => ({ id: p.id, price: p.price, costo: p.costo, esServicio: p.tipo === 'servicio' }));

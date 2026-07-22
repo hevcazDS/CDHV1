@@ -13,6 +13,104 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > 5. **Esquema: 85 migraciones** (`0001`–`0085`), ~70+ tablas; la UI usa **Mantine** + React/Vite con ~40 páginas (no las "20 secciones" del `dashboard.html` legado, ya borrado).
 > 6. **Ver `INDICE_DOCUMENTACION.md`** para el mapa completo de los 65 `.md` del repo (cuáles son vigentes vs. historial de auditorías ya cerradas). Verificación 2026-07-21 contra código real de los 4 hallazgos de seguridad y 4 contables que ese índice marcaba "candidatos a revisar": **auditor-bypass-de-rango, advertencia de contraseña default, CSP `unsafe-inline`, e inyección en `Content-Disposition`** de las 3 descargas fiscales — **los 4 ya estaban corregidos** en el código (no en los `.md`, que son snapshots congelados de auditorías de julio). De lo contable, **`asientoReversa` (sucursal) y la comisión de nómina fuera del flag fiscal ya estaban corregidos**; el **complemento de pago (REP/`timbrarREP`)** sí tenía el bug real (forma de pago fija `'03'` y saldo insoluto mal calculado) — **corregido hoy** en `services/pacService.js` (`payment_form` vía `_formaPagoSAT`, `last_balance:0` ya que el sistema no rastrea parcialidades reales); el desglose de `taxes` del REP se dejó **deliberadamente sin tocar** (arriesgar un formato adivinado contra un PAC real es peor que dejarlo documentado). El doble-asiento de `facturaXml` (compras.js) sigue como limitación **conscientemente documentada** en el propio código, no arreglado (requiere que el parser de CFDI exponga Descuento/Impuestos a nivel comprobante). De UI, el patrón "grid inline sin `@media`" bajó de ~35 a 8 archivos; se corrigieron los 2 que de verdad rompían en móvil (`erp/ComprasTab.jsx`, `inicio/VistaCajero.jsx`, reusando `.split-2w`/`.cols-3` ya existentes) — `prime/productoCampos.jsx` (8 grids de formulario) queda pendiente, es admin-only y de menor severidad.
 >
+> **2026-07-22 (v1.1.0, plan v3 — ver `PLAN_V3.md`):** auditoría completa del código
+> (4 pasadas paralelas) encontró 18 bugs reales + candidatos de factorización sobre
+> archivos que nunca se habían revisado a fondo (`bot/flows/_shared.js`, `bot/index.js`,
+> `services/stockWatcher.js`, `dashboard/routes/erpContabilidad.js`, etc.). Los 18 bugs
+> se corrigieron (Fases 1-3) y se documentaron en `PLAN_V3.md`; entre los más serios:
+> `services/emailService.js` tenía un contador RCPT-TO roto que colgaba envíos con 1
+> destinatario y podía tumbar el proceso del bot completo por un error TLS sin capturar;
+> restaurar un backup real desde Prime→General reventaba (`RangeError`) por un
+> `btoa(String.fromCharCode(...bytes))` sin chunking; la escalación a asesor en negocios
+> con solo pickup activo crasheaba en vez de escalar; cancelar un pago marcado-pagado no
+> pedía PIN (a diferencia de la cancelación equivalente en POS). También se hizo limpieza
+> de factorización (Fase 4, refactor puro sin cambio de comportamiento): `stockWatcher.js`
+> (989 líneas) partido en `services/checks/*.js`; las 4 funciones `grabarPedido*` de
+> `_shared.js` parcialmente deduplicadas; el SMTP hand-rolled (repetido 3 veces) unificado
+> en `services/smtpClient.js`; `Notificaciones.jsx`/`GeneralTab.jsx`/`erpContabilidad.js`
+> (`tablero()`) divididos en piezas más chicas. Ver `PLAN_V3.md` para el detalle completo
+> ítem por ítem. Desplegado a producción con autorización explícita del dueño y
+> verificado (`/health` OK); luego el dueño pidió apagar el servicio otra vez y seguir
+> auditando/refactorizando.
+>
+> **2026-07-22 (2ª ronda, ítems 26-38 de `PLAN_V3.md`):** con el contenedor apagado a
+> propósito, segunda auditoría (4 agentes) sobre lo que la 1ª ronda no cubrió: el resto
+> de `dashboard/routes/` (25 archivos), el motor de flujo visual (`bot/flows/motor/`) +
+> handlers del bot, y el resto de páginas/scripts del frontend. **12 de 13 hallazgos
+> corregidos**: gates de área faltantes en cola de atención/notificaciones, borrado de
+> ítem de mesa sin verificar que sea de esa mesa, alta de empleado sin PIN de salario
+> (bypass de `empleadosPut`), pago de nómina sin rastro de auditoría (migración 0087,
+> `nominas.pagada_por`), cambio de monto de suscripción sin PIN, gaps en `documentos.js`,
+> borrar usuario del panel sin confirmación, y varios nits menores. **Un hallazgo real
+> se dejó sin forzar**: `bot/flows/motor/linter.js`'s `PASOS_SELLADOS` sí se corrigió
+> (faltaban 7 estados de `menuFlow.js`), pero el fallback fail-closed entre
+> `interprete.js`/`actionHandler.js` se investigó a fondo y se determinó que NO es
+> seguro de arreglar sin cambiar el contrato de retorno del motor: `interprete.js`
+> devuelve `undefined` desde 5 puntos con garantías incompatibles entre sí, algunos
+> seguros de reintentar y otros donde reintentar correría un mensaje contra una sesión
+> ya avanzada — corromper el carrito/checkout de un cliente sería peor que el bug
+> original. Ver `PLAN_V3.md` ítem 27 para el detalle completo. Build verificado
+> (`docker compose build` limpio).
+>
+> **2026-07-22 (3ª ronda, ítems 39-46 de `PLAN_V3.md`):** cuarta auditoría (4 agentes)
+> sobre lo último sin cubrir: el backbone de seguridad (`autorizacion.js`/`permisos.js`/
+> `server.js` — **salió limpio, sin vulnerabilidades reales**, solo 2 oportunidades de
+> hardening de baja prioridad documentadas y no implementadas: sesiones sin timeout de
+> inactividad, contadores de fuerza-bruta en memoria que se resetean al reiniciar),
+> `menuFlow.js`/`cartFlow.js`/`asesorFlow.js` (pase profundo nunca hecho), `lib/`+
+> `components/` restantes del frontend, y ~30 pestañas de erp/almacén/inicio. **8 de 8
+> hallazgos implementados**, dos de severidad alta: (1) **inyección de fórmulas CSV**
+> (`lib/csv.js` — un nombre de cliente `=HYPERLINK(...)` se ejecutaba como fórmula al
+> abrir el export en Excel; corregido con el mitigante estándar de anteponer `'`) y
+> (2) **`bot/flows/menuFlow.js` `ADD_MORE` prometía "seguir comprando" pero la opción
+> 2 limpiaba la sesión y mostraba una confirmación de compra FALSA** (`ultimoPedido`
+> nunca se definía en todo el repo, folio siempre "N/A") — el cliente perdía el
+> carrito creyendo que ya había pagado. También: cupones que se quemaban sin
+> compra completada (`cartFlow.js`, con gaps residuales documentados — timeout de
+> sesión no cubierto, requiere mecanismo de reconciliación aparte), cache de sesión
+> anterior visible en máquina compartida tras logout, contraseña mínima de 4
+> caracteres para la cuenta `prime` del onboarding, y 4 nits menores. Build verificado
+> limpio.
+>
+> **2026-07-22 (4ª ronda, ítems 47-51 de `PLAN_V3.md`, última ronda de esta serie):**
+> quinta auditoría (3 agentes) sobre lo último sin cubrir: los 5 scripts de guardia
+> tipo CI que gatean `npm test` (`scripts/rutas/`, `scripts/db/`, `scripts/ui/`),
+> consistencia de las 87 migraciones (**limpio, sin hallazgos**), `desktop/main.js`,
+> revisión de factorización residual (**sin candidatos nuevos — el trabajo de las
+> Fases 4/6 quedó bien**), y el arnés de los 5 tests principales por falsos
+> positivos. **5 de 5 hallazgos corregidos**, dos de alto valor porque son bugs en
+> los propios guardarraíles: `scripts/ui/estilo_guard.js` solo escaneaba
+> `pages/` para 2 de sus 5 métricas (ya había violaciones reales sin contar en
+> `components/` — cualquier regresión NUEVA ahí habría pasado `npm test` para
+> siempre; baseline regenerado a mano); `scripts/db/schema_guard.js` no detectaba
+> `ALTER TABLE ADD COLUMN ${variable}` (justo el patrón de
+> `_asegurarColumnasUsuarios`, la función que existe por el incidente real de
+> producción que ya documenta este banner) — agregado un chequeo específico para
+> ese patrón. También: `test_full_bot.js`/`test_bot.js` tenían bugs de conteo que
+> podían ocultar una falla real como si fuera éxito (timeout fijo en vez de esperar
+> a las suites; un test `async` cuya falla se volvía unhandled rejection en vez de
+> contarse) — corregidos, verificado que el conteo sigue siendo correcto tras la
+> reestructuración. Build verificado limpio.
+>
+> **2026-07-22 (5ª ronda, ítems 52-59 de `PLAN_V3.md`):** auditoría de `docs/`
+> (la carpeta que el propio `docs/README.md` y este banner llaman "fuente de
+> verdad", nunca antes verificada contra el código real) y de los archivos de
+> despliegue. **Configs de despliegue: sin bugs reales** (Dockerfile/
+> docker-compose/PM2 todos correctos), solo gaps menores de documentación,
+> corregidos. `docs/` sí estaba desactualizado en varios puntos concretos: conteo
+> de migraciones (84→87, en 3 archivos), conteo de tablas (`docs/BASE_DE_DATOS.md`
+> decía "~70+", son ~125 reales), sección de nómina sin el reparto Caja/Bancos por
+> empleado ni `pagada_por` (fixes de la Fase 5), PINs nuevos de RRHH/suscripciones
+> sin documentar, tabs de Prime desactualizados tras el split de `GeneralTab.jsx`,
+> y el flujo de despliegue Docker real (el que usa `jiua.hevcaz.com`) ausente de
+> `docs/DESPLIEGUE.md` (solo tenía la ruta PM2). Todo corregido. **Hallazgo extra
+> al implementar los nits de despliegue**: `.dockerignore` tenía una entrada
+> (`bot/imagenes_clientes`) que nunca coincidió con nada — las carpetas reales
+> del build context viven en la raíz del repo, no bajo `bot/` — así que cualquier
+> foto de cliente/producto acumulada se horneaba sin necesidad en cada build de
+> imagen; corregido a las rutas reales. Build verificado limpio; despliegue
+> sujeto a autorización del dueño.
+>
 > Todo lo demás abajo sigue siendo útil como historia y para los principios (chokepoint de dinero, golden/paridad byte-idéntico de JC, migraciones versionadas + espejo en `db/schema.sql`, módulos toggleables).
 >
 > **Regla permanente para Claude Code en este repo:** cada vez que se investigue o arregle

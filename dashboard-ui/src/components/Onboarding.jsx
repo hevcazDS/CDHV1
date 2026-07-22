@@ -30,7 +30,7 @@ export default function Onboarding({ estado }) {
     e.preventDefault();
     setError('');
     if (!nombre.trim()) return setError('Pon el nombre del negocio');
-    if (!usuario.trim() || password.length < 4) return setError('Usuario y contraseña (mínimo 4 caracteres)');
+    if (!usuario.trim() || password.length < 8) return setError('Usuario y contraseña (mínimo 8 caracteres)');
     setCargando(true);
     try {
       await api.post('/api/onboarding', {

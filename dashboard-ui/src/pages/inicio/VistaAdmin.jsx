@@ -36,12 +36,6 @@ export default function VistaAdmin() {
   const { data: pedidos, error } = useQuery({ queryKey: ['pedidos'], queryFn: () => api.get('/api/pedidos') });
   const { data: stats } = useQuery({ queryKey: ['stats'], queryFn: () => api.get('/api/stats') });
   const { data: met } = useQuery({ queryKey: ['metricas'], queryFn: () => api.get('/api/metricas') });
-  // Fila "requiere tu acción" (Ola 3, patrón NetSuite Role Center §B): lo
-  // pendiente ANTES que los KPIs. Solo se pintan los chips con dato > 0.
-  const { data: cxp = [] } = useQuery({ queryKey: ['erp-cxp'], queryFn: () => api.get('/api/erp/cxp').catch(() => []) });
-  const { data: solicitudes = [] } = useQuery({ queryKey: ['compras-sol'], queryFn: () => api.get('/api/compras/solicitudes').catch(() => []) });
-  const cxpVencidas = cxp.filter(c => c.estatus !== 'pagada' && c.dias_para_vencer != null && c.dias_para_vencer < 0).length;
-  const solPendientes = solicitudes.filter(s => s.estatus === 'pendiente').length;
 
   const pendientes = pedidos?.filter(p => p.estatus !== 'entregado' && p.estatus !== 'cancelado').length || 0;
   const ventasHoy = stats?.ventas_hoy || 0;

@@ -23,11 +23,10 @@
 
 'use strict';
 
-const net    = require('net');
-const tls    = require('tls');
-const crypto = require('crypto');
-const db     = require('../bot/db_connection');
-const log    = require('../bot/logger')('emailService');
+const crypto     = require('crypto');
+const db         = require('../bot/db_connection');
+const log        = require('../bot/logger')('emailService');
+const smtpClient = require('./smtpClient');
 require('dotenv').config({ quiet: true });
 
 // ── Config ────────────────────────────────────────────────────────────────
@@ -110,82 +109,13 @@ function _construirMime({ from, to, subject, html, adjuntos = [] }) {
 }
 
 function _smtpSend(opts) {
-    return new Promise((resolve, reject) => {
-        const { host, port, user, pass } = opts;
-        const { body, msgId, toList } = _construirMime(opts);
-
-        let socket = net.createConnection(port, host);
-        let state  = 'greeting';
-        let tlsSock = null;
-        let buf    = '';
-
-        const write = (s) => {
-            const sock = tlsSock || socket;
-            sock.write(s + '\r\n');
-        };
-
-        const handleLine = (line) => {
-            const code = parseInt(line.slice(0, 3));
-            if (state === 'greeting'    && code === 220) { write(`EHLO ${host}`); state = 'ehlo'; return; }
-            if (state === 'ehlo'        && code === 250) { write('STARTTLS');      state = 'starttls'; return; }
-            if (state === 'starttls'    && code === 220) {
-                tlsSock = tls.connect({ socket, servername: host }, () => {
-                    tlsSock.on('data', d => { buf += d; processBuffer(); });
-                    write(`EHLO ${host}`); state = 'ehlo2';
-                });
-                return;
-            }
-            if (state === 'ehlo2'       && code === 250) { write('AUTH LOGIN');    state = 'auth_user'; return; }
-            if (state === 'auth_user'   && code === 334) {
-                write(Buffer.from(user).toString('base64')); state = 'auth_pass'; return;
-            }
-            if (state === 'auth_pass'   && code === 334) {
-                write(Buffer.from(pass).toString('base64')); state = 'auth_ok'; return;
-            }
-            if (state === 'auth_ok'     && code === 235) {
-                write(`MAIL FROM:<${user}>`);               state = 'mail_from'; return;
-            }
-            if (state === 'mail_from'   && code === 250) {
-                // Enviar todos los RCPT TO
-                for (const addr of toList) write(`RCPT TO:<${addr.trim()}>`);
-                state = 'rcpt_to'; return;
-            }
-            if (state === 'rcpt_to'     && code === 250) {
-                // Solo avanzar cuando todos los RCPT respondieron
-                if (!_rcptDone) { _rcptDone = 1; } else {
-                    write('DATA'); state = 'data_cmd';
-                }
-                return;
-            }
-            if (state === 'data_cmd'    && code === 354) {
-                write(body + '\r\n.'); state = 'data_body'; return;
-            }
-            if (state === 'data_body'   && code === 250) {
-                write('QUIT'); state = 'quit'; return;
-            }
-            if (state === 'quit'        && code === 221) {
-                socket.destroy(); resolve({ ok: true, messageId: msgId }); return;
-            }
-            if (code >= 400) {
-                socket.destroy();
-                reject(new Error(`SMTP ${code}: ${line}`));
-            }
-        };
-
-        let _rcptDone = 0;
-        const processBuffer = () => {
-            const lines = buf.split('\r\n');
-            buf = lines.pop();
-            for (const line of lines) {
-                if (line) handleLine(line);
-            }
-        };
-
-        socket.on('data', d => { buf += d; processBuffer(); });
-        socket.on('error', reject);
-        socket.on('timeout', () => { socket.destroy(); reject(new Error('SMTP TIMEOUT')); });
-        socket.setTimeout(15000);
-    });
+    const { host, port, user, pass } = opts;
+    const { body, msgId, toList } = _construirMime(opts);
+    return smtpClient.sendMail({
+        host, port, user, pass,
+        mailFrom: user, to: toList, rawBody: body,
+        ehloName: host, timeoutMs: 15000,
+    }).then(() => ({ ok: true, messageId: msgId }));
 }
 
 // ── Simplificar HTML a texto plano ────────────────────────────────────────

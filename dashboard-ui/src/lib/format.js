@@ -1,5 +1,6 @@
 export function fmt(n) {
-  return Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const num = Number(n);
+  return (Number.isFinite(num) ? num : 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // Monto con símbolo — fuente única (antes había ~10 `const money` locales

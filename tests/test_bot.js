@@ -32,6 +32,12 @@ function _mockDB() {
     const db = {
         exec: () => {},
         pragma: () => {},
+        // Conocido, baja prioridad (item 50, PLAN_V3.md): get()/all() aquí
+        // dispatchan por substring del SQL (`sql.includes('sesiones_bot')`),
+        // sin mirar columnas/WHERE reales — no reproduce fielmente el
+        // esquema de better-sqlite3. No causa ningún bug hoy porque el
+        // único uso real es sesiones_bot; arreglarlo de raíz requeriría un
+        // mock schema-aware, que es un cambio más grande fuera de alcance.
         prepare: (sql) => ({
             get: (...args) => {
                 if (sql.includes('sesiones_bot')) {
@@ -110,13 +116,22 @@ const args    = process.argv.slice(2);
 const VERBOSE = args.includes('--verbose');
 const SUITE   = args.find(a => a.startsWith('--suite='))?.slice(8) || null;
 
-function test(suite, name, fn) {
+// async porque fn() puede ser una función async (ej. la de analyzeImage()
+// más abajo) — si fn() devuelve una promesa, se espera aquí ANTES de contar
+// passed/failed, si no, un assert() que falla dentro del await se perdía
+// como unhandled rejection en vez de contar como test fallido (item 50,
+// PLAN_V3.md). Para los ~90 llamados síncronos existentes esto no cambia
+// nada: sin promesa que esperar, el cuerpo corre y cuenta igual que antes.
+async function test(suite, name, fn) {
     if (SUITE && !suite.toLowerCase().includes(SUITE.toLowerCase())) {
         skipped++;
         return;
     }
     try {
-        fn();
+        const result = fn();
+        if (result && typeof result.then === 'function') {
+            await result;
+        }
         passed++;
         results.push({ ok: true, suite, name });
         if (VERBOSE) console.log(`  ${VERDE}✓${RESET} [${suite}] ${name}`);
@@ -522,96 +537,116 @@ try {
 // ═══════════════════════════════════════════════════════════════════════
 console.log(`\n${BOLD}── imageAnalyzer ──${RESET}`);
 
-try {
-    const ia = require('../bot/imageAnalyzer');
+// Este bloque vive en un IIFE async (en vez del try/catch síncrono de
+// siempre) porque el test de analyzeImage() de abajo es genuinamente async
+// — test() ahora espera su promesa (ver arriba), pero quien LLAMA a test()
+// también debe esperarla o el resto del archivo (SUITE 7 + resumen final)
+// corre antes de que esa promesa resuelva. Por eso el resto del archivo se
+// movió a runRestoYFinalizar() y se encadena con .then() aquí abajo (item
+// 50, PLAN_V3.md). Nada de esto cambia el conteo de los ~90 tests síncronos
+// del resto del archivo, que se quedan exactamente como estaban.
+(async () => {
+    try {
+        const ia = require('../bot/imageAnalyzer');
 
-    test('imagen', 'isConfigured retorna boolean', () => {
-        const r = ia.isConfigured();
-        assert(typeof r === 'boolean', `isConfigured() retornó ${typeof r}`);
+        await test('imagen', 'isConfigured retorna boolean', () => {
+            const r = ia.isConfigured();
+            assert(typeof r === 'boolean', `isConfigured() retornó ${typeof r}`);
+        });
+
+        await test('imagen', 'fallbackMessage retorna string', () => {
+            const r = ia.fallbackMessage('TIMEOUT');
+            assert(typeof r === 'string' && r.length > 5, 'fallbackMessage vacío');
+        });
+
+        await test('imagen', 'fallbackMessage para razón desconocida', () => {
+            const r = ia.fallbackMessage('RAZON_RARA');
+            assert(typeof r === 'string' && r.length > 5, 'Debería tener fallback por defecto');
+        });
+
+        await test('imagen', 'cacheStats retorna objeto', () => {
+            const s = ia.cacheStats();
+            assert(typeof s === 'object' && 'entries' in s, 'cacheStats mal formado');
+        });
+
+        await test('imagen', 'analyzeImage con data inválida retorna {ok:false}', async () => {
+            // Sin creds reales debe fallar con NO_CONFIGURADO o similar
+            const result = await ia.analyzeImage({ data: 'AAAA', mimetype: 'image/jpeg' });
+            assert(result && 'ok' in result, 'Debe retornar objeto con ok');
+            // Si no hay creds, ok debe ser false
+            if (!ia.isConfigured()) {
+                assert(result.ok === false, 'Sin credenciales ok debe ser false');
+            }
+        });
+
+    } catch(e) {
+        await test('imagen', 'imageAnalyzer cargable', () => {
+            throw new Error('imageAnalyzer no cargó: ' + e.message);
+        });
+    }
+})().then(runRestoYFinalizar).catch(e => {
+    console.error(e);
+    process.exit(1);
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SUITE 7 (edge cases) + RESULTADO FINAL — encadenados tras el IIFE async
+//  de arriba, para que el test async de imageAnalyzer siempre termine de
+//  contar antes de calcular el resultado final (item 50, PLAN_V3.md).
+// ═══════════════════════════════════════════════════════════════════════
+function runRestoYFinalizar() {
+    // ═══════════════════════════════════════════════════════════════════
+    //  SUITE 7: EDGE CASES
+    // ═══════════════════════════════════════════════════════════════════
+    console.log(`\n${BOLD}── Edge Cases ──${RESET}`);
+
+    test('edge', 'Texto vacío no bloquea', () => {
+        assert(cf('') === false || cf('') == null || cf('') === undefined);
+    });
+    test('edge', 'Texto vacío no detecta queja', () => {
+        assert(qch('') === false || qch('') == null || qch('') === undefined);
+    });
+    test('edge', 'Solo números no bloquea', () => {
+        assert(cf('12345') === false || cf('12345') == null);
+    });
+    test('edge', 'Emoji solo no bloquea', () => {
+        assert(cf('🧸🎉👶') === false || cf('🧸🎉👶') == null);
+    });
+    test('edge', 'URL de la tienda propia no bloquea', () => {
+        assert(cf('https://juliocepeda.com/products/patines') === false || cf('https://juliocepeda.com/products/patines') == null);
+    });
+    test('edge', 'Texto muy largo no rompe', () => {
+        const long = 'quiero un juguete '.repeat(100);
+        assert(cf(long) !== undefined);  // no debe tirar excepción
+    });
+    test('edge', 'Mensaje con acento y tilde funciona', () => {
+        assert(cf('juguete para niña') === false || cf('juguete para niña') == null);
+    });
+    test('edge', 'profeco + abogado en frase larga se detecta como queja (2 hits L1)', () => {
+        assert(qch('voy a ir con un abogado y a profeco si no me resuelven') === true);
+    });
+    test('edge', 'Evasión con espacios detectada', () => {
+        assert(cf('p e n e') === true, '"p e n e" debería ser bloqueado');
     });
 
-    test('imagen', 'fallbackMessage retorna string', () => {
-        const r = ia.fallbackMessage('TIMEOUT');
-        assert(typeof r === 'string' && r.length > 5, 'fallbackMessage vacío');
-    });
-
-    test('imagen', 'fallbackMessage para razón desconocida', () => {
-        const r = ia.fallbackMessage('RAZON_RARA');
-        assert(typeof r === 'string' && r.length > 5, 'Debería tener fallback por defecto');
-    });
-
-    test('imagen', 'cacheStats retorna objeto', () => {
-        const s = ia.cacheStats();
-        assert(typeof s === 'object' && 'entries' in s, 'cacheStats mal formado');
-    });
-
-    test('imagen', 'analyzeImage con data inválida retorna {ok:false}', async () => {
-        // Sin creds reales debe fallar con NO_CONFIGURADO o similar
-        const result = await ia.analyzeImage({ data: 'AAAA', mimetype: 'image/jpeg' });
-        assert(result && 'ok' in result, 'Debe retornar objeto con ok');
-        // Si no hay creds, ok debe ser false
-        if (!ia.isConfigured()) {
-            assert(result.ok === false, 'Sin credenciales ok debe ser false');
-        }
-    });
-
-} catch(e) {
-    test('imagen', 'imageAnalyzer cargable', () => {
-        throw new Error('imageAnalyzer no cargó: ' + e.message);
-    });
+    // ═══════════════════════════════════════════════════════════════════
+    //  RESULTADO FINAL
+    // ═══════════════════════════════════════════════════════════════════
+    console.log('\n' + '═'.repeat(55));
+    const total = passed + failed;
+    const pct   = total > 0 ? Math.round(passed/total*100) : 0;
+    console.log(`${BOLD}RESULTADO: ${passed}/${total} pruebas pasaron (${pct}%)${RESET}`);
+    if (skipped) console.log(`${YELLOW}  Omitidas: ${skipped}${RESET}`);
+    if (failed === 0) {
+        console.log(`${VERDE}${BOLD}✅ Todas las pruebas pasaron${RESET}`);
+    } else {
+        console.log(`${ROJO}${BOLD}❌ ${failed} prueba(s) fallaron${RESET}`);
+        console.log(`\nPruebas fallidas:`);
+        results.filter(r => !r.ok).forEach(r => {
+            console.log(`  ${ROJO}✗ [${r.suite}] ${r.name}${RESET}`);
+            console.log(`    ${r.error}`);
+        });
+    }
+    console.log('═'.repeat(55) + '\n');
+    process.exit(failed > 0 ? 1 : 0);
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-//  SUITE 7: EDGE CASES
-// ═══════════════════════════════════════════════════════════════════════
-console.log(`\n${BOLD}── Edge Cases ──${RESET}`);
-
-test('edge', 'Texto vacío no bloquea', () => {
-    assert(cf('') === false || cf('') == null || cf('') === undefined);
-});
-test('edge', 'Texto vacío no detecta queja', () => {
-    assert(qch('') === false || qch('') == null || qch('') === undefined);
-});
-test('edge', 'Solo números no bloquea', () => {
-    assert(cf('12345') === false || cf('12345') == null);
-});
-test('edge', 'Emoji solo no bloquea', () => {
-    assert(cf('🧸🎉👶') === false || cf('🧸🎉👶') == null);
-});
-test('edge', 'URL de la tienda propia no bloquea', () => {
-    assert(cf('https://juliocepeda.com/products/patines') === false || cf('https://juliocepeda.com/products/patines') == null);
-});
-test('edge', 'Texto muy largo no rompe', () => {
-    const long = 'quiero un juguete '.repeat(100);
-    assert(cf(long) !== undefined);  // no debe tirar excepción
-});
-test('edge', 'Mensaje con acento y tilde funciona', () => {
-    assert(cf('juguete para niña') === false || cf('juguete para niña') == null);
-});
-test('edge', 'profeco + abogado en frase larga se detecta como queja (2 hits L1)', () => {
-    assert(qch('voy a ir con un abogado y a profeco si no me resuelven') === true);
-});
-test('edge', 'Evasión con espacios detectada', () => {
-    assert(cf('p e n e') === true, '"p e n e" debería ser bloqueado');
-});
-
-// ═══════════════════════════════════════════════════════════════════════
-//  RESULTADO FINAL
-// ═══════════════════════════════════════════════════════════════════════
-console.log('\n' + '═'.repeat(55));
-const total = passed + failed;
-const pct   = total > 0 ? Math.round(passed/total*100) : 0;
-console.log(`${BOLD}RESULTADO: ${passed}/${total} pruebas pasaron (${pct}%)${RESET}`);
-if (skipped) console.log(`${YELLOW}  Omitidas: ${skipped}${RESET}`);
-if (failed === 0) {
-    console.log(`${VERDE}${BOLD}✅ Todas las pruebas pasaron${RESET}`);
-} else {
-    console.log(`${ROJO}${BOLD}❌ ${failed} prueba(s) fallaron${RESET}`);
-    console.log(`\nPruebas fallidas:`);
-    results.filter(r => !r.ok).forEach(r => {
-        console.log(`  ${ROJO}✗ [${r.suite}] ${r.name}${RESET}`);
-        console.log(`    ${r.error}`);
-    });
-}
-console.log('═'.repeat(55) + '\n');
-process.exit(failed > 0 ? 1 : 0);

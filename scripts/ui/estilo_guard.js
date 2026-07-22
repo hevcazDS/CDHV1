@@ -27,11 +27,11 @@ const METRICAS = {
         regla: 'Texto "Cargando...": usa <Skeleton> de Mantine — CONVENCIONES_UI.md §10.4',
     },
     btn_clase_vieja: {
-        re: /className="btn/g, dirs: ['pages'], ext: '.jsx',
+        re: /className="btn/g, dirs: ['pages', 'components'], ext: '.jsx',
         regla: 'className="btn...": usa <Button> de Mantine (hereda la marca del theme) — CONVENCIONES_UI.md §10.3',
     },
     grid_fijo_inline: {
-        re: /gridTemplateColumns/g, dirs: ['pages'], ext: '.jsx',
+        re: /gridTemplateColumns/g, dirs: ['pages', 'components'], ext: '.jsx',
         regla: 'grid fijo inline: usa .split-2 / .cols-2 / .cols-3 / .kpi-grid (responsivas) — CONVENCIONES_UI.md §2',
     },
 };

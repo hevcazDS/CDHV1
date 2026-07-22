@@ -2,9 +2,11 @@
 // Cola de atención, chat/conversaciones, reanudar-bot, actualización de guía,
 // lista de espera, búsquedas, métricas de gerencia y preventas. Migrado al
 // patrón declarativo del tronco: los reportes de /api/metricas/* y
-// /api/gerente/reportes → gerente; actualizar_guia/crear preventa y los dos PUT
-// de atención (cola_atencion/:id, clientes/:id/reanudar-bot) → operacion; las
-// lecturas (cola/chat/lista-espera/busquedas/preventas GET) caen al gate global.
+// /api/gerente/reportes → gerente; actualizar_guia/crear preventa, los dos PUT
+// de atención (cola_atencion/:id, clientes/:id/reanudar-bot) y las lecturas de
+// cola_atencion/chat/lista-espera → operacion (incluyen teléfono y último
+// mensaje del cliente); busquedas cae a gerente; preventas GET queda en el
+// gate global (catálogo sin datos de contacto).
 const construirModulo = require('./_construirModulo');
 
 // GET /api/cola_atencion?estatus=
@@ -316,12 +318,12 @@ function preventasPost(req, res, ctx) {
 }
 
 const RUTAS = [
-    { metodo: 'GET',  path: '/api/cola_atencion',                       handler: colaAtencionGet },
+    { metodo: 'GET',  path: '/api/cola_atencion',                       area: 'operacion', handler: colaAtencionGet },
     { metodo: 'PUT',  path: /^\/api\/cola_atencion\/(\d+)$/,            area: 'operacion', handler: colaAtencionPut },
     { metodo: 'GET',  path: /^\/api\/clientes\/(\d+)\/mensajes$/,       area: 'operacion', handler: clienteMensajes },
     { metodo: 'PUT',  path: /^\/api\/clientes\/(\d+)\/reanudar-bot$/,   area: 'operacion', handler: reanudarBot },
     { metodo: 'POST', path: '/api/actualizar_guia',                     area: 'operacion', handler: actualizarGuia },
-    { metodo: 'GET',  path: '/api/lista-espera',                        handler: listaEspera },
+    { metodo: 'GET',  path: '/api/lista-espera',                        area: 'operacion', handler: listaEspera },
     { metodo: 'GET',  path: '/api/busquedas',                           roles: ['gerente'], handler: busquedas },
     { metodo: 'GET',  path: '/api/metricas/campanas',                   roles: ['gerente'], handler: metricasCampanas },
     { metodo: 'GET',  path: '/api/metricas/canales',                    roles: ['gerente'], handler: metricasCanales },

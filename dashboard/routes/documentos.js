@@ -115,6 +115,7 @@ function documentosGet(req, res, ctx) {
 }
 function documentoGet(req, res, ctx, { params }) {
     const { db, json } = ctx;
+    if (!activo(db)) return json(res, { ok: false, error: 'Módulo de documentos desactivado' }, 403);
     const doc = db.prepare('SELECT * FROM documentos WHERE id=?').get(parseInt(params[0]));
     if (!doc) return json(res, { ok: false, error: 'Documento no encontrado' }, 404);
     return json(res, { ok: true, documento: doc });
@@ -126,6 +127,7 @@ function documentoPost(req, res, ctx, { ses }) {
         if (!TIPOS.includes(d.tipo)) return json(res, { ok: false, error: 'Tipo inválido' }, 400);
         const pl = db.prepare('SELECT * FROM plantillas_documento WHERE id=?').get(parseInt(d.id_plantilla));
         if (!pl) return json(res, { ok: false, error: 'Elige una plantilla' }, 400);
+        if (pl.tipo !== d.tipo) return json(res, { ok: false, error: 'La plantilla no corresponde al tipo de documento' }, 400);
         const suc = sucursalDeSesion(db, ses) || '';
         const monto = Number(d.monto) || 0;
         const folio = 'DOC-' + Date.now().toString(36).toUpperCase();
@@ -169,10 +171,12 @@ function documentoPost(req, res, ctx, { ses }) {
 }
 function documentoPut(req, res, ctx, { params }) {
     const { db, json, readJson } = ctx;
+    if (!activo(db)) return json(res, { ok: false, error: 'Módulo de documentos desactivado' }, 403);
     return readJson(req, res, d => {
         const id = parseInt(params[0]);
         const est = d.estatus;
         if (!['borrador', 'emitido', 'firmado', 'cancelado'].includes(est)) return json(res, { ok: false, error: 'Estatus inválido' }, 400);
+        if (!db.prepare('SELECT 1 FROM documentos WHERE id=?').get(id)) return json(res, { ok: false, error: 'Documento no encontrado' }, 404);
         db.prepare('UPDATE documentos SET estatus=? WHERE id=?').run(est, id);
         return json(res, { ok: true, id, estatus: est });
     });

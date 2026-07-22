@@ -6,6 +6,8 @@
 // marcar-pagado, igual que todo. No inventa cobro nuevo.
 const construirModulo = require('./_construirModulo');
 const { flagActivo } = require('../../services/configFlags');
+const autorizacion = require('../autorizacion');
+const { rangoDe } = require('../permisos');
 
 const activo = (db) => flagActivo(db, 'suscripcion_activo');
 
@@ -56,14 +58,26 @@ function crear(req, res, ctx, { ses }) {
     });
 }
 
-function actualizar(req, res, ctx, { params }) {
+// Cambiar `monto` (cobro recurrente) exige PIN — CONDICIONAL, solo si el
+// monto realmente cambia — mismo idioma que empleadosPut/salario_diario en
+// rrhh.js; el resto de campos (estatus/día de corte/referencia) son edición
+// rutinaria y no lo requieren.
+function actualizar(req, res, ctx, { params, ses }) {
     const { db, json, readJson } = ctx;
     return readJson(req, res, d => {
         const id = parseInt(params[0]);
         const s = db.prepare('SELECT * FROM suscripciones WHERE id=?').get(id);
         if (!s) return json(res, { ok: false, error: 'Suscripción no encontrada' }, 404);
         if (d.estatus && ['activa', 'suspendida', 'cancelada'].includes(d.estatus)) db.prepare('UPDATE suscripciones SET estatus=? WHERE id=?').run(d.estatus, id);
-        if (d.monto != null && Number(d.monto) > 0) db.prepare('UPDATE suscripciones SET monto=? WHERE id=?').run(Math.round(Number(d.monto) * 100) / 100, id);
+        if (d.monto != null && Number(d.monto) > 0) {
+            const nuevoMonto = Math.round(Number(d.monto) * 100) / 100;
+            if (nuevoMonto !== s.monto) {
+                const errPin = autorizacion.exigirAutorizacion(db, ses, d.pin, rangoDe);
+                if (errPin) return json(res, { ok: false, error: errPin, pin_requerido: true }, 403);
+                db.prepare('UPDATE suscripciones SET monto=? WHERE id=?').run(nuevoMonto, id);
+                require('../../services/configAudit').logCambio(db, 'suscripcion_monto', (s.nombre || ('#' + id)) + ' $' + s.monto + ' -> $' + nuevoMonto, ses.username);
+            }
+        }
         if (d.dia_corte != null) { const dc = Math.min(Math.max(parseInt(d.dia_corte) || 1, 1), 28); db.prepare('UPDATE suscripciones SET dia_corte=?, proximo_cobro=? WHERE id=?').run(dc, proximaFecha(dc), id); }
         if (d.referencia !== undefined) db.prepare('UPDATE suscripciones SET referencia=? WHERE id=?').run(String(d.referencia).trim() || null, id);
         return json(res, { ok: true, id });

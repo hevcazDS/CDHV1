@@ -123,7 +123,11 @@ aguinaldo, finiquito (por `tipo_baja`: renuncia/despido justificado/injustificad
 jubilación), séptimo día, prima dominical, IMSS patronal, vacaciones. Import de
 horarios por Excel (`POST /api/rrhh/horarios/importar`). Timbrado de nómina CFDI
 (`POST /api/rrhh/nomina/:id/timbrar`). **Pago con PIN** (aguinaldo/finiquito/
-nómina).
+nómina; **alta de empleado también exige PIN** porque fija el `salario_diario`
+inicial — mismo gate que editarlo). El asiento del pago de nómina abona el neto
+de cada empleado a **Caja(101) o Bancos(102) según su `metodo_pago` individual**
+(no todo a Bancos como antes); `nominas.pagada_por` guarda quién autorizó el
+pago (además del PIN del tronco), igual que ya hacían aguinaldo/finiquito.
 
 ## Cortes de caja
 

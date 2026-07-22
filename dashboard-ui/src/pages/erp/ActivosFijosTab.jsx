@@ -34,7 +34,7 @@ export default function ActivosFijosTab() {
   });
   const depreciar = useMutation({
     mutationFn: () => api.post('/api/erp/activos/depreciar', {}),
-    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ['activos-fijos'] }); },
+    onSuccess: (r) => { if (!r.ok) return handleApiError(new Error(r.error)); qc.invalidateQueries({ queryKey: ['activos-fijos'] }); },
     onError: handleApiError,
   });
   const baja = useMutation({

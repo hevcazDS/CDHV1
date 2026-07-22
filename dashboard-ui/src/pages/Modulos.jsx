@@ -155,7 +155,7 @@ export default function Modulos() {
   const txt = useTextoEmoji();
   const queryClient = useQueryClient();
 
-  const { data: estado } = useQuery({
+  const { data: estado, isLoading: cargandoEstado } = useQuery({
     queryKey: ['modulos-estado'],
     queryFn: async () => {
       // Una sola llamada (antes eran 17 en serie) — GET /api/modulos
@@ -170,7 +170,12 @@ export default function Modulos() {
     queryFn: () => api.get('/api/tono').then(r => r?.tono || 'C').catch(() => 'C'),
   });
 
-  const activoDe = (key) => estado?.find(r => r.key === key)?.activo ?? true;
+  // Mientras /api/modulos sigue cargando, `estado` es `undefined` — fallar
+  // hacia "apagado" (no "encendido") es lo seguro para módulos sensibles
+  // (POS, ventas a crédito, etc.); una vez resuelto, cada key de MODULOS ya
+  // viene incluida en `estado` (el propio queryFn la mapea con `!== false`),
+  // así que este `?? false` en la práctica solo aplica durante la carga.
+  const activoDe = (key) => estado?.find(r => r.key === key)?.activo ?? false;
   // dependencias: qué le falta a `key` para poder encenderse, y qué módulos
   // activos dependen de `key` (por lo que no puede apagarse todavía).
   const depsFaltantes = (key) => (DEPENDE_DE[key] || []).filter(d => !activoDe(d));
@@ -212,7 +217,7 @@ export default function Modulos() {
           const on = activoDe(m.key);
           const faltan = depsFaltantes(m.key);
           const usadoPor = on ? dependientesActivos(m.key) : [];
-          const bloqueado = (!on && faltan.length > 0) || usadoPor.length > 0;
+          const bloqueado = cargandoEstado || (!on && faltan.length > 0) || usadoPor.length > 0;
           const razon = (!on && faltan.length > 0) ? 'Primero activa: ' + faltan.map(k => TITULO_DE[k] || k).join(', ')
             : usadoPor.length > 0 ? 'Lo requiere: ' + usadoPor.map(k => TITULO_DE[k] || k).join(', ') : '';
           return (

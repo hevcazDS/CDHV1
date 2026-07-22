@@ -8,6 +8,7 @@ import { api } from '../../api';
 import { Trash2, Pencil } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { useAuth } from '../../context/AuthContext';
+import { confirmar } from '../../lib/ui';
 
 // Roles "altos" que SOLO un prime puede crear/asignar (espejo de
 // ROLES_CREABLES_POR_GERENTE en el backend, dashboard/permisos.js). El backend
@@ -85,7 +86,10 @@ export default function UsuariosTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['prime-usuarios'] }),
     onError: (e) => setMsgUsuarios(e.message),
   });
-  const borrarUsuario = (id) => borrarUsuarioMutation.mutate(id);
+  const borrarUsuario = async (u) => {
+    if (!await confirmar({ titulo: 'Borrar usuario', mensaje: `¿Borrar la cuenta "${u.username}"? Esta acción no se puede deshacer.`, peligro: true, textoOk: 'Borrar' })) return;
+    borrarUsuarioMutation.mutate(u.id);
+  };
 
   const editarUsuarioMutation = useMutation({
     mutationFn: ({ id, datos }) => api.put(`/api/prime/usuarios/${id}`, datos),
@@ -165,7 +169,7 @@ export default function UsuariosTab() {
                 <td>
                   <Group gap={4} wrap="nowrap">
                     <ActionIcon variant="default" title="Editar" onClick={() => abrirEdicionUsuario(u)}><Pencil size={16} strokeWidth={1.75} /></ActionIcon>
-                    <ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarUsuario(u.id)}><Trash2 size={16} strokeWidth={1.75} /></ActionIcon>
+                    <ActionIcon variant="default" color="red" title="Borrar" onClick={() => borrarUsuario(u)}><Trash2 size={16} strokeWidth={1.75} /></ActionIcon>
                   </Group>
                 </td>
               </tr>

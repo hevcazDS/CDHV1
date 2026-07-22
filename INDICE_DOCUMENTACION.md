@@ -109,13 +109,17 @@ rompían en móvil: `erp/ComprasTab.jsx` (ahora `.split-2w`) y `inicio/VistaCaje
 columnas, admin-only — no tiene clase `.cols-4` equivalente hoy).
 
 ### Arquitectura/operación
-11. **`scripts/migrate.js` solo migra la BD del `.env`**, no `instancias/*.db` — con múltiples
-    clones, esquemas divergentes garantizados (`REVISION_ARQUITECTURA_V2.md` ALTO 2). No aplica
-    a esta instancia única de Julio Cepeda, pero si algún día se clona, revisar antes.
+11. **`scripts/migrate.js` sin flags solo migra la BD del `.env`** — pero ya tiene un flag
+    `--all` (`basesAMigrar()`) que aplica las migraciones a `DB_PATH` + TODAS las
+    `instancias/*.db`, así que el riesgo de esquemas divergentes entre clones
+    (`REVISION_ARQUITECTURA_V2.md` ALTO 2) solo es real si se sigue invocando sin `--all`. No
+    aplica a esta instancia única de Julio Cepeda, pero si algún día se clona, usar
+    `node scripts/migrate.js --all`.
 12. Boilerplate `readBody+JSON.parse+try/catch` repetido ~100+ veces en rutas — refactor de
     mayor ROI señalado (extender el tronco con `body:true`+`schema:`), nunca ejecutado.
-13. Backup: **`scripts/backup.js` en su día no cubría `instancias/*.db`** — irrelevante aquí
-    (instancia única), pero si se clona el negocio, revisar.
+13. ~~Backup: `scripts/backup.js` en su día no cubría `instancias/*.db`~~ **RESUELTO** —
+    ya respalda la activa + la principal del `.env` + todas las `instancias/*.db`,
+    deduplicadas (ver comentario en el propio archivo, línea ~284).
 
 ### UI (candidato de menor certeza — puede estar ya resuelto por el tema F)
 14. `REVISION_UI.md` (~35 páginas con `gridTemplateColumns` inline sin `@media`) — verificado
@@ -402,6 +406,92 @@ severidad, ya documentado en la verificación de UI de esta misma sesión (§6, 
 mejoró de ~35 a 8 archivos"). También tienen grids fijos `Mostrador.jsx` (dona del corte
 de caja, máximo 2 columnas) y `components/Calendario.jsx` (7 columnas, inherente a un
 calendario semanal) — bajo riesgo real, no se tocaron.
+
+## 6g. Sesión 2026-07-22 — auditoría completa + plan v3 (18 bugs corregidos + refactor)
+
+Auditoría de código en general (4 pasadas paralelas: bot/, dashboard/, dashboard-ui/,
+services+scripts) sobre archivos grandes nunca revisados a fondo antes. Resultado
+completo y checklist en **`PLAN_V3.md`** (raíz del repo) — no repetir aquí, solo el
+resumen: **18 bugs reales corregidos** (Fases 1-3: desde un contador RCPT-TO roto en
+`emailService.js` que podía tumbar el proceso del bot, hasta una restauración de
+backup rota por falta de chunking en base64, cancelación de pago sin PIN, escalación a
+asesor rota en pickup-único, cupones de porcentaje sin tope, gates de área faltantes,
+etc.) más **limpieza de factorización** (Fase 4, refactor puro): `stockWatcher.js`
+partido en `services/checks/*.js`, `grabarPedido*` parcialmente deduplicado, SMTP
+compartido en `services/smtpClient.js`, `Notificaciones.jsx`/`GeneralTab.jsx`/
+`erpContabilidad.js`(`tablero()`) divididos en piezas menores. Verificado con
+`docker compose build` limpio (backend vía `node -c`, frontend vía el build real de
+Vite). **Despliegue a `jiua.hevcaz.com` pendiente de autorización explícita del
+dueño** — el clasificador de permisos bloqueó el `docker compose up -d` automático por
+el volumen de cambios sensibles (PIN, dinero, nómina, auth) sin confirmación nombrada.
+
+## 6h. Sesión 2026-07-22 (2ª ronda) — ítems 26-38 de `PLAN_V3.md`
+
+Continuación de §6g: segunda pasada de 4 agentes sobre `dashboard/routes/` restante
+(25 archivos), `bot/flows/motor/` (motor de flujo visual, nunca auditado) + handlers
+del bot, y páginas/scripts del frontend restantes. **12 de 13 corregidos** — ver
+`PLAN_V3.md` ítems 26-38 para el detalle archivo por línea. El único no forzado
+(ítem 27) es un hallazgo real y documentado, no un fix a medias: el fallback
+fail-closed entre `bot/flows/motor/interprete.js` y `bot/actionHandler.js` no
+distingue, desde el llamador, entre 5 razones distintas por las que el motor puede
+devolver `undefined` — dos son seguras de reintentar con el flujo legacy real, una ya
+invocó ese mismo flujo (reintentar sería una llamada duplicada), y dos ocurren
+después de que la sesión del cliente ya avanzó (reintentar ahí procesaría un mensaje
+contra una sesión desactualizada). Arreglarlo bien requiere que `interprete.js` migre
+a un contrato de retorno con sentinela, no un parche puntual — queda como trabajo de
+diseño pendiente, no como bug "silencioso".
+
+## 6i. Sesión 2026-07-22 (3ª ronda) — ítems 39-46 de `PLAN_V3.md`
+
+Continuación de §6h: cuarta auditoría (4 agentes) sobre el backbone de seguridad
+(confirmado limpio, ver banner de `CLAUDE.md`), el resto de `bot/flows/` nunca
+auditado a fondo, y `lib/`+`components/`+pestañas restantes del frontend. **8 de 8
+corregidos**, incluyendo un hallazgo de seguridad real (inyección de fórmulas CSV
+en `lib/csv.js`, corregido) y un bug real de producción del bot
+(`bot/flows/menuFlow.js`'s `ADD_MORE` mostraba una confirmación de compra falsa y
+perdía el carrito del cliente, corregido). Ver `PLAN_V3.md` ítems 39-46 para el
+detalle completo archivo por línea.
+
+## 6j. Sesión 2026-07-22 (4ª ronda, última de esta serie) — ítems 47-51 de `PLAN_V3.md`
+
+Continuación de §6i: quinta auditoría (3 agentes) sobre los scripts de guardia tipo
+CI, las 87 migraciones (limpio), `desktop/main.js`, factorización residual (sin
+candidatos nuevos) y el arnés de los tests principales. **5 de 5 corregidos**,
+incluyendo dos bugs en los propios guardarraíles del proyecto (`estilo_guard.js`
+no escaneaba `components/` para 2 de sus 5 métricas; `schema_guard.js` no
+detectaba `ALTER TABLE ADD COLUMN` con nombre de columna por variable de
+plantilla — justo el patrón de la función que existe por el incidente real de
+producción que ya documenta `CLAUDE.md`) y dos bugs de conteo en `test_full_bot.js`/
+`test_bot.js` que podían enmascarar una falla real como éxito. Ver `PLAN_V3.md`
+ítems 47-51 para el detalle completo. Con esto se cierran 4 rondas de auditoría
+(51 ítems totales, `PLAN_V3.md` completo) — el código está en el estado más
+revisado que ha tenido este repo.
+
+## 6k. Sesión 2026-07-22 (5ª ronda) — ítems 52-59 de `PLAN_V3.md`, docs/ y despliegue
+
+Continuación de §6j: sexta auditoría (3 agentes) sobre `docs/` (nunca verificado
+contra código real pese a llamarse a sí mismo "fuente de verdad") y los archivos
+de despliegue (Dockerfile/docker-compose/PM2 — **sin bugs reales**). `docs/`
+tenía varios puntos desactualizados (conteo de migraciones y tablas, sección de
+nómina, PINs nuevos sin documentar, tabs de Prime tras el split de
+`GeneralTab.jsx`, flujo de despliegue Docker ausente) — **8 de 8 corregidos**,
+implementados directamente por ser ediciones de texto de bajo riesgo. De paso se
+encontró y corrigió un bug real en `.dockerignore` (una ruta que nunca coincidía
+con nada, dejando fotos de clientes/productos sin excluir del build). Ver
+`PLAN_V3.md` ítems 52-59. Con esto son 5 rondas de auditoría completas
+(59 ítems totales).
+
+## 6l. Verificación dedicada de las refactorizaciones de Fase 4 (2026-07-22, a pedido)
+
+A pedido explícito, revisión de código (3 agentes) enfocada en si los 7
+refactors de la Fase 4 (`PLAN_V3.md` ítems 19-25) preservan el comportamiento
+exacto — no búsqueda de bugs nuevos, verificación de lo ya hecho. **6 de 7
+perfectos sin hallazgos** (stockWatcher.js→checks/, smtpClient.js,
+Notificaciones.jsx, bot/index.js pipeline, grabarPedido\* dedup, tablero()
+split). **1 hallazgo real menor**: `CifradoBackup.jsx` (extraído de
+`GeneralTab.jsx`) tenía 2 emojis sin pasar por `useTextoEmoji()` — se le
+escapó el import al split aunque los componentes hermanos sí lo tenían cada
+uno. Corregido. Ver "Verificación dedicada..." al final de `PLAN_V3.md`.
 
 ## 7. Runbooks / catálogos operativos (no tocar, son referencia viva)
 

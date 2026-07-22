@@ -24,7 +24,7 @@ El "todero" de piso: todo lo del cajero **más** la operación de WhatsApp.
 - **Pedidos** — edita, marca pagado (el chokepoint que dispara kardex+asientos+puntos), asigna repartidor ("va en camino"/"entregado").
 - **Devoluciones**, **Cola de atención** (retoma clientes que el bot escaló), **Chat y mensajes**, **Clientes**.
 - **CRM · Pipeline** — mueve etapas, deja notas, ve timeline.
-- **Citas / Check-in / Órdenes de servicio / Suscripciones / Documentos** (según módulos).
+- **Citas / Check-in / Órdenes de servicio / Suscripciones / Documentos** (según módulos). Cambiar el `monto` (cobro recurrente) de una suscripción exige **PIN**.
 - **Fiados** (si `ventas_credito_activo`) — junto con finanzas.
 - Control del bot (start/stop/restart, QR).
 
@@ -45,7 +45,7 @@ El "todero" de piso: todo lo del cajero **más** la operación de WhatsApp.
 ## RH (`rh`) — área `rrhh`
 
 Requiere `rrhh_activo` / `nomina_fiscal_activo`.
-- **Recursos Humanos**: empleados, horarios (import por Excel), incapacidades.
+- **Recursos Humanos**: empleados (alta requiere **PIN**, fija el salario inicial), horarios (import por Excel), incapacidades.
 - **Nómina**: calcula, **paga (PIN)**, timbra CFDI de nómina.
 - **Aguinaldo / finiquito**: calcula y **paga (PIN)** por `tipo_baja` (renuncia/despido/jubilación), séptimo día, prima dominical, IMSS patronal, vacaciones LFT.
 

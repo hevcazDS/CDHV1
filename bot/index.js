@@ -892,6 +892,104 @@ async function sendSafe(to, msg, opts) {
     ]).catch(e => { log.warn('sendMessage falló: ' + e.message, { userId: to }); });
 }
 
+// ══════════════════════════════════════════════════════════════════
+//  ETAPAS DEL PIPELINE — extraídas del handler de mensajes (abajo) para
+//  que cada una se pueda leer/editar por separado. Cada etapa devuelve
+//  `true` cuando ya resolvió el mensaje (el handler debe detenerse ahí,
+//  igual que el `return` original en línea) o `false` para seguir a la
+//  siguiente etapa — mismo orden, mismas condiciones, mismos efectos
+//  secundarios que el bloque inline que reemplazan. Solo se extrajeron
+//  las etapas tempranas/independientes (1 a 3.9); el resto del pipeline
+//  (preprocesador de imagen → detección de quejas → detector de
+//  intención → handler principal) comparte demasiado estado mutable
+//  (`msgFinal`, `textFinal`, sesión ya leída) como para separarlo sin
+//  inventar un objeto de contexto fragil — queda inline en el handler.
+// ══════════════════════════════════════════════════════════════════
+
+// ── 1. BURST GUARD ───────────────────────────────────────────────────
+async function _stageBurstGuard(userId) {
+    if (burstCheck()) {
+        await client.sendMessage(userId,
+            '⏳ Muchos mensajes a la vez. Dame *10 segundos* y vuelve a escribir.');
+        return true;
+    }
+    return false;
+}
+
+// ── 1.5. TIMEOUT POST-BLOQUEO ────────────────────────────────────────
+// Si el usuario está en timeout por groserías, ignorar en silencio
+function _stagePostBlockTimeout(userId) {
+    const _timeoutUntil = _blockTimeout.get(userId) || 0;
+    // Silencio total — no responder nada para no premiar la interacción
+    return Date.now() < _timeoutUntil;
+}
+
+// ── 2. RATE LIMITER ──────────────────────────────────────────────────
+async function _stageRateLimit(userId, isImage) {
+    const rl = rlCheck(userId, isImage);
+    if (!rl.ok) {
+        await client.sendMessage(userId, rl.msg);
+        return true;
+    }
+    return false;
+}
+
+// ── 3. FILTRO DE CONTENIDO (solo texto) ──────────────────────────────
+async function _stageContentFilter(userId, bodyRaw, isImage) {
+    if (!(bodyRaw && !isImage)) return false;
+    const cf = cfCheck(userId, bodyRaw);
+    if (!cf.blocked) return false;
+    log.info('Bloqueado por filtro de contenido', { userId });
+    // Auto-tag blacklist
+    try { const _dbBl = require('./db_connection'); _dbBl.prepare("UPDATE clientes SET tags=CASE WHEN tags IS NULL OR tags='' THEN 'blacklist' WHEN tags NOT LIKE '%blacklist%' THEN tags||',blacklist' ELSE tags END WHERE telefono=?").run(userId.replace(/@.*$/,'')); } catch(e){ log.debug('No se pudo etiquetar blacklist: ' + e.message); }
+    if (cf.escalate) {
+        // Escalar silenciosamente al asesor
+        sessionManager.updateSession(userId, 'ASESOR',
+            { modo: 'contenido_inapropiado', _notificado: false });
+    }
+    await client.sendMessage(userId, cf.msg);
+    return true;
+}
+
+// ── 3b. CLIENTE FRUSTRADO (no bloqueado, pero tono agresivo) ────────
+// Aplica desde CUALQUIER estado — no solo MENU/ASESOR
+async function _stageFrustracion(userId, bodyRaw, isImage) {
+    if (!(bodyRaw && !isImage && !cfCheck(userId, bodyRaw).blocked && esFrustracion(bodyRaw))) return false;
+    const _sesF = sessionManager.getSession(userId);
+    if (_quejas.get(userId) || _sesF.paso_actual === 'ASESOR') return false;
+    log.info('Frustración detectada en estado ' + _sesF.paso_actual, { userId });
+    sessionManager.updateSession(userId, 'ASESOR',
+        { modo: 'cliente_frustrado', _notificado: false });
+    // Auto-tag queja
+    try { const _dbTag = require('./db_connection'); _dbTag.prepare("UPDATE clientes SET tags=CASE WHEN tags IS NULL OR tags='' THEN 'queja' WHEN tags NOT LIKE '%queja%' THEN tags||',queja' ELSE tags END WHERE telefono=?").run(userId.replace(/@.*$/,'')); } catch(e){ log.debug('No se pudo etiquetar queja: ' + e.message); }
+    // Evento "frustracion" para analítica/ML
+    try { const _dbF = require('./db_connection'); _dbF.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('frustracion','whatsapp',?,?)").run(bodyRaw.slice(0,200), userId.replace(/@.*$/,'')); } catch(e){ log.debug('No se pudo registrar evento frustracion: ' + e.message); }
+    await client.sendMessage(userId,
+        'Entiendo que estás frustrado/a. Lamento la espera. 🙏\n\n' +
+        'Voy a conectarte con alguien del equipo ahora mismo.\n' +
+        '⏰ Horario de atención: *11:00 am – 8:00 pm*');
+    return true;
+}
+
+// ── 3.9 MEDIA NO SOPORTADA: avisar en vez de caer al fallback mudo ───
+// (auditoría multimodal: audio/video/documento/sticker/ubicación caían
+// en silencio y el cliente nunca sabía por qué se reinició el menú)
+const _MEDIA_MSG = {
+    audio:    '🎙️ Por ahora no puedo escuchar audios. ¿Me lo escribes en texto, porfa?',
+    ptt:      '🎙️ Por ahora no puedo escuchar notas de voz. ¿Me lo escribes en texto, porfa?',
+    video:    '📹 No puedo ver videos. Descríbeme lo que buscas o mándame una *foto*.',
+    document: '📄 No puedo abrir documentos. Si es un comprobante, mándalo como *foto*; si es una lista, escríbemela.',
+    sticker:  '😄 ¡Buen sticker! Pero para ayudarte necesito que me escribas o me mandes una *foto* del producto.',
+    location: '📍 Recibí tu ubicación, pero por ahora la dirección la tomo por texto durante el pedido.',
+    vcard:    '👤 Recibí el contacto, pero yo atiendo directo a quien me escribe. ¿En qué te ayudo?',
+};
+async function _stageMediaNoSoportada(userId, bodyRaw, msgType) {
+    if (bodyRaw || !_MEDIA_MSG[msgType]) return false;
+    _enProceso.delete(userId);
+    await sendSafe(userId, _MEDIA_MSG[msgType]);
+    return true;
+}
+
 client.on('message', async msg => {
     // ── Validar mensaje entrante ────────────────────────────────
     const _valid = validarMensajeWhatsApp(msg);
@@ -925,74 +1023,22 @@ client.on('message', async msg => {
 
     try {
         // ── 1. BURST GUARD ────────────────────────────────────────────────
-        if (burstCheck()) {
-            return await client.sendMessage(userId,
-                '⏳ Muchos mensajes a la vez. Dame *10 segundos* y vuelve a escribir.');
-        }
+        if (await _stageBurstGuard(userId)) return;
 
         // ── 1.5. TIMEOUT POST-BLOQUEO ─────────────────────────────────────
-        // Si el usuario está en timeout por groserías, ignorar en silencio
-        const _timeoutUntil = _blockTimeout.get(userId) || 0;
-        if (Date.now() < _timeoutUntil) {
-            // Silencio total — no responder nada para no premiar la interacción
-            return;
-        }
+        if (_stagePostBlockTimeout(userId)) return;
 
         // ── 2. RATE LIMITER ───────────────────────────────────────────────
-        const rl = rlCheck(userId, isImage);
-        if (!rl.ok) return await client.sendMessage(userId, rl.msg);
+        if (await _stageRateLimit(userId, isImage)) return;
 
         // ── 3. FILTRO DE CONTENIDO (solo texto) ───────────────────────────
-        if (bodyRaw && !isImage) {
-            const cf = cfCheck(userId, bodyRaw);
-            if (cf.blocked) {
-                log.info('Bloqueado por filtro de contenido', { userId });
-                // Auto-tag blacklist
-                try { const _dbBl = require('./db_connection'); _dbBl.prepare("UPDATE clientes SET tags=CASE WHEN tags IS NULL OR tags='' THEN 'blacklist' WHEN tags NOT LIKE '%blacklist%' THEN tags||',blacklist' ELSE tags END WHERE telefono=?").run(userId.replace(/@.*$/,'')); } catch(e){ log.debug('No se pudo etiquetar blacklist: ' + e.message); }
-                if (cf.escalate) {
-                    // Escalar silenciosamente al asesor
-                    sessionManager.updateSession(userId, 'ASESOR',
-                        { modo: 'contenido_inapropiado', _notificado: false });
-                }
-                return await client.sendMessage(userId, cf.msg);
-            }
-        }
+        if (await _stageContentFilter(userId, bodyRaw, isImage)) return;
 
-        // ── 3b. CLIENTE FRUSTRADO (no bloqueado, pero tono agresivo) ─────────
-        // Aplica desde CUALQUIER estado — no solo MENU/ASESOR
-        if (bodyRaw && !isImage && !cfCheck(userId, bodyRaw).blocked && esFrustracion(bodyRaw)) {
-            const _sesF = sessionManager.getSession(userId);
-            if (!_quejas.get(userId) && _sesF.paso_actual !== 'ASESOR') {
-                log.info('Frustración detectada en estado ' + _sesF.paso_actual, { userId });
-                sessionManager.updateSession(userId, 'ASESOR',
-                    { modo: 'cliente_frustrado', _notificado: false });
-                    // Auto-tag queja
-                    try { const _dbTag = require('./db_connection'); _dbTag.prepare("UPDATE clientes SET tags=CASE WHEN tags IS NULL OR tags='' THEN 'queja' WHEN tags NOT LIKE '%queja%' THEN tags||',queja' ELSE tags END WHERE telefono=?").run(userId.replace(/@.*$/,'')); } catch(e){ log.debug('No se pudo etiquetar queja: ' + e.message); }
-                    // Evento "frustracion" para analítica/ML
-                    try { const _dbF = require('./db_connection'); _dbF.prepare("INSERT INTO log_eventos (tipo_evento, canal, valor, telefono) VALUES ('frustracion','whatsapp',?,?)").run(bodyRaw.slice(0,200), userId.replace(/@.*$/,'')); } catch(e){ log.debug('No se pudo registrar evento frustracion: ' + e.message); }
-                return await client.sendMessage(userId,
-                    'Entiendo que est\u00e1s frustrado/a. Lamento la espera. \uD83D\uDE4F\n\n' +
-                    'Voy a conectarte con alguien del equipo ahora mismo.\n' +
-                    '\u23F0 Horario de atenci\u00f3n: *11:00 am \u2013 8:00 pm*');
-            }
-        }
+        // ── 3b. CLIENTE FRUSTRADO (no bloqueado, pero tono agresivo) ───────────
+        if (await _stageFrustracion(userId, bodyRaw, isImage)) return;
 
         // ── 3.9 MEDIA NO SOPORTADA: avisar en vez de caer al fallback mudo ──
-        // (auditoría multimodal: audio/video/documento/sticker/ubicación caían
-        // en silencio y el cliente nunca sabía por qué se reinició el menú)
-        const _MEDIA_MSG = {
-            audio:    '🎙️ Por ahora no puedo escuchar audios. ¿Me lo escribes en texto, porfa?',
-            ptt:      '🎙️ Por ahora no puedo escuchar notas de voz. ¿Me lo escribes en texto, porfa?',
-            video:    '📹 No puedo ver videos. Descríbeme lo que buscas o mándame una *foto*.',
-            document: '📄 No puedo abrir documentos. Si es un comprobante, mándalo como *foto*; si es una lista, escríbemela.',
-            sticker:  '😄 ¡Buen sticker! Pero para ayudarte necesito que me escribas o me mandes una *foto* del producto.',
-            location: '📍 Recibí tu ubicación, pero por ahora la dirección la tomo por texto durante el pedido.',
-            vcard:    '👤 Recibí el contacto, pero yo atiendo directo a quien me escribe. ¿En qué te ayudo?',
-        };
-        if (!bodyRaw && _MEDIA_MSG[msg.type]) {
-            _enProceso.delete(userId);
-            return await sendSafe(userId, _MEDIA_MSG[msg.type]);
-        }
+        if (await _stageMediaNoSoportada(userId, bodyRaw, msg.type)) return;
 
         // ── 4. PREPROCESSOR DE IMAGEN ─────────────────────────────────────
         let msgFinal = msg;
@@ -1063,6 +1109,9 @@ client.on('message', async msg => {
                             return await client.sendMessage(userId,
                                 imageAnalyzer.fallbackMessage(result.reason));
                         }
+                    } else {
+                        return await client.sendMessage(userId,
+                            '📸 No pude descargar la imagen. ¿Puedes describir el producto con texto?');
                     }
                 } catch (e) {
                     log.warn('Error Vision: ' + e.message, { userId });

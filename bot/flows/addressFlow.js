@@ -94,7 +94,7 @@ function construirResumenDireccion(userId, newData) {
     const carrito  = newData.carrito || (newData.selectedProduct ? [{ ...newData.selectedProduct, cantidad:1 }] : []);
     const subtotal = totalCarrito(carrito);
     const costoEn  = calcularFlete(subtotal, newData.costoEnvFijo || null);
-    try { shared.logEvento('direccion_capturada', (newData.ciudad || '') + ' ' + (newData.cp || ''), tel); } catch (_) {} // embudo (CRO)
+    try { shared.logEvento('direccion_capturada', (newData.ciudad || '') + ' ' + (newData.cp || ''), userId.replace(/@.*$/, '').slice(0, 20)); } catch (_) {} // embudo (CRO)
     sessionManager.updateSession(userId, S.CONFIRM_ORDER, { ...newData, carrito });
     return (
         `📋 *Resumen de tu pedido:*\n\n` +

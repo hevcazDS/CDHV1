@@ -13,6 +13,13 @@ dashboard-ui/dist
 logs
 bot/logs
 bot/imagenes_clientes
+# Las carpetas reales del build context viven en la raíz (docker-compose.yml
+# las monta ahí -> /app/bot/imagenes_*), no bajo bot/ -- la línea de arriba
+# nunca matcheó nada. Excluir las de verdad para no hornear fotos de clientes
+# en las capas de la imagen (quedan sombreadas por el volumen en runtime, pero
+# no deben viajar en el build).
+imagenes_clientes
+imagenes_productos
 
 # Secretos: el .env se pasa en runtime (env_file en docker-compose), no en build
 .env

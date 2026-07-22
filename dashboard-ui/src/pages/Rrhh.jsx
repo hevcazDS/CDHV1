@@ -25,7 +25,7 @@ export default function Rrhh() {
   const fiscal = !!modFiscal?.activo;
   const moduloApagado = modulo && !modulo.error && !modulo.activo;
   const { data: empleados = [] } = useQuery({ queryKey: ['rrhh-emp', verBajas], queryFn: () => api.get('/api/rrhh/empleados' + (verBajas ? '?todos=1' : '')), enabled: !moduloApagado });
-  const { data: nominas = [] } = useQuery({ queryKey: ['rrhh-nom'], queryFn: () => api.get('/api/rrhh/nomina') });
+  const { data: nominas = [] } = useQuery({ queryKey: ['rrhh-nom'], queryFn: () => api.get('/api/rrhh/nomina'), enabled: !moduloApagado });
 
   const crearEmp = useMutation({
     mutationFn: () => api.post('/api/rrhh/empleados', emp),
@@ -133,7 +133,7 @@ export default function Rrhh() {
                       <td><Group gap={4} wrap="nowrap">
                         <Button size="xs" variant="default" onClick={async () => {
                           const s = await prompt({ titulo: 'Salario diario', mensaje: 'Nuevo salario diario para ' + e.nombre + ':', valorInicial: String(e.salario_diario), tipo: 'text' });
-                          if (!s) return;
+                          if (!s || isNaN(Number(s))) return;
                           const r = await api.put(`/api/rrhh/empleados/${e.id}`, { salario_diario: Number(s) });
                           if (r.ok) qc.invalidateQueries({ queryKey: ['rrhh-emp'] }); else handleApiError(new Error(r.error));
                         }}>Salario</Button>

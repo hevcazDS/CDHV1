@@ -112,19 +112,23 @@ export default function ComprasTab({ soloRecepcion = false }) {
                   <td>${Number(oc.total).toFixed(2)}</td>
                   <td><span className={`badge ${oc.estatus === 'recibida' ? 'badge-verde' : oc.estatus === 'cancelada' ? 'badge-rojo' : oc.estatus === 'parcial' ? 'badge-amarillo' : 'badge-azul'}`}>{oc.estatus}</span></td>
                   <td>
+                    {!soloRecepcion && (
                     <Button size="xs" variant="subtle" mr={6} onClick={async () => {
                       const r = await api.post(`/api/erp/ordenes-compra/${oc.id}/reordenar`).catch(e => ({ ok: false, error: e.message }));
                       if (r.ok) { toastOk('Nueva OC creada: ' + r.folio); qc.invalidateQueries(); } else toastErr(r.error);
                     }}>Reordenar</Button>
+                    )}
                     {['abierta', 'parcial'].includes(oc.estatus) && (
                     <>
                     <Button size="xs" variant="default" onClick={() => recibir.mutate(oc.id)} disabled={recibir.isPending}>Recibir todo</Button>
                     <Button size="xs" variant="subtle" ml={6} onClick={() => setParcial({ oc, cant: {} })}>Parcial</Button>
+                        {!soloRecepcion && (
                         <Button size="xs" variant="light" color="red" ml={6} onClick={async () => {
                           if (!await confirmar({ titulo: 'Cancelar OC', mensaje: '¿Cancelar esta orden de compra? Solo se cancelan las abiertas; no mueve inventario.', peligro: true, textoOk: 'Cancelar OC' })) return;
                           const r = await api.post(`/api/erp/ordenes-compra/${oc.id}/cancelar`);
                           if (r.ok) { toastOk('OC cancelada'); qc.invalidateQueries(); } else handleApiError(new Error(r.error));
                         }}>Cancelar</Button>
+                        )}
                     </>
                   )}</td>
                 </tr>

@@ -104,12 +104,12 @@ function repartoPost(req, res, ctx, { ses }) {
 // GET /api/pos/productos?q= — búsqueda ligera (variante por código primero)
 function productosGet(req, res, ctx, { ses }) {
     const { db, json } = ctx;
+    if (!posActivo(db)) return json(res, { ok: false, error: 'El módulo de punto de venta está desactivado' }, 403);
     {
         const q0 = ((new URL(req.url, 'http://x')).searchParams.get('q') || '').trim();
         const vv = q0 && require('../../services/variantesService').porCodigo(q0);
         if (vv) return json(res, { items: [{ id: vv.id_producto, name: vv.name + ' (' + [vv.talla, vv.color].filter(Boolean).join(' / ') + ')', price: vv.price, tipo: vv.tipo, upc: q0, sku: q0, id_variante: vv.id_variante }] });
     }
-    if (!posActivo(db)) return json(res, { ok: false, error: 'El módulo de punto de venta está desactivado' }, 403);
     const q = (new URL(req.url, 'http://x').searchParams.get('q') || '').trim();
     const suc = _sucursalOperativa(db, ses, new URL(req.url, 'http://x').searchParams.get('sucursal'));
     const rows = db.prepare(`
@@ -202,6 +202,17 @@ function ventaPost(req, res, ctx, { ses }) {
             if (d.cupon && String(d.cupon).trim()) {
                 _cupon = shared.aplicarCupon(String(d.cupon).trim(), carrito);
                 if (!_cupon.ok) return json(res, { ok: false, error: 'Cupón: ' + _cupon.error }, 409);
+            }
+            // Antifraude/UX: el efectivo recibido debe cubrir el total (mismo
+            // guardado que ya hace Mostrador.jsx en el cliente; aquí es defensa
+            // en profundidad, antes de tocar la BD). Campo opcional: si no se
+            // captura, no se valida (venta exacta, sin cambio a calcular).
+            if (metodoPago === 'efectivo' && d.efectivo_recibido !== undefined && d.efectivo_recibido !== null && d.efectivo_recibido !== '') {
+                const _subtotalPreview = carrito.reduce((s, i) => s + i.price * i.cantidad, 0);
+                const _totalPreview = Math.round((_subtotalPreview - (_cupon ? _cupon.descuento : 0)) * 100) / 100;
+                if (Number(d.efectivo_recibido) < _totalPreview) {
+                    return json(res, { ok: false, error: 'Efectivo insuficiente' }, 400);
+                }
             }
             const _plazoFiado = parseInt(db.prepare("SELECT valor FROM configuracion WHERE clave='fiado_dias_plazo'").get()?.valor, 10) || 30;
             const folio = shared.generarFolio('pedido');

@@ -8,7 +8,8 @@
 // repartidor → operacion; masivo(+preview)/repartidores(POST) → gerente;
 // enviar-link/pagos/:id/regenerar → pos||operacion; marcar-pagado y
 // pagos/:id/cancelar → pos||operacion||finanzas (cancelar es el espejo inverso
-// de marcar-pagado: revierte cobro+inventario+puntos, misma exigencia).
+// de marcar-pagado: revierte cobro+inventario+puntos, misma exigencia) + PIN
+// incondicional (mismo gate que pos/venta/:id/cancelar, lo valida el tronco).
 // devoluciones PUT → operacion + PIN CONDICIONAL en el handler (aprobar/resolver).
 const kardexService = require('../../services/kardexService');
 const autorizacion = require('../autorizacion');
@@ -485,7 +486,7 @@ const RUTAS = [
     { metodo: 'PUT',  path: /^\/api\/pedidos\/(\d+)$/,                     area: 'operacion', handler: pedidosPut },
     { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/enviar-link$/,          areas: ['pos', 'operacion'], handler: pagoEnviarLink },
     { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/marcar-pagado$/,        areas: ['pos', 'operacion', 'finanzas'], handler: pagoMarcarPagado },
-    { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/cancelar$/,             areas: ['pos', 'operacion', 'finanzas'], handler: pagoCancelar },
+    { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/cancelar$/,             areas: ['pos', 'operacion', 'finanzas'], pin: true, handler: pagoCancelar },
     { metodo: 'POST', path: /^\/api\/pagos\/(\d+)\/regenerar$/,            areas: ['pos', 'operacion'], handler: pagoRegenerar },
     // Re-auditoría H9: gates alineados con las páginas que los usan (ticket lo
     // imprime Pedidos/POS; devoluciones es de operación como su PUT).

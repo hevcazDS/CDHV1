@@ -132,10 +132,11 @@ function generarHandler(req, res, ctx) {
                         subtotal += cant * precio;
                     }
 
-                    const total = Math.round(subtotal * 100) / 100;
+                    const subtotalR = Math.round(subtotal * 100) / 100;
+                    const total = subtotalR;
                     totalVentas += total;
 
-                    const { lastInsertRowid: idPedido } = insPedido.run(folio, idCliente, total, total, fecha, fecha);
+                    const { lastInsertRowid: idPedido } = insPedido.run(folio, idCliente, subtotalR, total, fecha, fecha);
 
                     for (const l of lineasData) {
                         insDetalle.run(idPedido, l.id_producto, l.cant, l.precio, l.linea, sucursalId);

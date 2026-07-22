@@ -13,6 +13,15 @@ const BarrasH = lazy(() => import('../../components/MiniCharts').then(m => ({ de
 // balance, aging de CxC, rotación de inventario, margen por categoría y
 // ticket vs período anterior. Responde "¿gano?", no solo "¿vendo?".
 
+// Fuera del componente (antes se redefinía en cada render de TableroTab) —
+// no captura estado local, solo recibe props.
+const Fila = ({ label, val, fuerte, color }) => (
+  <tr style={fuerte ? { borderTop: '1px solid var(--border)' } : undefined}>
+    <td style={{ padding: '5px 0', fontWeight: fuerte ? 700 : 400 }}>{label}</td>
+    <td style={{ textAlign: 'right', fontWeight: fuerte ? 700 : 600, color }}>{money(val)}</td>
+  </tr>
+);
+
 export default function TableroTab() {
   const txt = useTextoEmoji();
   const hoy = new Date().toISOString().slice(0, 10);
@@ -34,12 +43,6 @@ export default function TableroTab() {
   const { pyl, comparativo, balance, aging, inventario, categorias, ticket, punto_equilibrio: pe } = data;
   const varTxt = (v) => v == null ? null : (v >= 0 ? '▲ +' + v + '%' : '▼ ' + v + '%');
   const varColor = (v) => v == null ? 'var(--text-mute)' : v >= 0 ? 'var(--green)' : 'var(--red)';
-  const Fila = ({ label, val, fuerte, color }) => (
-    <tr style={fuerte ? { borderTop: '1px solid var(--border)' } : undefined}>
-      <td style={{ padding: '5px 0', fontWeight: fuerte ? 700 : 400 }}>{label}</td>
-      <td style={{ textAlign: 'right', fontWeight: fuerte ? 700 : 600, color }}>{money(val)}</td>
-    </tr>
-  );
 
   return (
     <div>

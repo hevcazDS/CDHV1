@@ -78,8 +78,9 @@ function agregarItem(req, res, ctx, { params }) {
 // DELETE /api/mesas/:id/item/:itemId — quitar un platillo no enviado
 function quitarItem(req, res, ctx, { params }) {
     const { db, json } = ctx;
+    const idMesa = parseInt(params[0]);
     const itemId = parseInt(params[1]);
-    db.prepare('DELETE FROM mesa_items WHERE id=? AND enviado_cocina=0').run(itemId);
+    db.prepare('DELETE FROM mesa_items WHERE id=? AND id_mesa=? AND enviado_cocina=0').run(itemId, idMesa);
     return json(res, { ok: true });
 }
 

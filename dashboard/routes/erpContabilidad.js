@@ -196,14 +196,20 @@ function facturacionPendiente(req, res, ctx) {
     return json(res, { desde, hasta, filas, pac_activo: pacActivo });
 }
 
-// GET /api/erp/tablero — estado de resultados, balance, aging, rotación, etc.
-function tablero(req, res, ctx) {
-    const { db, json } = ctx;
-    const { desde, hasta } = _rango(req);
-    // multitienda 0051: con ?sucursal= el P&L/punto de equilibrio/categorías/
-    // ticket se acotan a esa tienda; balance y aging siguen siendo del negocio
-    // completo (no hay balance por tienda sin contabilidad segmentada plena).
-    const suc = _sucursalParam(req, db);
+// Fecha del período previo (misma duración, inmediatamente anterior a `desde`).
+// Compartido por _tableroComparativo y _tableroTicket: ambos derivaban este
+// mismo rango de forma independiente (mismo cálculo, variables con nombre
+// distinto) — se centraliza aquí para no tener la lógica duplicada.
+function _periodoAnterior(desde, hasta) {
+    const dias = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
+    const prevHasta = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
+    const prevDesde = new Date(Date.parse(desde) - dias * 86400000).toISOString().slice(0, 10);
+    return { prevDesde, prevHasta };
+}
+
+// Estado de resultados + punto de equilibrio (comparten el mismo libro mayor
+// del período, por eso van juntos en un solo helper en vez de dos).
+function _tableroPL(desde, hasta, suc) {
     const may = conta.libroMayor(desde, hasta, suc || null);
     const cta = (c) => may.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
     const ingresos = r2(cta('401').haber - cta('401').debe);
@@ -220,6 +226,12 @@ function tablero(req, res, ctx) {
         ventas_equilibrio: margenContrib > 0 ? r2(gastos / margenContrib) : null,
         ventas_periodo: ingresos, holgura: margenContrib > 0 ? r2(ingresos - gastos / margenContrib) : null,
     };
+    return { pyl, puntoEquilibrio, ingresos, cogs, gastos, utilidad_operativa };
+}
+
+// Balance general acumulado (siempre negocio completo, sin acotar a sucursal
+// — no hay contabilidad segmentada plena por tienda, ver comentario en tablero()).
+function _tableroBalance(hasta) {
     const acum = conta.libroMayor('1900-01-01', hasta);
     const porTipo = { activo: 0, pasivo: 0, capital: 0, ingreso: 0, costo: 0, gasto: 0 };
     for (const c of acum) {
@@ -232,11 +244,15 @@ function tablero(req, res, ctx) {
     const saldoDeudor = (c) => cAcum(c).debe - cAcum(c).haber;
     const caja = r2(saldoDeudor('101') + saldoDeudor('102'));
     const atado = r2(Math.max(0, saldoDeudor('115')) + Math.max(0, saldoDeudor('105')));
-    const balance = {
+    return {
         activos: r2(porTipo.activo), pasivos: r2(porTipo.pasivo),
         capital: r2(porTipo.capital + utilidad_acumulada), caja, utilidad_acumulada, atado,
         cuadra: Math.abs(porTipo.activo - (porTipo.pasivo + porTipo.capital + utilidad_acumulada)) < 0.5,
     };
+}
+
+// Antigüedad de cuentas por cobrar vencidas (links de pago no pagados).
+function _tableroAging(db) {
     let aging = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
     try {
         const cxc = db.prepare(`
@@ -248,6 +264,12 @@ function tablero(req, res, ctx) {
             aging[b] = r2(aging[b] + (x.monto || 0));
         }
     } catch (_) {}
+    return aging;
+}
+
+// Valor de inventario + rotación (usa el `cogs` del P&L del mismo período, no
+// lo recalcula).
+function _tableroInventario(db, desde, hasta, suc, cogs) {
     let inventario = {};
     try {
         const valorInv = db.prepare("SELECT COALESCE(SUM(i.stock * COALESCE(pr.costo,0)),0) v FROM inventarios i JOIN productos pr ON pr.id = i.id_producto WHERE (? = '' OR i.sucursal = ?)").get(suc, suc).v;
@@ -259,6 +281,11 @@ function tablero(req, res, ctx) {
             rotacion_anual: valorInv > 0 ? r2(cogs / diasPeriodo * 365 / valorInv) : null,
         };
     } catch (_) {}
+    return inventario;
+}
+
+// Ventas/margen por categoría del período.
+function _tableroMargenes(db, desde, hasta, suc) {
     let categorias = [];
     try {
         categorias = db.prepare(`
@@ -272,22 +299,28 @@ function tablero(req, res, ctx) {
             GROUP BY categoria ORDER BY ventas DESC LIMIT 20`).all(desde, hasta, suc, suc)
             .map(c => ({ ...c, margen: r2(c.ventas - c.costo), margen_pct: c.ventas ? r2((c.ventas - c.costo) / c.ventas * 100) : 0 }));
     } catch (_) {}
+    return categorias;
+}
+
+// Ticket promedio actual vs. período anterior.
+function _tableroTicket(db, desde, hasta, suc) {
     let ticket = {};
     try {
-        const dias = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
-        const prevHasta = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
-        const prevDesde = new Date(Date.parse(desde) - dias * 86400000).toISOString().slice(0, 10);
+        const { prevDesde, prevHasta } = _periodoAnterior(desde, hasta);
         const q = (d1, d2) => db.prepare(`SELECT COALESCE(SUM(monto),0) t, COUNT(DISTINCT id_pedido) n FROM links_pago WHERE estatus='pagado' AND date(pagado_en)>=? AND date(pagado_en)<=? AND (? = '' OR id_pedido IN (SELECT id_pedido FROM pedido_detalle WHERE sucursal_origen=?))`).get(d1, d2, suc, suc);
         const act = q(desde, hasta), prev = q(prevDesde, prevHasta);
         const tAct = act.n ? act.t / act.n : 0, tPrev = prev.n ? prev.t / prev.n : 0;
         ticket = { actual: r2(tAct), anterior: r2(tPrev), pedidos: act.n, variacion_pct: tPrev ? r2((tAct - tPrev) / tPrev * 100) : null };
     } catch (_) {}
+    return ticket;
+}
+
+// Ingresos/utilidad del período anterior + variación % vs. el actual.
+function _tableroComparativo(desde, hasta, suc, ingresos, utilidad_operativa) {
     let comparativo = null;
     try {
-        const diasP = Math.max(1, Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000) + 1);
-        const prevH = new Date(Date.parse(desde) - 86400000).toISOString().slice(0, 10);
-        const prevD = new Date(Date.parse(desde) - diasP * 86400000).toISOString().slice(0, 10);
-        const mayP = conta.libroMayor(prevD, prevH, suc || null);
+        const { prevDesde, prevHasta } = _periodoAnterior(desde, hasta);
+        const mayP = conta.libroMayor(prevDesde, prevHasta, suc || null);
         const ctaP = (c) => mayP.find(x => x.cuenta === c) || { debe: 0, haber: 0 };
         const ingP = r2(ctaP('401').haber - ctaP('401').debe);
         const cogsP = r2(ctaP('501').debe - ctaP('501').haber);
@@ -295,11 +328,29 @@ function tablero(req, res, ctx) {
         const utopP = r2(ingP - cogsP - gasP);
         const varPct = (a, b) => b ? r2((a - b) / Math.abs(b) * 100) : null;
         comparativo = {
-            desde: prevD, hasta: prevH, ingresos: ingP, utilidad_operativa: utopP,
+            desde: prevDesde, hasta: prevHasta, ingresos: ingP, utilidad_operativa: utopP,
             margen_neto_pct: ingP ? r2(utopP / ingP * 100) : 0,
             var_ingresos_pct: varPct(ingresos, ingP), var_utilidad_pct: varPct(utilidad_operativa, utopP),
         };
     } catch (_) {}
+    return comparativo;
+}
+
+// GET /api/erp/tablero — estado de resultados, balance, aging, rotación, etc.
+function tablero(req, res, ctx) {
+    const { db, json } = ctx;
+    const { desde, hasta } = _rango(req);
+    // multitienda 0051: con ?sucursal= el P&L/punto de equilibrio/categorías/
+    // ticket se acotan a esa tienda; balance y aging siguen siendo del negocio
+    // completo (no hay balance por tienda sin contabilidad segmentada plena).
+    const suc = _sucursalParam(req, db);
+    const { pyl, puntoEquilibrio, ingresos, cogs, utilidad_operativa } = _tableroPL(desde, hasta, suc);
+    const balance = _tableroBalance(hasta);
+    const aging = _tableroAging(db);
+    const inventario = _tableroInventario(db, desde, hasta, suc, cogs);
+    const categorias = _tableroMargenes(db, desde, hasta, suc);
+    const ticket = _tableroTicket(db, desde, hasta, suc);
+    const comparativo = _tableroComparativo(desde, hasta, suc, ingresos, utilidad_operativa);
     return json(res, { desde, hasta, sucursal: suc || null, pyl, comparativo, punto_equilibrio: puntoEquilibrio, balance, aging, inventario, categorias, ticket, conta_activa: conta.activo(),
         ...(suc ? { nota_sucursal: 'Balance y antigüedad de CxC son del negocio completo; P&L, categorías, ticket e inventario están acotados a ' + suc } : {}) });
 }
@@ -672,7 +723,7 @@ function impuestos(req, res, ctx) {
 }
 
 // POST /api/erp/asientos — asiento manual
-function asientosPost(req, res, ctx) {
+function asientosPost(req, res, ctx, { ses }) {
     const { db, json, readBody } = ctx;
     return readBody(req, body => {
         try {
@@ -681,6 +732,13 @@ function asientosPost(req, res, ctx) {
             // dejaría el asiento invisible en los rangos BETWEEN de los reportes.
             const fecha = String(d.fecha || '').slice(0, 10);
             if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return json(res, { ok: false, error: 'Fecha inválida (YYYY-MM-DD)' }, 400);
+            const mesCerrado = conta.mesCerradoDe(fecha || null);
+            if (mesCerrado) {
+                if (!esAdminOMas(ses.rol)) {
+                    return json(res, { ok: false, error: 'El período ' + mesCerrado + ' está cerrado. Solo un Administrador o Prime puede autorizar la captura en meses cerrados.', mes_cerrado: mesCerrado }, 409);
+                }
+                require('../../services/configAudit').logCambio(db, 'asiento_mes_cerrado', (fecha || '').slice(0, 7) + ' · ' + (String(d.concepto || '').trim() || 'Asiento manual'), ses.username);
+            }
             // multitienda 0051: póliza atribuible a una tienda (opcional)
             let sucManual = String(d.sucursal || '').trim() || null;
             if (sucManual && !db.prepare('SELECT 1 FROM sucursales WHERE nombre=?').get(sucManual)) sucManual = null;
@@ -689,9 +747,10 @@ function asientosPost(req, res, ctx) {
                 referencia_tipo: 'manual',
                 partidas: Array.isArray(d.partidas) ? d.partidas : [],
                 fecha: fecha || null,
+                override: !!mesCerrado,
                 sucursal: sucManual,
             });
-            return json(res, { ok: true, id });
+            return json(res, { ok: true, id, en_mes_cerrado: !!mesCerrado });
         } catch (e) { return json(res, { ok: false, error: e.message }, 400); }
     });
 }

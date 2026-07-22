@@ -1,6 +1,6 @@
 # API del dashboard
 
-`dashboard/server.js` (http nativo). **~336 rutas en 30 módulos**
+`dashboard/server.js` (http nativo). **~343 rutas en 31 módulos**
 (`dashboard/routes/*.js`). Cada módulo declara sus rutas como datos en un
 arreglo `RUTAS` y las envuelve con `_construirModulo.js`. Regenerar el
 inventario en vivo:
@@ -44,7 +44,7 @@ Leyenda de la columna Gate: nombre de área, `gerente`/`prime` (rango mínimo),
 |---|---|---|---|
 | POST | **/api/pagos/:id/marcar-pagado** | pos·operacion·finanzas | **Chokepoint de cobro**: kardex + asientos + puntos + referidos |
 | POST | /api/pagos/:id/enviar-link · /regenerar | pos·operacion | Link de pago |
-| POST | /api/pagos/:id/cancelar | pos·operacion·finanzas | Cancela cobro |
+| POST | /api/pagos/:id/cancelar | pos·operacion·finanzas 🔐PIN | Cancela cobro (espejo inverso de marcar-pagado) |
 | POST | /api/notificar | operacion | Notificación individual |
 | GET/POST | /api/masivo/preview · /api/masivo | gerente | Envío masivo |
 | PUT | /api/pedidos/:id | operacion | Editar pedido |
@@ -108,8 +108,10 @@ aplicar), **salida y traslado (🔐PIN)**, ubicación, mermas.
 
 ## RRHH / nómina (`rrhh.js`) — área `rrhh`
 
-Empleados, horarios (+importar Excel), incapacidades, cálculo/pago de nómina
-(🔐PIN), timbrado de nómina, aguinaldo (pago 🔐PIN), finiquito (pago 🔐PIN).
+Empleados (alta 🔐PIN — fija el `salario_diario` inicial, mismo gate que
+editarlo), horarios (+importar Excel), incapacidades, cálculo/pago de nómina
+(🔐PIN, deja rastro de auditoría con usuario+monto), timbrado de nómina,
+aguinaldo (pago 🔐PIN), finiquito (pago 🔐PIN).
 
 ## Servicios / mesas / citas / suscripciones / documentos
 
@@ -130,9 +132,10 @@ Empleados, horarios (+importar Excel), incapacidades, cálculo/pago de nómina
 | `correo.js` | config, enviados, bandeja, sincronizar, leído, adjunto, enviar | gerente |
 | `mensajeria.js` | canales, no-leídos, directo, grupo, mensajes | ·global (equipo interno) |
 
-## Configuración Prime (`primeConfig.js`, `primeUsuariosPuntos.js`, `motorFlujo.js`, `seguridadOperativa.js`, `instancias.js`)
+## Configuración Prime (`primeConfig.js`, `primeCatalogo.js`, `primeUsuariosPuntos.js`, `motorFlujo.js`, `seguridadOperativa.js`, `instancias.js`)
 
 - **primeConfig**: tono, frases, negocio, régimen fiscal, zona horaria, zonas de cobertura, PAC, pasarela, tope-descuento, envío default, Estafeta días de entrega, sucursal de facturación default, exportar-LLM, módulos (`GET /api/modulos`, `/api/modulo/:clave`), soporte. Mayoría **prime**; lecturas de config `·global`; `POST /api/tono` gerente.
+- **primeCatalogo** (gerente+): alta/edición de productos y categorías, entrada de mercancía (`POST /api/prime/entrada-mercancia`, actualiza costo + kardex).
 - **primeUsuariosPuntos**: usuarios (crear/editar gerente, borrar prime), puntos (config gerente, ranking/consulta global).
 - **motorFlujo** (prime): motor, versiones, revertir, simular, plantillas, acciones, activar, `PUT /grafo`.
 - **seguridadOperativa** (prime): PIN de autorización, backup cifrado (+armar), reset-instancia, respaldo/restaurar BD, purgar sesión WhatsApp.

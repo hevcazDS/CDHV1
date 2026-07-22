@@ -11,8 +11,10 @@ services:
       CHROME_PATH: /usr/bin/chromium
       DASHBOARD_HOST: 0.0.0.0            # dentro del contenedor; expuesto solo a 127.0.0.1 del host
       DASHBOARD_COOKIE_SECURE: "true"    # el dashboard va detrás de un proxy con TLS
-      TRUST_PROXY: "1"                   # detrás de Caddy: la IP real viene en X-Forwarded-For
-                                         # (sin proxy delante, pon 0 o el rate-limit es engañable)
+      TRUST_PROXY: "1"                   # detrás de un reverse proxy o túnel (esta instancia usa
+                                         # Cloudflare Tunnel, ver REANUDAR-DESARROLLO.md; Caddy/nginx
+                                         # también valen): la IP real viene en X-Forwarded-For
+                                         # (sin proxy/túnel delante, pon 0 o el rate-limit es engañable)
       # SQLite usa datetime('now','localtime') en cortes/reportes/campañas:
       # sin TZ el contenedor corre en UTC y las fechas se recorren
       TZ: America/Monterrey

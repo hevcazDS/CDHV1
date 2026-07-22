@@ -46,7 +46,7 @@ function onboarding(req, res, ctx) {
             const pass   = String(d.admin_password || '');
             if (!nombre) return json(res, { ok: false, error: 'Falta el nombre del negocio' }, 400);
             if (!GIROS[giro]) return json(res, { ok: false, error: 'Giro inválido' }, 400);
-            if (!user || pass.length < 4) return json(res, { ok: false, error: 'Usuario y contraseña (mínimo 4 caracteres) requeridos' }, 400);
+            if (!user || pass.length < 8) return json(res, { ok: false, error: 'Usuario y contraseña (mínimo 8 caracteres) requeridos' }, 400);
 
             setCfg('nombre_negocio', nombre);
             setCfg('nombre_negocio_corto', String(d.nombre_negocio_corto || nombre).trim());

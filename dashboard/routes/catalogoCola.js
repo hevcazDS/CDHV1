@@ -158,10 +158,10 @@ const RUTAS = [
     { metodo: 'DELETE', path: /^\/api\/sustitutos\/(\d+)$/,         roles: ['gerente'], handler: sustitutosDelete },
     { metodo: 'GET',    path: '/api/productos/buscar',              handler: productosBuscar },
     { metodo: 'GET',    path: '/health',                            handler: health },
-    { metodo: 'GET',    path: '/api/cola',                          handler: colaGet },
+    { metodo: 'GET',    path: '/api/cola',                          area: 'operacion', handler: colaGet },
     { metodo: 'POST',   path: '/api/cola/reintentar',               area: 'operacion', handler: colaReintentar },
     { metodo: 'POST',   path: /^\/api\/cola\/reintentar\/(\d+)$/,   area: 'operacion', handler: colaReintentarId },
-    { metodo: 'GET',    path: '/api/cola/programados',              handler: colaProgramadosGet },
+    { metodo: 'GET',    path: '/api/cola/programados',              area: 'operacion', handler: colaProgramadosGet },
     { metodo: 'DELETE', path: '/api/cola/programados',              area: 'operacion', handler: colaProgramadosDelete },
 ];
 

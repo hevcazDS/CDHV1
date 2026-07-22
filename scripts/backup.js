@@ -4,12 +4,11 @@
 //      node backup.js imagenes  -> solo imagenes nuevas
 'use strict';
 
-const fs     = require('fs');
-const path   = require('path');
-const zlib   = require('zlib');
-const net    = require('net');
-const tls    = require('tls');
-const crypto = require('crypto');
+const fs         = require('fs');
+const path       = require('path');
+const zlib       = require('zlib');
+const crypto     = require('crypto');
+const smtpClient = require('../services/smtpClient');
 
 // ── Cargar .env PRIMERO ────────────────────────────────────────────
 require('dotenv').config({ quiet: true });
@@ -225,55 +224,19 @@ function enviarBackup(adjuntos, asunto) {
     }
     body += '\r\n--' + boundary + '--\r\n';
 
-    return new Promise((resolve) => {
-        const sock = net.createConnection(SMTP_PORT, SMTP_HOST);
-        let tlsSock = null;
-        let step = 0;
-        let rcptPendientes = 0;
-
-        function send(s) { (tlsSock || sock).write(s + '\r\n'); }
-
-        function onData(data) {
-            const code = parseInt((data.toString()).slice(0, 3));
-            if (step === 0 && code === 220) { send('EHLO backup.bot'); step = 1; }
-            else if (step === 1 && code === 250) { send('STARTTLS'); step = 2; }
-            else if (step === 2 && code === 220) {
-                tlsSock = tls.connect({ socket: sock, host: SMTP_HOST, servername: SMTP_HOST }, () => {
-                    tlsSock.on('data', onData);
-                    send('EHLO backup.bot'); step = 3;
-                });
-            }
-            else if (step === 3 && code === 250) { send('AUTH LOGIN'); step = 4; }
-            else if (step === 4 && code === 334) { send(Buffer.from(SMTP_USER).toString('base64')); step = 5; }
-            else if (step === 5 && code === 334) { send(Buffer.from(SMTP_PASS).toString('base64')); step = 6; }
-            else if (step === 6 && code === 235) { send('MAIL FROM:<' + SMTP_USER + '>'); step = 7; }
-            else if (step === 7 && code === 250) {
-                rcptPendientes = destList.length;
-                for (const dest of destList) send('RCPT TO:<' + dest + '>');
-                step = 8;
-            }
-            else if (step === 8 && code === 250) {
-                rcptPendientes--;
-                if (rcptPendientes <= 0) { send('DATA'); step = 9; }
-            }
-            else if (step === 9 && code === 354) { send(body + '\r\n.'); step = 10; }
-            else if (step === 10 && code === 250) {
-                send('QUIT');
-                console.log('[backup] Correo enviado a: ' + destList.join(', '));
-                resolve(true);
-                (tlsSock || sock).destroy();
-            }
-            else if (code >= 400) {
-                console.error('[backup] Error SMTP ' + code + ': ' + data.toString().trim());
-                resolve(false);
-                (tlsSock || sock).destroy();
-            }
-        }
-
-        sock.on('data', onData);
-        sock.on('error', (e) => { console.error('[backup] Socket error:', e.message); resolve(false); });
-        sock.on('timeout', ()  => { console.error('[backup] Timeout SMTP'); resolve(false); (tlsSock||sock).destroy(); });
-        sock.setTimeout(30000);
+    return smtpClient.sendMail({
+        host: SMTP_HOST, port: SMTP_PORT, user: SMTP_USER, pass: SMTP_PASS,
+        mailFrom: SMTP_USER, to: destList, rawBody: body,
+        ehloName: 'backup.bot', timeoutMs: 30000,
+    }).then(() => {
+        console.log('[backup] Correo enviado a: ' + destList.join(', '));
+        return true;
+    }).catch((e) => {
+        if (e.stage === 'tls')          console.error('[backup] TLS error: ' + e.message);
+        else if (e.stage === 'socket')  console.error('[backup] Socket error: ' + e.message);
+        else if (e.stage === 'timeout') console.error('[backup] Timeout SMTP');
+        else                            console.error('[backup] Error ' + e.message); // e.message ya trae "SMTP <code>: ..."
+        return false;
     });
 }
 

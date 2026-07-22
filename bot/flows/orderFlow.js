@@ -460,8 +460,9 @@ async function handle(ctx) {
                 `¡Gracias por tu compra! ${vocab().emoji} Escribe *hola* si necesitas algo más.`;
         }
         if (action === '2') {
-            // Volver a las opciones si era carrito mixto
-            if (data.metodo === 'pickup_unificado' && data.carritoPickup) {
+            // Volver a las opciones si era carrito mixto CON domicilio real disponible
+            // (subtotalPickup solo se define en ese camino — ver SPLIT_DELIVERY opción B).
+            if (data.metodo === 'pickup_unificado' && data.carritoPickup && data.subtotalPickup !== undefined) {
                 sessionManager.updateSession(userId, S.SPLIT_DELIVERY, data);
                 return (
                     resumenEscenariosMixtos(
@@ -474,6 +475,13 @@ async function handle(ctx) {
                     `2️⃣  🏪 Todo en sucursal\n` +
                     `3️⃣  🚚 Todo a domicilio`
                 );
+            }
+            // Negocio sin método a domicilio (solo pickup): aquí la opción 2 del
+            // menú es "Hablar con un asesor", no un regreso a escenarios mixtos.
+            if (data.metodo === 'pickup_unificado') {
+                sessionManager.updateSession(userId, S.ASESOR, { modo:'asesor' });
+                registrarEscalada(userId, null, 'Prefiere asesor en pickup único', tel);
+                return '👤 Hemos notificado a nuestro equipo.\n⏰ Horario: *' + HORARIO_ASESOR + '*\n\n' + msgHorarioAsesor();
             }
             const promptDir = iniciarCapturaDireccion(userId, tel, { ...data, metodo:'envio' });
             return `🚚 ${promptDir}`;

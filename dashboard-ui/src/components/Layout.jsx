@@ -132,6 +132,17 @@ const ACCORDION_STYLES = {
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  // "Usuarios" (/prime?tab=usuarios) y "Configuración" (/prime) comparten
+  // pathname -- NavLink por defecto solo compara pathname e ignora la query
+  // string, así que ambos se marcaban "active" a la vez en cualquier vista
+  // bajo /prime. Solo para links de /prime, el match también exige que
+  // coincida (o falte, para "Configuración") el parámetro ?tab.
+  const activoConTab = (to, isActiveDefault) => {
+    if (!to.startsWith('/prime')) return isActiveDefault;
+    const tabEnlace = new URLSearchParams(to.split('?')[1] || '').get('tab');
+    const tabActual = new URLSearchParams(location.search).get('tab');
+    return location.pathname === '/prime' && tabEnlace === tabActual;
+  };
   // Módulos que gobiernan links del sidebar: UNA sola query batch (antes eran 6
   // requests sueltos a /api/modulo/:clave y los grupos iban APARECIENDO conforme
   // respondían → el sidebar "brincaba" al cargar). El último snapshot vive en
@@ -317,7 +328,7 @@ export default function Layout() {
                     <div className="rail-sub">
                       {g.enlaces.map(e => (
                         <NavLink key={e.to} to={e.to} end={e.to === '/'} title={e.label} onClick={() => setFlyout(null)}
-                          className={({ isActive }) => `sidebar-link solo-icono sub${isActive ? ' active' : ''}`}>
+                          className={({ isActive }) => `sidebar-link solo-icono sub${activoConTab(e.to, isActive) ? ' active' : ''}`}>
                           <e.Icono size={15} strokeWidth={1.75} />
                         </NavLink>
                       ))}
@@ -336,7 +347,7 @@ export default function Layout() {
                   </Accordion.Control>
                   <Accordion.Panel>
                     {g.enlaces.map(e => (
-                      <NavLink key={e.to} to={e.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`} end={e.to === '/'}>
+                      <NavLink key={e.to} to={e.to} className={({ isActive }) => `sidebar-link${activoConTab(e.to, isActive) ? ' active' : ''}`} end={e.to === '/'}>
                         <e.Icono size={16} strokeWidth={1.75} />{e.label}
                         {badgePorRuta[e.to] > 0 && <span className="nav-badge">{badgePorRuta[e.to]}</span>}
                       </NavLink>

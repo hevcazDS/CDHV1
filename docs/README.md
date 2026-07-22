@@ -1,7 +1,7 @@
 # Documentación del sistema — ERP + CRM + Bot de WhatsApp (white-label)
 
 > **Estado documental:** este conjunto de documentos describe el **código real**
-> a fecha de 84 migraciones (`migrations/0001`–`0084`). Donde `CLAUDE.md` de la
+> a fecha de 87 migraciones (`migrations/0001`–`0087`). Donde `CLAUDE.md` de la
 > raíz contradice al código (está detenido ~65 migraciones atrás, en "Bloque 2B"),
 > manda el código; las discrepancias se anotan al final de cada documento.
 
