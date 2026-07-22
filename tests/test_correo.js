@@ -87,6 +87,22 @@ test('bandeja: lista entrantes y config cuenta los no leídos', () => {
     assert(cfg.sin_leer >= 1, 'config reporta no leídos');
 });
 
+test('sincronizar: MAX(uid) usa el valor numérico, no la comparación de texto', () => {
+    // Bug real: uid es columna TEXT y algunos correos quedaron guardados con
+    // sufijo ".0" (ej. "99.0") por un Number() sin truncar en el insert. Sin el
+    // CAST a entero, MAX(uid) compara como STRING y "99.0" > "117.0" (el '9'
+    // inicial gana) — el sync se quedaba pegado en el 99 para siempre y nunca
+    // avanzaba a los correos más nuevos (reportado: "no baja los últimos
+    // correos de hoy"). Aquí se prueba la query tal cual la usa correoInbox.js.
+    db.prepare("DELETE FROM correos WHERE direccion='entrante'").run();
+    const ins = db.prepare("INSERT INTO correos (direccion, uid, de, asunto, cuerpo, adjuntos_json, leido, fecha) VALUES ('entrante', ?, 'x@y', 'a', 'b', '[]', 1, datetime('now'))");
+    for (const u of ['73.0', '99.0', '100.0', '117.0']) ins.run(u);
+    const comoTexto = db.prepare("SELECT MAX(uid) u FROM correos WHERE direccion='entrante'").get().u;
+    const comoNumero = db.prepare("SELECT MAX(CAST(uid AS INTEGER)) u FROM correos WHERE direccion='entrante'").get().u;
+    assert.strictEqual(comoTexto, '99.0', 'documenta el bug: comparación de texto se queda en 99.0');
+    assert.strictEqual(comoNumero, 117, 'con CAST, el máximo real (117) sí se detecta');
+});
+
 test('secretos: cifra/descifra round-trip y deja pasar texto plano', () => {
     const s = require('../services/secretos');
     const clave = 'abcd efgh ijkl mnop';

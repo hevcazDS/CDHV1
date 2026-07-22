@@ -44,7 +44,13 @@ async function sincronizar(db, { limite = 40 } = {}) {
         await cli.connect();
         const lock = await cli.getMailboxLock('INBOX');
         try {
-            const ultimo = db.prepare("SELECT MAX(uid) u FROM correos WHERE direccion='entrante'").get();
+            // CAST a entero: `uid` es columna TEXT y algunos valores viejos quedaron
+            // guardados como "99.0"/"100.0" (ver insert de abajo) — sin el CAST, MAX()
+            // compara como STRING y "99.0" > "117.0" (el '9' inicial gana), así que el
+            // sync se quedaba pegado desde uid 99 para siempre, re-bajando de más y sin
+            // avanzar nunca al correo real más nuevo (bug reportado: "no baja los
+            // últimos correos de hoy").
+            const ultimo = db.prepare("SELECT MAX(CAST(uid AS INTEGER)) u FROM correos WHERE direccion='entrante'").get();
             const desde = ultimo && ultimo.u ? Number(ultimo.u) + 1 : null;
             // primera vez: los últimos `limite` por NÚMERO DE SECUENCIA (no UID:
             // en un buzón con huecos de UID, total-39:* en espacio UID bajaría
@@ -67,7 +73,11 @@ async function sincronizar(db, { limite = 40 } = {}) {
                 const cuerpo = (p.html || (p.textAsHtml || '') || (p.text ? '<pre>' + esc(p.text) + '</pre>' : '')).slice(0, MAX_CUERPO);
                 const adj = (p.attachments || []).map(a => ({ nombre: a.filename || 'adjunto', tipo: a.contentType || '', tamano: a.size || 0 }));
                 const fecha = (p.date instanceof Date ? p.date : new Date()).toISOString().slice(0, 19).replace('T', ' ');
-                const r = ins.run(Number(msg.uid), de.slice(0, 300), para.slice(0, 300), asunto.slice(0, 500), cuerpo, JSON.stringify(adj), fecha);
+                // Math.trunc (no solo Number()): imapflow puede traer el uid como valor
+                // no estrictamente entero (BigInt/float) — sin truncar, better-sqlite3 lo
+                // bindea como REAL y la columna TEXT lo guarda con sufijo ".0" (raíz del
+                // bug de MAX(uid) de arriba). Truncado, siempre se guarda "99", no "99.0".
+                const r = ins.run(Math.trunc(Number(msg.uid)), de.slice(0, 300), para.slice(0, 300), asunto.slice(0, 500), cuerpo, JSON.stringify(adj), fecha);
                 if (r.changes) nuevos++;
             }
         } finally { lock.release(); }
@@ -93,7 +103,9 @@ async function descargarAdjunto(db, uid, idx) {
         await cli.connect();
         const lock = await cli.getMailboxLock('INBOX');
         try {
-            const msg = await cli.fetchOne(String(uid), { uid: true, source: true }, { uid: true });
+            // Trunca por si el uid quedó guardado con sufijo ".0" (correos sincronizados
+            // antes del fix de arriba) — "117.0" no es un UID válido para IMAP, "117" sí.
+            const msg = await cli.fetchOne(String(Math.trunc(Number(uid))), { uid: true, source: true }, { uid: true });
             if (!msg || !msg.source) return { ok: false, error: 'Correo no encontrado en el buzón' };
             const p = await simpleParser(msg.source);
             const a = (p.attachments || [])[Number(idx)];
