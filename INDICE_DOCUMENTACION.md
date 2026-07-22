@@ -535,6 +535,19 @@ auditoría de arquitecto: sin degradación en los 9 archivos más tocados de
 la sesión; un hallazgo real en terreno nuevo (`sqlite3` CLI muerto en el
 Dockerfile, corregido). Ver `PLAN_V3.md` Fase 10 (ítems 65-68).
 
+## 6o. 4ª pasada de espagueti + verificación de integración (2026-07-22, a pedido)
+
+A pedido explícito de revisar de nuevo espagueti/archivos largos y si las
+refactorizaciones de la sesión chocan entre sí: **sin hallazgos nuevos de
+espagueti** (111/259 archivos >120 líneas, misma proporción que al inicio;
+los 5 archivos que crecieron después de su split de Fase 4 siguen bien).
+Verificación de integración de las 5 áreas más entrelazadas: **las 5
+integran limpio**. Un posible hallazgo (4 scripts de test que pasan pero no
+están en la cadena `npm test`) se investigó a fondo y resultó ser diseño
+intencional preexistente (evitar contaminar la BD real al correr `npm test`
+por default), no una regresión — no se tocó nada. Ver `PLAN_V3.md` Fase 11
+(ítems 69-71).
+
 ## 7. Runbooks / catálogos operativos (no tocar, son referencia viva)
 
 - `ERRORES.md` — catálogo de códigos `HS-xxx` para soporte/diagnóstico.

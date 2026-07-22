@@ -461,3 +461,53 @@ los mismos archivos a lo largo de la sesión degradaron su estructura
        `npm ci --omit=dev` ya es production-only; el stage `ui` no filtra
        `node_modules` al final, solo `dist`; `nodemon` (única devDependency)
        confirmado sin uso en el entrypoint de Docker.
+
+## Fase 11 — Cuarta pasada de espagueti/120 líneas + verificación de integración (2026-07-22h)
+
+A pedido explícito ("vuelve a revisar... espagueti... revisa si tus
+refactorizaciones no causan conflicto"), 2 agentes: uno re-audita
+factorización (cuarta pasada — ya se hizo en Fase 1/4/7/10), otro verifica
+que las 5 áreas de refactor más entrelazadas de la sesión realmente encajen
+entre sí, no solo que cada diff se vea bien aislado.
+
+- [x] 69. **Cuarta pasada de espagueti: sin hallazgos nuevos.** Censo actual:
+       111 de 259 archivos superan 120 líneas (43%, misma proporción que al
+       inicio de la sesión — 106/245). Los 5 archivos que crecieron después
+       de su propio split de la Fase 4 (`erpContabilidad.js` 832→891,
+       `bot/index.js` 1258→1311, `_shared.js` 1372→1391, `menuFlow.js`
+       720→725, `cartFlow.js` 422→444) fueron releídos completos uno por
+       uno: el crecimiento es de piezas independientes agregadas (un fix de
+       ~15-20 líneas cada vez, con su propio comentario, sin tocar código
+       vecino), no de código enredado. Ningún archivo "se volteó" a necesitar
+       un split nuevo.
+- [x] 70. **Verificación de integración — 4 de 5 áreas limpias, 1 hallazgo
+       real (pero con conclusión corregida, ver abajo)**: split de
+       `stockWatcher.js` vs. `stockWatcher.worker.js` — compone bien, forma
+       de export sin cambios. Unificación de `smtpClient.js` vs. los 3
+       llamadores — ninguno se volvió a tocar después de la unificación,
+       compone bien. `sharp` vs. extracción del pipeline vs. fix de fs async
+       en `bot/index.js` (3 ediciones de 3 rondas distintas sobre el MISMO
+       bloque) — se encadenan correctamente en una sola secuencia async
+       coherente. `Dockerfile` (dos paquetes apt quitados en rondas
+       distintas: `webp` y `sqlite3`) vs. `docker-compose.yml` — ambos
+       quitados limpio, los 4 paquetes que quedan siguen siendo necesarios,
+       los volúmenes de imágenes siguen alineados con lo que escribe el
+       código reescrito para `sharp`.
+- [x] 71. **El "hallazgo" de `npm test` — investigado y CORREGIDO, no es un
+       bug**: el agente de integración señaló que `test:carrito`,
+       `test:dashboard-api`, `test:estres` y `test:marketing` existen y
+       pasan pero no están en la cadena `&&` del script compuesto `test`, y
+       recomendó agregarlos. **Verificado que esto es diseño intencional
+       preexistente, NO una regresión de esta sesión** — ninguno de los 4
+       estaba en el `test` compuesto en el commit inicial de esta sesión
+       (`git show <primer-commit>:package.json`, 0 coincidencias). Motivo
+       real: estos 4 archivos necesitan una BD real sembrada; si se
+       agregaran a `npm test` (que corre contra `DB_PATH` real por default,
+       sin la copia desechable que se usó explícitamente para migrarlos con
+       seguridad), cada corrida futura de `npm test` volvería a insertar
+       datos de prueba en la BD de producción — exactamente el incidente de
+       contaminación que ya se limpió más de una vez en sesiones anteriores
+       (ver `CLAUDE.md`, nota de la 3ª pasada 2026-07-21). Mismo motivo por
+       el que `test:notificaciones`/`test:fullbot`/`test:smoke` tampoco están
+       en la cadena. **No se tocó `package.json`** — la exclusión es
+       correcta y se deja así a propósito.

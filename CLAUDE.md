@@ -175,6 +175,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > del cacheo de capas/tamaño de imagen ya estaba óptimo. Ver `PLAN_V3.md`
 > Fase 10 (ítems 65-68) para el detalle completo.
 >
+> **2026-07-22 (4ª pasada de espagueti + verificación de integración,
+> `PLAN_V3.md` Fase 11):** a pedido explícito, se re-auditó factorización
+> (**sin hallazgos nuevos** — 111/259 archivos >120 líneas, misma
+> proporción que al inicio; los archivos que crecieron después de su split
+> de Fase 4 siguen bien, crecimiento de piezas independientes, no de código
+> enredado) y se verificó que las refactorizaciones de toda la sesión
+> realmente encajen entre sí (no solo que cada diff se vea bien aislado):
+> split de `stockWatcher.js`, unificación de `smtpClient.js`, la cadena
+> `sharp`+pipeline+fs-async en `bot/index.js` (3 ediciones de 3 rondas
+> distintas sobre el mismo bloque), y el `Dockerfile` (2 paquetes apt
+> quitados en rondas distintas) — **las 5 áreas integran limpio**. Un
+> "hallazgo" del agente (4 scripts `test:*` que pasan pero no están en la
+> cadena `npm test`) se investigó y se determinó que es **diseño
+> intencional preexistente, no una regresión** — esos 4 archivos necesitan
+> BD real, y agregarlos a `npm test` (que corre contra el `DB_PATH` real
+> por default) reintroduciría el mismo incidente de contaminación de datos
+> ya limpiado varias veces antes. No se tocó `package.json`.
+>
 > Todo lo demás abajo sigue siendo útil como historia y para los principios (chokepoint de dinero, golden/paridad byte-idéntico de JC, migraciones versionadas + espejo en `db/schema.sql`, módulos toggleables).
 >
 > **Regla permanente para Claude Code en este repo:** cada vez que se investigue o arregle
