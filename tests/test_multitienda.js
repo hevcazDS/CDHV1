@@ -5,15 +5,10 @@
 // contrato "la sesión conoce su tienda" sin tocar producción.
 //
 //   node tests/test_multitienda.js
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const { sucursalFacturacionDefault, sucursalDeSesion } = require('../services/sucursalService');
-
-let pasa = 0, falla = 0;
-function test(nombre, fn) {
-    try { fn(); pasa++; console.log('  ✅ ' + nombre); }
-    catch (e) { falla++; console.log('  ❌ ' + nombre + ': ' + e.message); }
-}
-function assert(cond, msg) { if (!cond) throw new Error(msg || 'aserción falló'); }
 
 const db = new Database(':memory:');
 db.exec(`
@@ -172,6 +167,3 @@ test('sin CP capturado → no espeja (no hay zona que asignar)', () => {
     espejo({ nombre: 'Sin CP' });
     assert(!db.prepare("SELECT 1 FROM puntos_entrega WHERE nombre='Sin CP'").get());
 });
-
-console.log(`\nRESULTADO: ${pasa} ✅  |  ${falla} ❌`);
-process.exit(falla ? 1 : 0);

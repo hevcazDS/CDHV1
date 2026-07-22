@@ -5,7 +5,8 @@
 // (gasto 0 → escalable, no error) y sin_datos (sin captura). Sin dividir por cero.
 //   node tests/test_salud_negocio.js
 
-const assert = require('assert');
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const db = new Database(':memory:');
 db.exec(`
@@ -44,10 +45,7 @@ for (let i = 0; i < 100; i++) {
     db.prepare("INSERT INTO links_pago (id_pedido, monto, estatus, pagado_en) VALUES (?,?, 'pagado', ?)").run(ped, 1000, hoy + ' 11:05');
 }
 
-let ok = 0;
-const t = (n, fn) => { fn(); ok++; console.log('✅ ' + n); };
-
-t('insumos base correctos (margen neto = 0.20, ticket 1000)', () => {
+test('insumos base correctos (margen neto = 0.20, ticket 1000)', () => {
     const r = salud.calcularSaludNegocio({ desde, hasta, gastoAdquisicion: 5000 });
     assert.strictEqual(r.insumos.clientes_nuevos, 50);
     assert.strictEqual(r.insumos.num_pedidos, 100);
@@ -55,7 +53,7 @@ t('insumos base correctos (margen neto = 0.20, ticket 1000)', () => {
     assert.strictEqual(r.metricas.ticket_promedio, 1000);
 });
 
-t('CAC = gasto/clientes_nuevos; LTV y ratio con la fórmula corregida', () => {
+test('CAC = gasto/clientes_nuevos; LTV y ratio con la fórmula corregida', () => {
     // gasto 5000 / 50 = CAC 100. frecuencia = 100/50 *  (365/dias) → anualizada.
     // LTV = ticket(1000) * frecuencia * margen(0.20). ratio = LTV/CAC.
     const r = salud.calcularSaludNegocio({ desde, hasta, gastoAdquisicion: 5000 });
@@ -66,7 +64,7 @@ t('CAC = gasto/clientes_nuevos; LTV y ratio con la fórmula corregida', () => {
     assert.strictEqual(r.status, 'escalable');
 });
 
-t('umbrales: >5 escalable ANTES que >=3 (un ratio ~4 es saludable, ~6 escalable)', () => {
+test('umbrales: >5 escalable ANTES que >=3 (un ratio ~4 es saludable, ~6 escalable)', () => {
     // forzamos el ratio ajustando el gasto de adquisición.
     const base = salud.calcularSaludNegocio({ desde, hasta, gastoAdquisicion: 1 });
     const ltv = base.metricas.ltv;   // fijo
@@ -80,7 +78,7 @@ t('umbrales: >5 escalable ANTES que >=3 (un ratio ~4 es saludable, ~6 escalable)
     assert.strictEqual(r6.status, 'escalable');
 });
 
-t('ratio < 3 → alerta (quemando dinero)', () => {
+test('ratio < 3 → alerta (quemando dinero)', () => {
     const base = salud.calcularSaludNegocio({ desde, hasta, gastoAdquisicion: 1 });
     const g2 = (base.metricas.ltv / 2) * 50;   // ratio 2
     const r = salud.calcularSaludNegocio({ desde, hasta, gastoAdquisicion: g2 });
@@ -88,7 +86,7 @@ t('ratio < 3 → alerta (quemando dinero)', () => {
     assert.strictEqual(r.status, 'alerta');
 });
 
-t('adquisición ORGÁNICA: gasto 0 con clientes nuevos → escalable, sin dividir por cero', () => {
+test('adquisición ORGÁNICA: gasto 0 con clientes nuevos → escalable, sin dividir por cero', () => {
     const r = salud.calcularSaludNegocio({ desde, hasta, gastoAdquisicion: 0 });
     assert.strictEqual(r.metricas.cac, 0);
     assert.strictEqual(r.metricas.ratio_ltv_cac, null, 'no Infinity/NaN');
@@ -96,20 +94,20 @@ t('adquisición ORGÁNICA: gasto 0 con clientes nuevos → escalable, sin dividi
     assert.strictEqual(r.status, 'escalable');
 });
 
-t('sin captura de gasto → sin_datos (no inventa CAC)', () => {
+test('sin captura de gasto → sin_datos (no inventa CAC)', () => {
     const r = salud.calcularSaludNegocio({ desde, hasta, gastoAdquisicion: null });
     assert.strictEqual(r.status, 'sin_datos');
     assert.strictEqual(r.metricas.cac, null);
 });
 
-t('lee configuracion.gasto_marketing_mensual si no se pasa el parámetro', () => {
+test('lee configuracion.gasto_marketing_mensual si no se pasa el parámetro', () => {
     db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES ('gasto_marketing_mensual','5000')").run();
     const r = salud.calcularSaludNegocio({ desde, hasta });   // sin gastoAdquisicion
     assert.strictEqual(r.metricas.cac, 100);   // 5000/50
     db.prepare("DELETE FROM configuracion WHERE clave='gasto_marketing_mensual'").run();
 });
 
-t('P1: gasto de publicidad en 602 → CAC AUTOMÁTICO del libro mayor (no manual)', () => {
+test('P1: gasto de publicidad en 602 → CAC AUTOMÁTICO del libro mayor (no manual)', () => {
     asiento('602', 5000, 0);   // publicidad del período (50 clientes ya sembrados)
     const r = salud.calcularSaludNegocio({ desde, hasta });   // sin pasar gasto → debe salir de 602
     assert.strictEqual(r.insumos.gasto_adquisicion, 5000, 'del libro mayor 602');
@@ -117,11 +115,8 @@ t('P1: gasto de publicidad en 602 → CAC AUTOMÁTICO del libro mayor (no manual
     assert.strictEqual(r.metricas.cac, 100);   // 5000/50
 });
 
-t('sin clientes nuevos → sin_datos', () => {
+test('sin clientes nuevos → sin_datos', () => {
     db.prepare("DELETE FROM clientes").run();
     const r = salud.calcularSaludNegocio({ desde, hasta, gastoAdquisicion: 5000 });
     assert.strictEqual(r.status, 'sin_datos');
 });
-
-console.log('\n' + ok + '/9 OK — salud del negocio: CAC/LTV/ratio, umbrales, orgánico, sin_datos y CAC-auto-602.');
-process.exit(ok === 9 ? 0 : 1);

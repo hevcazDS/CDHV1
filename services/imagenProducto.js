@@ -10,8 +10,11 @@
 //   · <base>.jpg|png → copia de TRANSPORTE para WhatsApp: WhatsApp muestra un
 //                       .webp como STICKER, no como foto con caption, así que al
 //                       cliente se le manda el jpg/png.
-// Sin cwebp (Windows dev) no hay webp: url_imagen apunta al jpg/png y todo sigue.
-const { execFileSync } = require('child_process');
+// La conversión a webp usa `sharp` (bundlea libvips, sin binario externo del
+// sistema — antes shelleaba a `cwebp` vía execFileSync, que bloqueaba el
+// event loop hasta 15s y dependía de un binario frágil). Si sharp falla por
+// cualquier motivo, url_imagen apunta al jpg/png original y todo sigue.
+const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 
@@ -19,6 +22,7 @@ const DIR = path.join(__dirname, '..', 'bot', 'imagenes_productos');
 // Mismo formato de nombre que imagenes_clientes: <numero>_<numero>.<ext>
 const _RE_ARCHIVO = /^[0-9]+_[0-9]+\.(jpg|jpeg|png|webp)$/i;
 const MAX_BYTES = 12 * 1024 * 1024;
+const MAX_LADO = 1600; // px — tope para la copia webp de panel/catálogo
 
 function _asegurarDir() { try { fs.mkdirSync(DIR, { recursive: true }); } catch (_) {} }
 
@@ -34,8 +38,8 @@ function rutaLocal(nombre) {
 }
 
 // Guarda una imagen de producto desde base64 (jpg/png). Devuelve el basename a
-// almacenar en url_imagen (.webp si cwebp está disponible; si no, el original).
-function guardarBase64(idProducto, base64, mimetype) {
+// almacenar en url_imagen (.webp si la conversión funcionó; si no, el original).
+async function guardarBase64(idProducto, base64, mimetype) {
     _asegurarDir();
     const ext = /png/i.test(mimetype || '') ? 'png' : 'jpg';
     const base = `${Number(idProducto) || 0}_${Date.now()}`;
@@ -43,16 +47,20 @@ function guardarBase64(idProducto, base64, mimetype) {
     const blob = Buffer.from(String(base64 || '').replace(/^data:[^,]+,/, ''), 'base64');
     if (blob.length < 32) throw new Error('Imagen vacía o inválida');
     if (blob.length > MAX_BYTES) throw new Error('Imagen demasiado grande (máx 12 MB)');
-    fs.writeFileSync(rutaOrig, blob);
+    await fs.promises.writeFile(rutaOrig, blob);
     // Convertir a webp SIN borrar el original (el original es el transporte de WhatsApp).
     const rutaWebp = path.join(DIR, `${base}.webp`);
     try {
-        execFileSync('cwebp', ['-quiet', '-q', '78', rutaOrig, '-o', rutaWebp], { timeout: 15000 });
-        if (fs.existsSync(rutaWebp) && fs.statSync(rutaWebp).size > 0) return `${base}.webp`;
+        await sharp(rutaOrig)
+            .resize({ width: MAX_LADO, height: MAX_LADO, fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 78 })
+            .toFile(rutaWebp);
+        const st = await fs.promises.stat(rutaWebp).catch(() => null);
+        if (st && st.size > 0) return `${base}.webp`;
     } catch (_) {
-        try { if (fs.existsSync(rutaWebp)) fs.unlinkSync(rutaWebp); } catch (_) {}
+        try { await fs.promises.unlink(rutaWebp); } catch (_) {}
     }
-    return `${base}.${ext}`; // sin cwebp: url_imagen apunta al original jpg/png
+    return `${base}.${ext}`; // conversión falló: url_imagen apunta al original jpg/png
 }
 
 // Para enviar por WhatsApp: URL externa → null (el caller usa fromUrl); local →

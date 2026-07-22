@@ -22,7 +22,7 @@ RUN npm run build
 FROM node:20-bookworm-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        chromium ca-certificates fonts-liberation sqlite3 tzdata webp \
+        chromium ca-certificates fonts-liberation sqlite3 tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g pm2@5
 

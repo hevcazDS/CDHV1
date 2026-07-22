@@ -1,9 +1,8 @@
 // test_bot.js
-// Suite de pruebas del bot — ejecutar con: node test_bot.js
+// Suite de pruebas del bot — ejecutar con: node --test tests/test_bot.js
 // No necesita WhatsApp conectado. Prueba la lógica directamente.
-// Uso: node test_bot.js [--verbose] [--suite filtro]
-//   --verbose   : muestra respuesta completa del bot
-//   --suite X   : solo corre el grupo X (ej: --suite queja)
+// Para correr solo un subconjunto, usa el filtro nativo de node:test:
+//   node --test --test-name-pattern=queja tests/test_bot.js
 
 'use strict';
 
@@ -102,46 +101,11 @@ try {
     indexModule = null;
 }
 
-// ── Test runner ───────────────────────────────────────────────────────────
-const VERDE  = '\x1b[32m';
-const ROJO   = '\x1b[31m';
-const YELLOW = '\x1b[33m';
-const RESET  = '\x1b[0m';
+// ── Test runner (node:test nativo) ───────────────────────────────────────
+const { test } = require('node:test');
+
 const BOLD   = '\x1b[1m';
-
-let passed = 0, failed = 0, skipped = 0;
-const results = [];
-
-const args    = process.argv.slice(2);
-const VERBOSE = args.includes('--verbose');
-const SUITE   = args.find(a => a.startsWith('--suite='))?.slice(8) || null;
-
-// async porque fn() puede ser una función async (ej. la de analyzeImage()
-// más abajo) — si fn() devuelve una promesa, se espera aquí ANTES de contar
-// passed/failed, si no, un assert() que falla dentro del await se perdía
-// como unhandled rejection en vez de contar como test fallido (item 50,
-// PLAN_V3.md). Para los ~90 llamados síncronos existentes esto no cambia
-// nada: sin promesa que esperar, el cuerpo corre y cuenta igual que antes.
-async function test(suite, name, fn) {
-    if (SUITE && !suite.toLowerCase().includes(SUITE.toLowerCase())) {
-        skipped++;
-        return;
-    }
-    try {
-        const result = fn();
-        if (result && typeof result.then === 'function') {
-            await result;
-        }
-        passed++;
-        results.push({ ok: true, suite, name });
-        if (VERBOSE) console.log(`  ${VERDE}✓${RESET} [${suite}] ${name}`);
-    } catch(e) {
-        failed++;
-        results.push({ ok: false, suite, name, error: e.message });
-        console.log(`  ${ROJO}✗${RESET} [${suite}] ${name}`);
-        console.log(`    → ${ROJO}${e.message}${RESET}`);
-    }
-}
+const RESET  = '\x1b[0m';
 
 function assert(condition, msg) {
     if (!condition) throw new Error(msg || 'Assertion failed');
@@ -259,12 +223,12 @@ const shouldPass = [
 ];
 
 for (const text of shouldBlock) {
-    test('contenido', `BLOQUEAR: "${text}"`, () => {
+    test(`[contenido] BLOQUEAR: "${text}"`, () => {
         assert(cf(text) === true, `"${text}" debería ser bloqueado`);
     });
 }
 for (const text of shouldPass) {
-    test('contenido', `PERMITIR: "${text}"`, () => {
+    test(`[contenido] PERMITIR: "${text}"`, () => {
         assert(cf(text) === false || cf(text) === undefined,
             `"${text}" no debería ser bloqueado`);
     });
@@ -308,12 +272,12 @@ const shouldNotBeQueja = [
 ];
 
 for (const text of shouldBeQueja) {
-    test('queja', `DETECTAR: "${text}"`, () => {
+    test(`[queja] DETECTAR: "${text}"`, () => {
         assert(qch(text) === true, `"${text}" debería detectarse como queja`);
     });
 }
 for (const text of shouldNotBeQueja) {
-    test('queja', `IGNORAR: "${text}"`, () => {
+    test(`[queja] IGNORAR: "${text}"`, () => {
         assert(qch(text) === false || qch(text) === undefined,
             `"${text}" no debería ser queja`);
     });
@@ -338,7 +302,7 @@ const typosQueNoSeDetectanHoy = [
     'kiero q me regresen mi dinero', // jerga sin palabra L1 reconocible (exacta o fuzzy)
 ];
 for (const text of typosQueNoSeDetectanHoy) {
-    test('queja', `GAP CONOCIDO (typo, no detecta hoy): "${text}"`, () => {
+    test(`[queja] GAP CONOCIDO (typo, no detecta hoy): "${text}"`, () => {
         assert(qch(text) === false || qch(text) === undefined,
             `"${text}" — si esto empieza a detectarse, actualizar el comentario de este test (ya no es un gap)`);
     });
@@ -351,7 +315,7 @@ for (const text of typosQueNoSeDetectanHoy) {
 // fuzzy) y sí escala, sin tocar la regla anti-falso-positivo de "1 sola
 // palabra no escala".
 const typoConSegundaSenal = 'es una estfa, totalmente un fraude';
-test('queja', `DETECTAR (Fase 5, typo + 2da señal): "${typoConSegundaSenal}"`, () => {
+test(`[queja] DETECTAR (Fase 5, typo + 2da señal): "${typoConSegundaSenal}"`, () => {
     assert(qch(typoConSegundaSenal) === true,
         `"${typoConSegundaSenal}" debería detectarse — typo fuzzy ("estfa"~"estafa") + palabra exacta ("fraude")`);
 });
@@ -386,7 +350,7 @@ const shouldBeFrustracion = [
     'oye!! llevo media hora esperando', 'bueno?? alguien va a contestar??',
 ];
 for (const text of shouldBeFrustracion) {
-    test('frustracion', `DETECTAR: "${text}"`, () => {
+    test(`[frustracion] DETECTAR: "${text}"`, () => {
         assert(frus(text) === true, `"${text}" debería detectarse como frustración`);
     });
 }
@@ -400,7 +364,7 @@ const shouldNotBeFrustracion = [
     'bueno, ¿tienen envíos?', 'oye, ¿cuánto cuesta esto?',
 ];
 for (const text of shouldNotBeFrustracion) {
-    test('frustracion', `IGNORAR: "${text}"`, () => {
+    test(`[frustracion] IGNORAR: "${text}"`, () => {
         assert(frus(text) === false || frus(text) === undefined,
             `"${text}" no debería ser frustración`);
     });
@@ -434,7 +398,7 @@ const linkTests = [
 ];
 
 for (const { input, expected } of linkTests) {
-    test('links', `URL path: "${input.slice(0,50)}"`, () => {
+    test(`[links] URL path: "${input.slice(0,50)}"`, () => {
         const url = extractUrl(input);
         if (expected === null) {
             assert(url === null, `No debería detectar URL en "${input}"`);
@@ -471,20 +435,20 @@ console.log(`\n${BOLD}── Rate Limiter ──${RESET}`);
         return true;
     }
 
-    test('rate', 'Primeros 10 mensajes pasan', () => {
+    test('[rate] Primeros 10 mensajes pasan', () => {
         const uid = 'test_rate_1';
         let ok = 0;
         for (let i = 0; i < 10; i++) if (rlSim(uid)) ok++;
         assert(ok === 10, `Esperaba 10 pasaron, pasaron ${ok}`);
     });
 
-    test('rate', 'Mensaje 11 es bloqueado', () => {
+    test('[rate] Mensaje 11 es bloqueado', () => {
         const uid = 'test_rate_2';
         for (let i = 0; i < 10; i++) rlSim(uid);
         assert(!rlSim(uid), 'Mensaje 11 debería ser bloqueado');
     });
 
-    test('rate', 'Imágenes: máx 3 por minuto', () => {
+    test('[rate] Imágenes: máx 3 por minuto', () => {
         const uid = 'test_rate_img';
         assert(rlSim(uid, true), '1ra imagen debe pasar');
         assert(rlSim(uid, true), '2da imagen debe pasar');
@@ -492,7 +456,7 @@ console.log(`\n${BOLD}── Rate Limiter ──${RESET}`);
         assert(!rlSim(uid, true), '4ta imagen debe ser bloqueada');
     });
 
-    test('rate', 'Usuarios distintos no se afectan', () => {
+    test('[rate] Usuarios distintos no se afectan', () => {
         const uid1 = 'rate_usr_a', uid2 = 'rate_usr_b';
         for (let i = 0; i < 10; i++) rlSim(uid1);
         assert(rlSim(uid2), 'Usuario distinto debe poder enviar');
@@ -508,26 +472,26 @@ try {
     const sm = require('../bot/sessionManager');
     const testUser = `test_${Date.now()}`;
 
-    test('sesion', 'Nueva sesión inicia en MENU', () => {
+    test('[sesion] Nueva sesión inicia en MENU', () => {
         const s = sm.getSession(testUser + '_new');
         assert(s.paso_actual === 'MENU', `paso_actual=${s.paso_actual}`);
     });
 
-    test('sesion', 'updateSession guarda correctamente', () => {
+    test('[sesion] updateSession guarda correctamente', () => {
         sm.updateSession(testUser, 'SEARCHING', { carrito: [], busqueda: 'patines' });
         const s = sm.getSession(testUser);
         assert(s.paso_actual === 'SEARCHING', `paso_actual=${s.paso_actual}`);
         assert(s.data.busqueda === 'patines', `busqueda=${s.data.busqueda}`);
     });
 
-    test('sesion', 'clearSession regresa a MENU', () => {
+    test('[sesion] clearSession regresa a MENU', () => {
         sm.clearSession(testUser);
         const s = sm.getSession(testUser);
         assert(s.paso_actual === 'MENU', `paso_actual=${s.paso_actual}`);
     });
 
 } catch(e) {
-    test('sesion', 'sessionManager cargable', () => {
+    test('[sesion] sessionManager cargable', () => {
         throw new Error('sessionManager no cargó: ' + e.message);
     });
 }
@@ -537,116 +501,89 @@ try {
 // ═══════════════════════════════════════════════════════════════════════
 console.log(`\n${BOLD}── imageAnalyzer ──${RESET}`);
 
-// Este bloque vive en un IIFE async (en vez del try/catch síncrono de
-// siempre) porque el test de analyzeImage() de abajo es genuinamente async
-// — test() ahora espera su promesa (ver arriba), pero quien LLAMA a test()
-// también debe esperarla o el resto del archivo (SUITE 7 + resumen final)
-// corre antes de que esa promesa resuelva. Por eso el resto del archivo se
-// movió a runRestoYFinalizar() y se encadena con .then() aquí abajo (item
-// 50, PLAN_V3.md). Nada de esto cambia el conteo de los ~90 tests síncronos
-// del resto del archivo, que se quedan exactamente como estaban.
-(async () => {
-    try {
-        const ia = require('../bot/imageAnalyzer');
-
-        await test('imagen', 'isConfigured retorna boolean', () => {
-            const r = ia.isConfigured();
-            assert(typeof r === 'boolean', `isConfigured() retornó ${typeof r}`);
-        });
-
-        await test('imagen', 'fallbackMessage retorna string', () => {
-            const r = ia.fallbackMessage('TIMEOUT');
-            assert(typeof r === 'string' && r.length > 5, 'fallbackMessage vacío');
-        });
-
-        await test('imagen', 'fallbackMessage para razón desconocida', () => {
-            const r = ia.fallbackMessage('RAZON_RARA');
-            assert(typeof r === 'string' && r.length > 5, 'Debería tener fallback por defecto');
-        });
-
-        await test('imagen', 'cacheStats retorna objeto', () => {
-            const s = ia.cacheStats();
-            assert(typeof s === 'object' && 'entries' in s, 'cacheStats mal formado');
-        });
-
-        await test('imagen', 'analyzeImage con data inválida retorna {ok:false}', async () => {
-            // Sin creds reales debe fallar con NO_CONFIGURADO o similar
-            const result = await ia.analyzeImage({ data: 'AAAA', mimetype: 'image/jpeg' });
-            assert(result && 'ok' in result, 'Debe retornar objeto con ok');
-            // Si no hay creds, ok debe ser false
-            if (!ia.isConfigured()) {
-                assert(result.ok === false, 'Sin credenciales ok debe ser false');
-            }
-        });
-
-    } catch(e) {
-        await test('imagen', 'imageAnalyzer cargable', () => {
-            throw new Error('imageAnalyzer no cargó: ' + e.message);
-        });
-    }
-})().then(runRestoYFinalizar).catch(e => {
-    console.error(e);
-    process.exit(1);
-});
-
-// ═══════════════════════════════════════════════════════════════════════
-//  SUITE 7 (edge cases) + RESULTADO FINAL — encadenados tras el IIFE async
-//  de arriba, para que el test async de imageAnalyzer siempre termine de
-//  contar antes de calcular el resultado final (item 50, PLAN_V3.md).
-// ═══════════════════════════════════════════════════════════════════════
-function runRestoYFinalizar() {
-    // ═══════════════════════════════════════════════════════════════════
-    //  SUITE 7: EDGE CASES
-    // ═══════════════════════════════════════════════════════════════════
-    console.log(`\n${BOLD}── Edge Cases ──${RESET}`);
-
-    test('edge', 'Texto vacío no bloquea', () => {
-        assert(cf('') === false || cf('') == null || cf('') === undefined);
-    });
-    test('edge', 'Texto vacío no detecta queja', () => {
-        assert(qch('') === false || qch('') == null || qch('') === undefined);
-    });
-    test('edge', 'Solo números no bloquea', () => {
-        assert(cf('12345') === false || cf('12345') == null);
-    });
-    test('edge', 'Emoji solo no bloquea', () => {
-        assert(cf('🧸🎉👶') === false || cf('🧸🎉👶') == null);
-    });
-    test('edge', 'URL de la tienda propia no bloquea', () => {
-        assert(cf('https://juliocepeda.com/products/patines') === false || cf('https://juliocepeda.com/products/patines') == null);
-    });
-    test('edge', 'Texto muy largo no rompe', () => {
-        const long = 'quiero un juguete '.repeat(100);
-        assert(cf(long) !== undefined);  // no debe tirar excepción
-    });
-    test('edge', 'Mensaje con acento y tilde funciona', () => {
-        assert(cf('juguete para niña') === false || cf('juguete para niña') == null);
-    });
-    test('edge', 'profeco + abogado en frase larga se detecta como queja (2 hits L1)', () => {
-        assert(qch('voy a ir con un abogado y a profeco si no me resuelven') === true);
-    });
-    test('edge', 'Evasión con espacios detectada', () => {
-        assert(cf('p e n e') === true, '"p e n e" debería ser bloqueado');
-    });
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  RESULTADO FINAL
-    // ═══════════════════════════════════════════════════════════════════
-    console.log('\n' + '═'.repeat(55));
-    const total = passed + failed;
-    const pct   = total > 0 ? Math.round(passed/total*100) : 0;
-    console.log(`${BOLD}RESULTADO: ${passed}/${total} pruebas pasaron (${pct}%)${RESET}`);
-    if (skipped) console.log(`${YELLOW}  Omitidas: ${skipped}${RESET}`);
-    if (failed === 0) {
-        console.log(`${VERDE}${BOLD}✅ Todas las pruebas pasaron${RESET}`);
-    } else {
-        console.log(`${ROJO}${BOLD}❌ ${failed} prueba(s) fallaron${RESET}`);
-        console.log(`\nPruebas fallidas:`);
-        results.filter(r => !r.ok).forEach(r => {
-            console.log(`  ${ROJO}✗ [${r.suite}] ${r.name}${RESET}`);
-            console.log(`    ${r.error}`);
-        });
-    }
-    console.log('═'.repeat(55) + '\n');
-    process.exit(failed > 0 ? 1 : 0);
+// El require de bot/imageAnalyzer es síncrono, así que puede resolverse
+// aquí mismo (fuera de cualquier test()) igual que ya se hacía con
+// sessionManager en la SUITE 5 — si falla, se registra un único test que
+// reporta el error, igual que antes. node:test corre los test() en orden
+// de registro dentro de un mismo archivo y sí espera correctamente los
+// async, así que ya no hace falta el IIFE async + .then(runRestoYFinalizar)
+// que existía porque el runner viejo no podía esperar un test async antes
+// de contar el resultado final (item 50, PLAN_V3.md) — ese workaround
+// desaparece con la migración a node:test.
+let _ia, _iaLoadError = null;
+try {
+    _ia = require('../bot/imageAnalyzer');
+} catch(e) {
+    _iaLoadError = e;
 }
+
+if (_ia) {
+    const ia = _ia;
+    test('[imagen] isConfigured retorna boolean', () => {
+        const r = ia.isConfigured();
+        assert(typeof r === 'boolean', `isConfigured() retornó ${typeof r}`);
+    });
+
+    test('[imagen] fallbackMessage retorna string', () => {
+        const r = ia.fallbackMessage('TIMEOUT');
+        assert(typeof r === 'string' && r.length > 5, 'fallbackMessage vacío');
+    });
+
+    test('[imagen] fallbackMessage para razón desconocida', () => {
+        const r = ia.fallbackMessage('RAZON_RARA');
+        assert(typeof r === 'string' && r.length > 5, 'Debería tener fallback por defecto');
+    });
+
+    test('[imagen] cacheStats retorna objeto', () => {
+        const s = ia.cacheStats();
+        assert(typeof s === 'object' && 'entries' in s, 'cacheStats mal formado');
+    });
+
+    test('[imagen] analyzeImage con data inválida retorna {ok:false}', async () => {
+        // Sin creds reales debe fallar con NO_CONFIGURADO o similar
+        const result = await ia.analyzeImage({ data: 'AAAA', mimetype: 'image/jpeg' });
+        assert(result && 'ok' in result, 'Debe retornar objeto con ok');
+        // Si no hay creds, ok debe ser false
+        if (!ia.isConfigured()) {
+            assert(result.ok === false, 'Sin credenciales ok debe ser false');
+        }
+    });
+} else {
+    test('[imagen] imageAnalyzer cargable', () => {
+        throw new Error('imageAnalyzer no cargó: ' + _iaLoadError.message);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SUITE 7: EDGE CASES
+// ═══════════════════════════════════════════════════════════════════════
+console.log(`\n${BOLD}── Edge Cases ──${RESET}`);
+
+test('[edge] Texto vacío no bloquea', () => {
+    assert(cf('') === false || cf('') == null || cf('') === undefined);
+});
+test('[edge] Texto vacío no detecta queja', () => {
+    assert(qch('') === false || qch('') == null || qch('') === undefined);
+});
+test('[edge] Solo números no bloquea', () => {
+    assert(cf('12345') === false || cf('12345') == null);
+});
+test('[edge] Emoji solo no bloquea', () => {
+    assert(cf('🧸🎉👶') === false || cf('🧸🎉👶') == null);
+});
+test('[edge] URL de la tienda propia no bloquea', () => {
+    assert(cf('https://juliocepeda.com/products/patines') === false || cf('https://juliocepeda.com/products/patines') == null);
+});
+test('[edge] Texto muy largo no rompe', () => {
+    const long = 'quiero un juguete '.repeat(100);
+    assert(cf(long) !== undefined);  // no debe tirar excepción
+});
+test('[edge] Mensaje con acento y tilde funciona', () => {
+    assert(cf('juguete para niña') === false || cf('juguete para niña') == null);
+});
+test('[edge] profeco + abogado en frase larga se detecta como queja (2 hits L1)', () => {
+    assert(qch('voy a ir con un abogado y a profeco si no me resuelven') === true);
+});
+test('[edge] Evasión con espacios detectada', () => {
+    assert(cf('p e n e') === true, '"p e n e" debería ser bloqueado');
+});

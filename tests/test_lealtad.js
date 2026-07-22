@@ -3,6 +3,8 @@
 // Replica el INSERT de recompensa de puntosService.js y la lógica de
 // aplicarCupon (_shared.js) para fijar el contrato del cupón de 10%.
 'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const db = new Database(':memory:');
 
@@ -40,30 +42,32 @@ function aplicarCupon(codigo, subtotal) {
     return { ok: true, promo, descuento: parseFloat(desc.toFixed(2)) };
 }
 
-let pass = 0, fail = 0;
-const ok = (c, m) => { if (c) { pass++; console.log('  ✅ ' + m); } else { fail++; console.log('  ❌ ' + m); } };
+let codigo, promo;
 
-console.log('\nSuite: Cupón de lealtad 10%\n');
+test('emitir cupón genera código LEAL-XXXXXX y guarda promoción + regalo de lealtad con los valores correctos', () => {
+    codigo = emitirCupon(1, '5214441234567');
+    assert.ok(/^LEAL-[A-Z0-9]{6}$/.test(codigo), 'código formato LEAL-XXXXXX: ' + codigo);
+    promo = db.prepare('SELECT * FROM promociones WHERE codigo=?').get(codigo);
+    assert.ok(promo.tipo === 'porcentaje', "tipo = 'porcentaje'");
+    assert.ok(promo.valor === 10, 'valor = 10');
+    assert.ok(promo.usos_max === 1, 'usos_max = 1 (no acumulable)');
+    assert.ok(promo.id_producto === null, 'id_producto NULL (aplica al total)');
+    const reg = db.prepare('SELECT * FROM regalos_lealtad WHERE codigo_cupon=?').get(codigo);
+    assert.ok(reg.valor === 10, 'regalos_lealtad.valor = 10');
+});
 
-const codigo = emitirCupon(1, '5214441234567');
-ok(/^LEAL-[A-Z0-9]{6}$/.test(codigo), 'código formato LEAL-XXXXXX: ' + codigo);
-const promo = db.prepare('SELECT * FROM promociones WHERE codigo=?').get(codigo);
-ok(promo.tipo === 'porcentaje', "tipo = 'porcentaje'");
-ok(promo.valor === 10, 'valor = 10');
-ok(promo.usos_max === 1, 'usos_max = 1 (no acumulable)');
-ok(promo.id_producto === null, 'id_producto NULL (aplica al total)');
-const reg = db.prepare('SELECT * FROM regalos_lealtad WHERE codigo_cupon=?').get(codigo);
-ok(reg.valor === 10, 'regalos_lealtad.valor = 10');
+test('aplicarCupon calcula el descuento de 10% correctamente', () => {
+    assert.ok(aplicarCupon(codigo, 1000).descuento === 100, '10% de $1000 = $100');
+    assert.ok(aplicarCupon(codigo, 599).descuento === 59.9, '10% de $599 = $59.90');
+});
 
-ok(aplicarCupon(codigo, 1000).descuento === 100, '10% de $1000 = $100');
-ok(aplicarCupon(codigo, 599).descuento === 59.9, '10% de $599 = $59.90');
+test('segundo uso del cupón se rechaza (usos_max=1)', () => {
+    db.prepare('UPDATE promociones SET usos_actual=usos_actual+1 WHERE id=?').run(promo.id);
+    assert.ok(!aplicarCupon(codigo, 1000).ok, 'segundo uso rechazado (usos_max=1)');
+});
 
-db.prepare('UPDATE promociones SET usos_actual=usos_actual+1 WHERE id=?').run(promo.id);
-ok(!aplicarCupon(codigo, 1000).ok, 'segundo uso rechazado (usos_max=1)');
-
-db.prepare(`INSERT INTO promociones (codigo,tipo,valor,fecha_inicio,fecha_fin,usos_max,usos_actual,activa)
-            VALUES ('LEAL-EXPIRD','porcentaje',10,'2020-01-01','2020-02-01',1,0,1)`).run();
-ok(!aplicarCupon('LEAL-EXPIRD', 1000).ok, 'cupón expirado rechazado');
-
-console.log('\nResultado: ' + pass + ' pass, ' + fail + ' fail\n');
-process.exit(fail ? 1 : 0);
+test('cupón expirado se rechaza', () => {
+    db.prepare(`INSERT INTO promociones (codigo,tipo,valor,fecha_inicio,fecha_fin,usos_max,usos_actual,activa)
+                VALUES ('LEAL-EXPIRD','porcentaje',10,'2020-01-01','2020-02-01',1,0,1)`).run();
+    assert.ok(!aplicarCupon('LEAL-EXPIRD', 1000).ok, 'cupón expirado rechazado');
+});

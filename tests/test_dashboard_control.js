@@ -4,6 +4,8 @@
 // test_lealtad.js) — server.js no se puede requerir directo porque levanta
 // un servidor HTTP real al cargarse. DB en memoria, no toca producción.
 'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const db = new Database(':memory:');
 
@@ -25,10 +27,6 @@ CREATE TABLE promociones (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT, des
   creada_en TEXT DEFAULT (datetime('now','localtime')));
 `);
 
-let pass = 0, fail = 0;
-const ok = (c, m) => { if (c) { pass++; console.log('  ✅ ' + m); } else { fail++; console.log('  ❌ ' + m); } };
-console.log('\nSuite: control del dashboard (pagos, devoluciones, cola_atencion, promociones)\n');
-
 // ── Pagos ─────────────────────────────────────────────────────────
 db.prepare("INSERT INTO clientes (nombre,telefono) VALUES ('Ana','5210000000001')").run();
 const idCliAna = db.prepare("SELECT id FROM clientes WHERE nombre='Ana'").get().id;
@@ -46,59 +44,71 @@ function marcarPagado(id) {
         if (ped.telefono) db.prepare("INSERT INTO cola_notificaciones (tipo,destinatario,asunto,cuerpo,estatus) VALUES ('whatsapp',?,'Actualización pedido','pago recibido','pendiente')").run(ped.telefono);
     }
 }
-marcarPagado(idLinkAna);
-ok(db.prepare('SELECT estatus FROM links_pago WHERE id=?').get(idLinkAna).estatus === 'pagado', 'marcar-pagado cambia el link a pagado');
-ok(db.prepare('SELECT estatus FROM pedidos WHERE id_pedido=?').get(idPedAna).estatus === 'confirmado', 'marcar-pagado avanza el pedido a confirmado');
-ok(!!db.prepare("SELECT id FROM cola_notificaciones WHERE destinatario='5210000000001'").get(), 'marcar-pagado notifica al cliente');
 
-db.prepare("UPDATE links_pago SET estatus='generado' WHERE id=?").run(idLinkAna);
-db.prepare("UPDATE pedidos SET estatus='enviado' WHERE id_pedido=?").run(idPedAna);
-marcarPagado(idLinkAna);
-ok(db.prepare('SELECT estatus FROM pedidos WHERE id_pedido=?').get(idPedAna).estatus === 'enviado', 'NO retrocede un pedido que ya iba más adelante (enviado)');
+test('marcar-pagado: cambia el link a pagado, avanza el pedido a confirmado y notifica al cliente', () => {
+    marcarPagado(idLinkAna);
+    assert.ok(db.prepare('SELECT estatus FROM links_pago WHERE id=?').get(idLinkAna).estatus === 'pagado', 'marcar-pagado cambia el link a pagado');
+    assert.ok(db.prepare('SELECT estatus FROM pedidos WHERE id_pedido=?').get(idPedAna).estatus === 'confirmado', 'marcar-pagado avanza el pedido a confirmado');
+    assert.ok(!!db.prepare("SELECT id FROM cola_notificaciones WHERE destinatario='5210000000001'").get(), 'marcar-pagado notifica al cliente');
+});
 
-db.prepare("UPDATE links_pago SET estatus='generado', fecha_expiracion='2020-01-01' WHERE id=?").run(idLinkAna);
-const nuevaExp = new Date(Date.now() + 48*3600*1000).toISOString().replace('T',' ').substring(0,19);
-db.prepare("UPDATE links_pago SET estatus='generado', fecha_expiracion=? WHERE id=?").run(nuevaExp, idLinkAna);
-ok(db.prepare('SELECT fecha_expiracion FROM links_pago WHERE id=?').get(idLinkAna).fecha_expiracion === nuevaExp, 'regenerar extiende fecha_expiracion 48h');
+test('marcar-pagado NO retrocede un pedido que ya iba más adelante (enviado)', () => {
+    db.prepare("UPDATE links_pago SET estatus='generado' WHERE id=?").run(idLinkAna);
+    db.prepare("UPDATE pedidos SET estatus='enviado' WHERE id_pedido=?").run(idPedAna);
+    marcarPagado(idLinkAna);
+    assert.ok(db.prepare('SELECT estatus FROM pedidos WHERE id_pedido=?').get(idPedAna).estatus === 'enviado', 'NO retrocede un pedido que ya iba más adelante (enviado)');
+});
 
-db.prepare("UPDATE links_pago SET estatus='cancelado' WHERE id=?").run(idLinkAna);
-ok(db.prepare('SELECT estatus FROM links_pago WHERE id=?').get(idLinkAna).estatus === 'cancelado', 'cancelar marca el link como cancelado');
+test('regenerar extiende fecha_expiracion 48h', () => {
+    db.prepare("UPDATE links_pago SET estatus='generado', fecha_expiracion='2020-01-01' WHERE id=?").run(idLinkAna);
+    const nuevaExp = new Date(Date.now() + 48 * 3600 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+    db.prepare("UPDATE links_pago SET estatus='generado', fecha_expiracion=? WHERE id=?").run(nuevaExp, idLinkAna);
+    assert.ok(db.prepare('SELECT fecha_expiracion FROM links_pago WHERE id=?').get(idLinkAna).fecha_expiracion === nuevaExp, 'regenerar extiende fecha_expiracion 48h');
+});
+
+test('cancelar marca el link como cancelado', () => {
+    db.prepare("UPDATE links_pago SET estatus='cancelado' WHERE id=?").run(idLinkAna);
+    assert.ok(db.prepare('SELECT estatus FROM links_pago WHERE id=?').get(idLinkAna).estatus === 'cancelado', 'cancelar marca el link como cancelado');
+});
 
 // ── Devoluciones ──────────────────────────────────────────────────
-db.prepare("INSERT INTO devoluciones (id_pedido,motivo,estatus,creada_en) VALUES (?,?,'solicitada',datetime('now','localtime'))").run(idPedAna, 'Producto dañado');
-const idDevAna = db.prepare('SELECT id FROM devoluciones').get().id;
-
 function actualizarDevolucion(id, estatus, notas) {
     const terminal = estatus !== 'solicitada';
     db.prepare("UPDATE devoluciones SET estatus=?, notas=COALESCE(?,notas)" + (terminal ? ", resuelta_en=datetime('now','localtime')" : '') + " WHERE id=?")
       .run(estatus, notas || null, id);
 }
-actualizarDevolucion(idDevAna, 'aprobada', null);
-const devAna = db.prepare('SELECT * FROM devoluciones WHERE id=?').get(idDevAna);
-ok(devAna.estatus === 'aprobada', 'PUT devoluciones cambia el estatus');
-ok(!!devAna.resuelta_en, 'marca resuelta_en al pasar a un estatus terminal');
+
+test('PUT devoluciones cambia el estatus y marca resuelta_en al pasar a un estatus terminal', () => {
+    db.prepare("INSERT INTO devoluciones (id_pedido,motivo,estatus,creada_en) VALUES (?,?,'solicitada',datetime('now','localtime'))").run(idPedAna, 'Producto dañado');
+    const idDevAna = db.prepare('SELECT id FROM devoluciones').get().id;
+    actualizarDevolucion(idDevAna, 'aprobada', null);
+    const devAna = db.prepare('SELECT * FROM devoluciones WHERE id=?').get(idDevAna);
+    assert.ok(devAna.estatus === 'aprobada', 'PUT devoluciones cambia el estatus');
+    assert.ok(!!devAna.resuelta_en, 'marca resuelta_en al pasar a un estatus terminal');
+});
 
 // ── Cola de atención ──────────────────────────────────────────────
-db.prepare("INSERT INTO cola_atencion (id_cliente,motivo_escalada,prioridad,estatus) VALUES (?,?,1,'en_espera')").run(idCliAna, 'Quiere hablar con asesor');
-const listaEspera = db.prepare("SELECT ca.*, c.telefono FROM cola_atencion ca LEFT JOIN clientes c ON c.id=ca.id_cliente WHERE ca.estatus='en_espera'").all();
-ok(listaEspera.length === 1 && listaEspera[0].telefono === '5210000000001', 'GET cola_atencion trae el teléfono del cliente');
+test('cola_atencion: GET trae el teléfono del cliente, PUT marca resuelta y desaparece de en_espera', () => {
+    db.prepare("INSERT INTO cola_atencion (id_cliente,motivo_escalada,prioridad,estatus) VALUES (?,?,1,'en_espera')").run(idCliAna, 'Quiere hablar con asesor');
+    const listaEspera = db.prepare("SELECT ca.*, c.telefono FROM cola_atencion ca LEFT JOIN clientes c ON c.id=ca.id_cliente WHERE ca.estatus='en_espera'").all();
+    assert.ok(listaEspera.length === 1 && listaEspera[0].telefono === '5210000000001', 'GET cola_atencion trae el teléfono del cliente');
 
-const idColaAna = listaEspera[0].id;
-db.prepare("UPDATE cola_atencion SET estatus='resuelta', resuelta_en=datetime('now','localtime') WHERE id=?").run(idColaAna);
-ok(db.prepare('SELECT estatus FROM cola_atencion WHERE id=?').get(idColaAna).estatus === 'resuelta', 'PUT cola_atencion marca resuelta');
-ok(db.prepare("SELECT COUNT(*) n FROM cola_atencion WHERE estatus='en_espera'").get().n === 0, 'ya no aparece en espera');
+    const idColaAna = listaEspera[0].id;
+    db.prepare("UPDATE cola_atencion SET estatus='resuelta', resuelta_en=datetime('now','localtime') WHERE id=?").run(idColaAna);
+    assert.ok(db.prepare('SELECT estatus FROM cola_atencion WHERE id=?').get(idColaAna).estatus === 'resuelta', 'PUT cola_atencion marca resuelta');
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM cola_atencion WHERE estatus='en_espera'").get().n === 0, 'ya no aparece en espera');
+});
 
 // ── Promociones (admin) ──────────────────────────────────────────
-db.prepare(`INSERT INTO promociones (codigo,descripcion,tipo,valor,activa,usos_max,usos_actual)
-    VALUES ('MANUAL10','Cupón de prueba','porcentaje',10,1,0,0)`).run();
-ok(db.prepare("SELECT COUNT(*) n FROM promociones WHERE codigo='MANUAL10'").get().n === 1, 'POST promociones crea el cupón');
+test('promociones: POST crea, PUT desactiva y el filtro ?activa=1 ya no lo incluye', () => {
+    db.prepare(`INSERT INTO promociones (codigo,descripcion,tipo,valor,activa,usos_max,usos_actual)
+        VALUES ('MANUAL10','Cupón de prueba','porcentaje',10,1,0,0)`).run();
+    assert.ok(db.prepare("SELECT COUNT(*) n FROM promociones WHERE codigo='MANUAL10'").get().n === 1, 'POST promociones crea el cupón');
 
-const idPromoManual = db.prepare("SELECT id FROM promociones WHERE codigo='MANUAL10'").get().id;
-db.prepare('UPDATE promociones SET activa=0 WHERE id=?').run(idPromoManual);
-ok(db.prepare('SELECT activa FROM promociones WHERE id=?').get(idPromoManual).activa === 0, 'PUT promociones desactiva el cupón');
+    const idPromoManual = db.prepare("SELECT id FROM promociones WHERE codigo='MANUAL10'").get().id;
+    db.prepare('UPDATE promociones SET activa=0 WHERE id=?').run(idPromoManual);
+    assert.ok(db.prepare('SELECT activa FROM promociones WHERE id=?').get(idPromoManual).activa === 0, 'PUT promociones desactiva el cupón');
 
-const activas = db.prepare('SELECT * FROM promociones WHERE activa=1').all();
-ok(!activas.some(p => p.codigo === 'MANUAL10'), 'el filtro ?activa=1 ya no lo incluye tras desactivarlo');
-
-console.log('\nResultado: ' + pass + ' pass, ' + fail + ' fail\n');
-process.exit(fail ? 1 : 0);
+    const activas = db.prepare('SELECT * FROM promociones WHERE activa=1').all();
+    assert.ok(!activas.some(p => p.codigo === 'MANUAL10'), 'el filtro ?activa=1 ya no lo incluye tras desactivarlo');
+});

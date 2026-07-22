@@ -109,7 +109,7 @@ aplicar), **salida y traslado (🔐PIN)**, ubicación, mermas.
 ## RRHH / nómina (`rrhh.js`) — área `rrhh`
 
 Empleados (alta 🔐PIN — fija el `salario_diario` inicial, mismo gate que
-editarlo), horarios (+importar Excel), incapacidades, cálculo/pago de nómina
+editarlo), horarios (+importar CSV, no `.xlsx` real pese al nombre del botón), incapacidades, cálculo/pago de nómina
 (🔐PIN, deja rastro de auditoría con usuario+monto), timbrado de nómina,
 aguinaldo (pago 🔐PIN), finiquito (pago 🔐PIN).
 

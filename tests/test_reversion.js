@@ -1,6 +1,8 @@
 // Contract test: reversionService repone inventario, resta puntos y deja
 // el pedido/pago en el estatus correcto (POS cancela, pago deshecho → Pendiente).
 'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const db = new Database(':memory:');
 
@@ -33,22 +35,20 @@ Module._load = function (request, ...a) {
 const { revertirCobro } = require('../services/reversionService');
 Module._load = origLoad;
 
-let pass = 0, fail = 0;
-const ok = (c, msg) => { if (c) { pass++; console.log('  ok ' + msg); } else { fail++; console.error('  FALLO ' + msg); } };
+const ok = (c, msg) => assert.ok(c, msg);
 
-// Caso POS: cancela el pedido
-const r1 = revertirCobro(1, { sucursalDefault: 'Centro' });
-ok(r1.ok, 'reversión ejecuta');
-ok(db.prepare('SELECT stock FROM inventarios WHERE id_producto=10').get().stock === 5, 'inventario repuesto 3→5');
-ok(db.prepare('SELECT puntos_ganados FROM puntos_cliente WHERE id_cliente=7').get().puntos_ganados === 300, 'puntos 800-500=300');
-ok(db.prepare('SELECT estatus FROM pedidos WHERE id_pedido=1').get().estatus === 'cancelado', 'pedido cancelado');
-ok(db.prepare('SELECT estatus FROM links_pago WHERE id_pedido=1').get().estatus === 'cancelado', 'pago cancelado');
-ok(db.prepare('SELECT puntos_acreditados FROM pedidos WHERE id_pedido=1').get().puntos_acreditados === 0, 'flag de puntos apagado');
+test('Caso POS: cancela el pedido', () => {
+    const r1 = revertirCobro(1, { sucursalDefault: 'Centro' });
+    ok(r1.ok, 'reversión ejecuta');
+    ok(db.prepare('SELECT stock FROM inventarios WHERE id_producto=10').get().stock === 5, 'inventario repuesto 3→5');
+    ok(db.prepare('SELECT puntos_ganados FROM puntos_cliente WHERE id_cliente=7').get().puntos_ganados === 300, 'puntos 800-500=300');
+    ok(db.prepare('SELECT estatus FROM pedidos WHERE id_pedido=1').get().estatus === 'cancelado', 'pedido cancelado');
+    ok(db.prepare('SELECT estatus FROM links_pago WHERE id_pedido=1').get().estatus === 'cancelado', 'pago cancelado');
+    ok(db.prepare('SELECT puntos_acreditados FROM pedidos WHERE id_pedido=1').get().puntos_acreditados === 0, 'flag de puntos apagado');
+});
 
-// Idempotencia de puntos: segunda reversión no vuelve a restar
-const r2 = revertirCobro(1, { sucursalDefault: 'Centro', cancelarPedido: false });
-ok(r2.puntos_revertidos === 0, 'segunda reversión no resta puntos otra vez');
-ok(db.prepare('SELECT estatus FROM pedidos WHERE id_pedido=1').get().estatus === 'Pendiente', 'cancelarPedido:false regresa a Pendiente');
-
-console.log(`\n${pass} pass, ${fail} fail`);
-process.exit(fail ? 1 : 0);
+test('Idempotencia de puntos: segunda reversión no vuelve a restar', () => {
+    const r2 = revertirCobro(1, { sucursalDefault: 'Centro', cancelarPedido: false });
+    ok(r2.puntos_revertidos === 0, 'segunda reversión no resta puntos otra vez');
+    ok(db.prepare('SELECT estatus FROM pedidos WHERE id_pedido=1').get().estatus === 'Pendiente', 'cancelarPedido:false regresa a Pendiente');
+});

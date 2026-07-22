@@ -1061,10 +1061,14 @@ client.on('message', async msg => {
                         // ── Guardar imagen localmente para el dashboard ────────
                         try {
                             if (permitirGuardarImagen(userId)) {
-                                const _fs   = require('fs');
+                                // fs.promises: el guardado de fotos NO debe bloquear el event
+                                // loop del proceso -- es single-thread, así que un writeFileSync
+                                // aquí congela el procesamiento de mensajes de TODOS los
+                                // clientes mientras dura el disco I/O de este.
+                                const _fs   = require('fs').promises;
                                 const _path = require('path');
                                 const _imgDir = _path.join(__dirname, 'imagenes_clientes');
-                                if (!_fs.existsSync(_imgDir)) _fs.mkdirSync(_imgDir, { recursive: true });
+                                await _fs.mkdir(_imgDir, { recursive: true });
                                 // Mimetype viene del remitente de WhatsApp — nunca derivar la
                                 // extensión directamente de ese string (riesgo de path traversal).
                                 const _MIME_EXT = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif' };
@@ -1072,12 +1076,12 @@ client.on('message', async msg => {
                                 const _tel  = userId.replace(/@.*$/, '');
                                 const _ts   = Date.now();
                                 const _fname = `${_tel}_${_ts}.${_ext}`;
-                                _fs.writeFileSync(_path.join(_imgDir, _fname),
+                                await _fs.writeFile(_path.join(_imgDir, _fname),
                                     Buffer.from(media.data, 'base64'));
                                 _fnameGuardado = _fname;
-                                // A WebP para ahorrar espacio en el servidor (si hay cwebp)
+                                // A WebP (sharp, async — no bloquea el event loop del bot)
                                 try {
-                                    const _webp = require('../services/imagenWebp').convertirAWebp(_path.join(_imgDir, _fname));
+                                    const _webp = await require('../services/imagenWebp').convertirAWebp(_path.join(_imgDir, _fname));
                                     if (_webp) _fnameGuardado = _webp;
                                 } catch (_) {}
                                 // ponytail: mapa global última-imagen-por-tel — los flujos

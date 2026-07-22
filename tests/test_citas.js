@@ -1,11 +1,11 @@
 // Contract test del flujo de citas: slots por capacidad/horario, sin
 // double-book, día se agota, recordatorio 24h idempotente.
 'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const Module = require('module');
 const db = new Database(':memory:');
-let pass = 0, fail = 0;
-const ok = (c, msg) => { if (c) { pass++; console.log('  ok ' + msg); } else { fail++; console.error('  FALLO ' + msg); } };
 
 db.exec(`
 CREATE TABLE configuracion (clave TEXT PRIMARY KEY, valor TEXT);
@@ -33,38 +33,41 @@ Module._load = orig;
 const manana = new Date(Date.now() + 86400000);
 const F = new Date(manana.getTime() - manana.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
-// 1. slots del horario configurado
-let slots = citas.slotsLibres(F);
-ok(slots.join(',') === '10:00,11:00,12:00', `slots 10-13/60min: ${slots.join(',')}`);
+test('slots del horario configurado (10-13, 60min)', () => {
+    const slots = citas.slotsLibres(F);
+    assert.ok(slots.join(',') === '10:00,11:00,12:00', `slots 10-13/60min: ${slots.join(',')}`);
+});
 
-// 2. una cita ocupa su slot (capacidad 1)
-db.prepare("INSERT INTO citas (telefono, fecha, hora) VALUES ('521', ?, '11:00')").run(F);
-slots = citas.slotsLibres(F);
-ok(slots.join(',') === '10:00,12:00', 'slot 11:00 ocupado desaparece');
+test('una cita ocupa su slot (capacidad 1)', () => {
+    db.prepare("INSERT INTO citas (telefono, fecha, hora) VALUES ('521', ?, '11:00')").run(F);
+    const slots = citas.slotsLibres(F);
+    assert.ok(slots.join(',') === '10:00,12:00', 'slot 11:00 ocupado desaparece');
+});
 
-// 3. cancelada libera el slot
-db.prepare("UPDATE citas SET estatus='cancelada' WHERE hora='11:00'").run();
-ok(citas.slotsLibres(F).length === 3, 'cancelar libera el slot');
+test('cancelada libera el slot', () => {
+    db.prepare("UPDATE citas SET estatus='cancelada' WHERE hora='11:00'").run();
+    assert.ok(citas.slotsLibres(F).length === 3, 'cancelar libera el slot');
+});
 
-// 4. capacidad 2 admite dos citas en la misma hora
-db.prepare("UPDATE configuracion SET valor='2' WHERE clave='citas_capacidad'").run();
-db.prepare("INSERT INTO citas (telefono, fecha, hora) VALUES ('522', ?, '10:00'), ('523', ?, '10:00')").run(F, F);
-ok(!citas.slotsLibres(F).includes('10:00'), 'capacidad 2: dos citas llenan el slot');
-db.prepare("UPDATE configuracion SET valor='1' WHERE clave='citas_capacidad'").run();
+test('capacidad 2 admite dos citas en la misma hora', () => {
+    db.prepare("UPDATE configuracion SET valor='2' WHERE clave='citas_capacidad'").run();
+    db.prepare("INSERT INTO citas (telefono, fecha, hora) VALUES ('522', ?, '10:00'), ('523', ?, '10:00')").run(F, F);
+    assert.ok(!citas.slotsLibres(F).includes('10:00'), 'capacidad 2: dos citas llenan el slot');
+    db.prepare("UPDATE configuracion SET valor='1' WHERE clave='citas_capacidad'").run();
+});
 
-// 5. día lleno desaparece de diasDisponibles
-db.prepare("INSERT INTO citas (telefono, fecha, hora) VALUES ('524', ?, '11:00'), ('525', ?, '12:00')").run(F, F);
-ok(!citas.diasDisponibles().some(d => d.iso === F), 'día lleno no se ofrece');
-ok(citas.diasDisponibles().length > 0, 'pero hay otros días disponibles');
+test('día lleno desaparece de diasDisponibles', () => {
+    db.prepare("INSERT INTO citas (telefono, fecha, hora) VALUES ('524', ?, '11:00'), ('525', ?, '12:00')").run(F, F);
+    assert.ok(!citas.diasDisponibles().some(d => d.iso === F), 'día lleno no se ofrece');
+    assert.ok(citas.diasDisponibles().length > 0, 'pero hay otros días disponibles');
+});
 
-// 6. recordatorio 24h: consulta del watcher encuentra solo mañana+no enviadas
-const porRecordar = db.prepare(`
-    SELECT id FROM citas WHERE estatus IN ('pendiente','confirmada') AND recordatorio_enviado=0
-    AND fecha = date('now','localtime','+1 day')`).all();
-ok(porRecordar.length === 4, `recordatorio: encuentra las ${porRecordar.length} de mañana`);
-db.prepare('UPDATE citas SET recordatorio_enviado=1').run();
-ok(db.prepare(`SELECT COUNT(*) c FROM citas WHERE recordatorio_enviado=0 AND fecha=date('now','localtime','+1 day')`).get().c === 0,
-   'marcadas → no se duplica el recordatorio');
-
-console.log(`\n${pass} pass, ${fail} fail`);
-process.exit(fail ? 1 : 0);
+test('recordatorio 24h: consulta del watcher encuentra solo mañana+no enviadas, y no se duplica tras marcar', () => {
+    const porRecordar = db.prepare(`
+        SELECT id FROM citas WHERE estatus IN ('pendiente','confirmada') AND recordatorio_enviado=0
+        AND fecha = date('now','localtime','+1 day')`).all();
+    assert.ok(porRecordar.length === 4, `recordatorio: encuentra las ${porRecordar.length} de mañana`);
+    db.prepare('UPDATE citas SET recordatorio_enviado=1').run();
+    assert.ok(db.prepare(`SELECT COUNT(*) c FROM citas WHERE recordatorio_enviado=0 AND fecha=date('now','localtime','+1 day')`).get().c === 0,
+       'marcadas → no se duplica el recordatorio');
+});

@@ -425,14 +425,14 @@ function recetaPut(req, res, ctx, { params }) {
 // tamaño en base64. gerente+.
 function productoImagen(req, res, ctx) {
     const { db, json, readBody } = ctx;
-    return readBody(req, body => {
+    return readBody(req, async body => {
         try {
             const d = JSON.parse(body || '{}');
             const id = parseInt(d.id_producto) || 0;
             const prod = id ? db.prepare('SELECT id, url_imagen FROM productos WHERE id=?').get(id) : null;
             if (id && !prod) return json(res, { ok: false, error: 'Producto no encontrado' }, 404);
             const imgP = require('../../services/imagenProducto');
-            const basename = imgP.guardarBase64(id, d.archivo_base64, d.mimetype);
+            const basename = await imgP.guardarBase64(id, d.archivo_base64, d.mimetype);
             // En edición: actualiza ya y borra la imagen local anterior. En alta
             // (sin id): solo guarda el archivo y devuelve el basename — la UI lo
             // pone en url_imagen y se persiste al crear el producto.

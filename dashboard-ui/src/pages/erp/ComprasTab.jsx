@@ -115,7 +115,7 @@ export default function ComprasTab({ soloRecepcion = false }) {
                     {!soloRecepcion && (
                     <Button size="xs" variant="subtle" mr={6} onClick={async () => {
                       const r = await api.post(`/api/erp/ordenes-compra/${oc.id}/reordenar`).catch(e => ({ ok: false, error: e.message }));
-                      if (r.ok) { toastOk('Nueva OC creada: ' + r.folio); qc.invalidateQueries(); } else toastErr(r.error);
+                      if (r.ok) { toastOk('Nueva OC creada: ' + r.folio); qc.invalidateQueries({ queryKey: ['erp-ocs'] }); } else toastErr(r.error);
                     }}>Reordenar</Button>
                     )}
                     {['abierta', 'parcial'].includes(oc.estatus) && (
@@ -126,7 +126,7 @@ export default function ComprasTab({ soloRecepcion = false }) {
                         <Button size="xs" variant="light" color="red" ml={6} onClick={async () => {
                           if (!await confirmar({ titulo: 'Cancelar OC', mensaje: '¿Cancelar esta orden de compra? Solo se cancelan las abiertas; no mueve inventario.', peligro: true, textoOk: 'Cancelar OC' })) return;
                           const r = await api.post(`/api/erp/ordenes-compra/${oc.id}/cancelar`);
-                          if (r.ok) { toastOk('OC cancelada'); qc.invalidateQueries(); } else handleApiError(new Error(r.error));
+                          if (r.ok) { toastOk('OC cancelada'); qc.invalidateQueries({ queryKey: ['erp-ocs'] }); } else handleApiError(new Error(r.error));
                         }}>Cancelar</Button>
                         )}
                     </>
@@ -146,7 +146,7 @@ export default function ComprasTab({ soloRecepcion = false }) {
               const items = (parcial.oc.items || []).map(it => ({ id_detalle: it.id, cantidad: Number(parcial.cant[it.id]) || 0 })).filter(x => x.cantidad > 0);
               if (!items.length) return toastErr('Captura al menos una cantidad');
               const r = await api.post(`/api/erp/ordenes-compra/${parcial.oc.id}/recibir`, { items }).catch(e => ({ ok: false, error: e.message }));
-              if (r.ok) { toastOk(`Recibido ${r.estatus === 'recibida' ? '(completo)' : '(parcial)'} · $${Number(r.recibido).toFixed(2)}`); setParcial(null); qc.invalidateQueries(); }
+              if (r.ok) { toastOk(`Recibido ${r.estatus === 'recibida' ? '(completo)' : '(parcial)'} · $${Number(r.recibido).toFixed(2)}`); setParcial(null); qc.invalidateQueries({ queryKey: ['erp-ocs'] }); qc.invalidateQueries({ queryKey: ['erp-cxp'] }); }
               else toastErr(r.error);
             }}>Recibir lo capturado</Button>
           </>}>

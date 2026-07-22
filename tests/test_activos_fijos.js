@@ -4,7 +4,8 @@
 // mes), valor en libros y baja (write-off). DB en memoria con el motor contable.
 //   node tests/test_activos_fijos.js
 
-const assert = require('assert');
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const db = new Database(':memory:');
 db.exec(`
@@ -25,15 +26,13 @@ conta._setDb(db); conta._setActivo(() => true);
 const AF = require('../services/activosFijosService');
 AF._setDb(db);
 
-let ok = 0;
-const t = (n, fn) => { fn(); ok++; console.log('✅ ' + n); };
 const saldo = (cuenta) => {
     const r = db.prepare('SELECT COALESCE(SUM(debe),0) d, COALESCE(SUM(haber),0) h FROM asientos_detalle WHERE cuenta=?').get(cuenta);
     return Math.round((r.d - r.h) * 100) / 100;
 };
 
 let idActivo;
-t('comprar activo capitaliza en 12x (NO inventario 115) contra bancos', () => {
+test('comprar activo capitaliza en 12x (NO inventario 115) contra bancos', () => {
     const r = AF.comprarActivo({ nombre: 'Caminadora', categoria: 'equipo', costo: 12000, vida_util_meses: 12, fecha: '2026-01-10', metodo: 'bancos' });
     idActivo = r.id;
     assert.strictEqual(r.cuenta, '120');
@@ -42,7 +41,7 @@ t('comprar activo capitaliza en 12x (NO inventario 115) contra bancos', () => {
     assert.strictEqual(saldo('115' /* inventario nunca existió */), 0);
 });
 
-t('depreciación lineal: cuota mensual = (costo - residual)/vida', () => {
+test('depreciación lineal: cuota mensual = (costo - residual)/vida', () => {
     const n = AF.depreciarMes('2026-02-15');   // 1er mes
     assert.strictEqual(n, 1);
     // 12000/12 = 1000 por mes
@@ -53,27 +52,27 @@ t('depreciación lineal: cuota mensual = (costo - residual)/vida', () => {
     assert.strictEqual(a.ultima_depreciacion, '2026-02');
 });
 
-t('idempotente: correr el MISMO mes otra vez no duplica', () => {
+test('idempotente: correr el MISMO mes otra vez no duplica', () => {
     const n = AF.depreciarMes('2026-02-28');
     assert.strictEqual(n, 0, 'ya depreciado ese mes');
     assert.strictEqual(saldo('605'), 1000, 'sigue en 1000, no 2000');
 });
 
-t('otro mes sí deprecia; valor en libros baja', () => {
+test('otro mes sí deprecia; valor en libros baja', () => {
     AF.depreciarMes('2026-03-10');
     const l = AF.listar().find(a => a.id === idActivo);
     assert.strictEqual(l.depreciacion_acumulada, 2000);
     assert.strictEqual(l.valor_en_libros, 10000, '12000 - 2000');
 });
 
-t('no deprecia más allá del valor depreciable (tope)', () => {
+test('no deprecia más allá del valor depreciable (tope)', () => {
     for (let m = 4; m <= 20; m++) AF.depreciarMes('2026-' + String(m).padStart(2, '0') + '-15');
     const l = AF.listar().find(a => a.id === idActivo);
     assert.strictEqual(l.depreciacion_acumulada, 12000, 'topado al costo (residual 0)');
     assert.strictEqual(l.valor_en_libros, 0);
 });
 
-t('baja: write-off saca el activo de libros (cargo 129, abono 120)', () => {
+test('baja: write-off saca el activo de libros (cargo 129, abono 120)', () => {
     const r2 = AF.comprarActivo({ nombre: 'Laptop', categoria: 'computo', costo: 6000, vida_util_meses: 12, fecha: '2026-01-01' });
     AF.depreciarMes('2026-02-15');   // deprecia algo de la laptop
     const antes120 = saldo('121');
@@ -84,7 +83,7 @@ t('baja: write-off saca el activo de libros (cargo 129, abono 120)', () => {
     assert(antes120 > 0);   // se había capitalizado en 121 (cómputo)
 });
 
-t('terreno NO se deprecia (bien inmueble que no pierde valor)', () => {
+test('terreno NO se deprecia (bien inmueble que no pierde valor)', () => {
     const ter = AF.comprarActivo({ nombre: 'Terreno local', categoria: 'terrenos', costo: 500000, fecha: '2026-01-05', metodo: 'bancos' });
     assert.strictEqual(ter.cuenta, '125', 'capitaliza en 125 Terrenos');
     AF.depreciarMes('2026-06-15');   // corre depreciación del mes
@@ -93,7 +92,7 @@ t('terreno NO se deprecia (bien inmueble que no pierde valor)', () => {
     assert.strictEqual(AF.listar().find(a => a.id === ter.id).valor_en_libros, 500000, 'conserva su valor');
 });
 
-t('revaluación al alza sube el valor en libros y cuadra (activo 12x vs superávit 330)', () => {
+test('revaluación al alza sube el valor en libros y cuadra (activo 12x vs superávit 330)', () => {
     const inm = AF.comprarActivo({ nombre: 'Local comercial', categoria: 'inmuebles', costo: 1000000, vida_util_meses: 240, fecha: '2026-01-10', metodo: 'bancos' });
     const r = AF.revaluarActivo({ id: inm.id, nuevo_valor: 1200000, fecha: '2026-06-30' });
     assert.strictEqual(r.incremento, 200000, 'plusvalía reconocida');
@@ -101,6 +100,3 @@ t('revaluación al alza sube el valor en libros y cuadra (activo 12x vs superáv
     assert.strictEqual(saldo('330'), -200000, 'abono al superávit por revaluación (capital)');
     assert.throws(() => AF.revaluarActivo({ id: inm.id, nuevo_valor: 900000 }), /solo al alza/, 'no permite revaluar a la baja');
 });
-
-console.log('\n' + ok + '/8 OK — activos fijos: capitalización + depreciación idempotente + baja + terrenos + revaluación.');
-process.exit(ok === 8 ? 0 : 1);

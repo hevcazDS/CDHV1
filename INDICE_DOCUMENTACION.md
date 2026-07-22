@@ -493,6 +493,36 @@ split). **1 hallazgo real menor**: `CifradoBackup.jsx` (extraído de
 escapó el import al split aunque los componentes hermanos sí lo tenían cada
 uno. Corregido. Ver "Verificación dedicada..." al final de `PLAN_V3.md`.
 
+## 6m. Auditoría de arquitecto + dependencias nuevas (2026-07-22, a pedido)
+
+A pedido explícito ("como experto programador... punto de optimización...
+agregando alguna nueva dependencia"), 4 agentes evaluaron arquitectura y
+optimización (bot/, dashboard, frontend, dependencias). Veredicto: la mayoría
+de las decisiones actuales están bien justificadas para la escala real
+(mutex sin cola, sessionManager en memoria, rate-limiting hand-rolled, motor
+de flujo a medida, backend nativo, SMTP unificado) — ninguna amerita cambio.
+2 bugs reales nuevos encontrados y corregidos (`ComprasTab.jsx` invalidando
+todas las queries de React Query; `bot/index.js` bloqueando el event loop con
+escrituras síncronas al guardar fotos). 2 recomendaciones concretas de
+librería, **ambas autorizadas por el dueño e implementadas**:
+
+- **`sharp`** reemplaza el `cwebp` de apt (bloqueaba el event loop del bot
+  hasta 15s por conversión + dependía de un binario frágil) — async, sin
+  binario externo, con redimensionado. Verificado funcional end-to-end
+  dentro del contenedor real. Al implementarlo se encontró y corrigió una
+  regresión real en `tests/test_imagen_producto.js` (llamaba la función
+  ahora-async sin `await`).
+- **`node:test`** (nativo, cero dependencia) reemplaza los runners
+  `test()`/`assert()` hechos a mano que causaron los bugs de conteo de los
+  ítems 49-50. Migración iniciada: 19 de 58 archivos migrados y **ejecutados
+  de verdad** (aislados de la BD de producción, verificado archivo por
+  archivo antes de correr nada) — 229/231 pruebas pasan (los 2 que fallan
+  son un bug preexistente de fixture, no de la migración). Los 39 archivos
+  restantes necesitan BD real sembrada para migrarse con seguridad, quedan
+  como trabajo de seguimiento explícito, no se tocaron a ciegas.
+
+Ver `PLAN_V3.md` Fase 9 (ítems 60-64) para el detalle completo.
+
 ## 7. Runbooks / catálogos operativos (no tocar, son referencia viva)
 
 - `ERRORES.md` — catálogo de códigos `HS-xxx` para soporte/diagnóstico.

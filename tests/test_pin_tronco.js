@@ -3,7 +3,8 @@
 // debe (a) exigir PIN a un especialista, (b) dejarlo pasar a gerente+ sin PIN,
 // (c) al pasar, correr el handler con el body ya parseado y dejar bitácora.
 // Sin framework: better-sqlite3 en memoria + asserts. `node tests/test_pin_tronco.js`.
-const assert = require('assert');
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const construirModulo = require('../dashboard/routes/_construirModulo');
 const autorizacion = require('../dashboard/autorizacion');
@@ -40,35 +41,38 @@ const llamar = (sesion, bodyObj) => {
 };
 
 // ── Casos ───────────────────────────────────────────────────────────────────
-// 1) Especialista (contabilidad → área finanzas, rango 1) SIN pin → 403.
-let r = llamar({ rol: 'contabilidad', username: 'ana' }, { id: 7 });
-assert.strictEqual(r.status, 403, 'especialista sin PIN debe dar 403');
-assert.strictEqual(r.obj.pin_requerido, true, 'debe marcar pin_requerido');
-assert.strictEqual(corrioHandler, null, 'el handler NO debe correr sin PIN');
+test('1) Especialista (contabilidad → área finanzas, rango 1) SIN pin → 403', () => {
+    const r = llamar({ rol: 'contabilidad', username: 'ana' }, { id: 7 });
+    assert.strictEqual(r.status, 403, 'especialista sin PIN debe dar 403');
+    assert.strictEqual(r.obj.pin_requerido, true, 'debe marcar pin_requerido');
+    assert.strictEqual(corrioHandler, null, 'el handler NO debe correr sin PIN');
+});
 
-// 2) Especialista con PIN incorrecto → 403.
-r = llamar({ rol: 'contabilidad', username: 'ana' }, { id: 7, pin: '0000' });
-assert.strictEqual(r.status, 403, 'PIN incorrecto debe dar 403');
-assert.strictEqual(corrioHandler, null, 'handler NO corre con PIN malo');
+test('2) Especialista con PIN incorrecto → 403', () => {
+    const r = llamar({ rol: 'contabilidad', username: 'ana' }, { id: 7, pin: '0000' });
+    assert.strictEqual(r.status, 403, 'PIN incorrecto debe dar 403');
+    assert.strictEqual(corrioHandler, null, 'handler NO corre con PIN malo');
+});
 
-// 3) Especialista con PIN correcto → handler corre con body parseado + bitácora.
-const antes = db.prepare("SELECT COUNT(*) n FROM configuracion_log WHERE clave='autorizacion:POST /api/activos/baja'").get().n;
-r = llamar({ rol: 'contabilidad', username: 'ana' }, { id: 7, pin: '4321' });
-assert.ok(corrioHandler, 'handler debe correr con PIN correcto');
-assert.strictEqual(corrioHandler.body.id, 7, 'el handler recibe el body ya parseado');
-assert.strictEqual(corrioHandler.ses.username, 'ana', 'el handler recibe la sesión');
-const despues = db.prepare("SELECT COUNT(*) n FROM configuracion_log WHERE clave='autorizacion:POST /api/activos/baja'").get().n;
-assert.strictEqual(despues, antes + 1, 'debe dejar exactamente una fila de bitácora');
-assert.strictEqual(db.prepare('SELECT valor_nuevo FROM configuracion_log ORDER BY id DESC LIMIT 1').get().valor_nuevo, 'ok', 'la bitácora NO guarda el body/PIN');
+test('3) Especialista con PIN correcto → handler corre con body parseado + bitácora', () => {
+    const antes = db.prepare("SELECT COUNT(*) n FROM configuracion_log WHERE clave='autorizacion:POST /api/activos/baja'").get().n;
+    const r = llamar({ rol: 'contabilidad', username: 'ana' }, { id: 7, pin: '4321' });
+    assert.ok(corrioHandler, 'handler debe correr con PIN correcto');
+    assert.strictEqual(corrioHandler.body.id, 7, 'el handler recibe el body ya parseado');
+    assert.strictEqual(corrioHandler.ses.username, 'ana', 'el handler recibe la sesión');
+    const despues = db.prepare("SELECT COUNT(*) n FROM configuracion_log WHERE clave='autorizacion:POST /api/activos/baja'").get().n;
+    assert.strictEqual(despues, antes + 1, 'debe dejar exactamente una fila de bitácora');
+    assert.strictEqual(db.prepare('SELECT valor_nuevo FROM configuracion_log ORDER BY id DESC LIMIT 1').get().valor_nuevo, 'ok', 'la bitácora NO guarda el body/PIN');
+});
 
-// 4) gerente (rango 2) SIN pin → pasa (administrador+ no teclea PIN).
-r = llamar({ rol: 'gerente', username: 'jefe' }, { id: 9 });
-assert.ok(corrioHandler, 'gerente pasa sin PIN');
-assert.strictEqual(corrioHandler.body.id, 9);
+test('4) gerente (rango 2) SIN pin → pasa (administrador+ no teclea PIN)', () => {
+    const r = llamar({ rol: 'gerente', username: 'jefe' }, { id: 9 });
+    assert.ok(corrioHandler, 'gerente pasa sin PIN');
+    assert.strictEqual(corrioHandler.body.id, 9);
+});
 
-// 5) Sin sesión (área no permitida) → 403 Sin permiso, nunca llega al PIN.
-r = llamar({ rol: 'cajero', username: 'caja' }, { id: 1, pin: '4321' });
-assert.strictEqual(r.status, 403, 'cajero no tiene finanzas → 403 antes del PIN');
-assert.strictEqual(corrioHandler, null);
-
-console.log('✓ test_pin_tronco: 5/5 — pin:true exige PIN, audita y respeta el gate de área');
+test('5) Sin sesión (área no permitida) → 403 Sin permiso, nunca llega al PIN', () => {
+    const r = llamar({ rol: 'cajero', username: 'caja' }, { id: 1, pin: '4321' });
+    assert.strictEqual(r.status, 403, 'cajero no tiene finanzas → 403 antes del PIN');
+    assert.strictEqual(corrioHandler, null);
+});

@@ -108,8 +108,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > (`bot/imagenes_clientes`) que nunca coincidió con nada — las carpetas reales
 > del build context viven en la raíz del repo, no bajo `bot/` — así que cualquier
 > foto de cliente/producto acumulada se horneaba sin necesidad en cada build de
-> imagen; corregido a las rutas reales. Build verificado limpio; despliegue
-> sujeto a autorización del dueño.
+> imagen; corregido a las rutas reales. Build verificado limpio. Este commit
+> se subió a `main` (repo público confirmado, autorizado explícitamente).
+>
+> **2026-07-22 (auditoría de arquitecto, ítems 60-64 de `PLAN_V3.md`):** a
+> pedido explícito, 4 agentes evaluaron el proyecto con lente de arquitecto
+> senior (no bugs — optimización y candidatos de librería). **Veredicto
+> general: las decisiones de arquitectura actuales están bien justificadas**
+> (mutex sin cola en `bot/index.js`, sessionManager en memoria, rate-limiting
+> hand-rolled, motor de flujo a medida, backend nativo `http`, SMTP unificado,
+> arquitectura de frontend) — ninguna amerita una librería nueva dado el
+> modelo de amenaza/escala real. Sí se encontraron y corrigieron **2 bugs
+> reales de rendimiento nuevos**: `ComprasTab.jsx` invalidaba TODAS las
+> queries de React Query en 3 sitios en vez de solo las suyas; `bot/index.js`
+> bloqueaba el event loop del bot (single-thread) con escrituras síncronas a
+> disco al guardar cada foto de cliente — convertido a `fs.promises`.
+> **Pendiente de decisión del dueño** (agregar dependencia nueva, no
+> forzado): `services/imagenWebp.js`/`imagenProducto.js` usan
+> `execFileSync('cwebp', ...)` con timeout de 15s — bloquea el event loop y
+> depende de un binario frágil del sistema; recomendación de 2 agentes por
+> separado es adoptar `sharp` (async, sin binario externo, permite
+> redimensionar). Y migrar el arnés de tests (58 archivos) a `node:test`
+> (nativo, cero dependencia nueva) dado que los bugs reales de conteo de
+> `PLAN_V3.md` ítems 49-50 son exactamente lo que un runner mantenido evita.
+> Ver `PLAN_V3.md` Fase 9 para el detalle completo.
+>
+> **Ambas recomendaciones de la Fase 9 fueron autorizadas por el dueño e
+> implementadas**: (1) **`sharp` adoptado** — `services/imagenWebp.js`/
+> `imagenProducto.js` reescritos a async, quitado el binario `webp`/`cwebp`
+> del `Dockerfile`, agregado redimensionado (tope 1600px). Verificado
+> funcional end-to-end dentro del contenedor (no solo build), incluida una
+> regresión real que causó el propio cambio (`tests/test_imagen_producto.js`
+> llamaba `guardarBase64` sin `await` — corregida, 8/8 pasan). (2) **Migración
+> a `node:test` iniciada**: de 58 archivos de test, 19 migrados y EJECUTADOS
+> de verdad (DB aislada/mock/fixture, cero riesgo a producción) —
+> `test_bot.js` (617 líneas, el más grande) da 117/117; corrida consolidada
+> final 229/231 (los 2 que fallan son un bug preexistente de fixture en
+> `test_roles_erp.js`, no una regresión, confirmado reconstruyendo el
+> original). Los 39 archivos restantes necesitan BD real sembrada para
+> migrarse con seguridad — no se tocaron. Ver `PLAN_V3.md` ítems 62-63.
 >
 > Todo lo demás abajo sigue siendo útil como historia y para los principios (chokepoint de dinero, golden/paridad byte-idéntico de JC, migraciones versionadas + espejo en `db/schema.sql`, módulos toggleables).
 >

@@ -9,6 +9,8 @@
 const path     = require('path');
 const Module   = require('module');
 const Database = require('better-sqlite3');
+const { test } = require('node:test');
+const assert   = require('node:assert/strict');
 
 const db = new Database(':memory:');
 db.exec(`
@@ -67,8 +69,7 @@ Module._load = function (req, parent, isMain) {
 
 const referidosService = require(path.join(__dirname, '..', 'bot', 'handlers', 'referidosService'));
 
-let pass = 0, fail = 0;
-const ok = (c, m) => { if (c) { pass++; console.log('  ✅ ' + m); } else { fail++; console.log('  ❌ ' + m); } };
+const ok = (c, m) => assert.ok(c, m);
 
 function nuevoCliente(tel, nombre) {
     return db.prepare('INSERT INTO clientes (telefono, nombre) VALUES (?,?)').run(tel, nombre).lastInsertRowid;
@@ -79,8 +80,7 @@ function confirmarPrimeraCompra(idCliente, total = 500) {
 
 console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\n');
 
-// ── 1. Vinculación en primer mensaje no otorga nada todavía ────────────────
-{
+test('1. Vinculación en primer mensaje no otorga nada todavía', () => {
     const idReferente = nuevoCliente('521000000001', 'Ana');
     const codigo = referidosService.asegurarCodigoReferido(idReferente);
     ok(/^[A-Z0-9]{5}$/.test(codigo), 'asegurarCodigoReferido genera formato de 5 caracteres sin prefijo');
@@ -103,10 +103,9 @@ console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\
     referidosService.procesarReferidoSiAplica(idNuevo, '521000000002', 'ahora uso ' + codigo2);
     const cli2 = db.prepare('SELECT referido_por_id FROM clientes WHERE id=?').get(idNuevo);
     ok(cli2.referido_por_id === idReferente, 'un vínculo ya hecho no se reasigna con un segundo código');
-}
+});
 
-// ── 2. Primera compra finalizada: mensaje + puntos al referente ───────────
-{
+test('2. Primera compra finalizada: mensaje + puntos al referente', () => {
     const idReferente = nuevoCliente('521000000010', 'Diana');
     const codigoRef = referidosService.asegurarCodigoReferido(idReferente);
     const idReferido = nuevoCliente('521000000011', 'Eric');
@@ -130,10 +129,9 @@ console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\
     ok(!!notifReferente && /puntos sumados/i.test(notifReferente.cuerpo), 'el referente recibe notificación de puntos ganados');
     ok(/saldo total: \*100 puntos\*/i.test(notifReferente.cuerpo), 'la notificación al referente incluye su saldo total de puntos');
     ok(/mis puntos/i.test(notifReferente.cuerpo) && !/cup[oó]n/i.test(notifReferente.cuerpo), 'con solo 100 puntos no se le ofrece todavía ningún cupón');
-}
+});
 
-// ── 3. Idempotencia: compras siguientes no vuelven a disparar nada ────────
-{
+test('3. Idempotencia: compras siguientes no vuelven a disparar nada', () => {
     const idReferente = nuevoCliente('521000000020', 'Fer');
     const codigoRef = referidosService.asegurarCodigoReferido(idReferente);
     const idReferido = nuevoCliente('521000000021', 'Gus');
@@ -147,11 +145,9 @@ console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\
 
     const saldo = db.prepare('SELECT puntos_ganados FROM puntos_cliente WHERE id_cliente=?').get(idReferente);
     ok(saldo.puntos_ganados === 100, 'el referente no recibe puntos duplicados en la segunda compra');
-}
+});
 
-// ── 4. Tope semanal de 3 referidos: el comprador igual recibe su código,
-//      pero el referente NO se acredita si ya llegó al tope ────────────────
-{
+test('4. Tope semanal de 3 referidos: el comprador igual recibe su código, pero el referente NO se acredita si ya llegó al tope', () => {
     const idReferente = nuevoCliente('521000000030', 'Hugo');
     for (let i = 0; i < 3; i++) {
         const idR = nuevoCliente('52100000004' + i, 'relleno' + i);
@@ -170,10 +166,9 @@ console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\
 
     const filaNueva = db.prepare('SELECT id FROM referidos WHERE id_referente=? AND id_referido=?').get(idReferente, idReferido);
     ok(!filaNueva, 'no se inserta fila en referidos cuando se topó el límite semanal');
-}
+});
 
-// ── 5. Apagador: referidos_activo='0' desactiva todo el programa ──────────
-{
+test("5. Apagador: referidos_activo='0' desactiva todo el programa", () => {
     db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES ('referidos_activo','0')").run();
 
     const idReferente = nuevoCliente('521000000060', 'Julia');
@@ -187,10 +182,9 @@ console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\
     ok(resCompra === null, 'con el apagador en 0, otorgarPuntosPorPrimeraCompra no hace nada');
 
     db.prepare("DELETE FROM configuracion WHERE clave='referidos_activo'").run();
-}
+});
 
-// ── 6. Descuento automático de bienvenida (10%) para el cliente referido ──
-{
+test('6. Descuento automático de bienvenida (10%) para el cliente referido', () => {
     const idReferente = nuevoCliente('521000000070', 'Laura');
     const codigoRef = referidosService.asegurarCodigoReferido(idReferente);
     const idReferido = nuevoCliente('521000000071', 'Mario');
@@ -210,7 +204,4 @@ console.log('\nSuite: Programa de referidos (referidosService.js, módulo real)\
     const carritoOferta = [{ id: 5, price: 100, cantidad: 1 }];
     const res3 = referidosService.calcularDescuentoReferido('521000000072', carritoOferta);
     ok(res3.aplica === false && res3.motivo === 'oferta_activa', 'no aplica el descuento si el carrito ya tiene un artículo en oferta activa');
-}
-
-console.log('\nResultado: ' + pass + ' pass, ' + fail + ' fail\n');
-process.exit(fail ? 1 : 0);
+});

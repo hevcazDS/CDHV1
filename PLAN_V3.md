@@ -307,3 +307,94 @@ comportamiento exacto? ¿quedó algo suelto o duplicado?
 
 **Resultado**: 6 de 7 refactors perfectos al primer intento; 1 con un detalle
 menor de gating de emoji, ya corregido. Build reverificado limpio.
+
+## Fase 9 — Auditoría de arquitecto/experto (2026-07-22f) — optimización y candidatos de librería
+
+A pedido explícito ("como un experto programador... punto de optimización...
+agregando alguna nueva dependencia"), 4 agentes evaluaron el proyecto con
+lente de arquitecto (no búsqueda de bugs) en bot/, dashboard backend,
+frontend, y dependencias/services. Veredictos y hallazgos:
+
+### Decisiones de arquitectura confirmadas (mantener tal cual, no cambiar)
+- Mutex por-usuario en `bot/index.js` sin cola real: correcto dejarlo así —
+  WhatsApp no garantiza orden de entrega, una librería de cola agregaría
+  complejidad sin comprar corrección real.
+- `sessionManager.js` (Map en memoria + SQLite): `lru-cache` no mejoraría
+  nada real — la lógica de persistir carritos abandonados es de dominio, no
+  de mecánica de caché.
+- Rate limiting (bot y dashboard): hand-rolled es proporcional al modelo de
+  amenaza real (single-process, equipo pequeño/interno) — `rate-limiter-flexible`
+  solo se justifica con múltiples instancias/Redis, que no aplica aquí.
+- Motor de flujo: intérprete a medida es la decisión correcta, `xstate` no
+  encaja (el grafo persiste en BD, tiene handoff a código legacy, contrato
+  fail-closed) — el único gap real (sin detección de ciclos) es ~30 líneas
+  de Tarjan en el linter existente, no una librería nueva.
+- Backend nativo `http` (sin Express) a 343 rutas: sigue siendo la decisión
+  correcta — el tronco declarativo ya da lo que Express daría, migrar 343
+  handlers en un sistema vivo no se justifica.
+- Frontend: code-splitting ya óptimo, Context+React Query es la arquitectura
+  correcta (sin evidencia de prop-drilling que justifique Zustand), sin
+  dependencias obsoletas/infladas.
+- SMTP (`services/smtpClient.js`, recién unificado): mejor que nodemailer
+  para el caso de uso actual — la unificación de esta sesión ya cerró la
+  brecha que hubiera justificado el swap.
+
+- [x] 60. **Bug real nuevo, medio**: `dashboard-ui/src/pages/erp/ComprasTab.jsx`
+       — 3 llamadas a `qc.invalidateQueries()` sin `queryKey` (Reordenar,
+       Cancelar OC, Recepción parcial) invalidaban TODAS las queries activas
+       de la app en vez de solo `erp-ocs`/`erp-cxp`. Corregido.
+- [x] 61. **Bug real nuevo, bajo-medio**: `bot/index.js` — `fs.existsSync`/
+       `mkdirSync`/`writeFileSync` síncronos al guardar cada foto de cliente
+       bloqueaban el event loop del bot (single-thread) para TODOS los
+       usuarios mientras dura el disco I/O. Convertido a `fs.promises`.
+- [x] 62. **Bug real, medio — corregido, autorizado por el dueño**:
+       `services/imagenWebp.js`/`imagenProducto.js` usaban
+       `execFileSync('cwebp', ..., {timeout:15000})` — bloqueaba el event loop
+       hasta 15s por conversión + dependía de un binario frágil del sistema.
+       **Adoptado `sharp`** (nueva dependencia de producción): los 2 archivos
+       reescritos a async, quitado `webp` del `Dockerfile` (sharp bundlea
+       libvips, sin binario externo), `bot/index.js`/`primeCatalogo.js`
+       actualizados a `await` las funciones ahora-async. De paso se agregó
+       redimensionado (tope 1600px al lado mayor — antes se guardaba a
+       resolución completa de cámara). `package-lock.json` regenerado con
+       Node del mismo SO que la imagen (`node:20-bookworm`, vía Docker) para
+       que el binario nativo de sharp coincida con la plataforma real.
+       **Verificado funcional end-to-end** (no solo build/sintaxis): conversión
+       real 2000×1500→1600×1200 dentro del contenedor, redimensiona, borra el
+       original, retorna el basename correcto.
+- [x] 63. **Migración a `node:test` — iniciada y verificada, autorizada por el
+       dueño**: 58 archivos de test en total; 39 necesitan la BD real de
+       producción sembrada (no se puede migrar a ciegas sin poder ejecutar y
+       verificar — riesgo de introducir el mismo tipo de bug de conteo que
+       esta migración busca eliminar). **19 archivos migrados Y ejecutados de
+       verdad** (DB `:memory:`/mock/fixture aislada — verificado archivo por
+       archivo antes de correr nada, cero riesgo a la BD de producción):
+       `test_activos_fijos.js`, `test_citas.js`, `test_dashboard_control.js`,
+       `test_direccion_guardada.js`, `test_erp.js`, `test_lealtad.js`,
+       `test_multitienda.js`, `test_pin_tronco.js`, `test_puntos_compra.js`,
+       `test_referidos.js`, `test_reversion.js`, `test_roles_erp.js`,
+       `test_salud_negocio.js`, `test_variantes.js`, `test_bot.js` (el más
+       grande y complejo, 617 líneas — **117/117 pasan** con la lógica real
+       del bot cargada), `test_gimnasio.js`, `test_imagen_producto.js`,
+       `test_motor_actions.js`, `test_motor_conversaciones.js`.
+       **Corrida consolidada final: 229/231 pasan.** Los 2 que fallan
+       (`test_roles_erp.js`, sección Kardex/Nómina) son un bug PREEXISTENTE
+       del fixture (esquema de `nominas`/`empleados` desactualizado frente a
+       las columnas reales que `nominaService.js` ya usa) — confirmado
+       reconstruyendo el archivo original y corriéndolo: falla igual, no es
+       una regresión de la migración. De paso se encontraron y arreglaron 2
+       bugs de fixture similares en `test_erp.js` (mismo tipo de columnas
+       faltantes) que si no se arreglaban, hubieran tronado igual con el
+       runner viejo. `tests/fixture_min.js` (helper compartido, no es un test
+       en sí) se dejó intacto. `tests/golden_snapshot.js` se dejó SIN migrar
+       a propósito — su modo `--update` no encaja con el modelo de
+       `node:test`, se verificó que sigue funcionando como está.
+       `package.json` actualizado (8 scripts `test:*` + el script compuesto
+       `test`). **Pendiente real, no ejecutado**: los 39 archivos que
+       requieren BD real + `golden_snapshot.js` — migrarlos con seguridad
+       necesita un entorno con una copia de BD sembrada desechable, no la de
+       producción.
+- [x] 64. Nit de documentación: `docs/API.md` decía "importar Excel" para el
+       import de horarios de RRHH — en realidad es CSV puro
+       (`linea.split(',')`, sin manejo de campos con comillas). Corregido el
+       texto; no se adoptó `xlsx` (no se pidió soporte real de `.xlsx`).
